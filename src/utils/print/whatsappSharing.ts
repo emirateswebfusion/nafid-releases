@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../localization/storeProfile';
 import { formatAmount } from '../pricing/money';
 
 type PartyType = { party_type?: string | null; custom_category?: string | null };
@@ -20,7 +21,7 @@ export function allowsPartyMessage(selection: unknown, party: PartyType): boolea
 export function formatPurchaseLedgerMessage(entry: { credit_amount: number; debit_amount: number; running_balance: number }): string {
   const amount = (value: number) => formatAmount(value, Number.isInteger(value) ? 0 : 2);
   const opening = entry.running_balance - entry.credit_amount + entry.debit_amount;
-  return `OB: ₹ ${amount(opening)}/-\nPurchase: ₹ ${amount(entry.debit_amount)}/-\nBalance: ₹ ${amount(entry.running_balance)}/-`;
+  return `OB: ${getCurrencyPrefix()} ${amount(opening)}/-\nPurchase: ${getCurrencyPrefix()} ${amount(entry.debit_amount)}/-\nBalance: ${getCurrencyPrefix()} ${amount(entry.running_balance)}/-`;
 }
 export function buildBillShares(input: { phone: string; message: string; a4Html: string; legacyHtml?: string; receiptText: string; invoiceNumber: string; receiptWidthMm?: number }, formats: BillFormat[]) {
   const summary = input.message.replace(/\n?📄 Detailed PDF invoice is attached below\./, '').trimEnd();

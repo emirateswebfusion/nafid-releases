@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type { DisplayInvoice } from '../invoiceDisplayTypes';
 import type { UpiSourceOption } from '../salesTypes';
 /** Sales History list row (`InvoiceRow`) and its payment / invoice-type badges. */
@@ -78,7 +80,7 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
                 />
               </div>
             ) : (inv.invoice_type === 'BILL_OF_SUPPLY' && !isConvertedBos) ? (
-              <div className="flex items-center justify-center shrink-0 p-0.5" title="Full Estimate Bill (cannot convert to GST)">
+              <div className="flex items-center justify-center shrink-0 p-0.5" title={localizeTaxText("Full Estimate Bill (cannot convert to GST)")}>
                 <input
                   type="checkbox"
                   disabled
@@ -95,12 +97,12 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
             <div className="text-xs font-black text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5 flex-wrap">
               <span>{inv.invoice_number}</span>
               {isConvertedBos && (
-                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/20" title={`Converted to GST: ${inv.converted_to_invoice_number || ''}`}>
-                  ⚡ GST Filed {inv.converted_to_invoice_number ? `(${inv.converted_to_invoice_number})` : ''}
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/20" title={localizeTaxText(`Converted to GST: ${inv.converted_to_invoice_number || ''}`)}>
+                  ⚡ {localizeTaxText("GST")} Filed {inv.converted_to_invoice_number ? `(${inv.converted_to_invoice_number})` : ''}
                 </span>
               )}
               {isConversionCopy && (
-                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title={`Statutory GST filing copy from BOS: ${inv.converted_from_invoice_number || ''}`}>
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title={localizeTaxText(`Statutory GST filing copy from BOS: ${inv.converted_from_invoice_number || ''}`)}>
                   📄 Tax Copy {inv.converted_from_invoice_number ? `(From ${inv.converted_from_invoice_number})` : ''}
                 </span>
               )}
@@ -145,11 +147,11 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
             const sd = parseSplitDetails(inv.split_details);
             if (!sd) return null;
             const parts: string[] = [];
-            if (Number(sd.cash) > 0) parts.push(`Cash: ₹${Number(sd.cash).toFixed(2)}`);
-            if (Number(sd.upi) > 0) parts.push(`UPI: ₹${Number(sd.upi).toFixed(2)}`);
-            if (Number(sd.card) > 0) parts.push(`Card: ₹${Number(sd.card).toFixed(2)}`);
-            if (Number(sd.bank_transfer) > 0) parts.push(`Bank: ₹${Number(sd.bank_transfer).toFixed(2)}`);
-            if (Number(sd.credit) > 0) parts.push(`Credit: ₹${Number(sd.credit).toFixed(2)}`);
+            if (Number(sd.cash) > 0) parts.push(`Cash: ${getCurrencyPrefix()}${Number(sd.cash).toFixed(2)}`);
+            if (Number(sd.upi) > 0) parts.push(`UPI: ${getCurrencyPrefix()}${Number(sd.upi).toFixed(2)}`);
+            if (Number(sd.card) > 0) parts.push(`Card: ${getCurrencyPrefix()}${Number(sd.card).toFixed(2)}`);
+            if (Number(sd.bank_transfer) > 0) parts.push(`Bank: ${getCurrencyPrefix()}${Number(sd.bank_transfer).toFixed(2)}`);
+            if (Number(sd.credit) > 0) parts.push(`Credit: ${getCurrencyPrefix()}${Number(sd.credit).toFixed(2)}`);
             if (parts.length === 0) return null;
             return (
               <div className="text-[10px] font-black text-purple-700 dark:text-purple-300 mt-0.5 leading-snug">

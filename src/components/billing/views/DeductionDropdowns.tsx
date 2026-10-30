@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { lookupReturnCredit, lookupScrapCredit } from '../deductionLookup';
 import { ArrowLeftRight } from 'lucide-react';
@@ -114,7 +115,7 @@ export function DeductionDropdowns({
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</div>
                 <div className="text-[10px] text-muted-foreground">
-                  <span className="text-amber-500 font-semibold">Pending</span> · {Number(inv.total_qty || 0).toFixed(1)} qty · {parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}
+                  <span className="text-amber-500 font-semibold">Pending</span> · {Number(inv.total_qty || 0).toFixed(1)} qty · {parseUTCDate(inv.created_at).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })}
                 </div>
               </div>
               <div className="text-xs font-black text-orange-600">{formatCurrency(inv.total_amount)}</div>

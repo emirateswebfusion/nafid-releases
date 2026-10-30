@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../../utils/localization/storeProfile';
 import { DateRangeFilter } from '../../../ui/DateRangeFilter';
 import clsx from 'clsx';
 import { FileText, TrendingUp, X, ArrowUpDown, Table, LayoutList, Loader2, FileDown } from 'lucide-react';
@@ -75,7 +76,7 @@ export function LedgerToolbar({
               )}
             >
               <FileText className="w-3 h-3" />
-              GST ({gstEntriesCount})
+              {localizeTaxText("GST")} ({gstEntriesCount})
             </button>
             <button
               type="button"

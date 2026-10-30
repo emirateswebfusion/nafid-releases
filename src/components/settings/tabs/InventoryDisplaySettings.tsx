@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { FileText, Package, Eye } from 'lucide-react';
 import { DefaultStockReportViewSelector } from '../settingsConstants';
@@ -29,8 +30,8 @@ export const InventoryDisplaySettings: React.FC<InventoryDisplaySettingsProps> =
               <SettingsCard icon={Eye} title="Product Name Badges" subtitle="Small badges shown under each product name in the inventory list">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ToggleRow
-                    label="Show GST / Estimate / Paper Badges"
-                    description="Show or hide the product type badges (Real, Paper, Estimate, GST) under each product name."
+                    label={localizeTaxText("Show GST / Estimate / Paper Badges")}
+                    description={localizeTaxText("Show or hide the product type badges (Real, Paper, Estimate, GST) under each product name.")}
                     checked={showProductGstBadge}
                     onToggle={() => setShowProductGstBadge(!showProductGstBadge)}
                   />

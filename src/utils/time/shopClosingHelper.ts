@@ -1,3 +1,4 @@
+import { getCurrencyPrefix, localizeCurrencyText } from '../localization/storeProfile';
 import { formatCurrency } from '../pricing/money';
 import type { ShopClosingChecklist, ShopClosingOverviewConfig } from '../../data/whatsapp';
 /**
@@ -158,13 +159,13 @@ export const CHECKLIST_DEFINITIONS: ChecklistItemDefinition[] = [
   { key: 'cashInOut', label: 'Cash In & Cash Out Summary', description: 'Total deposits and withdrawals with counts', category: 'cash' },
   { key: 'cashInList', label: 'Cash In Itemized List', description: 'View each Cash In entry (e.g. Opening Float, Owner Deposit)', category: 'cash' },
   { key: 'expenses', label: 'Expenses Summary Total', description: 'Total business expenses paid out from the till', category: 'cash' },
-  { key: 'expensesList', label: 'Expenses Itemized List', description: 'View all expenses itemized (e.g. Tea - ₹10, Cleaning - ₹50)', category: 'cash' },
+  { key: 'expensesList', label: 'Expenses Itemized List', description: localizeCurrencyText('View all expenses itemized (e.g. Tea - ₹10, Cleaning - ₹50)'), category: 'cash' },
 
   // ── 5. Credit, Ledger, Staff & Operations ──
   { key: 'creditSales', label: 'Credit Sales Issued', description: 'Total sales issued on customer credit today', category: 'ops' },
   { key: 'customerPayments', label: 'Customer Payments (Got Cash)', description: 'Total collections towards old customer ledger balances', category: 'ops' },
-  { key: 'partyTransactions', label: 'Party Transactions List', description: 'Each customer/supplier transaction (e.g. - Suhaib: ₹1000)', category: 'ops' },
-  { key: 'staffTransactions', label: 'Staff Transactions List', description: 'Each employee transaction (e.g. - Rahul: ₹500 Advance)', category: 'ops' },
+  { key: 'partyTransactions', label: 'Party Transactions List', description: localizeCurrencyText('Each customer/supplier transaction (e.g. - Suhaib: ₹1000)'), category: 'ops' },
+  { key: 'staffTransactions', label: 'Staff Transactions List', description: localizeCurrencyText('Each employee transaction (e.g. - Rahul: ₹500 Advance)'), category: 'ops' },
   { key: 'scrap', label: 'Scrap Transactions & Deductions', description: 'Scrap purchases, rates, materials & bill deductions', category: 'ops' },
   { key: 'scrapSales', label: 'Include Scrap Sales Total', description: 'Show scrap sales alongside purchase totals', category: 'ops', parentKey: 'scrap' },
   { key: 'scrapCategories', label: 'Scrap by Category', description: 'Group scrap purchases and sales separately by material', category: 'ops', parentKey: 'scrap' },
@@ -341,7 +342,7 @@ export function generateWhatsAppClosingMessage(
       } else if (data.cashExcess > 0) {
         lines.push(`• ➕ *Cash Excess:* +${formatCurrency(data.cashExcess)}`);
       } else {
-        lines.push(`• ✅ *Cash Variance:* Balanced (₹0.00)`);
+        lines.push(`• ✅ *Cash Variance:* Balanced (${getCurrencyPrefix()}0.00)`);
       }
     }
   }

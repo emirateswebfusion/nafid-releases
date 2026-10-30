@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import {
   ArrowLeft, Check, Edit2, Edit3, Loader2, Plus, Search, Tag, Trash, X,
 } from 'lucide-react';
@@ -50,9 +51,9 @@ export function CategoryGradesTable({
                 {filteredGrades.length > 0 && (
                   <>
                     {' '}
-                    ₹ Avg Purchase: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(2)}</span>
+                    {getCurrencyPrefix()} Avg Purchase: <span className="font-mono font-bold text-foreground/80">{getCurrencyPrefix()}{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(2)}</span>
                     {' '}
-                    ₹ Avg MRP: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span>
+                    {getCurrencyPrefix()} Avg MRP: <span className="font-mono font-bold text-foreground/80">{getCurrencyPrefix()}{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span>
                   </>
                 )}
               </p>
@@ -139,9 +140,9 @@ export function CategoryGradesTable({
         <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm">
           <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none">
             <div className="col-span-4">Grade Name</div>
-            <div className="col-span-2">Purchase Price (₹/kg)</div>
-            <div className="col-span-2">MRP (₹/kg)</div>
-            <div className="col-span-2">Offer (₹/kg)</div>
+            <div className="col-span-2">Purchase Price ({getCurrencyPrefix()}/kg)</div>
+            <div className="col-span-2">MRP ({getCurrencyPrefix()}/kg)</div>
+            <div className="col-span-2">Offer ({getCurrencyPrefix()}/kg)</div>
             <div className="col-span-2 text-right">Actions</div>
           </div>
           {filteredGrades.map((grade) => {
@@ -178,10 +179,10 @@ export function CategoryGradesTable({
                       </div>
                       <div className="space-y-1.5">
                         <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Purchase Price (₹)
+                          Purchase Price ({getCurrencyPrefix()})
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">{getCurrencyPrefix()}</span>
                           <input
                             type="number"
                             value={editForm.purchase_price || ''}
@@ -192,10 +193,10 @@ export function CategoryGradesTable({
                       </div>
                       <div className="space-y-1.5">
                         <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                          MRP (₹)
+                          MRP ({getCurrencyPrefix()})
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">{getCurrencyPrefix()}</span>
                           <input
                             type="number"
                             value={editForm.rate || ''}
@@ -206,10 +207,10 @@ export function CategoryGradesTable({
                       </div>
                       <div className="space-y-1.5">
                         <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Offer (₹)
+                          Offer ({getCurrencyPrefix()})
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">{getCurrencyPrefix()}</span>
                           <input
                             type="number"
                              value={editForm.offer_price || ''}
@@ -244,13 +245,13 @@ export function CategoryGradesTable({
                       <span className="text-xs font-bold text-foreground truncate">{grade.grade_name || '(General)'}</span>
                     </div>
                     <div className="col-span-2 font-mono font-bold text-foreground/80 text-xs">
-                      ₹{(grade.purchase_price || 0).toFixed(2)}
+                      {getCurrencyPrefix()}{(grade.purchase_price || 0).toFixed(2)}
                     </div>
                     <div className="col-span-2 font-mono font-extrabold text-primary text-xs">
-                      ₹{grade.rate.toFixed(2)}
+                      {getCurrencyPrefix()}{grade.rate.toFixed(2)}
                     </div>
                     <div className="col-span-2 font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
-                      {(grade.offer_price ?? 0) > 0 ? `₹${(grade.offer_price ?? 0).toFixed(2)}` : '-'}
+                      {(grade.offer_price ?? 0) > 0 ? `${getCurrencyPrefix()}${(grade.offer_price ?? 0).toFixed(2)}` : '-'}
                     </div>
                     <div className="col-span-2 flex items-center justify-end gap-1.5 border-l border-border/60 pl-3">
                       <button

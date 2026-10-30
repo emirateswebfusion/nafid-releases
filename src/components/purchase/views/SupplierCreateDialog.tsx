@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { UserCircle, X, Phone, MapPin, Banknote, Loader2, UserPlus } from 'lucide-react';
 
@@ -72,7 +74,7 @@ export function SupplierCreateDialog({
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GSTIN</label>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{localizeTaxText("GSTIN")}</label>
               <input
                 type="text"
                 placeholder="Optional"
@@ -126,9 +128,9 @@ export function SupplierCreateDialog({
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Amount (₹)</label>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Amount ({getCurrencyPrefix()})</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs pointer-events-none">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs pointer-events-none">{getCurrencyPrefix()}</span>
                   <input
                     type="number"
                     step="0.01"

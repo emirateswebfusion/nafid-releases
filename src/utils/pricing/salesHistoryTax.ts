@@ -1,3 +1,4 @@
+import { isUaeStore } from '../localization/storeProfile';
 import { splitTaxAmount } from './checkoutLines';
 
 type TaxInvoice = { customer_name?: string | null; invoice_id: string; invoice_number?: string | null; created_at?: string | null; supply_type?: string | null; converted_from_invoice_id?: string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; tax_total?: number | string | null; subtotal?: number | string | null; grand_total?: number | string | null };
@@ -115,8 +116,8 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     const storedGrand = Number(inv?.grand_total);
     const netRatio = grossTotal > 0 && Number.isFinite(storedGrand) ? Math.max(0, storedGrand / grossTotal) : 1;
     const taxSplit = splitTaxAmount(invoiceTax);
-    const cgstAmount = interState ? 0 : taxSplit.cgst;
-    const sgstAmount = interState ? 0 : taxSplit.sgst;
+    const cgstAmount = isUaeStore() || interState ? 0 : taxSplit.cgst;
+    const sgstAmount = isUaeStore() || interState ? 0 : taxSplit.sgst;
 
     return [{
       invoice: inv,
@@ -135,12 +136,12 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
       discount: round2(discountTotal + pointsDiscount),
       total: grossTotal,
       netTotal: round2(grossTotal * netRatio),
-      cgstRate: interState ? 0 : round1(rate / 2),
+      cgstRate: isUaeStore() || interState ? 0 : round1(rate / 2),
       cgstAmount,
-      sgstRate: interState ? 0 : round1(rate / 2),
+      sgstRate: isUaeStore() || interState ? 0 : round1(rate / 2),
       sgstAmount,
-      igstRate: interState ? rate : 0,
-      igstAmount: interState ? round2(invoiceTax) : 0,
+      igstRate: !isUaeStore() && interState ? rate : 0,
+      igstAmount: !isUaeStore() && interState ? round2(invoiceTax) : 0,
     }];
   }
 
@@ -159,8 +160,8 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     const discount = round2(entry.taxable - taxable);
     const total = round2(taxable + tax);
     const taxSplit = splitTaxAmount(tax);
-    const cgstAmount = interState ? 0 : taxSplit.cgst;
-    const sgstAmount = interState ? 0 : taxSplit.sgst;
+    const cgstAmount = isUaeStore() || interState ? 0 : taxSplit.cgst;
+    const sgstAmount = isUaeStore() || interState ? 0 : taxSplit.sgst;
 
     return {
       invoice: inv,
@@ -179,12 +180,12 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
       discount,
       total,
       netTotal: round2(total * netRatio),
-      cgstRate: interState ? 0 : round1(entry.gstRate / 2),
+      cgstRate: isUaeStore() || interState ? 0 : round1(entry.gstRate / 2),
       cgstAmount,
-      sgstRate: interState ? 0 : round1(entry.gstRate / 2),
+      sgstRate: isUaeStore() || interState ? 0 : round1(entry.gstRate / 2),
       sgstAmount,
-      igstRate: interState ? round1(entry.gstRate) : 0,
-      igstAmount: interState ? tax : 0,
+      igstRate: !isUaeStore() && interState ? round1(entry.gstRate) : 0,
+      igstAmount: !isUaeStore() && interState ? tax : 0,
     };
   });
 
@@ -208,7 +209,7 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     }
   }
 
-  return rows;
+  return isUaeStore() ? rows.map(row => ({ ...row, cgstRate: 0, sgstRate: 0, igstRate: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0 })) : rows;
 }
 
 export function buildTaxFilteredProductRows(

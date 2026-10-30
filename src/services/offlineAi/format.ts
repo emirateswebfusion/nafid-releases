@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 /** Formatting and text helpers of the offline AI assistant. */
 import { formatCurrency } from '../../utils/pricing/money';
 import type { AiRow } from './types';
@@ -8,7 +9,7 @@ export function formatINR(val: number | string | null | undefined): string {
 
 export function formatQty(val: number | string | null | undefined): string {
   const num = Number(val || 0);
-  return num.toLocaleString('en-IN', { maximumFractionDigits: 3 });
+  return num.toLocaleString(getStoreLocale(), { maximumFractionDigits: 3 });
 }
 
 export function isMalayalam(text: string): boolean {

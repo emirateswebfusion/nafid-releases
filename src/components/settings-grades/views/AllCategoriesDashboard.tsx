@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import {
   Check, ChevronRight, Edit3, Folder, Layers, Plus, Search, Trash, TrendingUp, X,
 } from 'lucide-react';
@@ -54,7 +55,7 @@ export function AllCategoriesDashboard({
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgPurchasePrice.toFixed(2)}</p>
+            <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{avgPurchasePrice.toFixed(2)}</p>
             <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Purchase Price</p>
           </div>
         </div>
@@ -63,7 +64,7 @@ export function AllCategoriesDashboard({
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgRate.toFixed(2)}</p>
+            <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{avgRate.toFixed(2)}</p>
             <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Base MRP</p>
           </div>
         </div>
@@ -210,8 +211,8 @@ export function AllCategoriesDashboard({
                         <span className="truncate text-foreground/80">{g.grade_name || '(General)'}</span>
                       </div>
                       <span className="font-mono text-[10px] text-muted-foreground font-semibold">
-                        P: <span className="text-foreground/90 font-extrabold">₹{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">₹{g.rate.toFixed(1)}</span>
-                        {g.offer_price ? <> | O: <span className="text-emerald-500 font-extrabold">₹{g.offer_price.toFixed(1)}</span></> : null}
+                        P: <span className="text-foreground/90 font-extrabold">{getCurrencyPrefix()}{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">{getCurrencyPrefix()}{g.rate.toFixed(1)}</span>
+                        {g.offer_price ? <> | O: <span className="text-emerald-500 font-extrabold">{getCurrencyPrefix()}{g.offer_price.toFixed(1)}</span></> : null}
                       </span>
                     </div>
                   ))}
@@ -227,7 +228,7 @@ export function AllCategoriesDashboard({
                   <div className="leading-tight text-left">
                     <span className="text-[9px] text-muted-foreground/75 font-bold uppercase tracking-wider block">Avg Price (P / M)</span>
                     <span className="text-xs font-extrabold text-foreground font-mono">
-                      ₹{avgCatPurchasePrice.toFixed(1)} / ₹{avgCatRate.toFixed(1)}
+                      {getCurrencyPrefix()}{avgCatPurchasePrice.toFixed(1)} / {getCurrencyPrefix()}{avgCatRate.toFixed(1)}
                     </span>
                   </div>
                   <button

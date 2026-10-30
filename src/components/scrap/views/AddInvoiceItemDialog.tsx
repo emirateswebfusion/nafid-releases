@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Plus, X, Loader2 } from 'lucide-react';
 import { Select } from '../../ui/Select';
@@ -57,7 +58,7 @@ export function AddInvoiceItemDialog({
               }}
               options={[
                 { value: '', label: '-- Select Category --' },
-                ...categories.map(c => ({ value: c.scrap_category_id, label: `${c.name} (${c.unit}) - ₹${c.purchase_price}/${c.unit}` })),
+                ...categories.map(c => ({ value: c.scrap_category_id, label: `${c.name} (${c.unit}) - ${getCurrencyPrefix()}${c.purchase_price}/${c.unit}` })),
               ]}
             />
           </div>
@@ -77,7 +78,7 @@ export function AddInvoiceItemDialog({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Rate (₹) *</label>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Rate ({getCurrencyPrefix()}) *</label>
               <input
                 required
                 type="number"
@@ -105,7 +106,7 @@ export function AddInvoiceItemDialog({
           {addItemForm.quantity && addItemForm.rate && Number(addItemForm.quantity) > 0 && Number(addItemForm.rate) > 0 && (
             <div className="pt-2 flex items-center justify-between text-sm border-t border-border font-bold">
               <span className="text-muted-foreground">Line Total:</span>
-              <span className="text-orange-500 text-base">₹{(Number(addItemForm.quantity) * Number(addItemForm.rate)).toFixed(2)}</span>
+              <span className="text-orange-500 text-base">{getCurrencyPrefix()}{(Number(addItemForm.quantity) * Number(addItemForm.rate)).toFixed(2)}</span>
             </div>
           )}
         </div>

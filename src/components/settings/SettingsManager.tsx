@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useMemo } from 'react';
 import { Settings, Save, Loader2, CheckCircle2, AlertCircle, X, Power } from 'lucide-react';
 import { useCartStore } from '../../store/cartStore';
@@ -177,7 +178,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   });
 
   const {
-    barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr,
+    barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopEmail, shopWebsite, vatPriceInclusive, storeCountry, storeTimezone, upiId, showUpiQr,
     showPriceOverrideMrp, openCashDrawerOnPending, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer,
     defaultOpeningBalance, printFormat, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix,
     b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister,
@@ -208,7 +209,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     if (!initialSnapshot) return false;
     return getSettingsSnapshot() !== initialSnapshot;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getSettingsSnapshot and initialSnapshot are excluded so the original form-field and saveRevision changes remain the dirty-check triggers.
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, billSettings, scrapBillSettings, gstProfitPercentage, gstConversionTaxInclusive, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig, emergencyPanicConfig, shopClosingConfig, saveRevision, sectionDirty]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, vatPriceInclusive, storeCountry, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, billSettings, scrapBillSettings, gstProfitPercentage, gstConversionTaxInclusive, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig, emergencyPanicConfig, shopClosingConfig, saveRevision, sectionDirty]);
 
   useEffect(() => {
     let isMounted = true;
@@ -438,7 +439,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-2 max-w-2xl text-center leading-relaxed font-medium">
-                  {activeItem.description}
+                  {localizeTaxText(activeItem.description)}
                 </p>
               </div>
             )}

@@ -1,3 +1,6 @@
+import { InvoiceItemsTable } from '../../sales/views/InvoiceItemsTable';
+import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { useLoyaltyEnabled } from '../../../hooks/useLoyaltyEnabled';
 import type { DisplayInvoiceItem, DisplayComboItem } from '../../sales/invoiceDisplayTypes';
 import React from 'react';
@@ -208,7 +211,7 @@ export function CashierInvoiceModal({
                 <div className="text-[10px] text-muted-foreground">{selectedInvoice.customer_phone}</div>
               )}
               {selectedInvoice.customer_gstin && (
-                <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
+                <div className="text-[10px] text-muted-foreground font-mono">{localizeTaxText("GSTIN")}: {selectedInvoice.customer_gstin}</div>
               )}
               <div className="pt-1 border-t border-border/50 text-[10px] text-muted-foreground space-y-0.5">
                 {(selectedInvoice.biller_staff_name || selectedInvoice.biller_name) && (
@@ -293,6 +296,7 @@ export function CashierInvoiceModal({
 
           {/* Items */}
           {(() => {
+            if (isUaeStore()) return <InvoiceItemsTable items={invoiceItems} itemsLoading={loadingItems} selectedInvoice={selectedInvoice} />;
             const isGstBill = selectedInvoice.invoice_type === 'GST' || 
                               Number(selectedInvoice.tax_total) > 0 || 
                               invoiceItems.some((it) => Number(it.tax_amount) > 0 || Number(it.cgst_rate) > 0 || Number(it.tax_rate) > 0);
@@ -499,7 +503,7 @@ export function CashierInvoiceModal({
                                     Tax: {formatCurrency(itemTax)}
                                   </div>
                                 ) : (
-                                  <div className="text-[9.5px] text-muted-foreground font-medium">Tax: ₹0.00</div>
+                                  <div className="text-[9.5px] text-muted-foreground font-medium">Tax: {getCurrencyPrefix()}0.00</div>
                                 )}
                               </td>
                             )}
@@ -549,6 +553,7 @@ export function CashierInvoiceModal({
                     <span className="font-bold text-foreground">{formatCurrency(sub)}</span>
                   </div>
                   {tax > 0 && (() => {
+                    if (isUaeStore()) return <div className="flex justify-between text-xs"><span>VAT</span><span>{formatCurrency(tax)}</span></div>;
                     const effTaxRate = sub > 0 ? Math.round((tax / sub) * 100 * 10) / 10 : 0;
                     const isInter = selectedInvoice.supply_type === 'INTER';
                     let cgst = Number(selectedInvoice.cgst_total) || 0;
@@ -568,14 +573,14 @@ export function CashierInvoiceModal({
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
-                            <span>Tax (GST{effTaxRate > 0 ? ` ${effTaxRate}%` : ''})</span>
+                            <span>Tax ({localizeTaxText("GST")}{effTaxRate > 0 ? ` ${effTaxRate}%` : ''})</span>
                           </span>
                           <span className="font-bold text-foreground font-mono">{formatCurrency(tax)}</span>
                         </div>
                         {(cgst > 0 || sgst > 0 || igst > 0) && (
                           <div className="p-2.5 rounded-xl bg-amber-500/[0.05] dark:bg-amber-500/[0.10] border border-amber-500/20 my-1 space-y-1 text-xs">
                             <div className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center justify-between pb-1 border-b border-amber-500/15">
-                              <span>GST Tax Summary</span>
+                              <span>{localizeTaxText("GST")} Tax Summary</span>
                               <span className="font-mono font-bold">{formatCurrency(tax)}</span>
                             </div>
                             {cgst > 0 && (

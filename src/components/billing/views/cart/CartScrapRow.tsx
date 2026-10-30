@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../../../utils/localization/storeProfile';
 import type * as B from '../../billingTypes';
 import React from 'react';
 import clsx from 'clsx';
@@ -163,7 +164,7 @@ export const CartScrapRow: React.FC<CartScrapRowProps> = ({
             onKeyDown={e => {
               handleDiscFlatKeyDown(e, item.product_id);
             }}
-            placeholder="+₹"
+            placeholder={localizeCurrencyText("+₹")}
           />
           {hasAdHocBonus && (
             <button

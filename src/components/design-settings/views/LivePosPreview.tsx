@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { Eye, CreditCard, Tag, Barcode } from 'lucide-react';
 import { getForegroundForColor } from '../../../store/themeStore';
 import type { ColorPreset, SurfaceThemePreset, FontPreset } from '../../../store/themeStore';
@@ -83,7 +84,7 @@ export function LivePosPreview({
               Paid in Full
             </span>
             <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-secondary text-secondary-foreground border border-border">
-              GST 18%
+              {localizeTaxText("GST")} 18%
             </span>
           </div>
           <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[10px] text-muted-foreground">

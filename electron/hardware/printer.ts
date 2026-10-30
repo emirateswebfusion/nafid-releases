@@ -668,7 +668,7 @@ function executePrintWithFallback(
         return reject(new Error(`Print attempt 1 failed: ${failureReason1}`));
       }
 
-      if (requireExactPaper && (!heightMicrons || heightMicrons > 297000)) {
+      if (requireExactPaper) {
         return reject(new Error(`Could not print receipt to "${deviceName || 'Default'}": ${failureReason1 || 'Spooler error'}. Configure the driver for the selected roll width and a supported receipt length.`));
       }
 
@@ -678,10 +678,9 @@ function executePrintWithFallback(
   });
 }
 
-/** Page length used only when the receipt window cannot report its measured height. */
-export const RECEIPT_FALLBACK_HEIGHT_MICRONS = 600000;
 function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: string = 'global'): Promise<void> {
   return pendingPrint(async (resolve, reject) => {
+    const receiptText = currentReceiptText;
     const printFmt = getPrintFormatConfig(tenantId);
     const receiptConfig = getPrinterConfig(tenantId, 'receipt');
     const leftMarginOffsetMm = Number(receiptConfig?.leftMarginOffsetMm ?? printFmt?.leftMarginOffsetMm ?? 0) || 0;
@@ -723,14 +722,14 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     const triggerPrint = async (contentHeightPx?: number) => {
       if (printed) return;
       printed = true;
-      // CSS pixels use 96 dpi. Round up and allow 5 mm for feed/rounding. If the page could not be measured, still print
-      // (a receipt must never be silently skipped) with a generous length rather than the old short 200 mm fallback.
-      const measured = Number.isFinite(contentHeightPx) && Number(contentHeightPx) > 0;
-      if (!measured) console.warn('[Printer] Receipt height not measured; printing with the 600 mm fallback length');
-      const pageHeightMicrons = measured
-        ? Math.max(80000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 5) * 1000)
-        : RECEIPT_FALLBACK_HEIGHT_MICRONS;
-
+      // Match the receipt HTML page size exactly. Never guess a long sheet when measurement fails.
+      if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
+        clearTimeout(timer);
+        if (!printWindow.isDestroyed()) printWindow.close();
+        reject(new Error('Receipt paper length could not be measured. Please retry printing the saved bill.'));
+        return;
+      }
+      const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
       try {
         await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
         clearTimeout(timer);
@@ -745,11 +744,11 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
 
     let didFinishLoadTimer: NodeJS.Timeout | null = null;
     printWindow.webContents.once('did-finish-load', () => {
-      // The page reports its height after fonts load (it waits at most 600 ms). If that never arrives, print with the
-      // fallback length rather than waiting for the 20 s timeout; 2.5 s leaves room for slow PCs.
+      // The page waits up to 600 ms for fonts before reporting height. Allow 2.5 s on slow PCs;
+      // report a measurement error if readiness never arrives instead of feeding guessed paper.
       didFinishLoadTimer = setTimeout(() => {
         if (!printed) {
-          console.warn('[Printer] Receipt height measurement delayed; printing with fallback length');
+          console.warn('[Printer] Receipt height measurement did not arrive');
           void triggerPrint();
         }
       }, 2500);
@@ -764,7 +763,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     try {
-      const receiptHtml = await buildReceiptHtml(currentReceiptText, widthMm, chosenFont, leftMarginOffsetMm);
+      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm);
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
     } catch (err) {
       clearTimeout(timer);

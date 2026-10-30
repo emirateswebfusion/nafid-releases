@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getStoreCountry, getStoreVatInclusive, type StoreCountry } from '../../../utils/localization/storeProfile';
 import { type PrinterConfig, type OsPrinterRow, type ServiceChargeProductRow } from '../settingsTypes';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import { type BillSettings, DEFAULT_BILL_SETTINGS } from '../../../utils/print/receiptGenerator';
@@ -56,6 +57,8 @@ export function useSettingsFormState() {
   const [shopWebsite, setShopWebsite] = useState('');
   const [connectCode, setConnectCode] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
+  const [vatPriceInclusive, setVatPriceInclusive] = useState(getStoreVatInclusive());
+  const [storeCountry, setStoreCountryState] = useState<StoreCountry>(getStoreCountry());
   const [storeTimezone, setStoreTimezoneState] = useState<string>(getStoreTimezone());
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
@@ -157,7 +160,7 @@ export function useSettingsFormState() {
     setConfirmTurnOffAllModalOpen, appVersion, setAppVersion, priceCoding, setPriceCoding, shopGstin, setShopGstin,
     shopState, setShopState, shopNameLocal, setShopNameLocal, shopAddress, setShopAddress, shopPhone, setShopPhone,
     shopEmail, setShopEmail, shopWebsite, setShopWebsite, connectCode, setConnectCode, copiedCode, setCopiedCode,
-    storeTimezone, setStoreTimezoneState, upiId, setUpiId, showUpiQr, setShowUpiQr, showProductOffers,
+    vatPriceInclusive, setVatPriceInclusive, storeCountry, setStoreCountryState, storeTimezone, setStoreTimezoneState, upiId, setUpiId, showUpiQr, setShowUpiQr, showProductOffers,
     setShowProductOffers, showPriceOverrideMrp, setShowPriceOverrideMrp, openCashDrawerOnPending,
     setOpenCashDrawerOnPending, autoOpenCashDrawer, setAutoOpenCashDrawer, autoCloseCashDrawer,
     setAutoCloseCashDrawer, autoCloseCashDrawerTime, setAutoCloseCashDrawerTime, defaultOpeningBalance,

@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { settingsApi } from '../../../data/settings';
 import { hasBridge } from '../../../data/client';
 import { returnsApi } from '../../../data/returns';
@@ -113,9 +114,9 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
 
       const md = isMal
         ? `### 🏷️ ഡിസ്കൗണ്ട് റിപ്പോർട്ട് — ${range.label}\n\n` +
-          `* **₹${minAmt}-ൽ കൂടുതൽ ഡിസ്കൗണ്ട് നൽകിയ ബില്ലുകൾ:** **${highDiscInvs.length} ബില്ലുകൾ**\n`
+          `* **${getCurrencyPrefix()}${minAmt}-ൽ കൂടുതൽ ഡിസ്കൗണ്ട് നൽകിയ ബില്ലുകൾ:** **${highDiscInvs.length} ബില്ലുകൾ**\n`
         : `### 🏷️ Invoice Discounts Report — ${range.label}\n\n` +
-          `* **Invoices with Discounts >= ₹${minAmt}:** **${highDiscInvs.length} bills**\n`;
+          `* **Invoices with Discounts >= ${getCurrencyPrefix()}${minAmt}:** **${highDiscInvs.length} bills**\n`;
 
       return { content: md, intent: parsed.intent };
     }

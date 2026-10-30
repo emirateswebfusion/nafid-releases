@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
 import { Minus, Pencil, Plus, Trash } from 'lucide-react';
@@ -462,7 +463,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
             onKeyDown={e => {
               handleDiscFlatKeyDown(e, item.product_id);
             }}
-            placeholder="₹"
+            placeholder={localizeCurrencyText("₹")}
           />
           {hasAdHocDiscount && (
             <button

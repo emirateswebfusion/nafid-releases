@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { Search, RefreshCw, Plus, Eye, Pencil, Trash, FileText } from 'lucide-react';
 import clsx from 'clsx';
 import { formatCurrency } from '../../../utils/pricing/money';
@@ -107,7 +108,7 @@ export function QuotationListView({
                       'text-[10px] font-bold px-2 py-0.5 rounded-md border',
                       isGst ? 'bg-purple-500/10 text-purple-600 border-purple-500/20' : 'bg-slate-500/10 text-slate-600 border-slate-500/20'
                     )}>
-                      {isGst ? 'GST' : 'Non-GST'}
+                      {localizeTaxText(isGst ? 'GST' : 'Non-GST')}
                     </span>
                   </div>
                   <div className="font-bold text-xs sm:text-sm text-foreground truncate">{q.customer_name || 'Cash Customer'}</div>
@@ -120,7 +121,7 @@ export function QuotationListView({
                 <div className="text-right shrink-0">
                   <div className="font-mono font-bold text-sm sm:text-base lg:text-lg text-foreground">{formatCurrency(q.grand_total)}</div>
                   {Number(q.tax_total) > 0 && (
-                    <div className="text-[10px] sm:text-[11px] text-muted-foreground">GST: {formatCurrency(q.tax_total)}</div>
+                    <div className="text-[10px] sm:text-[11px] text-muted-foreground">{localizeTaxText("GST")}: {formatCurrency(q.tax_total)}</div>
                   )}
                 </div>
 

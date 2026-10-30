@@ -1,3 +1,4 @@
+import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { useLoyaltyEnabled } from '../../../hooks/useLoyaltyEnabled';
 import type { DisplayInvoice } from '../invoiceDisplayTypes';
 import React from 'react';
@@ -99,10 +100,10 @@ export function InvoiceDetailModal({
                       setConversionOpen(true);
                     }}
                     className="flex items-center justify-center gap-1.5 px-3.5 h-8.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all text-xs font-bold border border-amber-500/40 cursor-pointer active:scale-95 whitespace-nowrap shadow-xs shadow-amber-500/20"
-                    title="Convert this eligible Bill of Supply to a GST Invoice"
+                    title={localizeTaxText("Convert this eligible Bill of Supply to a GST Invoice")}
                   >
                     <ArrowDownRight className="w-3.5 h-3.5 shrink-0" />
-                    <span>Convert to GST</span>
+                    <span>Convert to {localizeTaxText("GST")}</span>
                   </button>
                 );
               })()}
@@ -208,9 +209,9 @@ export function InvoiceDetailModal({
                   <Building className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="font-bold text-violet-700 dark:text-violet-300">GST Invoice Linked for Tax Filing</p>
+                  <p className="font-bold text-violet-700 dark:text-violet-300">{localizeTaxText("GST")} Invoice Linked for Tax Filing</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Statutory GST Invoice: <span className="font-mono font-bold text-foreground">{selectedInvoice.converted_to_invoice_number || selectedInvoice.converted_to_invoice_id}</span> • Original counter sale remains your true business record.
+                    Statutory {localizeTaxText("GST")} Invoice: <span className="font-mono font-bold text-foreground">{selectedInvoice.converted_to_invoice_number || selectedInvoice.converted_to_invoice_id}</span> • Original counter sale remains your true business record.
                   </p>
                 </div>
               </div>
@@ -220,7 +221,7 @@ export function InvoiceDetailModal({
                 className="px-3.5 h-8 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs active:scale-95 shrink-0 cursor-pointer flex items-center gap-1.5"
               >
                 <Building className="w-3.5 h-3.5" />
-                <span>View GST Copy</span>
+                <span>View {localizeTaxText("GST")} Copy</span>
               </button>
             </div>
           )}
@@ -231,7 +232,7 @@ export function InvoiceDetailModal({
                   <Receipt className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="font-bold text-emerald-700 dark:text-emerald-300">Statutory GST Filing Invoice</p>
+                  <p className="font-bold text-emerald-700 dark:text-emerald-300">Statutory {localizeTaxText("GST")} Filing Invoice</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
                     Generated from Original Counter Sale: <span className="font-mono font-bold text-foreground">{selectedInvoice.converted_from_invoice_number || selectedInvoice.converted_from_invoice_id}</span>
                   </p>
@@ -262,7 +263,7 @@ export function InvoiceDetailModal({
                 <div className="text-[10px] text-muted-foreground">{selectedInvoice.customer_address}</div>
               )}
               {selectedInvoice.customer_gstin && (
-                <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
+                <div className="text-[10px] text-muted-foreground font-mono">{localizeTaxText("GSTIN")}: {selectedInvoice.customer_gstin}</div>
               )}
               <div className="pt-1 border-t border-border/50 text-[10px] text-muted-foreground space-y-0.5">
                 {(selectedInvoice.biller_staff_name || selectedInvoice.biller_name) && (
@@ -468,14 +469,14 @@ export function InvoiceDetailModal({
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
-                            <span>Tax (GST{effTaxRate > 0 ? ` ${effTaxRate}%` : ''})</span>
+                            <span>Tax ({localizeTaxText("GST")}{effTaxRate > 0 ? ` ${effTaxRate}%` : ''})</span>
                           </span>
                           <span className="font-bold text-foreground font-mono">{formatCurrency(tax)}</span>
                         </div>
-                        {(cgst > 0 || sgst > 0 || igst > 0) && (
+                        {!isUaeStore() && (cgst > 0 || sgst > 0 || igst > 0) && (
                           <div className="p-2.5 rounded-xl bg-amber-500/[0.05] dark:bg-amber-500/[0.10] border border-amber-500/20 my-1 space-y-1 text-xs">
                             <div className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center justify-between pb-1 border-b border-amber-500/15">
-                              <span>GST Tax Summary</span>
+                              <span>{localizeTaxText("GST")} Tax Summary</span>
                               <span className="font-mono font-bold">{formatCurrency(tax)}</span>
                             </div>
                             {cgst > 0 && (

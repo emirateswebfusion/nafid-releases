@@ -1,3 +1,5 @@
+import { getStoreLocale, localizeTaxText } from '../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, DollarSign, Calendar, Printer, RefreshCw, X, ShieldCheck, Landmark, FileSpreadsheet, BarChart2 } from 'lucide-react';
 import { 
@@ -247,7 +249,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
   }, [fetchFinancialData]);
 
   // Formatters
-  const fmtCurr = (val: number) => `\u20B9${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtCurr = (val: number) => `\u20B9${val.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // Export to CSV Function
   const exportCSV = () => {
@@ -255,7 +257,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       ['NAFID - Financial Statement Report'],
       ['Shop Name', shopName || 'Retail Store'],
       ['Date Period', `${startDate} to ${endDate}`],
-      ['Generated On', new Date().toLocaleString('en-IN', { timeZone: getStoreTimezone() })],
+      ['Generated On', new Date().toLocaleString(getStoreLocale(), { timeZone: getStoreTimezone() })],
       [],
       ['Metric', 'Amount (INR)'],
       ['Gross Sales Revenue', finData.grossSales.toFixed(2)],
@@ -443,7 +445,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
               {/* Card 4: GST Tax Collected */}
               <div className="p-5 rounded-2xl border border-purple-500/30 bg-purple-500/5 shadow-sm space-y-2 select-none hover:border-purple-500/50 transition-all">
                 <div className="flex items-center justify-between text-purple-600 dark:text-purple-400">
-                  <span className="text-xs font-extrabold uppercase tracking-wider">GST Tax Liability</span>
+                  <span className="text-xs font-extrabold uppercase tracking-wider">{localizeTaxText("GST")} Tax Liability</span>
                   <div className="p-2 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400">
                     <ShieldCheck className="w-4 h-4" />
                   </div>
@@ -451,7 +453,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
                 <div className="text-2xl font-black text-purple-700 dark:text-purple-300">{fmtCurr(finData.totalTax)}</div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-purple-500/20">
                   <span>Output Tax Payable</span>
-                  <span className="text-purple-600 dark:text-purple-400 font-bold">GST Compliant</span>
+                  <span className="text-purple-600 dark:text-purple-400 font-bold">{localizeTaxText("GST")} Compliant</span>
                 </div>
               </div>
 
@@ -498,7 +500,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
                         <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
                         <Tooltip 
                           contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', fontSize: '12px' }}
-                          formatter={(val) => [`₹${val}`, '']}
+                          formatter={(val) => [`${getCurrencyPrefix()}${val}`, '']}
                         />
                         <Area type="monotone" dataKey="sales" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorSales)" name="Sales Revenue" />
                         <Area type="monotone" dataKey="profit" stroke="#06b6d4" strokeWidth={2.5} fillOpacity={1} fill="url(#colorProfit)" name="Gross Profit" />
@@ -568,7 +570,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
                   <thead>
                     <tr className="bg-muted/60 text-muted-foreground text-xs uppercase font-extrabold border-b border-border">
                       <th className="py-3.5 px-5">Financial Category</th>
-                      <th className="py-3.5 px-5 text-right">Amount (₹)</th>
+                      <th className="py-3.5 px-5 text-right">Amount ({getCurrencyPrefix()})</th>
                       <th className="py-3.5 px-5 text-right">% of Net Revenue</th>
                     </tr>
                   </thead>
@@ -620,7 +622,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
                       <td className="py-3 px-5 text-right"></td>
                     </tr>
                     <tr>
-                      <td className="py-2.5 px-5 pl-10 text-purple-500 font-medium">Output GST Tax Collected</td>
+                      <td className="py-2.5 px-5 pl-10 text-purple-500 font-medium">Output {localizeTaxText("GST")} Tax Collected</td>
                       <td className="py-2.5 px-5 text-right font-bold text-purple-500">{fmtCurr(finData.totalTax)}</td>
                       <td className="py-2.5 px-5 text-right text-muted-foreground font-semibold">{finData.netSales > 0 ? ((finData.totalTax / finData.netSales) * 100).toFixed(1) : 0}%</td>
                     </tr>

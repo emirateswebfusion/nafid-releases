@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { formatCurrency } from '../../../utils/pricing/money';
 import type { StaffMember, StaffLedgerRow } from '../staffTypes';
@@ -52,7 +53,7 @@ export function StaffLedgerTab({
             ) : (
               ledgerEntries.map(l => (
                 <tr key={l.ledger_id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3 text-[11px] text-muted-foreground font-mono">{new Date(l.transaction_date as string).toLocaleDateString('en-IN')}</td>
+                  <td className="px-4 py-3 text-[11px] text-muted-foreground font-mono">{new Date(l.transaction_date as string).toLocaleDateString(getStoreLocale())}</td>
                   <td className="px-4 py-3 font-bold text-foreground">
                     <div className="flex items-center gap-2">
                       {l.reference_type === 'STAFF_PURCHASE' && (

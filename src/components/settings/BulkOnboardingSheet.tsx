@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useRef } from 'react';
 import { Save, Printer, AlertCircle, Trash, Loader2, RefreshCw, CheckCheck } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
@@ -558,7 +559,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
         <div className="flex justify-between items-center shrink-0">
           <div className="text-sm text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg border border-border overflow-hidden whitespace-nowrap overflow-x-auto max-w-[70vw]">
-            <b>Expected Excel Columns:</b> Name ? Barcode ? Item Code ? Brand ? Category ? Grade ? Purchase ? MRP ? Stock ? Reorder Level ? Disc% ? DiscFlat ? OfferPrice ? GST(Y/N) ? Tax% ? UOM ? Billing(Piece/Weight) ? AvgWgt ? WgtOverride(Y/N)
+            <b>Expected Excel Columns:</b> Name ? Barcode ? Item Code ? Brand ? Category ? Grade ? Purchase ? MRP ? Stock ? Reorder Level ? Disc% ? DiscFlat ? OfferPrice ? {localizeTaxText("GST")}(Y/N) ? Tax% ? UOM ? Billing(Piece/Weight) ? AvgWgt ? WgtOverride(Y/N)
           </div>
           <Button onClick={handleBulkSave} disabled={loading} className="gap-2 shrink-0">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -583,7 +584,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                 <th className="px-3 py-3 font-semibold min-w-[80px]">Disc %</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">Disc Flat</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">Offer Prc</th>
-                <th className="px-3 py-3 font-semibold min-w-[80px]">GST?</th>
+                <th className="px-3 py-3 font-semibold min-w-[80px]">{localizeTaxText("GST")}?</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">Tax %</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">UOM</th>
                 <th className="px-3 py-3 font-semibold w-[50px] text-center sticky right-0 bg-muted/80 z-30">Act</th>

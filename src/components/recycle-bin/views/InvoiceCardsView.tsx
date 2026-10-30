@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Trash2, RotateCcw, Eye } from 'lucide-react';
 import { formatAmount } from '../../../utils/pricing/money';
 import { timeAgo, type DeletedInvoice } from '../recycleBinTypes';
@@ -65,7 +66,7 @@ export function InvoiceCardsView({
                     <div className="mt-3 pt-3 border-t border-border/60 flex items-baseline justify-between">
                       <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Value</span>
                       <span className="text-base font-black font-mono text-foreground">
-                        ₹{formatAmount(inv.grand_total)}
+                        {getCurrencyPrefix()}{formatAmount(inv.grand_total)}
                       </span>
                     </div>
                   </div>

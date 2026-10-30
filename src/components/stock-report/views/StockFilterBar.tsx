@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { Building2, Search, X } from 'lucide-react';
 import type { StockReportState } from '../hooks/useStockReportState';
 
@@ -48,7 +49,7 @@ export function StockFilterBar({ sr, categories }: StockFilterBarProps) {
           <option value="low_stock">Low Stock</option>
           <option value="out_of_stock">Out of Stock</option>
           {(viewMode === 'gst' || viewMode === 'combined') && (
-            <option value="dummy_gst">Dummy GST Stock Only</option>
+            <option value="dummy_gst">Dummy {localizeTaxText("GST")} Stock Only</option>
           )}
         </select>
         <select

@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { Modal } from '../../ui/Modal';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import { ArrowDownRight, CheckCircle2, AlertCircle, ShieldAlert, RefreshCw } from 'lucide-react';
@@ -42,7 +43,7 @@ export function ConversionModal({
       title={
         <div className="flex items-center gap-2.5 font-bold text-foreground">
           <ArrowDownRight className="w-5 h-5 text-amber-500" />
-          <span>Convert to GST Invoice</span>
+          <span>Convert to {localizeTaxText("GST")} Invoice</span>
         </div>
       }
     >
@@ -82,7 +83,7 @@ export function ConversionModal({
 
             {conversionResults.filter(r => r.success && r.skipped_items?.length).length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Items skipped (no GST purchase record)</p>
+                <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Items skipped (no {localizeTaxText("GST")} purchase record)</p>
                 {conversionResults.filter(r => r.success && r.skipped_items?.length).map(r => (
                   <div key={r.invoice_id} className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-xs space-y-1">
                     <p className="font-bold text-amber-600 dark:text-amber-400">{r.old_number} → {r.new_number}</p>
@@ -127,7 +128,7 @@ export function ConversionModal({
               <div className="text-xs space-y-1.5 leading-relaxed">
                 {conversionPreview?.has_real_gst && (
                   <div className="flex items-start gap-2 text-foreground/90 font-medium bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-xl">
-                    <span className="text-emerald-500 font-black text-xs shrink-0">✓ Real GST Products:</span>
+                    <span className="text-emerald-500 font-black text-xs shrink-0">✓ Real {localizeTaxText("GST")} Products:</span>
                     <span className="text-[11.5px]">
                       {conversionTaxMode === 'EXCLUSIVE'
                         ? 'Original BoS price is used as Base price, and GST is added on top (Base + GST).'
@@ -146,7 +147,7 @@ export function ConversionModal({
                 {conversionPreview?.has_skipped && (
                   <div className="flex items-start gap-2 text-foreground/90 font-medium bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-xl">
                     <span className="text-amber-500 font-black text-xs shrink-0">⚠️ Non-Paper Estimates:</span>
-                    <span className="text-[11.5px]">Estimate items without GST/Paper purchase records are automatically skipped.</span>
+                    <span className="text-[11.5px]">Estimate items without {localizeTaxText("GST")}/Paper purchase records are automatically skipped.</span>
                   </div>
                 )}
 
@@ -160,7 +161,7 @@ export function ConversionModal({
 
             <div className="p-3 bg-muted/30 border border-border/80 rounded-2xl space-y-2">
               <label className="text-[11px] font-bold text-foreground flex items-center justify-between">
-                <span>GST Pricing Calculation Mode</span>
+                <span>{localizeTaxText("GST")} Pricing Calculation Mode</span>
                 <span className="text-[10px] text-muted-foreground font-normal">
                   {conversionTaxMode === 'EXCLUSIVE' ? 'Base price + GST added on top' : 'Grand total fixed, GST included'}
                 </span>
@@ -177,10 +178,10 @@ export function ConversionModal({
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground">Tax Exclusive (+ GST)</span>
+                    <span className="text-xs font-bold text-foreground">Tax Exclusive (+ {localizeTaxText("GST")})</span>
                     <span className={clsx("w-2 h-2 rounded-full", conversionTaxMode === 'EXCLUSIVE' ? "bg-amber-500 ring-2 ring-amber-500/30" : "bg-muted-foreground/30")} />
                   </div>
-                  <span className="text-[10.5px] text-muted-foreground mt-1">Calculated base price + GST added on top</span>
+                  <span className="text-[10.5px] text-muted-foreground mt-1">Calculated base price + {localizeTaxText("GST")} added on top</span>
                 </button>
                 <button
                   type="button"
@@ -196,7 +197,7 @@ export function ConversionModal({
                     <span className="text-xs font-bold text-foreground">Tax Inclusive (MRP)</span>
                     <span className={clsx("w-2 h-2 rounded-full", conversionTaxMode === 'INCLUSIVE' ? "bg-amber-500 ring-2 ring-amber-500/30" : "bg-muted-foreground/30")} />
                   </div>
-                  <span className="text-[10.5px] text-muted-foreground mt-1">Total price already includes GST inside</span>
+                  <span className="text-[10.5px] text-muted-foreground mt-1">Total price already includes {localizeTaxText("GST")} inside</span>
                 </button>
               </div>
             </div>
@@ -204,7 +205,7 @@ export function ConversionModal({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between px-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 <span>Bill / Invoice</span>
-                <span>BoS Amount ➔ Converted GST</span>
+                <span>BoS Amount ➔ Converted {localizeTaxText("GST")}</span>
               </div>
               <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-0.5">
                 {selectedBosInvoices.map(inv => {
@@ -239,7 +240,7 @@ export function ConversionModal({
                               "font-bold",
                               conversionTaxMode === 'EXCLUSIVE' ? "text-amber-500" : "text-emerald-500"
                             )}>
-                              GST: {conversionTaxMode === 'EXCLUSIVE' ? '+' : ''}{formatCurrency(invPreview.tax_amount)}
+                              {localizeTaxText("GST")}: {conversionTaxMode === 'EXCLUSIVE' ? '+' : ''}{formatCurrency(invPreview.tax_amount)}
                             </span>
                             {Number(invPreview.deductions_total) > 0 && (
                               <>
@@ -276,7 +277,7 @@ export function ConversionModal({
 
               <div className="flex items-center justify-between text-xs">
                 <span className={clsx("font-bold flex items-center gap-1", conversionTaxMode === 'EXCLUSIVE' ? "text-amber-500" : "text-emerald-500")}>
-                  <span>GST Tax Amount</span>
+                  <span>{localizeTaxText("GST")} Tax Amount</span>
                   <span className="text-[10px] font-normal opacity-80">
                     ({conversionTaxMode === 'EXCLUSIVE' ? '+ Added on Base' : 'Included in Total'})
                   </span>
@@ -297,7 +298,7 @@ export function ConversionModal({
 
               <div className="flex items-center justify-between pt-2 border-t border-border/80">
                 <div>
-                  <span className="text-xs font-black text-foreground uppercase tracking-wider block">Estimated GST Total</span>
+                  <span className="text-xs font-black text-foreground uppercase tracking-wider block">Estimated {localizeTaxText("GST")} Total</span>
                   <span className="text-[10px] text-muted-foreground">
                     {conversionTaxMode === 'EXCLUSIVE' ? 'Base + GST Amount' : 'Fixed Total (MRP)'}
                     {conversionDeductionsTotal > 0 ? ' − deductions' : ''}
@@ -378,7 +379,7 @@ export function ConversionModal({
                 {converting ? (
                   <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> <span>Converting...</span></>
                 ) : (
-                  <><ArrowDownRight className="w-3.5 h-3.5" /> <span>Convert to GST</span></>
+                  <><ArrowDownRight className="w-3.5 h-3.5" /> <span>Convert to {localizeTaxText("GST")}</span></>
                 )}
               </button>
             </div>

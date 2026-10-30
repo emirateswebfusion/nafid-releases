@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
 import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
@@ -195,8 +196,8 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
       };
       const headers = [
         'Invoice No', 'Date & Time', 'Type', 'Payment Method',
-        'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)', 'Grand Total (₹)',
-        'Received (₹)', 'Balance (₹)', ...(loyaltyEnabled ? ['Points Earned', 'Points Redeemed'] : []),
+        localizeCurrencyText('Subtotal (₹)'), localizeCurrencyText('Tax (₹)'), localizeCurrencyText('Discount (₹)'), localizeCurrencyText('Grand Total (₹)'),
+        localizeCurrencyText('Received (₹)'), localizeCurrencyText('Balance (₹)'), ...(loyaltyEnabled ? ['Points Earned', 'Points Redeemed'] : []),
         'Biller', 'Description / Remarks',
       ];
       const row = [
@@ -255,8 +256,8 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
       };
       const headers = [
         'Invoice No', 'Date & Time', 'Customer Name', 'Customer Phone', 'Type', 'Payment Method',
-        'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)', 'Grand Total (₹)',
-        'Received (₹)', 'Balance (₹)', ...(loyaltyEnabled ? ['Points Earned', 'Points Redeemed'] : []),
+        localizeCurrencyText('Subtotal (₹)'), localizeCurrencyText('Tax (₹)'), localizeCurrencyText('Discount (₹)'), localizeCurrencyText('Grand Total (₹)'),
+        localizeCurrencyText('Received (₹)'), localizeCurrencyText('Balance (₹)'), ...(loyaltyEnabled ? ['Points Earned', 'Points Redeemed'] : []),
         'Biller', 'Description / Remarks',
       ];
       const rows = filteredInvoices.map(inv => [

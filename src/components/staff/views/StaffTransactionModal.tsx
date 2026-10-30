@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Modal } from '../../ui/Modal';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
@@ -31,7 +32,7 @@ export function StaffTransactionModal({
         </div>
 
         <div>
-          <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1">Amount (₹)</label>
+          <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1">Amount ({getCurrencyPrefix()})</label>
           <input
             type="number"
             placeholder="Enter amount"

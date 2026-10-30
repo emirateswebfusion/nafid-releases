@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type { DisplayInvoiceItem, DisplayComboItem } from '../../sales/invoiceDisplayTypes';
 import type { ComboOfferWithItems } from '../../../data/combos';
 import type { Product } from '../../../data/products';
@@ -96,7 +97,7 @@ export function useCashierInvoiceView(ctx: UseCashierInvoiceViewContext) {
           const diff = mrp - soldPrice;
           if (diff >= 0.05) {
             originalRate = mrp;
-            discountLabel = `-₹${diff.toFixed(0)}`;
+            discountLabel = `-${getCurrencyPrefix()}${diff.toFixed(0)}`;
           }
         }
       }

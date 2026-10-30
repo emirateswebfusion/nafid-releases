@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
 import { renderPaymentMethodBadge, renderBillTypeBadge, formatDateTime } from '../customerFormat';
@@ -103,7 +104,7 @@ export function CustomerInvoiceModal({
 
           {/* Total Tax */}
           <div className="flex justify-between text-emerald-600 font-bold">
-            <span>Tax Total (GST):</span>
+            <span>Tax Total ({localizeTaxText("GST")}):</span>
             <span className="font-mono">
               +{formatCurrency(viewingInvoice.tax_total ?? invoiceItems.reduce((s, i) => s + (Number(i.tax_amount) || 0), 0))}
             </span>

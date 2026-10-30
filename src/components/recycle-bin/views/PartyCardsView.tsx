@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Trash2, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import { formatAmount } from '../../../utils/pricing/money';
@@ -33,7 +34,7 @@ export function PartyCardsView({
                         <p>
                           Balance:{' '}
                           <span className={clsx('font-bold font-mono', p.balance > 0 ? 'text-rose-500' : 'text-emerald-500')}>
-                            ₹{formatAmount(Math.abs(p.balance))} {p.balance_type || ''}
+                            {getCurrencyPrefix()}{formatAmount(Math.abs(p.balance))} {p.balance_type || ''}
                           </span>
                         </p>
                       )}

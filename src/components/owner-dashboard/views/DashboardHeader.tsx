@@ -1,8 +1,10 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { useEffect } from 'react';
 import { isAdminRole, formatRoleName } from '../../../utils/security/permissions';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import clsx from 'clsx';
-import { SlidersHorizontal, LayoutGrid, Grid3x3, Sun, Moon, Settings, LogOut, RotateCcw, Sparkles } from 'lucide-react';
+import { SlidersHorizontal, LayoutGrid, Grid3x3, Sun, Moon, Settings, LogOut, RotateCcw, Download, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';
 import { useUpdateStore } from '../../../store/updateStore';
 import type { OwnerDashboardState } from '../hooks/useOwnerDashboardState';
@@ -56,7 +58,7 @@ export function DashboardHeader({
           <div className="hidden sm:flex items-center gap-2">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20" title={isRevenueMetric ? 'Total Revenue (Net realized collections after scrap/return deductions)' : 'Total Sales (Gross product sales before deductions)'}>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">₹{displaySalesAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {displaySalesLabel}</span>
+              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{displaySalesAmount.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {displaySalesLabel}</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
@@ -126,7 +128,11 @@ export function DashboardHeader({
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25 hover:bg-blue-500/20 active:scale-95 transition-all duration-300 cursor-pointer animate-in fade-in slide-in-from-right-3 zoom-in-95 shadow-xs"
               title="New update available. Click to view release highlights and update progress in Settings."
             >
-              <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-500 fill-amber-500/20 animate-pulse" />
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin text-blue-500" />
+              ) : (
+                <Download className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+              )}
               <span className="tracking-wide">
                 {isDownloading ? 'Downloading Update...' : `v${updateInfo.version} Available`}
               </span>

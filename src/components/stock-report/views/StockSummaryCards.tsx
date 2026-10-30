@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { Activity, Package, Percent, ShoppingCart, Tag, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import { formatCurrency } from '../../../utils/pricing/money';
@@ -33,7 +34,7 @@ export function StockSummaryCards({
           <Package className="w-5 h-5" />
         </div>
         <div className="leading-tight text-left min-w-0 flex-1">
-          <p className="text-2xl font-black text-foreground font-mono truncate">{loading ? <Skeleton className="h-7 w-20" /> : totalProducts.toLocaleString('en-IN')}</p>
+          <p className="text-2xl font-black text-foreground font-mono truncate">{loading ? <Skeleton className="h-7 w-20" /> : totalProducts.toLocaleString(getStoreLocale())}</p>
           <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Products</p>
           <p className="text-[10px] text-muted-foreground/60 mt-0.5">{loading ? <Skeleton className="h-3 w-24" /> : `${products.length} total in system`}</p>
         </div>

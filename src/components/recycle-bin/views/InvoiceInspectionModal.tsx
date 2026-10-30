@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Loader2, RotateCcw, X } from 'lucide-react';
 import { formatAmount } from '../../../utils/pricing/money';
 import { formatDate, type DeletedInvoice } from '../recycleBinTypes';
@@ -56,7 +57,7 @@ export function InvoiceInspectionModal({ inspectingInvoice, restoreInvoice, rb }
                 </div>
                 <div>
                   <span className="text-muted-foreground text-[11px]">Grand Total:</span>
-                  <p className="font-bold text-foreground text-sm font-mono">₹{formatAmount(inspectingInvoice.grand_total)}</p>
+                  <p className="font-bold text-foreground text-sm font-mono">{getCurrencyPrefix()}{formatAmount(inspectingInvoice.grand_total)}</p>
                 </div>
               </div>
 
@@ -78,11 +79,11 @@ export function InvoiceInspectionModal({ inspectingInvoice, restoreInvoice, rb }
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-foreground truncate">{item.name || item.product_id}</p>
                           <p className="text-[11px] text-muted-foreground font-mono">
-                            Qty: {item.quantity} × ₹{formatAmount(item.unit_price || item.rate || 0)}
+                            Qty: {item.quantity} × {getCurrencyPrefix()}{formatAmount(item.unit_price || item.rate || 0)}
                           </p>
                         </div>
                         <span className="font-bold text-foreground font-mono ml-3">
-                          ₹{formatAmount(item.total || (item.quantity * (item.unit_price || 0)))}
+                          {getCurrencyPrefix()}{formatAmount(item.total || (item.quantity * (item.unit_price || 0)))}
                         </span>
                       </div>
                     ))}

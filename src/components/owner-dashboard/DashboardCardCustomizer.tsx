@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useMemo } from 'react';
 import {
   GripVertical,
@@ -31,7 +32,7 @@ import {
   Layers,
   SlidersHorizontal,
   RefreshCcw,
-  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
@@ -113,7 +114,7 @@ const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
   },
   'financial-report': {
     title: 'Financial Report',
-    desc: 'View P&L statement, revenue breakdown, GST liability & profit margins',
+    desc: localizeTaxText('View P&L statement, revenue breakdown, GST liability & profit margins'),
     icon: Landmark,
     color: 'text-green-600',
     bgColor: 'bg-green-600/10',
@@ -134,7 +135,7 @@ const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
   },
   'purchase-bills': {
     title: 'Purchase Bills',
-    desc: 'Record and manage GST purchase bills',
+    desc: localizeTaxText('Record and manage GST purchase bills'),
     icon: Receipt,
     color: 'text-pink-500',
     bgColor: 'bg-pink-500/10',
@@ -532,7 +533,7 @@ export function DashboardCardCustomizer({
       {/* Footer info & close */}
       <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground w-full">
         <span className="flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-primary" />
+          <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
           <span>Ordering is automatically synchronized with your user profile</span>
         </span>
         {onClose && (

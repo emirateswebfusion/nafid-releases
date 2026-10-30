@@ -1,3 +1,4 @@
+import { isUaeStore } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
@@ -53,11 +54,11 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
     setNewProductStock('');
     setNewProductReorderLevel('');
     setNewProductHsn('');
-    setNewProductTaxRate(0);
+    setNewProductTaxRate(isUaeStore() ? 5 : 0);
     setNewProductDiscountPercent('');
     setNewProductDiscountFlat('');
     setNewProductOfferPrice('');
-    setNewProductIsGstApplicable(false);
+    setNewProductIsGstApplicable(isUaeStore());
     setNewProductIsDummy(false);
     setNewProductIsCustomCategory(false);
     setProductFormTierPrices({});

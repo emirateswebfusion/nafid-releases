@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import { getInitials, formatDate } from '../../partyUtils';
 import { Pencil, Link, Phone, FileText, MapPin } from 'lucide-react';
 import { hasBridge } from '../../../../data/client';
@@ -152,7 +153,7 @@ export function PartyProfileCard({
 
           {selectedParty.credit_limit != null && selectedParty.credit_limit > 0 && (
             <span className="text-[11px] text-muted-foreground">
-              Limit: <span className="font-mono font-medium">₹{selectedParty.credit_limit.toLocaleString()}</span>
+              Limit: <span className="font-mono font-medium">{getCurrencyPrefix()}{selectedParty.credit_limit.toLocaleString()}</span>
             </span>
           )}
         </div>

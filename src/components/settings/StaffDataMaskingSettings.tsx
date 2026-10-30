@@ -1,3 +1,4 @@
+import { getCurrencyPrefix, localizeCurrencyText } from '../../utils/localization/storeProfile';
 import { useState, useEffect } from 'react';
 import { EyeOff, Shield, Eye, CheckCircle2, AlertCircle, Calendar, Package } from 'lucide-react';
 import clsx from 'clsx';
@@ -197,8 +198,8 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                 {
                   id: 'FIXED_OVERRIDE',
                   title: 'Fixed Override Amount',
-                  desc: 'Show a specific fixed figure (e.g. ₹20,00,000).',
-                  badge: 'Custom ₹',
+                  desc: localizeCurrencyText('Show a specific fixed figure (e.g. ₹20,00,000).'),
+                  badge: localizeCurrencyText('Custom ₹'),
                 },
                 {
                   id: 'PERCENTAGE_OFFSET',
@@ -238,11 +239,11 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
             {config.stock_valuation_mode === 'FIXED_OVERRIDE' && (
               <div className="p-4 bg-muted/30 border border-border/80 rounded-2xl space-y-2 animate-in fade-in duration-150">
                 <label className="block text-xs font-black uppercase tracking-wider text-muted-foreground">
-                  Display Stock Valuation For Staff (₹)
+                  Display Stock Valuation For Staff ({getCurrencyPrefix()})
                 </label>
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1 max-w-sm">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-black text-sm">₹</span>
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-black text-sm">{getCurrencyPrefix()}</span>
                     <input
                       type="number"
                       min="0"
@@ -258,7 +259,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground font-medium">
-                  Regardless of the actual stock value (e.g. ₹35,00,000), staff members will see {formatWholeRupees(config.stock_fixed_amount)} as the total stock valuation.
+                  Regardless of the actual stock value (e.g. {getCurrencyPrefix()}35,00,000), staff members will see {formatWholeRupees(config.stock_fixed_amount)} as the total stock valuation.
                 </p>
               </div>
             )}
@@ -418,10 +419,10 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
               {config.sales_revenue_mode === 'FIXED_OVERRIDE' && (
                 <div className="p-4 bg-muted/30 border border-border/80 rounded-2xl space-y-2 animate-in fade-in duration-150 max-w-md">
                   <label className="block text-xs font-black uppercase tracking-wider text-muted-foreground">
-                    Fixed Revenue Figure To Display For Staff (₹)
+                    Fixed Revenue Figure To Display For Staff ({getCurrencyPrefix()})
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-black text-sm">₹</span>
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-black text-sm">{getCurrencyPrefix()}</span>
                     <input
                       type="number"
                       min="0"
@@ -480,11 +481,11 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Stock Valuation:</span>
-                    <span className="font-mono font-bold text-foreground">₹ 35,00,000</span>
+                    <span className="font-mono font-bold text-foreground">{getCurrencyPrefix()} 35,00,000</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sales Revenue:</span>
-                    <span className="font-mono font-bold text-foreground">₹ 1,50,000</span>
+                    <span className="font-mono font-bold text-foreground">{getCurrencyPrefix()} 1,50,000</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sales Date Scope:</span>
@@ -517,7 +518,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                         ? formatWholeRupees(config.stock_fixed_amount)
                         : config.stock_valuation_mode === 'PERCENTAGE_OFFSET'
                         ? formatWholeRupees((3500000 * config.stock_percentage_offset) / 100)
-                        : '₹ 35,00,000'}
+                        : localizeCurrencyText('₹ 35,00,000')}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -529,7 +530,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                         ? formatWholeRupees(config.sales_revenue_fixed_amount)
                         : config.sales_revenue_mode === 'PERCENTAGE_OFFSET'
                         ? formatWholeRupees((150000 * config.sales_revenue_percentage) / 100)
-                        : '₹ 1,50,000'}
+                        : localizeCurrencyText('₹ 1,50,000')}
                     </span>
                   </div>
                   <div className="flex justify-between">

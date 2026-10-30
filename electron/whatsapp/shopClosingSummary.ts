@@ -1,3 +1,4 @@
+import { getStoreCountrySetting } from '../services/storeCountryService.js';
 import { getRegisterCashEntries, isFrozenDrawer } from '../services/cashDrawerSession.js';
 import type { CashDrawerRow } from '../services/typesA.js';
 import * as shopClosingReportSql from '../db/statements/shopClosingReport.js';
@@ -452,6 +453,7 @@ export function buildShopClosingSummaryData(
   // Round results
   return {
     tenantId: tid,
+    storeCountry: getStoreCountrySetting(db, tid),
     shopName,
     businessDate: bDate,
     closingTimestamp,

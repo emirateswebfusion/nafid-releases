@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import { type EntryFieldFlowPreset, ENTRY_FIELD_FLOW_PRESETS, type EntryFieldKey } from '../../../store/billingUIStore';
 import clsx from 'clsx';
 import { Search, Package, Scale, Tag, Percent, CreditCard, DollarSign } from 'lucide-react';
@@ -81,7 +82,7 @@ export function EntryFieldFlowSection({
               { key: 'weight', label: 'Weight (Kgs)', icon: Scale, required: false, desc: 'Kgs input (weight items only)' },
               { key: 'rate', label: 'Rate / Price', icon: Tag, required: false, desc: 'Rate per unit' },
               { key: 'discount', label: 'Discount %', icon: Percent, required: false, desc: 'Percentage discount' },
-              { key: 'discountFlat', label: 'Discount ₹', icon: CreditCard, required: false, desc: 'Flat amount discount' },
+              { key: 'discountFlat', label: localizeCurrencyText('Discount ₹'), icon: CreditCard, required: false, desc: 'Flat amount discount' },
               { key: 'grandTotal', label: 'Grand Total', icon: DollarSign, required: false, desc: 'Override grand total' },
             ].map((field) => {
               const customFlow = config.entryFieldFlowCustom || ENTRY_FIELD_FLOW_PRESETS.full;

@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
 import { X, Tag, Loader2, Check } from 'lucide-react';
@@ -53,9 +54,9 @@ export function PurchaseAddGradeDialog({
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase (₹)</label>
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase ({getCurrencyPrefix()})</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
                     type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
@@ -67,9 +68,9 @@ export function PurchaseAddGradeDialog({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Base MRP (₹/Kg)</label>
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Base MRP ({getCurrencyPrefix()}/Kg)</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
                     type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
@@ -81,9 +82,9 @@ export function PurchaseAddGradeDialog({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Offer (₹)</label>
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Offer ({getCurrencyPrefix()})</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
                     type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}

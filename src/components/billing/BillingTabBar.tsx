@@ -1,3 +1,4 @@
+import { isUaeStore } from '../../utils/localization/storeProfile';
 import { Plus, X } from 'lucide-react';
 import { useTabStore } from '../../store/tabStore';
 import clsx from 'clsx';
@@ -41,7 +42,7 @@ export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab
     }
 
     if (!displayNum) return isQuotation ? 'New Quote' : 'New Bill';
-    if (enableThreeInvoiceSeries) {
+    if (enableThreeInvoiceSeries || isUaeStore()) {
       return displayNum;
     }
     const isModeNumber = displayNum === tab.reservedScrapInvoiceNumber || displayNum === tab.reservedQuotationNumber || displayNum === tab.reservedReturnNumber;

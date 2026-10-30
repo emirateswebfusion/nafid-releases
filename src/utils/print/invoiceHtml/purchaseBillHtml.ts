@@ -1,3 +1,7 @@
+import { getStoreLocale } from '../../localization/storeProfile';
+import { getCurrencyPrefix } from '../../localization/storeProfile';
+import { isUaeStore } from '../../localization/storeProfile';
+import { generateUaeInvoiceHtml } from '../uaeInvoice';
 import { parseUTCDate } from '../receiptGenerator';
 import { getStoreTimezone } from '../../time/timezoneHelper';
 import { splitTaxAmount } from '../../pricing/checkoutLines';
@@ -31,6 +35,12 @@ export function generatePurchaseBillHtml(
     sku_barcode?: string | null;
   }>
 ): string {
+  if (isUaeStore()) {
+    const lines = items.map(item => ({ name: item.name, quantity: item.quantity, unit_price: item.purchase_price, total: item.quantity * item.purchase_price, tax_rate_percent: bill.bill_type === 'GST' && (item.is_gst_applicable ?? 1) === 1 ? item.tax_rate_percent || 0 : 0 }));
+    const subtotal = lines.reduce((sum, item) => sum + item.total, 0);
+    const tax = lines.reduce((sum, item) => sum + item.total * item.tax_rate_percent / 100, 0);
+    return generateUaeInvoiceHtml({ shopName: shopInfo.shopName || '', shopAddress: shopInfo.shopAddress || undefined, shopPhone: shopInfo.shopPhone || undefined, shopGstin: shopInfo.shopGstin, customerName: bill.supplier_name, customerAddress: bill.supplier_address || undefined, customerGstin: bill.supplier_gstin || undefined, invoiceNumber: bill.bill_number, invoiceType: 'PURCHASE', date: bill.bill_date || bill.created_at || '', items: lines, subtotal, tax, discount: 0, grandTotal: bill.total_amount ?? subtotal + tax, notes: bill.notes || undefined });
+  }
   const isGst = bill.bill_type === 'GST';
   const title = isGst ? 'PURCHASE BILL (GST)' : 'PURCHASE ESTIMATE BILL';
 
@@ -59,11 +69,11 @@ export function generatePurchaseBillHtml(
         </td>
         ${isGst ? `<td style="text-align: center; padding: 6px 8px; border: 1px solid #d1d5db;">${item.hsn_sac_code || '—'}</td>` : ''}
         <td style="text-align: center; padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 600;">${qty}</td>
-        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">₹${rate.toFixed(2)}</td>
-        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">₹${itemTaxable.toFixed(2)}</td>
+        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${rate.toFixed(2)}</td>
+        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${itemTaxable.toFixed(2)}</td>
         ${isGst ? `<td style="text-align: center; padding: 6px 8px; border: 1px solid #d1d5db;">${taxRate}%</td>` : ''}
-        ${isGst ? `<td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">₹${taxAmount.toFixed(2)}</td>` : ''}
-        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700;">₹${itemTotal.toFixed(2)}</td>
+        ${isGst ? `<td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${taxAmount.toFixed(2)}</td>` : ''}
+        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700;">${getCurrencyPrefix()}${itemTotal.toFixed(2)}</td>
       </tr>
     `;
   }).join('');
@@ -73,7 +83,7 @@ export function generatePurchaseBillHtml(
   const finalTotal = Math.round(grandTotal);
 
   const taxSplit = splitTaxAmount(totalTax);
-  const formattedDate = bill.bill_date ? parseUTCDate(bill.bill_date).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const formattedDate = bill.bill_date ? parseUTCDate(bill.bill_date).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   return `<!DOCTYPE html>
 <html>
@@ -299,38 +309,38 @@ export function generatePurchaseBillHtml(
       </div>
       <div class="totals-row">
         <span>Subtotal / Taxable:</span>
-        <span>₹${totalTaxable.toFixed(2)}</span>
+        <span>${getCurrencyPrefix()}${totalTaxable.toFixed(2)}</span>
       </div>
       ${isGst && totalTax > 0 ? `
         <div class="totals-row">
           <span>CGST:</span>
-          <span>₹${taxSplit.cgst.toFixed(2)}</span>
+          <span>${getCurrencyPrefix()}${taxSplit.cgst.toFixed(2)}</span>
         </div>
         <div class="totals-row">
           <span>SGST:</span>
-          <span>₹${taxSplit.sgst.toFixed(2)}</span>
+          <span>${getCurrencyPrefix()}${taxSplit.sgst.toFixed(2)}</span>
         </div>
         <div class="totals-row" style="font-weight: 700;">
           <span>Total Tax:</span>
-          <span>₹${totalTax.toFixed(2)}</span>
+          <span>${getCurrencyPrefix()}${totalTax.toFixed(2)}</span>
         </div>
       ` : ''}
       ${roundOff !== 0 ? `
         <div class="totals-row">
           <span>Round Off:</span>
-          <span>₹${roundOff.toFixed(2)}</span>
+          <span>${getCurrencyPrefix()}${roundOff.toFixed(2)}</span>
         </div>
       ` : ''}
       <div class="totals-row grand">
         <span>Grand Total:</span>
-        <span>₹${finalTotal.toFixed(2)}</span>
+        <span>${getCurrencyPrefix()}${finalTotal.toFixed(2)}</span>
       </div>
     </div>
   </div>
 
   <div class="footer-sign">
     <div>
-      <div style="font-size: 10px; color: #9ca3af;">Generated on ${new Date().toLocaleString('en-IN', { timeZone: getStoreTimezone() })}</div>
+      <div style="font-size: 10px; color: #9ca3af;">Generated on ${new Date().toLocaleString(getStoreLocale(), { timeZone: getStoreTimezone() })}</div>
     </div>
     <div class="sign-box">
       Authorized Signatory

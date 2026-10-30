@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { SalesTaxSummary } from './SalesTaxSummary';
 import React, { Fragment } from 'react';
 import { IndianRupee, TrendingUp, Percent, Receipt, BarChart3, Loader2, Search, X, SlidersHorizontal, Building, User, FileText, FileCheck2, ShieldAlert, CheckCheck, ArrowDownRight, RefreshCw } from 'lucide-react';
@@ -89,7 +91,7 @@ export function SalesBillsView({
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
                   <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
-                    {accountingView === 'TAX_FILING' ? 'GST Turnover' : accountingView === 'REAL_SALES' ? 'BOS Turnover' : 'Total Revenue'}
+                    {localizeTaxText(accountingView === 'TAX_FILING' ? 'GST Turnover' : accountingView === 'REAL_SALES' ? 'BOS Turnover' : 'Total Revenue')}
                   </span>
                   {maskedRevenue.isMasked && !isStaff && (
                     <span className="text-[8px] bg-primary/10 text-primary px-1 rounded font-bold leading-none">BOS</span>
@@ -111,7 +113,7 @@ export function SalesBillsView({
               </div>
               <div className="min-w-0">
                 <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
-                  {accountingView === 'TAX_FILING' ? 'Avg GST Invoice' : accountingView === 'REAL_SALES' ? 'Avg BOS Order' : 'Avg Order Value'}
+                  {localizeTaxText(accountingView === 'TAX_FILING' ? 'Avg GST Invoice' : accountingView === 'REAL_SALES' ? 'Avg BOS Order' : 'Avg Order Value')}
                 </span>
                 <span className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums leading-tight block mt-0.5">
                   {summaryLoading ? '…' : maskedAvgOrder.isHidden ? '••••••••' : formatCurrency(maskedAvgOrder.displayAmount)}
@@ -126,7 +128,7 @@ export function SalesBillsView({
               </div>
               <div className="min-w-0">
                 <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
-                  {accountingView === 'TAX_FILING' ? 'GST Invoices' : accountingView === 'REAL_SALES' ? 'BOS Invoices' : 'Total Invoices'}
+                  {localizeTaxText(accountingView === 'TAX_FILING' ? 'GST Invoices' : accountingView === 'REAL_SALES' ? 'BOS Invoices' : 'Total Invoices')}
                 </span>
                 <span className="text-xs font-black text-foreground font-mono tabular-nums leading-tight block mt-0.5">
                   {summaryLoading ? '…' : `${summary.totalInvoices} Bills`}
@@ -183,7 +185,7 @@ export function SalesBillsView({
                   <YAxis
                     tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', fontWeight: 700 }}
                     axisLine={false} tickLine={false} width={50}
-                    tickFormatter={(v: number) => v >= 1000 ? `₹${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `₹${v}`}
+                    tickFormatter={(v: number) => v >= 1000 ? `${getCurrencyPrefix()}${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `${getCurrencyPrefix()}${v}`}
                   />
                   <Tooltip
                     contentStyle={{
@@ -252,9 +254,9 @@ export function SalesBillsView({
                 ? 'bg-card text-foreground border border-border shadow-xs'
                 : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
             )}
-            title="Official Statutory GST Invoices (GST)"
+            title={localizeTaxText("Official Statutory GST Invoices (GST)")}
           >
-            <span>GST</span>
+            <span>{localizeTaxText("GST")}</span>
           </button>
           <button
             type="button"
@@ -393,9 +395,9 @@ export function SalesBillsView({
                   type="button"
                   onClick={() => setTaxPercentageFilter('')}
                   className="h-8.5 px-2.5 rounded-xl text-xs font-bold bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/25 hover:bg-violet-500/20 active:scale-95 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0"
-                  title="Clear GST tax rate filter and return to bills list"
+                  title={localizeTaxText("Clear GST tax rate filter and return to bills list")}
                 >
-                  <span>{taxPercentageFilter}% GST</span>
+                  <span>{taxPercentageFilter}% {localizeTaxText("GST")}</span>
                   <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
                 </button>
               )}
@@ -430,10 +432,10 @@ export function SalesBillsView({
               type="button"
               onClick={() => setSelectionMode(true)}
               className="h-8.5 px-3.5 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20 active:scale-95 flex items-center gap-1.5 shrink-0 shadow-2xs hover:shadow-amber-500/10"
-              title="Select eligible Bill of Supply sales to convert into statutory GST invoices"
+              title={localizeTaxText("Select eligible Bill of Supply sales to convert into statutory GST invoices")}
             >
               <ShieldAlert className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span>Convert to GST</span>
+              <span>Convert to {localizeTaxText("GST")}</span>
             </button>
           ) : (
             <div className="inline-flex items-center bg-muted/80 dark:bg-muted/40 p-1 rounded-2xl border border-border/80 shadow-inner gap-1 backdrop-blur-xs shrink-0 animate-in fade-in zoom-in-95 duration-150">
@@ -518,7 +520,7 @@ export function SalesBillsView({
               <Percent className="w-7 h-7 text-muted-foreground/50" />
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground/60">No products found for {taxPercentageFilter}% GST</p>
+              <p className="text-sm font-bold text-foreground/60">No products found for {taxPercentageFilter}% {localizeTaxText("GST")}</p>
               <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or filters</p>
             </div>
           </div>
@@ -529,10 +531,10 @@ export function SalesBillsView({
                 <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date &amp; Time</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Product</th>
-                <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">GST</th>
+                <th className="px-4 py-2.5 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">{localizeTaxText("GST")}</th>
                 <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">Qty</th>
                 <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">Taxable</th>
-                <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">GST Amt</th>
+                <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">{localizeTaxText("GST")} Amt</th>
                 <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">Total</th>
               </tr>
             </thead>

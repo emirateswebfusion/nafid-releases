@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../localization/storeProfile';
+import { getCurrencyPrefix } from '../localization/storeProfile';
 import { parseUTCDate } from './receiptGenerator';
 import { getStoreTimezone } from '../time/timezoneHelper';
 import type { TerminologyLabels } from '../../store/terminologyStore';
@@ -97,7 +99,7 @@ export interface PartyLedgerPdfOptions {
 function formatIndianCurrency(amount: number | string | null | undefined): string {
   const num = Number(amount) || 0;
   const abs = Math.abs(num);
-  const formatted = abs.toLocaleString('en-IN', {
+  const formatted = abs.toLocaleString(getStoreLocale(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -226,7 +228,7 @@ export function calculateLedgerStatement(
     if (key !== 'other') {
       const [y, m] = key.split('-').map(Number);
       const d = new Date(y, m - 1, 1);
-      title = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      title = d.toLocaleDateString(getStoreLocale(), { month: 'long', year: 'numeric' });
     }
     const mCredit = items.reduce((sum, item) => sum + (Number(item.credit_amount) || 0), 0);
     const mDebit = items.reduce((sum, item) => sum + (Number(item.debit_amount) || 0), 0);
@@ -244,7 +246,7 @@ export function calculateLedgerStatement(
     if (!dStr) return '';
     try {
       const d = parseUTCDate(dStr);
-      return d.toLocaleDateString('en-IN', { timeZone, day: '2-digit', month: 'short', year: 'numeric' });
+      return d.toLocaleDateString(getStoreLocale(), { timeZone, day: '2-digit', month: 'short', year: 'numeric' });
     } catch {
       return dStr;
     }
@@ -332,7 +334,7 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
     timezone
   );
 
-  const nowFormatted = new Date().toLocaleString('en-IN', {
+  const nowFormatted = new Date().toLocaleString(getStoreLocale(), {
     timeZone: timezone,
     day: '2-digit',
     month: 'short',
@@ -379,7 +381,7 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
       for (const entry of group.entries) {
         const d = parseUTCDate(entry.transaction_date);
         const dateFormatted = !isNaN(d.getTime())
-          ? d.toLocaleDateString('en-IN', { timeZone: timezone, day: '2-digit', month: 'short' })
+          ? d.toLocaleDateString(getStoreLocale(), { timeZone: timezone, day: '2-digit', month: 'short' })
           : entry.transaction_date.slice(0, 10);
         const yearFormatted = !isNaN(d.getTime()) ? d.getFullYear() : '';
 
@@ -407,13 +409,13 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
               </div>
             </td>
             <td style="padding: 7px 9px; text-align: right; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 700; font-size: 9pt; border-bottom: 1px solid #e2e8f0; vertical-align: middle; ${cAmt > 0 ? 'background: #fef2f2; color: #991b1b;' : 'color: #94a3b8;'}">
-              ${cAmt > 0 ? `₹${formatIndianCurrency(cAmt)}` : '—'}
+              ${cAmt > 0 ? `${getCurrencyPrefix()}${formatIndianCurrency(cAmt)}` : '—'}
             </td>
             <td style="padding: 7px 9px; text-align: right; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 700; font-size: 9pt; border-bottom: 1px solid #e2e8f0; vertical-align: middle; ${dAmt > 0 ? 'background: #f0fdf4; color: #166534;' : 'color: #94a3b8;'}">
-              ${dAmt > 0 ? `₹${formatIndianCurrency(dAmt)}` : '—'}
+              ${dAmt > 0 ? `${getCurrencyPrefix()}${formatIndianCurrency(dAmt)}` : '—'}
             </td>
             <td style="padding: 7px 9px; text-align: right; font-weight: 800; font-size: 9pt; color: ${balColor}; border-bottom: 1px solid #e2e8f0; vertical-align: middle;">
-              ₹${formatIndianCurrency(Math.abs(running))}
+              ${getCurrencyPrefix()}${formatIndianCurrency(Math.abs(running))}
               ${balInd ? `<span style="font-size: 7.5pt; font-weight: 800; margin-left: 3px; text-transform: uppercase;">${balInd}</span>` : ''}
             </td>
           </tr>
@@ -427,10 +429,10 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
               ${group.monthTitle} Total:
             </td>
             <td style="padding: 6px 9px; text-align: right; color: #991b1b; border-bottom: 1px solid #cbd5e1; background: #fff1f2;">
-              ${group.monthCredit > 0 ? `₹${formatIndianCurrency(group.monthCredit)}` : '—'}
+              ${group.monthCredit > 0 ? `${getCurrencyPrefix()}${formatIndianCurrency(group.monthCredit)}` : '—'}
             </td>
             <td style="padding: 6px 9px; text-align: right; color: #166534; border-bottom: 1px solid #cbd5e1; background: #f0fdf4;">
-              ${group.monthDebit > 0 ? `₹${formatIndianCurrency(group.monthDebit)}` : '—'}
+              ${group.monthDebit > 0 ? `${getCurrencyPrefix()}${formatIndianCurrency(group.monthDebit)}` : '—'}
             </td>
             <td style="padding: 6px 9px; border-bottom: 1px solid #cbd5e1;"></td>
           </tr>
@@ -689,21 +691,21 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
       <!-- Card 1: Opening Balance -->
       <div class="summary-box">
         <div class="summary-label">Opening Balance</div>
-        <div class="summary-value">₹${formatIndianCurrency(recon.openingBalance)}</div>
+        <div class="summary-value">${getCurrencyPrefix()}${formatIndianCurrency(recon.openingBalance)}</div>
         <div class="summary-sub">${recon.startDateFormatted ? `(on ${recon.startDateFormatted})` : '(Initial)'} ${recon.obIndicator}</div>
       </div>
 
       <!-- Card 2: Total Credit / Gave / Sale -->
       <div class="summary-box">
         <div class="summary-label">${creditColHeader}</div>
-        <div class="summary-value" style="color: #991b1b;">₹${formatIndianCurrency(recon.periodCredit)}</div>
+        <div class="summary-value" style="color: #991b1b;">${getCurrencyPrefix()}${formatIndianCurrency(recon.periodCredit)}</div>
         <div class="summary-sub">${recon.creditCount} ${recon.creditCount === 1 ? 'entry' : 'entries'}</div>
       </div>
 
       <!-- Card 3: Total Debit / Got / Payment -->
       <div class="summary-box">
         <div class="summary-label">${debitColHeader}</div>
-        <div class="summary-value" style="color: #166534;">₹${formatIndianCurrency(recon.periodDebit)}</div>
+        <div class="summary-value" style="color: #166534;">${getCurrencyPrefix()}${formatIndianCurrency(recon.periodDebit)}</div>
         <div class="summary-sub">${recon.debitCount} ${recon.debitCount === 1 ? 'entry' : 'entries'}</div>
       </div>
 
@@ -711,7 +713,7 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
       <div class="summary-box">
         <div class="summary-label">Net Balance</div>
         <div class="summary-value" style="color: ${recon.closingBalance > 0 ? '#b91c1c' : recon.closingBalance < 0 ? '#15803d' : '#0f172a'};">
-          ₹${formatIndianCurrency(Math.abs(recon.closingBalance))}
+          ${getCurrencyPrefix()}${formatIndianCurrency(Math.abs(recon.closingBalance))}
           ${recon.closingIndicator ? `<span style="font-size: 9pt; font-weight:800; text-transform:uppercase;">${recon.closingIndicator}</span>` : ''}
         </div>
         <div class="summary-sub" style="font-weight: 700; color: ${recon.closingBalance > 0 ? '#b91c1c' : recon.closingBalance < 0 ? '#15803d' : '#64748b'};">
@@ -749,7 +751,7 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
             <td style="padding: 7px 9px; text-align: right; color: #94a3b8;">—</td>
             <td style="padding: 7px 9px; text-align: right; color: #94a3b8;">—</td>
             <td style="padding: 7px 9px; text-align: right; font-weight: 800; font-size: 8.5pt; color: ${recon.openingBalance > 0 ? '#b91c1c' : recon.openingBalance < 0 ? '#15803d' : '#64748b'};">
-              ₹${formatIndianCurrency(Math.abs(recon.openingBalance))}
+              ${getCurrencyPrefix()}${formatIndianCurrency(Math.abs(recon.openingBalance))}
               ${recon.obIndicator ? `<span style="font-size: 7.5pt; text-transform: uppercase;">${recon.obIndicator}</span>` : ''}
             </td>
           </tr>
@@ -763,13 +765,13 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
               Statement Totals:
             </td>
             <td style="padding: 8px 9px; text-align: right; font-size: 9.5pt; color: #991b1b; background: #fee2e2;">
-              ₹${formatIndianCurrency(recon.periodCredit)}
+              ${getCurrencyPrefix()}${formatIndianCurrency(recon.periodCredit)}
             </td>
             <td style="padding: 8px 9px; text-align: right; font-size: 9.5pt; color: #166534; background: #dcfce7;">
-              ₹${formatIndianCurrency(recon.periodDebit)}
+              ${getCurrencyPrefix()}${formatIndianCurrency(recon.periodDebit)}
             </td>
             <td style="padding: 8px 9px; text-align: right; font-size: 9.5pt; color: ${recon.closingBalance > 0 ? '#b91c1c' : recon.closingBalance < 0 ? '#15803d' : '#0f172a'};">
-              ₹${formatIndianCurrency(Math.abs(recon.closingBalance))}
+              ${getCurrencyPrefix()}${formatIndianCurrency(Math.abs(recon.closingBalance))}
               ${recon.closingIndicator ? `<span style="font-size: 7.5pt; text-transform: uppercase;">${recon.closingIndicator}</span>` : ''}
             </td>
           </tr>

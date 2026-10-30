@@ -19,11 +19,12 @@ function harness(name: string, failure?: 'setup' | 'print' | 'load') {
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const timers: { callback: () => void; delay: number; cleared: boolean }[] = [];
   const error = new Error('simulated failure');
+  const loaded = new Map<string, () => void>();
   const close = vi.fn();
   const print = vi.fn(async () => { if (failure === 'print') throw error; });
   const load = vi.fn(async () => { if (failure === 'load') throw error; });
   class Window {
-    webContents = { id: 1, once: vi.fn() };
+    webContents = { id: 1, once: (event: string, callback: () => void) => loaded.set(event, callback) };
     isDestroyed = () => false;
     close = close;
     loadURL = load;
@@ -55,7 +56,7 @@ function harness(name: string, failure?: 'setup' | 'print' | 'load') {
     : name === 'printBulkBarcodeUSB' ? [[], 'printer'] : ['printer'];
   const settled = vi.fn();
   void invoke(...args).then(() => settled('resolved'), err => settled(err));
-  return { listeners, timers, settled, error, print, close };
+  return { listeners, loaded, timers, settled, error, print, close };
 }
 
 describe.each(names)('%s promise behavior', name => {
@@ -109,4 +110,16 @@ it('receipt load failure rejects immediately, while A4 keeps its timeout', async
   expect(receipt.timers[0].cleared).toBe(true);
   expect(a4.settled).not.toHaveBeenCalled();
   expect(a4.timers[0].cleared).toBe(false);
+});
+
+it('fails without feeding guessed paper when the receipt readiness message never arrives', async () => {
+  const h = harness('printReceiptUSB');
+  await flush();
+  h.loaded.get('did-finish-load')!();
+  h.timers.find(t => t.delay === 2500)!.callback();
+  await flush();
+  expect(h.print).not.toHaveBeenCalled();
+  expect(h.settled).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('paper length could not be measured') }));
+  expect(h.close).toHaveBeenCalledOnce();
+  expect(h.timers.filter(t => t.delay >= 20000).every(t => t.cleared)).toBe(true);
 });

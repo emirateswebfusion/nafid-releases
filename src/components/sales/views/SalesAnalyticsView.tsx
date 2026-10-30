@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { SalesTaxSummary } from './SalesTaxSummary';
 import { StatCard } from './StatCard';
 import { IndianRupee, Layers, TrendingUp, Tag } from 'lucide-react';
@@ -73,7 +74,7 @@ export function SalesAnalyticsView({
               <YAxis
                 tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))', fontWeight: 700 }}
                 axisLine={false} tickLine={false} width={60}
-                tickFormatter={(v: number) => v >= 1000 ? `₹${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `₹${v}`}
+                tickFormatter={(v: number) => v >= 1000 ? `${getCurrencyPrefix()}${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `${getCurrencyPrefix()}${v}`}
               />
               <Tooltip
                 contentStyle={{

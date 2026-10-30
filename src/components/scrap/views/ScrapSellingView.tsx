@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Search, Recycle, ShoppingCart, Minus, Plus, X, IndianRupee, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
@@ -62,7 +63,7 @@ export function ScrapSellingView({
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          Stock: <span className="font-semibold">{formatStock(s.current_stock)} {s.unit} · ₹{Number(s.selling_price).toFixed(2)}/{s.unit}</span>
+                          Stock: <span className="font-semibold">{formatStock(s.current_stock)} {s.unit} · {getCurrencyPrefix()}{Number(s.selling_price).toFixed(2)}/{s.unit}</span>
                         </div>
                       </div>
                       <div className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">
@@ -135,7 +136,7 @@ export function ScrapSellingView({
                       </div>
 
                       <div className="relative w-20">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{getCurrencyPrefix()}</span>
                         <input
                           type="number"
                           min="0"
@@ -147,7 +148,7 @@ export function ScrapSellingView({
                       </div>
 
                       <div className="text-right min-w-[70px]">
-                        <div className="font-black text-sm text-indigo-500">₹{(entry.qty * entry.rate).toFixed(2)}</div>
+                        <div className="font-black text-sm text-indigo-500">{getCurrencyPrefix()}{(entry.qty * entry.rate).toFixed(2)}</div>
                       </div>
 
                       <button

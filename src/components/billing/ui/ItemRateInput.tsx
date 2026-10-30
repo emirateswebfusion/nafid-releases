@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import clsx from 'clsx';
@@ -364,7 +365,7 @@ export function ItemRateInput({
                         )}
                       >
                         <span className="truncate pr-2">{opt.name}</span>
-                        <span className="font-mono text-[11px] font-black shrink-0">₹{opt.unitPrice.toFixed(2)}</span>
+                        <span className="font-mono text-[11px] font-black shrink-0">{getCurrencyPrefix()}{opt.unitPrice.toFixed(2)}</span>
                       </button>
                     );
                   })}
@@ -376,7 +377,7 @@ export function ItemRateInput({
                 <div className="px-2.5 py-1.5 bg-amber-500/10 rounded-xl text-amber-700 dark:text-amber-300 text-[10px] font-bold flex items-center justify-between pointer-events-none select-none">
                   <span>Purchase Cost:</span>
                   <span className="font-mono font-black text-amber-800 dark:text-amber-200">
-                    ₹{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ₹${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
+                    {getCurrencyPrefix()}{(purchasePrice || 0).toFixed(2)}{qty > 1 ? ` (Total: ${getCurrencyPrefix()}${((purchasePrice || 0) * qty).toFixed(2)})` : ''}
                   </span>
                 </div>
               </div>
@@ -387,7 +388,7 @@ export function ItemRateInput({
       )}
 
       <div className={containerClassName || "flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors"}>
-        <span className={unitClassName || "text-[9px] font-extrabold text-primary"}>₹</span>
+        <span className={unitClassName || "text-[9px] font-extrabold text-primary"}>{getCurrencyPrefix()}</span>
         <input
           type="number" step="any" min="0"
           ref={inputRef}

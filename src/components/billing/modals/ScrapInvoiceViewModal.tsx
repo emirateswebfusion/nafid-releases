@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import { Recycle } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
@@ -64,7 +65,7 @@ export function ScrapInvoiceViewModal({
                     <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(3)}</div>
                     <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
                     <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
-                    <div className="col-span-2 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</div>
+                    <div className="col-span-2 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })}</div>
                   </div>
                 ))}
               </div>

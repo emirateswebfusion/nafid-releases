@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useMemo } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { X, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -100,7 +101,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             )}
             {showDetail && (
               <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
-                {previewGstEnabled ? 'GST-Enabled Quotation' : 'Standard Non-GST Quotation'} • {quotationItems.length} items
+                {localizeTaxText(previewGstEnabled ? 'GST-Enabled Quotation' : 'Standard Non-GST Quotation')} • {quotationItems.length} items
               </p>
             )}
           </div>

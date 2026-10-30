@@ -1,3 +1,5 @@
+import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Link, CheckCircle2, X, Search, Loader2, UserPlus, Activity, TrendingUp, TrendingDown, AlertTriangle, Tag, BookOpen, Phone, Pencil, Trash, ChevronRight, LayoutList, Table, Clock, CreditCard, Calendar } from 'lucide-react';
 import clsx from 'clsx';
@@ -139,7 +141,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalReceivable.toFixed(2)}</p>
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{totalReceivable.toFixed(2)}</p>
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">{tLabels.receivable}</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{tLabels.receivableSub}</p>
                 </div>
@@ -151,7 +153,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                   <TrendingDown className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalPayable.toFixed(2)}</p>
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{totalPayable.toFixed(2)}</p>
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">{tLabels.payable}</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{tLabels.payableSub}</p>
                 </div>
@@ -181,7 +183,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
               )}
               <input
                 type="text"
-                placeholder="Search by name, phone or GSTIN..."
+                placeholder={localizeTaxText("Search by name, phone or GSTIN...")}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className={clsx(fieldCls, 'pl-10')}
@@ -404,7 +406,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                               </div>
                               <div className="min-w-0">
                                 <p className="font-bold text-sm text-foreground truncate group-hover:text-primary transition-colors">{party.name}</p>
-                                {party.gstin && <p className="text-[10px] text-muted-foreground font-mono">GST: {party.gstin}</p>}
+                                {party.gstin && <p className="text-[10px] text-muted-foreground font-mono">{localizeTaxText("GST")}: {party.gstin}</p>}
                               </div>
                             </div>
                           </td>
@@ -434,18 +436,18 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                               isPayable ? "text-emerald-600 dark:text-emerald-400" :
                               "text-muted-foreground"
                             )}>
-                              ₹{Math.abs(balance).toFixed(2)}
+                              {getCurrencyPrefix()}{Math.abs(balance).toFixed(2)}
                             </span>
                             {enablePartyGst && enablePartyEstimate && (
                               <div className="flex items-center justify-end gap-1.5 text-[9px] font-bold font-mono mt-0.5">
-                                <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: ₹{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(2)}</span>
+                                <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: {getCurrencyPrefix()}{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(2)}</span>
                                 <span className="text-muted-foreground/30">•</span>
-                                <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: ₹{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(2)}</span>
+                                <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: {getCurrencyPrefix()}{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(2)}</span>
                               </div>
                             )}
                             {enablePartyGst && !enablePartyEstimate && (
                               <div className="flex items-center justify-end text-[9px] font-bold font-mono text-sky-600 dark:text-sky-400 mt-0.5">
-                                GST Balance
+                                {localizeTaxText("GST")} Balance
                               </div>
                             )}
                             {!enablePartyGst && enablePartyEstimate && (
@@ -473,7 +475,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                                     ? "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"
                                     : "bg-muted border-border text-foreground"
                                 )}>
-                                  ₹{Number(party.credit_limit).toLocaleString('en-IN')}
+                                  {getCurrencyPrefix()}{Number(party.credit_limit).toLocaleString(getStoreLocale())}
                                 </span>
                               )}
                               {Boolean(party.credit_period_enabled) && (
@@ -582,7 +584,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                           <PartyRoleBadges party={party} />
                           {party.gstin && (
                             <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-1.5 py-0.5 rounded-md shrink-0">
-                              GST
+                              {localizeTaxText("GST")}
                             </span>
                           )}
                           {party.pricing_tier_id && (
@@ -599,7 +601,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                                 : "text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20"
                             )}>
                               <CreditCard className="w-2.5 h-2.5" />
-                              Limit: ₹{Number(party.credit_limit).toLocaleString('en-IN')}
+                              Limit: {getCurrencyPrefix()}{Number(party.credit_limit).toLocaleString(getStoreLocale())}
                             </span>
                           )}
                           {Boolean(party.credit_period_enabled) && (
@@ -637,18 +639,18 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                           isPayable ? 'text-emerald-600 dark:text-emerald-400' :
                           'text-muted-foreground'
                         )}>
-                          ₹{Math.abs(balance).toFixed(2)}
+                          {getCurrencyPrefix()}{Math.abs(balance).toFixed(2)}
                         </p>
                         {enablePartyGst && enablePartyEstimate && (
                           <div className="flex items-center justify-end gap-1 text-[9px] font-bold font-mono mt-1">
-                            <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: ₹{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(2)}</span>
+                            <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: {getCurrencyPrefix()}{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(2)}</span>
                             <span className="text-muted-foreground/30">•</span>
-                            <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: ₹{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(2)}</span>
+                            <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: {getCurrencyPrefix()}{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(2)}</span>
                           </div>
                         )}
                         {enablePartyGst && !enablePartyEstimate && (
                           <div className="flex items-center justify-end text-[9px] font-bold font-mono text-sky-600 dark:text-sky-400 mt-1">
-                            GST Balance
+                            {localizeTaxText("GST")} Balance
                           </div>
                         )}
                         {!enablePartyGst && enablePartyEstimate && (
@@ -669,7 +671,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                             {balance >= party.credit_limit ? (
                               <span className="text-red-500 font-bold">Limit Reached</span>
                             ) : (
-                              <span className="text-muted-foreground font-medium">Avail: ₹{Math.max(0, Number(party.credit_limit) - Number(balance)).toLocaleString('en-IN')}</span>
+                              <span className="text-muted-foreground font-medium">Avail: {getCurrencyPrefix()}{Math.max(0, Number(party.credit_limit) - Number(balance)).toLocaleString(getStoreLocale())}</span>
                             )}
                           </div>
                         )}

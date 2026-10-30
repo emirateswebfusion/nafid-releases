@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileCheck2, Info, TrendingUp } from 'lucide-react';
 import { getSetting, setSetting } from '../../data/settings';
@@ -151,7 +153,7 @@ export function FilingOnlySettings({ tenantId }: { tenantId: string | null }) {
                 Total Sales (Gross Product Sales)
               </span>
               <span className="text-[11px] text-muted-foreground block mt-1 leading-relaxed">
-                Displays the full value of goods sold before scrap or return deductions. For example, if ₹500 scrap is exchanged to buy ₹300 goods, the dashboard counts <strong>₹300 Sales Today</strong>.
+                Displays the full value of goods sold before scrap or return deductions. For example, if {getCurrencyPrefix()}500 scrap is exchanged to buy {getCurrencyPrefix()}300 goods, the dashboard counts <strong>{getCurrencyPrefix()}300 Sales Today</strong>.
               </span>
             </div>
           </label>
@@ -171,7 +173,7 @@ export function FilingOnlySettings({ tenantId }: { tenantId: string | null }) {
                 Total Revenue (Net Realized Cash)
               </span>
               <span className="text-[11px] text-muted-foreground block mt-1 leading-relaxed">
-                Displays only net cash/money received after subtracting scrap and return deductions. In the example above, the net revenue is <strong>₹0 Revenue Today</strong>.
+                Displays only net cash/money received after subtracting scrap and return deductions. In the example above, the net revenue is <strong>{getCurrencyPrefix()}0 Revenue Today</strong>.
               </span>
             </div>
           </label>
@@ -181,10 +183,10 @@ export function FilingOnlySettings({ tenantId }: { tenantId: string | null }) {
       <SettingsCard icon={TrendingUp} title="Revenue from GST bills" subtitle="Choose which GST sales count toward your daily revenue (they are still saved and printed)">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <SwitchField id="filing-exclude-b2b" label="Exclude new B2B bills from revenue"
-            description="Wholesale / business bills (issued with a customer GSTIN) are not counted in daily revenue."
+            description={localizeTaxText("Wholesale / business bills (issued with a customer GSTIN) are not counted in daily revenue.")}
             checked={b2b} onChange={v => change(() => setB2b(v))} disabled={locked} />
           <SwitchField id="filing-exclude-b2c" label="Exclude new B2C bills from revenue"
-            description="Retail / walk-in consumer bills (issued without a customer GSTIN) are not counted in daily revenue."
+            description={localizeTaxText("Retail / walk-in consumer bills (issued without a customer GSTIN) are not counted in daily revenue.")}
             checked={b2c} onChange={v => change(() => setB2c(v))} disabled={locked} />
         </div>
       </SettingsCard>

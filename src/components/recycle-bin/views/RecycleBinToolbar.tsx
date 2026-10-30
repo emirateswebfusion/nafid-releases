@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { Search, X, LayoutGrid, List } from 'lucide-react';
 import { type RecycleBinCategory } from '../recycleBinTypes';
@@ -59,7 +60,7 @@ export function RecycleBinToolbar({ activeCategory, rb }: RecycleBinToolbarProps
                   billTypeFilter === 'GST' ? 'bg-card text-foreground shadow-2xs' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                GST
+                {localizeTaxText("GST")}
               </button>
               <button
                 onClick={() => setBillTypeFilter('BILL_OF_SUPPLY')}
@@ -68,7 +69,7 @@ export function RecycleBinToolbar({ activeCategory, rb }: RecycleBinToolbarProps
                   billTypeFilter === 'BILL_OF_SUPPLY' ? 'bg-card text-foreground shadow-2xs' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                Bill of Supply
+                {localizeTaxText("Bill of Supply")}
               </button>
             </div>
           )}

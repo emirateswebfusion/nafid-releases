@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
 import { BarChart3, Check, Copy, VolumeX, Volume2 } from 'lucide-react';
@@ -120,10 +122,10 @@ export function AiMessageList({
                             tick={{ fontSize: 10, fill: 'currentColor' }}
                             className="text-gray-400 font-mono"
                             tickFormatter={(val) => {
-                              if (val >= 10000000) return `₹${(val / 10000000).toFixed(1)}Cr`;
-                              if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
-                              if (val >= 1000) return `₹${(val / 1000).toFixed(0)}k`;
-                              return `₹${val}`;
+                              if (val >= 10000000) return `${getCurrencyPrefix()}${(val / 10000000).toFixed(1)}Cr`;
+                              if (val >= 100000) return `${getCurrencyPrefix()}${(val / 100000).toFixed(1)}L`;
+                              if (val >= 1000) return `${getCurrencyPrefix()}${(val / 1000).toFixed(0)}k`;
+                              return `${getCurrencyPrefix()}${val}`;
                             }}
                           />
                           <Tooltip
@@ -144,7 +146,7 @@ export function AiMessageList({
                               const label = humanizeKey(rawName);
                               const num = Number(value) || 0;
                               const isCurrency = /amount|total|sales|price|cost|rate|revenue|balance|due/i.test(rawName);
-                              const valStr = isCurrency ? formatINR(num) : num.toLocaleString('en-IN');
+                              const valStr = isCurrency ? formatINR(num) : num.toLocaleString(getStoreLocale());
                               return [valStr, label];
                             }}
                           />

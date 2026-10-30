@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Printer } from 'lucide-react';
 import Barcode from 'react-barcode';
@@ -57,7 +58,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               )}>
                 <span>MRP:</span>
                 <span className="text-sm">
-                  ₹{(() => {
+                  {getCurrencyPrefix()}{(() => {
                     const g = printModalProduct.grade_id ? grades.find(gr => gr.grade_id === printModalProduct.grade_id) : null;
                     const gr = g ? Number(g.rate) : null;
                     return (gr !== null && printModalProduct.pricing_mode === 'GRADE_RATE' ? gr : Number(printModalProduct.base_price)).toFixed(2);

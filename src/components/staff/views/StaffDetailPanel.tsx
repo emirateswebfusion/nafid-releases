@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { KeyRound, Plus } from 'lucide-react';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { StaffLedgerTab } from './StaffLedgerTab';
@@ -70,7 +72,7 @@ export function StaffDetailPanel({
               </div>
               <button
                 onClick={async () => {
-                  setTxnData({ type: 'SALARY_ACCRUAL', amount: selectedStaff.monthly_salary as number, payment_method: 'N/A', notes: `Accrual for ${new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}` });
+                  setTxnData({ type: 'SALARY_ACCRUAL', amount: selectedStaff.monthly_salary as number, payment_method: 'N/A', notes: `Accrual for ${new Date().toLocaleDateString(getStoreLocale(), { month: 'short', year: 'numeric' })}` });
                   setShowTxnModal(true);
                 }}
                 className="px-3.5 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all cursor-pointer flex items-center gap-1.5"
@@ -80,7 +82,7 @@ export function StaffDetailPanel({
             </div>
             <div className="flex items-center gap-3">
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   value={selectedStaff.monthly_salary as number}
@@ -140,7 +142,7 @@ export function StaffDetailPanel({
                         )}
                         <p className="text-xs font-bold text-foreground">{l.description}</p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(l.transaction_date as string).toLocaleString('en-IN')}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(l.transaction_date as string).toLocaleString(getStoreLocale())}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs font-black text-rose-500 tabular-nums">−{formatCurrency(l.credit_amount)}</p>

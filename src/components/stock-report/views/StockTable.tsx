@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
 import { Package } from 'lucide-react';
@@ -43,8 +44,8 @@ export function StockTable({
               <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Category</th>
               <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Grade</th>
               <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Stock</th>
-              {viewMode !== 'estimate' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">GST Qty</th>}
-              {viewMode !== 'estimate' && enableRealPaperStock && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">GST Paper Stock</th>}
+              {viewMode !== 'estimate' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">{localizeTaxText("GST")} Qty</th>}
+              {viewMode !== 'estimate' && enableRealPaperStock && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">{localizeTaxText("GST")} Paper Stock</th>}
               {viewMode !== 'gst' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Est Qty</th>}
               <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Weight</th>
               <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Purchase</th>

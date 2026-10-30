@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { CheckCircle2, AlertTriangle, Table } from 'lucide-react';
 import { Button } from '../../ui/Button';
 import type { ParsedRow, UploadEntityType } from '../dataUploadTypes';
@@ -72,7 +74,7 @@ export function DataUploadPreview({
                   <th className="py-2.5 px-3">Name</th>
                   <th className="py-2.5 px-3">Phone</th>
                   <th className="py-2.5 px-3">Address</th>
-                  <th className="py-2.5 px-3">GSTIN</th>
+                  <th className="py-2.5 px-3">{localizeTaxText("GSTIN")}</th>
                   <th className="py-2.5 px-3">Opening Balance</th>
                   <th className="py-2.5 px-3">Balance Type</th>
                 </>
@@ -97,7 +99,7 @@ export function DataUploadPreview({
                 {entityType === 'products' ? (
                   <>
                     <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100">{row.data.name || '—'}</td>
-                    <td className="py-2 px-3 font-bold text-emerald-700 dark:text-emerald-400">₹{row.data.base_price ?? 0}</td>
+                    <td className="py-2 px-3 font-bold text-emerald-700 dark:text-emerald-400">{getCurrencyPrefix()}{row.data.base_price ?? 0}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">
                       {row.data.tier_prices && Object.keys(row.data.tier_prices).length > 0 ? (
                         <div className="flex flex-wrap gap-1">
@@ -106,7 +108,7 @@ export function DataUploadPreview({
                               key={tName}
                               className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
                             >
-                              {tName}: ₹{String(tPrice)}
+                              {tName}: {getCurrencyPrefix()}{String(tPrice)}
                             </span>
                           ))}
                         </div>
@@ -116,7 +118,7 @@ export function DataUploadPreview({
                     </td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.sku_barcode || '—'}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.category || '—'}</td>
-                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">₹{row.data.purchase_price ?? 0}</td>
+                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{getCurrencyPrefix()}{row.data.purchase_price ?? 0}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.current_stock ?? 0} {row.data.uom}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.tax_rate_percent}%</td>
                   </>
@@ -125,7 +127,7 @@ export function DataUploadPreview({
                     <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100">{row.data.name || '—'}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.phone || '—'}</td>
                     <td className="py-2 px-3 text-indigo-700 dark:text-indigo-400 font-bold">{row.data.role_designation || 'Staff'}</td>
-                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">₹{row.data.monthly_salary ?? 0}</td>
+                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{getCurrencyPrefix()}{row.data.monthly_salary ?? 0}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.joining_date || '—'}</td>
                   </>
                 ) : (
@@ -134,7 +136,7 @@ export function DataUploadPreview({
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.phone || '—'}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400 max-w-[150px] truncate">{row.data.address || '—'}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.gstin || '—'}</td>
-                    <td className="py-2 px-3 font-bold text-indigo-700 dark:text-indigo-400">₹{row.data.balance ?? 0}</td>
+                    <td className="py-2 px-3 font-bold text-indigo-700 dark:text-indigo-400">{getCurrencyPrefix()}{row.data.balance ?? 0}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.balance_type}</td>
                   </>
                 )}

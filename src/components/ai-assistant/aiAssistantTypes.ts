@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../utils/localization/storeProfile';
 import { TrendingUp, Package, Users, DollarSign } from 'lucide-react';
 
 /** AI assistant: chat message / conversation shapes, storage keys and the starter cards (English / Malayalam). */
@@ -59,8 +60,8 @@ export const BENTO_CARDS_EN = [
   {
     icon: Users,
     title: "Customer Credit & Debtors",
-    description: "Find credit customers with pending balances above ₹5,000",
-    prompt: "Which customers have credit balance above ₹5,000?"
+    description: localizeCurrencyText("Find credit customers with pending balances above ₹5,000"),
+    prompt: localizeCurrencyText("Which customers have credit balance above ₹5,000?")
   },
   {
     icon: DollarSign,
@@ -86,8 +87,8 @@ export const BENTO_CARDS_ML = [
   {
     icon: Users,
     title: "കസ്റ്റമർ കുടിശ്ശിക (കടം)",
-    description: "₹5,000-ൽ കൂടുതൽ ബാക്കി കടമുള്ള കസ്റ്റമേഴ്സിന്റെ വിവരങ്ങൾ",
-    prompt: "₹5,000-ൽ കൂടുതൽ കടം ബാക്കിയുള്ള കസ്റ്റമേഴ്സ് ആരെല്ലാം?"
+    description: localizeCurrencyText("₹5,000-ൽ കൂടുതൽ ബാക്കി കടമുള്ള കസ്റ്റമേഴ്സിന്റെ വിവരങ്ങൾ"),
+    prompt: localizeCurrencyText("₹5,000-ൽ കൂടുതൽ കടം ബാക്കിയുള്ള കസ്റ്റമേഴ്സ് ആരെല്ലാം?")
   },
   {
     icon: DollarSign,

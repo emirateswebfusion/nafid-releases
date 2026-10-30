@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React from 'react';
 import type { DeductionState } from './DeductionEditor';
@@ -175,7 +176,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                       const due = Number(selectedReturnInvoice.balance_amount || selectedReturnInvoice.grand_total) || 0;
                       return (
                         <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
-                          Credit Bill · Balance Due: ₹{due.toFixed(2)}
+                          Credit Bill · Balance Due: {getCurrencyPrefix()}{due.toFixed(2)}
                         </span>
                       );
                     }
@@ -309,7 +310,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                               Fill Rest [F]
                             </button>
                             <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-500/80">₹</span>
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-500/80">{getCurrencyPrefix()}</span>
                               <input
                                 ref={splitCashInputRef}
                                 type="number"
@@ -324,7 +325,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                                 }}
                                 onKeyDown={(e) => handleSplitInputKeyDown(e, 'CASH')}
                                 placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
+                                className="w-full pl-12 pr-1.5 py-0.5 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                               />
                             </div>
                           </div>
@@ -347,7 +348,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                               Fill Rest [F]
                             </button>
                             <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-blue-500/80">₹</span>
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-blue-500/80">{getCurrencyPrefix()}</span>
                               <input
                                 ref={splitCardInputRef}
                                 type="number"
@@ -362,7 +363,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                                 }}
                                 onKeyDown={(e) => handleSplitInputKeyDown(e, 'CARD')}
                                 placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
+                                className="w-full pl-12 pr-1.5 py-0.5 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                               />
                             </div>
                           </div>
@@ -398,7 +399,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                               Fill Rest [F]
                             </button>
                             <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-violet-500/80">₹</span>
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-violet-500/80">{getCurrencyPrefix()}</span>
                               <input
                                 ref={splitUpiInputRef}
                                 type="number"
@@ -413,7 +414,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                                 }}
                                 onKeyDown={(e) => handleSplitInputKeyDown(e, 'UPI')}
                                 placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
+                                className="w-full pl-12 pr-1.5 py-0.5 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                               />
                             </div>
                           </div>
@@ -436,7 +437,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                               Fill Rest [F]
                             </button>
                             <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-500/80">₹</span>
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-indigo-500/80">{getCurrencyPrefix()}</span>
                               <input
                                 ref={splitChequeInputRef}
                                 type="number"
@@ -451,7 +452,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                                 }}
                                 onKeyDown={(e) => handleSplitInputKeyDown(e, 'CHEQUE')}
                                 placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-indigo-500/30 focus:border-indigo-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
+                                className="w-full pl-12 pr-1.5 py-0.5 bg-background/90 border border-indigo-500/30 focus:border-indigo-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                               />
                             </div>
                           </div>
@@ -474,7 +475,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                               Fill Rest [F]
                             </button>
                             <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-amber-500/80">₹</span>
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-amber-500/80">{getCurrencyPrefix()}</span>
                               <input
                                 ref={splitCreditInputRef}
                                 type="number"
@@ -489,7 +490,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                                 }}
                                 onKeyDown={(e) => handleSplitInputKeyDown(e, 'CREDIT')}
                                 placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-0.5 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
+                                className="w-full pl-12 pr-1.5 py-0.5 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6"
                               />
                             </div>
                           </div>

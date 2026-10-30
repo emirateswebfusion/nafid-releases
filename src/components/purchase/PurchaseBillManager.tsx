@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -613,7 +614,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                   "w-1.5 h-1.5 rounded-full shrink-0",
                   billType === 'GST' ? "bg-emerald-500" : "bg-muted-foreground/40"
                 )} />
-                GST
+                {localizeTaxText("GST")}
                 <span className={clsx(
                   "flex items-center justify-center w-4 h-4 rounded-md text-[10px] font-black transition-opacity",
                   billType === 'GST' ? "bg-emerald-500/15 text-emerald-600" : "bg-muted-foreground/15 text-muted-foreground",

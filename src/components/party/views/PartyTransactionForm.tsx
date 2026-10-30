@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import {
   Activity, AlertCircle, AlertTriangle, Banknote, CheckCircle2,
@@ -107,7 +109,7 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
                           : 'border-border bg-background text-muted-foreground hover:bg-muted'
                       )}
                     >
-                      <FileText className="w-4 h-4" /> GST Balance
+                      <FileText className="w-4 h-4" /> {localizeTaxText("GST")} Balance
                     </button>
                     <button
                       type="button"
@@ -136,7 +138,7 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjust Against</label>
                   <div className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-700 dark:text-sky-400 text-xs font-bold">
                     <FileText className="w-4 h-4" />
-                    <span>Adjusting Against: <strong>GST Balance</strong></span>
+                    <span>Adjusting Against: <strong>{localizeTaxText("GST")} Balance</strong></span>
                   </div>
                 </div>
               ) : null}
@@ -144,9 +146,9 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
               {/* Amount + Date */}
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Amount (₹) *</label>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Amount ({getCurrencyPrefix()}) *</label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">{getCurrencyPrefix()}</span>
                     <input
                       required
                       type="number"
@@ -325,7 +327,7 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
               <div className="text-xs text-muted-foreground font-medium">
                 {txForm.amount && parseFloat(txForm.amount) > 0 && (
                   <span className={clsx('font-bold', txForm.transaction_type === 'CREDIT' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                    {txForm.transaction_type === 'CREDIT' ? '+' : '-'}₹{parseFloat(txForm.amount).toFixed(2)}
+                    {txForm.transaction_type === 'CREDIT' ? '+' : '-'}{getCurrencyPrefix()}{parseFloat(txForm.amount).toFixed(2)}
                   </span>
                 )}
               </div>

@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import { Receipt, FileText, IndianRupee, Building2, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import type { InventoryFormViewProps } from '../InventoryFormView';
@@ -36,7 +38,7 @@ export function GstPurchaseSection({
           <Receipt className="w-3.5 h-3.5" />
         </div>
         <div className="flex-1 min-w-0">
-          <span className="text-xs font-black text-purple-500 uppercase tracking-widest">5. GST Purchase Entry</span>
+          <span className="text-xs font-black text-purple-500 uppercase tracking-widest">5. {localizeTaxText("GST")} Purchase Entry</span>
           <p className="text-xs text-muted-foreground mt-0.5 leading-tight">Record the purchase bill linked to this stock addition</p>
         </div>
         {/* Toggle Switch */}
@@ -65,7 +67,7 @@ export function GstPurchaseSection({
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">No purchase entry will be recorded</p>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Enable this to log the supplier bill, purchase price, and quantity into your GST purchase ledger for ITC (Input Tax Credit) tracking.</p>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Enable this to log the supplier bill, purchase price, and quantity into your {localizeTaxText("GST")} purchase ledger for ITC (Input Tax Credit) tracking.</p>
           </div>
         </div>
       )}
@@ -138,7 +140,7 @@ export function GstPurchaseSection({
               <div className="p-4">
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Purchase Price</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm select-none">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm select-none">{getCurrencyPrefix()}</span>
                   <input
                     type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
@@ -233,7 +235,7 @@ export function GstPurchaseSection({
                             <span className="font-bold">{s.name}</span>
                             {s.phone && <span className="text-xs text-muted-foreground">{s.phone}</span>}
                             {s.balance_type === 'PAYABLE' && (s.balance ?? 0) > 0 && (
-                              <span className="text-xs text-red-500 ml-auto font-bold">₹{Number(s.balance).toFixed(2)}</span>
+                              <span className="text-xs text-red-500 ml-auto font-bold">{getCurrencyPrefix()}{Number(s.balance).toFixed(2)}</span>
                             )}
                           </button>
                         ))}
@@ -285,7 +287,7 @@ export function GstPurchaseSection({
           <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-purple-500/6 border border-purple-500/15">
             <div className="w-4 h-4 rounded-full bg-purple-500/15 text-purple-500 flex items-center justify-center shrink-0 mt-0.5 text-xs font-black">i</div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              This purchase entry will be recorded in your <span className="font-bold text-foreground">GST Purchase Ledger</span> and may be used for <span className="font-bold text-foreground">Input Tax Credit (ITC)</span> reconciliation.
+              This purchase entry will be recorded in your <span className="font-bold text-foreground">{localizeTaxText("GST")} Purchase Ledger</span> and may be used for <span className="font-bold text-foreground">Input Tax Credit (ITC)</span> reconciliation.
             </p>
           </div>
 

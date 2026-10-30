@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import { Truck, X } from 'lucide-react';
 
@@ -26,7 +27,7 @@ export function TransportDetailsModal({
             </div>
             <div>
               <h3 className="text-base font-bold text-foreground">Transporter & E-Way Bill Details</h3>
-              <p className="text-xs text-muted-foreground">Add transport information for GST Boxed invoices</p>
+              <p className="text-xs text-muted-foreground">Add transport information for {localizeTaxText("GST")} Boxed invoices</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer">

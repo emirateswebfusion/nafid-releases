@@ -9,7 +9,7 @@ import { useTabStore } from './store/tabStore';
 import { useAuthStore } from './store/authStore';
 import { getSetting } from './data/settings';
 import { setAppTimeFormat } from './utils/print/receiptGenerator';
-import { setStoreTimezone } from './utils/time/timezoneHelper';
+import { useStoreProfile } from './hooks/useStoreProfile';
 import { CashDrawerAutoCloseWatcher } from './components/cashier/CashDrawerAutoCloseWatcher';
 import { SessionExpiredModal } from './components/app/SessionExpiredModal';
 import { useFeatureFlagsStore, isAiAssistantAvailable } from './config/featureFlags';
@@ -27,7 +27,8 @@ function App() {
 
   const panic = useEmergencyPanicTrigger();
 
-  const { isAuthenticated, isLoading, checkAuth, role, isCloudSyncPaused } = useAuthStore();
+  const { tenantId, isAuthenticated, isLoading, checkAuth, role, isCloudSyncPaused } = useAuthStore();
+  const profileReady = useStoreProfile(tenantId, isAuthenticated);
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [showComboManager, setShowComboManager] = useState(false);
@@ -93,9 +94,7 @@ function App() {
         setAppTimeFormat('12h');
       }
     });
-    getSetting({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: unknown) => {
-      setStoreTimezone(v);
-    });
+
 
     const handleSettingsUpdated = () => {
       const currentTid = useAuthStore.getState().tenantId;
@@ -106,9 +105,7 @@ function App() {
       getSetting({ tenant_id: currentTid || 'global', key: 'time_format' }).then((v: unknown) => {
         if (v === '24h' || v === '12h') setAppTimeFormat(v);
       });
-      getSetting({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: unknown) => {
-        setStoreTimezone(v);
-      });
+
     };
     window.addEventListener('settings:updated', handleSettingsUpdated);
     return () => {
@@ -122,10 +119,10 @@ function App() {
 
   // Fetch the billing chunk in the background once signed in (screens are lazy, see lazyScreens.ts).
   useEffect(() => {
-    if (isAuthenticated) preloadBilling();
-  }, [isAuthenticated]);
+    if (isAuthenticated && profileReady) preloadBilling();
+  }, [isAuthenticated, profileReady]);
 
-  if (isLoading) {
+  if (isLoading || (isAuthenticated && !profileReady)) {
     return <SplashScreen />;
   }
 

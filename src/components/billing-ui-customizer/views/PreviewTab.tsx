@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import { Eye, Store, RotateCcw, TrendingUp, PauseCircle, Truck, Recycle, FileText, ArrowLeftRight, Banknote, BookOpen, Settings, User, Search, Scale, Plus } from 'lucide-react';
 import { isHeaderButtonVisible, QUICK_PAGES_LIST } from '../../../store/billingUIStore';
 import clsx from 'clsx';
@@ -41,7 +43,7 @@ export function PreviewTab({
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </div>
               <div className="flex items-center gap-2 text-[10px] mt-0.5">
-                <span className="font-mono px-2 py-0.5 rounded bg-primary/10 text-primary font-bold border border-primary/20">GST-INV-0042</span>
+                <span className="font-mono px-2 py-0.5 rounded bg-primary/10 text-primary font-bold border border-primary/20">{localizeTaxText("GST")}-INV-0042</span>
                 <span className="text-muted-foreground bg-muted px-2 py-0.5 rounded font-semibold">Staff</span>
               </div>
             </div>
@@ -134,11 +136,11 @@ export function PreviewTab({
               </div>
               <div className="space-y-2">
                 {[
-                  { name: 'Gold Ring 22K', price: '₹14,500' },
-                  { name: 'Silver Chain 925', price: '₹2,400' },
-                  { name: 'Diamond Bangle', price: '₹45,000' },
-                  { name: 'Titan Watch Classic', price: '₹5,200' },
-                  { name: 'Gold Coin 5g', price: '₹36,000' }
+                  { name: 'Gold Ring 22K', price: localizeCurrencyText('₹14,500') },
+                  { name: 'Silver Chain 925', price: localizeCurrencyText('₹2,400') },
+                  { name: 'Diamond Bangle', price: localizeCurrencyText('₹45,000') },
+                  { name: 'Titan Watch Classic', price: localizeCurrencyText('₹5,200') },
+                  { name: 'Gold Coin 5g', price: localizeCurrencyText('₹36,000') }
                 ].map((item, i) => (
                   <div key={item.name} className={clsx("p-2.5 rounded-xl border text-xs font-bold transition-all shadow-xs flex flex-col gap-0.5", i === 0 ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400" : "bg-card border-border text-foreground")}>
                     <div className="truncate">{item.name}</div>
@@ -267,15 +269,15 @@ export function PreviewTab({
               <div className="grid grid-cols-12 items-center p-3 bg-background border border-border rounded-xl text-xs font-semibold shadow-xs">
                 <div className="col-span-6 font-bold text-foreground">Gold Ring 22K (2.500g)</div>
                 <div className="col-span-2 text-center font-mono font-bold">1.00</div>
-                <div className="col-span-2 text-right font-mono text-muted-foreground">₹15,400</div>
-                <div className="col-span-2 text-right font-mono font-bold text-primary">₹15,400.00</div>
+                <div className="col-span-2 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}15,400</div>
+                <div className="col-span-2 text-right font-mono font-bold text-primary">{getCurrencyPrefix()}15,400.00</div>
               </div>
 
               <div className="grid grid-cols-12 items-center p-3 bg-background border border-border rounded-xl text-xs font-semibold shadow-xs">
                 <div className="col-span-6 font-bold text-foreground font-sans">Silver Chain 925 (10.00g)</div>
                 <div className="col-span-2 text-center font-mono font-bold">1.00</div>
-                <div className="col-span-2 text-right font-mono text-muted-foreground">₹1,250</div>
-                <div className="col-span-2 text-right font-mono font-bold text-primary">₹1,250.00</div>
+                <div className="col-span-2 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}1,250</div>
+                <div className="col-span-2 text-right font-mono font-bold text-primary">{getCurrencyPrefix()}1,250.00</div>
               </div>
             </div>
           </div>
@@ -316,15 +318,15 @@ export function PreviewTab({
               <div className="p-3 rounded-2xl border border-border bg-muted/20 space-y-1.5 text-xs">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal:</span>
-                  <span className="font-mono font-semibold">₹16,650.00</span>
+                  <span className="font-mono font-semibold">{getCurrencyPrefix()}16,650.00</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>GST (3%):</span>
-                  <span className="font-mono font-semibold">₹499.50</span>
+                  <span>{localizeTaxText("GST")} (3%):</span>
+                  <span className="font-mono font-semibold">{getCurrencyPrefix()}499.50</span>
                 </div>
                 <div className="flex justify-between text-sm font-black text-foreground pt-1.5 border-t border-border">
                   <span>Grand Total:</span>
-                  <span className="font-mono text-base text-primary">₹17,149.50</span>
+                  <span className="font-mono text-base text-primary">{getCurrencyPrefix()}17,149.50</span>
                 </div>
               </div>
 

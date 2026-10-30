@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { hasBridge } from '../../../data/client';
 import { syncApi } from '../../../data/sync';
 import type { AiQueryContext } from '../queryContext';
@@ -16,7 +17,7 @@ export async function handleAssistantIntent(parsed: ParsedOfflineIntent, ctx: Ai
         }
       } catch { /* ignore */ }
 
-      const nowStr = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      const nowStr = new Date().toLocaleTimeString(getStoreLocale(), { hour: '2-digit', minute: '2-digit' });
 
       const md = isMal
         ? `### 🔄 സിസ്റ്റം സമന്വയ നില (Multi-Counter Sync Status)\n\n` +

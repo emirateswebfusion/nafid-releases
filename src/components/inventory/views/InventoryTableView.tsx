@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { Fragment } from 'react';
 import { RefreshCw, AlertTriangle, Plus, Minus, Pencil, Trash, Printer, X, Package, PackagePlus, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
@@ -240,7 +242,7 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                                 if (!tier) return null;
                                 return (
                                   <span key={tid} className="text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 px-1.5 py-0.5 rounded font-bold">
-                                    {tier.name}: ₹{tPrice}
+                                    {tier.name}: {getCurrencyPrefix()}{tPrice}
                                   </span>
                                 );
                               })}
@@ -249,33 +251,33 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                         </div>
                       </div>
                       <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold flex flex-col items-end justify-center">
-                        <span>₹{displayPurchasePrice.toFixed(2)}</span>
+                        <span>{getCurrencyPrefix()}{displayPurchasePrice.toFixed(2)}</span>
                         {appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined && (
                           <span className="text-[9px] text-indigo-500 font-semibold leading-tight mt-0.5">Grade Purchase</span>
                         )}
                         {paperPurPrice > 0 && (
                           <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold leading-tight mt-0.5" title="Paper Purchase Price">
-                            Paper: ₹{paperPurPrice.toFixed(2)}
+                            Paper: {getCurrencyPrefix()}{paperPurPrice.toFixed(2)}
                           </span>
                         )}
                       </div>
                       <div className="col-span-1 flex flex-col items-end justify-center text-right">
                         <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
-                          ₹{displayMrp.toFixed(2)}
+                          {getCurrencyPrefix()}{displayMrp.toFixed(2)}
                         </span>
                         {gradeRate !== null && p.pricing_mode === 'GRADE_RATE' && (
                           <span className="text-[10px] text-indigo-500 font-semibold leading-tight mt-0.5 text-right">
-                            Grade Rate: ₹{gradeRate}
+                            Grade Rate: {getCurrencyPrefix()}{gradeRate}
                           </span>
                         )}
                         {paperMrpPrice > 0 && (
                           <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold leading-tight mt-0.5" title="Paper MRP">
-                            Paper: ₹{paperMrpPrice.toFixed(2)}
+                            Paper: {getCurrencyPrefix()}{paperMrpPrice.toFixed(2)}
                           </span>
                         )}
                       </div>
                       <div className="col-span-1 text-right text-emerald-500 font-bold text-sm">
-                        {finalPrice !== null ? `₹${finalPrice.toFixed(2)}` : '-'}
+                        {finalPrice !== null ? `${getCurrencyPrefix()}${finalPrice.toFixed(2)}` : '-'}
                       </div>
 
                       {/* Real Stock with +/- */}
@@ -322,7 +324,7 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                         {(() => {
                           const displayPaperStock = Number(p.paper_stock !== undefined && p.paper_stock !== null ? p.paper_stock : (da.paper_stock || 0));
                           return displayPaperStock > 0 ? (
-                            <span className="text-xs font-black text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/25 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs" title="Paper Stock from Dummy GST purchases">
+                            <span className="text-xs font-black text-purple-600 dark:text-purple-400 bg-purple-500/10 border border-purple-500/25 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-2xs" title={localizeTaxText("Paper Stock from Dummy GST purchases")}>
                               <Package className="w-3 h-3" />
                               {displayPaperStock} {p.uom}
                             </span>

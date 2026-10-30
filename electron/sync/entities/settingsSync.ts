@@ -68,7 +68,7 @@ export async function pullSettings(token: string, tenantId: string): Promise<boo
     'billing_ui_config', 'enable_party_gst_balance', 'enable_party_estimate_balance',
     'enable_real_paper_stock', 'show_paper_stock_in_gst', 'show_paper_stock_in_estimate',
     'show_zero_paper_stock', 'enable_convert_to_gst', 'show_product_gst_badge',
-    'time_format', 'store_timezone', 'bank_name', 'bank_account_number',
+    'store_country', 'vat_price_inclusive', 'time_format', 'store_timezone', 'bank_name', 'bank_account_number',
     'bank_ifsc', 'bank_branch', 'feature_flags', 'print_format', 'label_code_type',
     'label_show_shop_name', 'auto_print_barcode', 'show_cash_register', 'staff_data_masking_config',
     'emergency_panic_config'

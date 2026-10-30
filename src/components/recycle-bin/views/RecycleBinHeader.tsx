@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { Trash2, RefreshCw, X, Receipt, Package, Users, Handshake, ShieldAlert } from 'lucide-react';
 import { formatAmount } from '../../../utils/pricing/money';
@@ -136,7 +137,7 @@ export function RecycleBinHeader({
                 <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Deleted Bills</p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xs font-black font-mono text-foreground">{counts.SALES_BILLS}</span>
-                  <span className="text-[10px] font-mono text-muted-foreground font-bold">₹{formatAmount(totalDeletedBillsValue)}</span>
+                  <span className="text-[10px] font-mono text-muted-foreground font-bold">{getCurrencyPrefix()}{formatAmount(totalDeletedBillsValue)}</span>
                 </div>
               </div>
             </div>

@@ -1,3 +1,5 @@
+import { profileInvoicePrefix } from '../utils/invoiceNumberPrefix.js';
+import { getStoreCountrySetting } from './storeCountryService.js';
 import type { ServiceDb, SettingRow } from './typesB.js';
 import { readAuthPayload } from './authStorage.js';
 import * as invoiceNumberSql from '../db/statements/invoiceNumber.js';
@@ -41,7 +43,7 @@ export async function requestServerInvoiceNumber(
   try {
     const terminalCode = getOrInitTerminalCode(db);
 
-    let prefix = `${terminalCode}-`;
+    let prefix = getStoreCountrySetting(db, tenantId) === 'AE' && configKey === 'gst_invoice_counter_config' ? 'VAT-' : `${terminalCode}-`;
     if (configKey !== 'invoice_counter_config') {
       const prefixRow: SettingRow = invoiceNumberSql.findSettingsByKey(db).get('global', configKey) as SettingRow;
       if (prefixRow) {
@@ -54,6 +56,7 @@ export async function requestServerInvoiceNumber(
       }
     }
 
+    prefix = profileInvoicePrefix(getStoreCountrySetting(db, tenantId), configKey, prefix);
     if (series === 'gst_b2b' || series === 'gst_b2c') {
       const tripleSeriesRow: SettingRow = invoiceNumberSql.findSettingsByKey(db).get('global', 'three_invoice_series') as SettingRow;
       const tripleSeries = tripleSeriesRow ? JSON.parse(tripleSeriesRow.value) : null;
@@ -144,6 +147,7 @@ export function getGuaranteedNextInvoiceNumber(
     }
   }
 
+  prefix = profileInvoicePrefix(getStoreCountrySetting(db, tenantId), configKey, prefix);
   const checkStmt = invoiceNumberSql.findOneInvoiceByInvoiceNumber(db);
   let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
 
@@ -191,6 +195,7 @@ export function peekGuaranteedNextInvoiceNumber(
     }
   }
 
+  prefix = profileInvoicePrefix(getStoreCountrySetting(db, tenantId), configKey, prefix);
   const checkStmt = invoiceNumberSql.findOneInvoiceByInvoiceNumber(db);
   let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
 

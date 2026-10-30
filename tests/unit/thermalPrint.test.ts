@@ -46,7 +46,7 @@ it('measures the receipt after assets load, without counting the viewport as pap
   expect(printReady).toHaveBeenCalledWith(1500);
 });
 
-it('does not print a long bill on did-finish-load before its own measurement arrives', async () => {
+it.each([80, 300, 1800])('waits for measurement and matches CSS paper length for %s px receipts', async height => {
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const loaded = new Map<string, () => void>();
   const print = vi.fn();
@@ -59,23 +59,25 @@ it('does not print a long bill on did-finish-load before its own measurement arr
   const context = {
     BrowserWindow: Window, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     resolvePrinterDeviceName: async () => ({ deviceName: 'thermal', actualNameUsed: 'thermal' }),
-    executePrintWithFallback: print, buildReceiptHtml: async () => '',
+    executePrintWithFallback: print, buildReceiptHtml: vi.fn(async () => ''),
     pendingPrint: (fn: (resolve: () => void, reject: () => void) => Promise<void>) => new Promise(fn),
     ipcMain: { once: (event: string, fn: (height?: number) => Promise<void>) => listeners.set(event, fn) },
     setTimeout: vi.fn(), clearTimeout: vi.fn(), setImmediate: (fn: () => void) => fn(),
-    path: { join: () => '' }, __dirname: '', currentReceiptText: '', pendingReceiptHeightPx: 0, console,
+    path: { join: () => '' }, __dirname: '', currentReceiptText: 'Original bill', pendingReceiptHeightPx: 0, console,
   };
   const invoke = runInNewContext(`${compile('printReceiptUSB')}\nprintReceiptUSB`, context);
   void invoke('thermal', 58);
+  context.currentReceiptText = 'Next bill';
   for (let i = 0; i < 10; i++) await Promise.resolve();
+  expect(context.buildReceiptHtml).toHaveBeenCalledWith('Original bill', 58, expect.any(String), 0);
   loaded.get('did-finish-load')?.();
   expect(print).not.toHaveBeenCalled();
-  await listeners.get('print-ready-11')!(1800);
+  await listeners.get('print-ready-11')!(height);
   expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, expect.any(Number), undefined, false, true);
-  expect(print.mock.calls[0][3]).toBeGreaterThan(1800 * 25.4 / 96 * 1000);
+  expect(print.mock.calls[0][3]).toBe(Math.max(40, Math.ceil(height * 25.4 / 96 + 3)) * 1000);
 });
 
-it('still prints a receipt whose height could not be measured, with the long fallback page', async () => {
+it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without feeding blank paper', async height => {
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const print = vi.fn();
   class Window {
@@ -92,14 +94,15 @@ it('still prints a receipt whose height could not be measured, with the long fal
     ipcMain: { once: (event: string, fn: (height?: number) => Promise<void>) => listeners.set(event, fn) },
     setTimeout: vi.fn(), clearTimeout: vi.fn(), setImmediate: (fn: () => void) => fn(),
     path: { join: () => '' }, __dirname: '', currentReceiptText: '', pendingReceiptHeightPx: 0,
-    console: { ...console, warn: vi.fn() }, RECEIPT_FALLBACK_HEIGHT_MICRONS: 600000,
+    console: { ...console, warn: vi.fn() },
   };
   const invoke = runInNewContext(`${compile('printReceiptUSB')}
 printReceiptUSB`, context);
-  void invoke('thermal', 58);
+  const result = expect(invoke('thermal', 58)).rejects.toThrow('Receipt paper length could not be measured');
   for (let i = 0; i < 10; i++) await Promise.resolve();
-  await listeners.get('print-ready-12')!(0);
-  expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, 600000, undefined, false, true);
+  await listeners.get('print-ready-12')!(height);
+  await result;
+  expect(print).not.toHaveBeenCalled();
 });
 
 it('reports unsupported thermal dimensions instead of silently printing on a shorter driver page', async () => {
@@ -119,27 +122,11 @@ it('never retries a print the driver has not answered yet, so a slow printer doe
   expect(timers).not.toHaveBeenCalled();
 });
 
-it('falls back to native driver page size for standard receipts when custom paper size is rejected', async () => {
-  const printCalls: Record<string, unknown>[] = [];
-  const print = vi.fn((options: Record<string, unknown>, callback: (success: boolean, reason?: string) => void) => {
-    printCalls.push(options);
-    if (options.pageSize) {
-      callback(false, 'unsupported custom paper size');
-    } else {
-      callback(true);
-    }
-  });
-  const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, {
-    console: { ...console, warn: vi.fn(), log: vi.fn() },
-    setTimeout: () => 0,
-    clearTimeout: () => {},
-  });
-  // 120mm receipt height (120000 microns <= 297000)
-  await expect(invoke({ isDestroyed: () => false, webContents: { print } }, 'XP-80C', 80, 120000, undefined, false, true)).resolves.toBeUndefined();
-  expect(print).toHaveBeenCalledTimes(2);
-  expect(printCalls[0].pageSize).toEqual({ width: 80000, height: 120000 });
-  expect(printCalls[1].pageSize).toBeUndefined();
-  expect(printCalls[1].deviceName).toBe('XP-80C');
+it.each([40000, 120000, 296000, 520000])('keeps exact thermal paper at %s microns when the driver rejects it', async height => {
+  const print = vi.fn((_options, callback) => callback(false, 'unsupported custom paper size'));
+  const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console });
+  await expect(invoke({ isDestroyed: () => false, webContents: { print } }, 'XP-80C', 80, height, undefined, false, true)).rejects.toThrow('unsupported custom paper size');
+  expect(print).toHaveBeenCalledOnce();
 });
 
 it('preserves left-aligned metadata and indented lines without falsely centering them', async () => {

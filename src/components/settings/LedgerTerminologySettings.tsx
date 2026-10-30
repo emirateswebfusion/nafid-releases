@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import React from 'react';
 import { useTerminologyStore, TERMINOLOGY_PRESETS } from '../../store/terminologyStore';
 import { BookOpen, Check, Eye } from 'lucide-react';
@@ -216,7 +217,7 @@ export const LedgerTerminologySettings: React.FC = () => {
               Customer Outstanding ({currentLabels.receivable})
             </span>
             <div className="flex items-baseline justify-between">
-              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹ 14,500.00</span>
+              <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()} 14,500.00</span>
               <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-md">
                 {currentLabels.receivable}
               </span>
@@ -231,7 +232,7 @@ export const LedgerTerminologySettings: React.FC = () => {
               Supplier Outstanding ({currentLabels.payable})
             </span>
             <div className="flex items-baseline justify-between">
-              <span className="text-xl font-black text-rose-600 dark:text-rose-400">₹ 8,200.00</span>
+              <span className="text-xl font-black text-rose-600 dark:text-rose-400">{getCurrencyPrefix()} 8,200.00</span>
               <span className="text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-500/15 px-2 py-0.5 rounded-md">
                 {currentLabels.payable}
               </span>
@@ -254,7 +255,7 @@ export const LedgerTerminologySettings: React.FC = () => {
             <div className="px-4 py-2.5 grid grid-cols-12 gap-2 items-center">
               <div className="col-span-3 text-muted-foreground font-mono text-[11px]">24 Sep 2026</div>
               <div className="col-span-4 font-bold text-foreground">Cash Payment — Rahul Traders</div>
-              <div className="col-span-2 text-right font-black text-emerald-600 dark:text-emerald-400">₹ 2,000.00</div>
+              <div className="col-span-2 text-right font-black text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()} 2,000.00</div>
               <div className="col-span-3 text-right">
                 <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
                   {currentLabels.received}
@@ -264,7 +265,7 @@ export const LedgerTerminologySettings: React.FC = () => {
             <div className="px-4 py-2.5 grid grid-cols-12 gap-2 items-center">
               <div className="col-span-3 text-muted-foreground font-mono text-[11px]">23 Sep 2026</div>
               <div className="col-span-4 font-bold text-foreground">Purchase Payment — Standard Wholesalers</div>
-              <div className="col-span-2 text-right font-black text-rose-600 dark:text-rose-400">₹ 5,000.00</div>
+              <div className="col-span-2 text-right font-black text-rose-600 dark:text-rose-400">{getCurrencyPrefix()} 5,000.00</div>
               <div className="col-span-3 text-right">
                 <span className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-bold border border-rose-500/20">
                   {currentLabels.paid}

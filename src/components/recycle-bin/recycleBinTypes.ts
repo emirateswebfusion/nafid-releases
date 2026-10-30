@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 import type React from 'react';
 import { Receipt, Package, Users, Handshake } from 'lucide-react';
 export type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } from '../../data/recycleBin';
@@ -58,7 +59,7 @@ export function formatDate(dateStr: string | null): string {
   if (!dateStr) return 'N/A';
   try {
     const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', {
+    return d.toLocaleDateString(getStoreLocale(), {
       day: '2-digit',
       month: 'short',
       year: 'numeric',

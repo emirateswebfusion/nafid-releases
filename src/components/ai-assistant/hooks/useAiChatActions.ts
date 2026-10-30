@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { processOfflineAiQuery } from '../../../services/offlineAiService';
 import { type ChatMessage } from '../aiAssistantTypes';
@@ -34,7 +35,7 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
       .trim();
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = /[\u0D00-\u0D7F]/.test(text) ? 'ml-IN' : 'en-IN';
+    utterance.lang = /[\u0D00-\u0D7F]/.test(text) ? 'ml-IN' : getStoreLocale();
     utterance.rate = 1.0;
     utterance.onend = () => setSpeakingId(null);
     utterance.onerror = () => setSpeakingId(null);

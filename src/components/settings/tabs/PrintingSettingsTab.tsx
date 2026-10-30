@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Printer, Receipt, FileText, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
@@ -46,7 +47,7 @@ export const PrintingSettingsTab: React.FC<PrintingSettingsTabProps> = ({
                 </div>
                 <div>
                   <span className="text-xs font-black text-primary uppercase tracking-widest block">Normal Print Paper Format</span>
-                  <p className="text-[11px] text-muted-foreground/75 mt-0.5">Format used for non-GST bills (Bill of Supply &amp; Estimate)</p>
+                  <p className="text-[11px] text-muted-foreground/75 mt-0.5">Format used for non-{localizeTaxText("GST")} bills ({localizeTaxText("Bill of Supply")} &amp; Estimate)</p>
                 </div>
               </div>
 
@@ -187,7 +188,7 @@ export const PrintingSettingsTab: React.FC<PrintingSettingsTabProps> = ({
                 <div className="space-y-4 pt-6 border-t border-border/40 animate-in fade-in duration-300">
                   <div>
                     <span className="text-xs font-extrabold text-foreground uppercase tracking-wider block">A4 &amp; A5 Invoice Style</span>
-                    <p className="text-[11px] text-muted-foreground/75 mt-0.5">Applied automatically when printing A4, A5, GST, or B2B tax invoices</p>
+                    <p className="text-[11px] text-muted-foreground/75 mt-0.5">Applied automatically when printing A4, A5, {localizeTaxText("GST")}, or B2B tax invoices</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     {[

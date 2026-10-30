@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { CheckCircle2, Plus, X, DollarSign, Clock, AlertTriangle, Bell, Zap } from 'lucide-react';
 import { CustomDialog, type DialogVariant } from '../ui/CustomDialog';
@@ -447,7 +449,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const yyyy = d.getFullYear();
-    const dayName = d.toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), weekday: 'long' });
+    const dayName = d.toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone(), weekday: 'long' });
     return `${dd}/${mm}/${yyyy} ${dayName}`;
   };
 
@@ -639,7 +641,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             <div className="p-6 space-y-4">
               <p className="text-sm text-muted-foreground font-medium">Enter the cash amount at the start of today's shift.</p>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   value={openingBalInput || ''}

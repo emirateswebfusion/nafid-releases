@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
 import { formatCurrency } from '../../BillingConstants';
@@ -195,7 +196,7 @@ export function DiscountRow({
 
             {/* Flat Amount Input Column */}
             <div className="flex items-center px-2 py-0.5 gap-1">
-              <span className="text-xs font-black text-muted-foreground/60 shrink-0 pointer-events-none select-none">₹</span>
+              <span className="text-xs font-black text-muted-foreground/60 shrink-0 pointer-events-none select-none">{getCurrencyPrefix()}</span>
               <input
                 ref={discountRef}
                 type="number"

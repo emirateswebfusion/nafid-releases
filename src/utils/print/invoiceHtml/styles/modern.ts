@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../../../localization/storeProfile';
+import { getCurrencyPrefix, localizeCurrencyText } from '../../../localization/storeProfile';
 import { getEffectiveBillSettings, formatPrintItem } from '../../receiptGenerator';
 import { getStoreTimezone } from '../../../time/timezoneHelper';
 import { type InvoiceData, shouldShowItemMrpHtml, formatItemNameForBill, renderHtmlBalanceRows } from '../invoiceHtmlCore';
@@ -19,16 +21,16 @@ export function generateModernHtml(data: InvoiceData, title: string): string {
       ? `<br><b style="font-size:10px; color:#059669; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#6b7280; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
     const middleCols = isRateQty
-      ? `<td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${fmt.displayRate}</td><td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td>`
-      : `<td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td><td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${fmt.displayRate}</td>`;
+      ? `<td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">${getCurrencyPrefix()}${fmt.displayRate}</td><td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td>`
+      : `<td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td><td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">${getCurrencyPrefix()}${fmt.displayRate}</td>`;
     const offerLabelText = item.discountLabel || (item.originalRate != null && item.originalRate !== item.unit_price ? 'Offer' : '');
-    const offerHtml = shouldShowItemMrpHtml(data, item) && offerLabelText ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${offerLabelText}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
+    const offerHtml = shouldShowItemMrpHtml(data, item) && offerLabelText ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${offerLabelText}${item.originalRate ? localizeCurrencyText(' (was ₹') + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
     return `
     <tr style="border-bottom:1px solid #e5e7eb">
       <td style="padding:6px 4px;font-size:11px;color:#374151">${idx + 1}</td>
       <td style="padding:6px 4px;font-size:11px;color:#374151">${displayName}${brandHtml}${pcsHtml}${comboHtml}${offerHtml}</td>
       ${middleCols}
-      <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">₹${fmt.displayTotal}</td>
+      <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">${getCurrencyPrefix()}${fmt.displayTotal}</td>
     </tr>
   `;
   }).join('');
@@ -112,19 +114,19 @@ export function generateModernHtml(data: InvoiceData, title: string): string {
     </table>
 
     <div class="totals">
-      <div class="row"><span>Subtotal</span><span>₹${data.subtotal.toFixed(2)}</span></div>
-      ${data.cgst != null && data.cgst > 0 ? `<div class="row"><span>CGST</span><span>₹${data.cgst.toFixed(2)}</span></div>` : ''}
-      ${data.sgst != null && data.sgst > 0 ? `<div class="row"><span>SGST</span><span>₹${data.sgst.toFixed(2)}</span></div>` : ''}
-      ${data.igst != null && data.igst > 0 ? `<div class="row"><span>IGST</span><span>₹${data.igst.toFixed(2)}</span></div>` : ''}
-      ${data.discount > 0 ? `<div class="row"><span>Discount${data.discountType === 'PERCENTAGE' && data.discountValue ? ` (${data.discountValue}%)` : ''}</span><span style="color:#dc2626">-₹${data.discount.toFixed(2)}</span></div>` : ''}
-      <div class="row total"><span>Grand Total</span><span>₹${data.grandTotal.toFixed(2)}</span></div>
-      ${data.scrapDeduction && data.scrapDeduction > 0 ? `<div class="row"><span>Scrap Return Amount (${data.scrapInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</span></div>` : ''}
-      ${data.returnDeduction && data.returnDeduction > 0 ? `<div class="row"><span>Return Credit (${data.returnInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.returnDeduction.toFixed(2)}</span></div>` : ''}
-      ${data.pointsRedeemed && data.pointsRedeemed > 0 ? `<div class="row"><span>Points Redeemed (${data.pointsRedeemed} pts)</span><span style="color:#d97706">-₹${(data.pointsRedeemedDiscount || 0).toFixed(2)}</span></div>` : ''}
+      <div class="row"><span>Subtotal</span><span>${getCurrencyPrefix()}${data.subtotal.toFixed(2)}</span></div>
+      ${data.cgst != null && data.cgst > 0 ? `<div class="row"><span>CGST</span><span>${getCurrencyPrefix()}${data.cgst.toFixed(2)}</span></div>` : ''}
+      ${data.sgst != null && data.sgst > 0 ? `<div class="row"><span>SGST</span><span>${getCurrencyPrefix()}${data.sgst.toFixed(2)}</span></div>` : ''}
+      ${data.igst != null && data.igst > 0 ? `<div class="row"><span>IGST</span><span>${getCurrencyPrefix()}${data.igst.toFixed(2)}</span></div>` : ''}
+      ${data.discount > 0 ? `<div class="row"><span>Discount${data.discountType === 'PERCENTAGE' && data.discountValue ? ` (${data.discountValue}%)` : ''}</span><span style="color:#dc2626">-${getCurrencyPrefix()}${data.discount.toFixed(2)}</span></div>` : ''}
+      <div class="row total"><span>Grand Total</span><span>${getCurrencyPrefix()}${data.grandTotal.toFixed(2)}</span></div>
+      ${data.scrapDeduction && data.scrapDeduction > 0 ? `<div class="row"><span>Scrap Return Amount (${data.scrapInvoiceNumber || ''})</span><span style="color:#dc2626">-${getCurrencyPrefix()}${data.scrapDeduction.toFixed(2)}</span></div>` : ''}
+      ${data.returnDeduction && data.returnDeduction > 0 ? `<div class="row"><span>Return Credit (${data.returnInvoiceNumber || ''})</span><span style="color:#dc2626">-${getCurrencyPrefix()}${data.returnDeduction.toFixed(2)}</span></div>` : ''}
+      ${data.pointsRedeemed && data.pointsRedeemed > 0 ? `<div class="row"><span>Points Redeemed (${data.pointsRedeemed} pts)</span><span style="color:#d97706">-${getCurrencyPrefix()}${(data.pointsRedeemedDiscount || 0).toFixed(2)}</span></div>` : ''}
       ${((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > data.grandTotal ? `
-      <div class="row" style="font-weight:bold;color:#ea580c"><span>Refund Amount</span><span>₹${(((data.scrapDeduction || 0) + (data.returnDeduction || 0)) - data.grandTotal).toFixed(2)}</span></div>
+      <div class="row" style="font-weight:bold;color:#ea580c"><span>Refund Amount</span><span>${getCurrencyPrefix()}${(((data.scrapDeduction || 0) + (data.returnDeduction || 0)) - data.grandTotal).toFixed(2)}</span></div>
       ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
-      <div class="row" style="font-weight:bold;color:#16a34a"><span>Net Payable</span><span>₹${(data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0))).toFixed(2)}</span></div>
+      <div class="row" style="font-weight:bold;color:#16a34a"><span>Net Payable</span><span>${getCurrencyPrefix()}${(data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0))).toFixed(2)}</span></div>
       ` : ''}
       ${renderHtmlBalanceRows(data, 'div')}
     </div>
@@ -154,7 +156,7 @@ export function generateModernHtml(data: InvoiceData, title: string): string {
       </div>
     </div>
     ` : ''}
-    <div class="footer">Generated by Nafid — ${new Date().toLocaleString('en-IN', { timeZone: getStoreTimezone() })}</div>
+    <div class="footer">Generated by Nafid — ${new Date().toLocaleString(getStoreLocale(), { timeZone: getStoreTimezone() })}</div>
   </div>
 </body></html>`;
 }

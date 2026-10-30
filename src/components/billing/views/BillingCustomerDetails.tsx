@@ -1,3 +1,5 @@
+import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React from 'react';
 import { User, Phone, MapPin, Building } from 'lucide-react';
@@ -6,6 +8,7 @@ import { CustomerOutstandingBadge } from '../ui/CustomerOutstandingBadge';
 import { Select } from '../../ui/Select';
 import { MRP_TIER_ID } from '../../../utils/pricing/pricingTierHelper';
 import { SingleDatePicker } from '../../ui/SingleDatePicker';
+import { isUaeStore, UAE_EMIRATES, getStoreProfile } from '../../../utils/localization/storeProfile';
 import { INDIAN_STATES } from '../BillingConstants';
 import type { PaymentMethod, SplitDetails, Tab } from '../../../store/tabStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
@@ -139,7 +142,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                     )}
                     {c.balance != null && Number(c.balance) !== 0 && (
                       <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400")}>
-                        {c.is_staff ? (Number(c.balance) < 0 ? `Owes: ₹${Math.abs(Number(c.balance)).toFixed(2)}` : `Bal: ₹${Number(c.balance).toFixed(2)}`) : `Bal: ₹${Math.abs(Number(c.balance)).toFixed(2)}`}
+                        {c.is_staff ? (Number(c.balance) < 0 ? `Owes: ${getCurrencyPrefix()}${Math.abs(Number(c.balance)).toFixed(2)}` : `Bal: ${getCurrencyPrefix()}${Number(c.balance).toFixed(2)}`) : `Bal: ${getCurrencyPrefix()}${Math.abs(Number(c.balance)).toFixed(2)}`}
                       </span>
                     )}
                   </button>
@@ -231,7 +234,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
         const available = Math.max(0, limit - currentBal);
         const exceeded = projected > limit;
         const excess = exceeded ? projected - limit : 0;
-        const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtN = (n: number) => n.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         return (
           <div className={`mb-2 rounded-xl px-3 py-2 border text-xs flex flex-col gap-1 transition-all duration-300 ${
             exceeded
@@ -240,17 +243,17 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
           }`}>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="font-bold flex items-center gap-1">
-                {exceeded ? '🚫' : '💳'} Credit Limit: ₹{fmtN(limit)}
+                {exceeded ? '🚫' : '💳'} Credit Limit: {getCurrencyPrefix()}{fmtN(limit)}
               </span>
-              <span className="font-semibold">Current Bal: ₹{fmtN(currentBal)}</span>
-              <span className="font-semibold">Bill Credit: ₹{fmtN(billCredit)}</span>
+              <span className="font-semibold">Current Bal: {getCurrencyPrefix()}{fmtN(currentBal)}</span>
+              <span className="font-semibold">Bill Credit: {getCurrencyPrefix()}{fmtN(billCredit)}</span>
             </div>
             <div className="flex items-center justify-between gap-2 border-t border-current/20 pt-1 font-extrabold">
-              <span>Projected Total: ₹{fmtN(projected)}</span>
+              <span>Projected Total: {getCurrencyPrefix()}{fmtN(projected)}</span>
               {exceeded ? (
-                <span className="text-red-600 dark:text-red-300 underline">EXCEEDS LIMIT BY ₹{fmtN(excess)}!</span>
+                <span className="text-red-600 dark:text-red-300 underline">EXCEEDS LIMIT BY {getCurrencyPrefix()}{fmtN(excess)}!</span>
               ) : (
-                <span className="text-emerald-700 dark:text-emerald-400">Available: ₹{fmtN(available - billCredit)}</span>
+                <span className="text-emerald-700 dark:text-emerald-400">Available: {getCurrencyPrefix()}{fmtN(available - billCredit)}</span>
               )}
             </div>
           </div>
@@ -267,7 +270,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
         const overdueCount = (party as B.DirectoryRecord).overdue_bills_count || 0;
         const overdueAmt = Number((party as B.DirectoryRecord).overdue_amount || 0);
         const creditDays = (party as B.DirectoryRecord).credit_period_days || 30;
-        const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtN = (n: number) => n.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
         if (hasOverdue) {
           return (
@@ -280,7 +283,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                 <span className="font-extrabold flex items-center gap-1">
                   ⚠️ Overdue Payment Alert ({overdueCount} bill{overdueCount !== 1 ? 's' : ''})
                 </span>
-                <span className="font-mono font-bold">Total Overdue: ₹{fmtN(overdueAmt)}</span>
+                <span className="font-mono font-bold">Total Overdue: {getCurrencyPrefix()}{fmtN(overdueAmt)}</span>
               </div>
               <p className="text-[11px] font-semibold leading-snug">
                 {isCreditTx && isRestricted ? (
@@ -300,7 +303,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
         if (isCreditTx) {
           const projectedDueDate = new Date();
           projectedDueDate.setDate(projectedDueDate.getDate() + creditDays);
-          const dueStr = projectedDueDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+          const dueStr = projectedDueDate.toLocaleDateString(getStoreLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
           return (
             <div className="mb-2 rounded-xl px-3 py-1.5 border border-indigo-500/20 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-xs flex items-center justify-between gap-2">
               <span className="font-bold flex items-center gap-1">
@@ -373,7 +376,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            Bill of Supply
+            {localizeTaxText("Bill of Supply")}
           </button>
           <button
             onClick={() => handleInvoiceTypeChange('GST')}
@@ -384,7 +387,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            GST Invoice
+            {localizeTaxText("GST")} Invoice
           </button>
         </div>
         {invoiceType === 'GST' && (
@@ -404,7 +407,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                       ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm border border-border/20'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
-                  title="B2C Consumer GST Invoice (Customer Name, Phone & Address optional)"
+                  title={isUaeStore() ? 'Consumer VAT invoice' : 'B2C Consumer GST Invoice (Customer Name, Phone & Address optional)'}
                 >
                   B2C
                 </button>
@@ -423,19 +426,19 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                       ? 'bg-card text-blue-600 dark:text-blue-400 shadow-sm border border-border/20'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
-                  title="B2B Business Tax Invoice (Customer Name, Phone, Address & GSTIN required)"
+                  title={isUaeStore() ? 'Business tax invoice (customer name, address and TRN)' : 'B2B Business Tax Invoice (Customer Name, Phone, Address & GSTIN required)'}
                 >
                   B2B
                 </button>
               </div>
               <div className="flex-1">
-                <Select size="sm" triggerClassName="h-auto" value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="w-full" />
+                <Select size="sm" triggerClassName="h-auto" value={customerState} onChange={setCustomerState} options={isUaeStore() ? UAE_EMIRATES : INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="w-full" />
               </div>
               <div className="relative flex-1">
                 <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                 <input
                   ref={customerGstinInputRef}
-                  placeholder={isB2B ? "GSTIN *" : "GSTIN (optional)"}
+                  placeholder={`${getStoreProfile().registrationName}${isB2B ? ' *' : ' (optional)'}`}
                   value={customerGstin}
                   onChange={e => {
                     const val = e.target.value.toUpperCase();

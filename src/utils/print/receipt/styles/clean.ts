@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../localization/storeProfile';
 import { formatPrintItem, shouldShowItemMrp, numberToIndianWords, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
@@ -114,37 +115,37 @@ export function renderCleanReceipt(ctx: ReceiptTextContext): string {
   text += '\n';
 
   // ── Totals ──
-  text += `${padRight('SUB TOTAL :', labelW)}  ${padLeft(`₹${data.subtotal.toFixed(2)}`, totalW)}\n`;
+  text += `${padRight('SUB TOTAL :', labelW)}  ${padLeft(`${getCurrencyPrefix()}${data.subtotal.toFixed(2)}`, totalW)}\n`;
   if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
-    text += `${padRight('EXTRA / BONUS :', labelW)}  ${padLeft(`₹+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
+    text += `${padRight('EXTRA / BONUS :', labelW)}  ${padLeft(`${getCurrencyPrefix()}+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
   } else if (data.discount > 0) {
     const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `DISCOUNT (${data.discountValue}%) :` : 'DISCOUNT :';
-    text += `${padRight(dLabel, labelW)}  ${padLeft(`₹-${data.discount.toFixed(2)}`, totalW)}\n`;
+    text += `${padRight(dLabel, labelW)}  ${padLeft(`${getCurrencyPrefix()}-${data.discount.toFixed(2)}`, totalW)}\n`;
   }
 
   const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
   const netPayable = Math.max(0, data.grandTotal - totalDeductions);
   const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
-  text += `${padRight('Grand Total :', labelW)}  ${padLeft(`₹${data.grandTotal.toFixed(2)}`, totalW)}\n`;
+  text += `${padRight('Grand Total :', labelW)}  ${padLeft(`${getCurrencyPrefix()}${data.grandTotal.toFixed(2)}`, totalW)}\n`;
   if (data.scrapDeduction && data.scrapDeduction > 0) {
-    text += `${padRight('Scrap Return Amount :', labelW)}  ${padLeft(`₹-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
+    text += `${padRight('Scrap Return Amount :', labelW)}  ${padLeft(`${getCurrencyPrefix()}-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
   }
   if (data.returnDeduction && data.returnDeduction > 0) {
-    text += `${padRight('Return Credit :', labelW)}  ${padLeft(`₹-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
+    text += `${padRight('Return Credit :', labelW)}  ${padLeft(`${getCurrencyPrefix()}-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
   }
 
   text += '\n';
   text += DASH + '\n';
-  text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(`₹${data.grandTotal.toFixed(2)}`, totalW)}\n`;
+  text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(`${getCurrencyPrefix()}${data.grandTotal.toFixed(2)}`, totalW)}\n`;
   text += DASH + '\n';
 
   if (totalDeductions > 0) {
     if (refundAmount > 0) {
-      text += `${padRight('** REFUND AMOUNT **', labelW)}  ${padLeft(`₹${refundAmount.toFixed(2)}`, totalW)}\n`;
+      text += `${padRight('** REFUND AMOUNT **', labelW)}  ${padLeft(`${getCurrencyPrefix()}${refundAmount.toFixed(2)}`, totalW)}\n`;
       text += DASH + '\n';
       text += `Amount In Words: \n${numberToIndianWords(refundAmount)} Only.\n`;
     } else {
-      text += `${padRight('** NET PAYABLE **', labelW)}  ${padLeft(`₹${netPayable.toFixed(2)}`, totalW)}\n`;
+      text += `${padRight('** NET PAYABLE **', labelW)}  ${padLeft(`${getCurrencyPrefix()}${netPayable.toFixed(2)}`, totalW)}\n`;
       text += DASH + '\n';
       text += `Amount In Words: \n${numberToIndianWords(netPayable)} Only.\n`;
     }
@@ -168,7 +169,7 @@ export function renderCleanReceipt(ctx: ReceiptTextContext): string {
     }, 0);
     const totalSaved = perProductSavings + data.discount;
     if (totalSaved > 0) {
-      text += centerText(`YOU SAVED ₹${totalSaved.toFixed(2)}`, charsPerLine) + '\n';
+      text += centerText(`YOU SAVED ${getCurrencyPrefix()}${totalSaved.toFixed(2)}`, charsPerLine) + '\n';
       text += '\n';
     }
   }

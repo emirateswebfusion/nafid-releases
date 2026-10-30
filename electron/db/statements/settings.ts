@@ -1,5 +1,18 @@
 import type { Db } from './types.js';
 
+export const findCountryChangeBlockers = (db: Db) => db.prepare(`
+  SELECT (
+    EXISTS(SELECT 1 FROM invoices WHERE tenant_id = @tenant_id) OR
+    EXISTS(SELECT 1 FROM products WHERE tenant_id = @tenant_id AND (base_price != 0 OR purchase_price != 0 OR current_stock != 0)) OR
+    EXISTS(SELECT 1 FROM parties WHERE tenant_id = @tenant_id) OR
+    EXISTS(SELECT 1 FROM party_ledger WHERE tenant_id = @tenant_id) OR
+    EXISTS(SELECT 1 FROM purchase_bills WHERE tenant_id = @tenant_id) OR
+    EXISTS(SELECT 1 FROM quotations WHERE tenant_id = @tenant_id) OR
+    EXISTS(SELECT 1 FROM scrap_transactions WHERE tenant_id = @tenant_id) OR
+    EXISTS(SELECT 1 FROM cash_drawer WHERE tenant_id = @tenant_id)
+  ) AS has_data
+`);
+
 /** SQL statements used by services/settingsService.ts. Each factory prepares its statement on the given connection. */
 
 export const findSettings = (db: Db) => db.prepare(`

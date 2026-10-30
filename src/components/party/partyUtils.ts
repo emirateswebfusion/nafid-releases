@@ -1,10 +1,11 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { parseUTCDate } from '../../utils/print/receiptGenerator';
 
 export const formatDate = (d: string) => {
   if (!d) return '—';
   const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
+  return parseUTCDate(d).toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 export { formatDateTime } from '../../utils/time/dateDisplay';

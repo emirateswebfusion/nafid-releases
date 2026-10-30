@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { FileText, TrendingUp, Wallet } from 'lucide-react';
 import type { PartyLedgerViewProps } from '../PartyLedgerView';
@@ -46,11 +48,11 @@ export function PartyBalanceCards({
                     ? 'bg-sky-500/10 border-sky-500/40 ring-1 ring-sky-500/30'
                     : 'bg-card/70 border-border hover:border-sky-500/30 hover:bg-sky-500/5'
                 )}
-                title="Click to filter transactions by GST Balance"
+                title={localizeTaxText("Click to filter transactions by GST Balance")}
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <FileText className="w-3 h-3 text-sky-500" /> GST
+                    <FileText className="w-3 h-3 text-sky-500" /> {localizeTaxText("GST")}
                   </span>
                   <span className={clsx(
                     "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
@@ -60,7 +62,7 @@ export function PartyBalanceCards({
                   </span>
                 </div>
                 <p className="text-sm font-black font-mono tracking-tight text-foreground">
-                  ₹{Math.abs(activeGstBal).toFixed(2)}
+                  {getCurrencyPrefix()}{Math.abs(activeGstBal).toFixed(2)}
                 </p>
               </button>
 
@@ -88,7 +90,7 @@ export function PartyBalanceCards({
                   </span>
                 </div>
                 <p className="text-sm font-black font-mono tracking-tight text-foreground">
-                  ₹{Math.abs(activeEstimateBal).toFixed(2)}
+                  {getCurrencyPrefix()}{Math.abs(activeEstimateBal).toFixed(2)}
                 </p>
               </button>
 
@@ -119,7 +121,7 @@ export function PartyBalanceCards({
                   </span>
                 </div>
                 <p className="text-base font-black font-mono tracking-tight">
-                  ₹{Math.abs(activeBal).toFixed(2)}
+                  {getCurrencyPrefix()}{Math.abs(activeBal).toFixed(2)}
                 </p>
               </button>
             </div>
@@ -128,7 +130,7 @@ export function PartyBalanceCards({
 
         // If ONLY ONE is on ("if one then view one")
         const singleBal = showOnlyEstimate ? activeEstimateBal : (showOnlyGst ? activeGstBal : activeBal);
-        const singleLabel = showOnlyEstimate ? 'Estimate' : (showOnlyGst ? 'GST' : 'Net Total');
+        const singleLabel = showOnlyEstimate ? 'Estimate' : (showOnlyGst ? localizeTaxText('GST') : 'Net Total');
         const SingleIcon = showOnlyEstimate ? TrendingUp : (showOnlyGst ? FileText : Wallet);
 
         return (
@@ -153,7 +155,7 @@ export function PartyBalanceCards({
                 </span>
               </div>
               <p className="text-base font-black font-mono tracking-tight">
-                ₹{Math.abs(singleBal).toFixed(2)}
+                {getCurrencyPrefix()}{Math.abs(singleBal).toFixed(2)}
               </p>
             </div>
           </div>

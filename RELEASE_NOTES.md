@@ -1,3 +1,16 @@
+# Nafid POS v2.2.0 Release Notes
+
+## What's New
+- **UAE Store Support**: Country-aware AED amounts, VAT/TRN wording, store timezone defaults and tax invoice numbering across billing, reports and settings.
+- **Accurate UAE VAT Pricing**: Inclusive and exclusive pricing with consistent line rounding in checkout, sales details and quotations.
+- **Reliable Quotations**: UAE quotation previews and printing use matching VAT totals; reopening and resaving preserves inclusive prices.
+- **Correct Receipt Credits**: Scrap and return credits reduce the printed payable amount exactly once, including reprints.
+- **Thermal Printing Reliability**: Receipt jobs require measured paper dimensions and report printer failures without feeding a guessed page.
+
+**Verification limitation:** Physical printer checks on shop hardware and the final visual installer smoke test remain unverified.
+
+**Download:** [Nafid-Setup-2.2.0.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.0/Nafid-Setup-2.2.0.exe)
+
 # Nafid POS v2.1.6 Release Notes
 
 ## What's New

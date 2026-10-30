@@ -1,3 +1,5 @@
+import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { UserCircle, Tag, Phone, MapPin, FileText, CreditCard, Clock, Save, Loader2, Banknote, Link, Layers } from 'lucide-react';
 import clsx from 'clsx';
@@ -267,12 +269,12 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GSTIN</label>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{localizeTaxText("GSTIN")}</label>
                       <div className="relative">
                         <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                         <input
                           type="text"
-                          placeholder="GSTIN (optional)"
+                          placeholder={localizeTaxText("GSTIN (optional)")}
                           value={partyForm.gstin}
                           onChange={e => setPartyForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))}
                           className={clsx(fieldCls, 'pl-9 font-mono tracking-wider')}
@@ -361,10 +363,10 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                       <div className="flex items-center justify-between gap-2 mb-1.5">
                         <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
                           <CreditCard className="w-3.5 h-3.5 text-amber-500" />
-                          Credit Limit (₹)
+                          Credit Limit ({getCurrencyPrefix()})
                         </label>
                         <span className="text-[11px] font-mono font-semibold text-muted-foreground">
-                          {Number(partyForm.credit_limit) > 0 ? `Max ₹${Number(partyForm.credit_limit).toLocaleString('en-IN')}` : 'No Limit'}
+                          {Number(partyForm.credit_limit) > 0 ? `Max ${getCurrencyPrefix()}${Number(partyForm.credit_limit).toLocaleString(getStoreLocale())}` : 'No Limit'}
                         </span>
                       </div>
                       <p className="text-[11px] text-muted-foreground mb-2.5">
@@ -372,7 +374,7 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                       </p>
                     </div>
                     <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">{getCurrencyPrefix()}</span>
                       <input
                         type="number"
                         step="0.01"
@@ -600,9 +602,9 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Opening Amount (₹)</label>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Opening Amount ({getCurrencyPrefix()})</label>
                     <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">{getCurrencyPrefix()}</span>
                       <input
                         type="number"
                         step="0.01"

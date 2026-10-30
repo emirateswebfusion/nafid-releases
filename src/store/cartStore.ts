@@ -1,3 +1,5 @@
+import { isUaeStore, getStoreVatInclusive } from '../utils/localization/storeProfile';
+import { calculateVat } from '../utils/pricing/vat';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
@@ -353,11 +355,15 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
   let totalTax = 0;
   let scrapTotal = 0;
   let serviceTotal = 0;
+  let serviceTax = 0;
 
   items.forEach(item => {
     if (item.isReturnItem) return;
     if (item.isServiceItem) {
-      serviceTotal += Number(item.offer_price ?? item.base_price) || 0;
+      const price = Number(item.offer_price ?? item.base_price) || 0;
+      const vat = calculateVat(price, invoiceType === 'GST' ? item.tax_rate_percent : 0, getStoreVatInclusive());
+      serviceTotal += isUaeStore() ? vat.taxable : price;
+      if (isUaeStore()) serviceTax += vat.tax;
       return;
     }
 
@@ -378,7 +384,11 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
     subtotal += itemTotal;
 
     if (invoiceType === 'GST') {
-      totalTax += itemTotal * (item.tax_rate_percent / 100);
+      if (isUaeStore()) {
+        const vat = calculateVat(itemTotal, item.tax_rate_percent, getStoreVatInclusive());
+        totalTax += vat.tax;
+        subtotal += vat.taxable - itemTotal;
+      } else totalTax += itemTotal * (item.tax_rate_percent / 100);
     } else if (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0) {
       if (bosTaxInclusive) {
         const rate = bosTaxRatePercent / 100;
@@ -400,16 +410,16 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
   const taxableAmount = subtotal - effectiveDiscount;
 
   const effectiveTaxRate = subtotal > 0 ? totalTax / subtotal : 0;
-  const adjustedTax = taxableAmount * effectiveTaxRate;
+  const adjustedTax = taxableAmount * effectiveTaxRate + serviceTax;
 
   const isInterState = shopState !== customerState;
   
   const hasTax = invoiceType === 'GST' || (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0);
 
-  const taxSplit = hasTax && !isInterState ? splitTaxAmount(adjustedTax) : null;
+  const taxSplit = !isUaeStore() && hasTax && !isInterState ? splitTaxAmount(adjustedTax) : null;
   const cgst = taxSplit?.cgst || 0;
   const sgst = taxSplit?.sgst || 0;
-  const igst = hasTax && isInterState ? adjustedTax : 0;
+  const igst = !isUaeStore() && hasTax && isInterState ? adjustedTax : 0;
 
   const grandTotal = taxableAmount + adjustedTax + serviceTotal;
 

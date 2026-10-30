@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { parseUTCDate } from '../../utils/print/receiptGenerator';
 import type * as Rows from '../../data/dbRows';
@@ -17,5 +18,5 @@ export interface QuotationItem extends Rows.QuotationItemsRow {
 export const formatDateLabel = (dateStr: string | null | undefined) => {
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
-  return `${d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' })} — ${d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'long', year: 'numeric' })}`;
+  return `${d.toLocaleDateString(getStoreLocale(), { timeZone: tz, weekday: 'long' })} — ${d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'long', year: 'numeric' })}`;
 };

@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Activity, TrendingUp, TrendingDown, Loader2, Save } from 'lucide-react';
 import clsx from 'clsx';
@@ -79,9 +80,9 @@ export function ScrapTxForm({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Rate (₹) *</label>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Rate ({getCurrencyPrefix()}) *</label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">{getCurrencyPrefix()}</span>
                 <input
                   required
                   type="number"

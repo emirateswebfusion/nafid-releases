@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 /** Cashier settlement helpers: payment methods / options, labels and colours, time and business-date formatting. */
 import { Banknote, CreditCard, Smartphone, Wallet, FileText, SplitSquareHorizontal } from 'lucide-react';
 import { getStoreTimezone, getStoreBusinessDate } from '../../utils/time/timezoneHelper';
@@ -17,7 +18,7 @@ export const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeo
 export function formatTime(d: string | null): string {
   if (!d) return '';
   const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleTimeString('en-IN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
+  return parseUTCDate(d).toLocaleTimeString(getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 }
 
 export function todayStr(): string {
@@ -65,7 +66,7 @@ export function formatDate(dateStr: string | null | undefined) {
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   return {
-    date: d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-IN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
+    date: d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
+    time: d.toLocaleTimeString(getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
   };
 }

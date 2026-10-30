@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../localization/storeProfile';
 import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
@@ -123,7 +124,7 @@ export function renderCompactReceipt(ctx: ReceiptTextContext): string {
     }, 0);
     const totalSaved = perProductSavings + data.discount;
     if (totalSaved > 0) {
-      text += ` ** SAVED ₹${totalSaved.toFixed(2)} **\n`;
+      text += ` ** SAVED ${getCurrencyPrefix()}${totalSaved.toFixed(2)} **\n`;
       text += DASH + '\n';
     }
   }

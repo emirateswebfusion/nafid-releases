@@ -1,3 +1,5 @@
+import { setStoreCountry, setStoreVatInclusive, isValidTaxRegistration, getStoreProfile } from '../../../utils/localization/storeProfile';
+import { setStoreTimezone } from '../../../utils/time/timezoneHelper';
 import type React from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
@@ -34,12 +36,16 @@ export interface UseSettingsSaveContext {
 
 export function useSettingsSave(ctx: UseSettingsSaveContext) {
   const { activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix, returnStartNumber, role, shopDomain, updateDomain } = ctx;
-  const { a4Printer, a4Style, a5Orientation, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, defaultOpeningBalance, detectedLocalIp, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyEnabled, loyaltyRedemptionRate, openCashDrawerOnPending, osPrinters, priceCoding, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, serviceChargeProduct, setBarcodePrinter, setEnableScrap, setMessage, setReceiptPrinter, setSaveRevision, setSaving, setServiceChargeProduct, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showFullyPaidCashInLedger, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, storeTimezone, syncFrequency, syncMode, terminalCode, thermalStyle, timeFormat, upiId } = ctx.form;
+  const { a4Printer, a4Style, a5Orientation, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, defaultOpeningBalance, detectedLocalIp, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyEnabled, loyaltyRedemptionRate, openCashDrawerOnPending, osPrinters, priceCoding, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, serviceChargeProduct, setBarcodePrinter, setEnableScrap, setMessage, setReceiptPrinter, setSaveRevision, setSaving, setServiceChargeProduct, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showFullyPaidCashInLedger, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, vatPriceInclusive, storeCountry, storeTimezone, syncFrequency, syncMode, terminalCode, thermalStyle, timeFormat, upiId } = ctx.form;
   const handleSave = async () => {
     if (!isDesktopRuntime()) return;
     setSaving(true); setMessage(null);
     try {
       const { tenantId } = useAuthStore.getState();
+      if (!isValidTaxRegistration(shopGstin, storeCountry)) throw new Error(`Enter a valid ${getStoreProfile(storeCountry).registrationName}.`);
+      // Validate and persist country first, before launching any other writes.
+      await setSetting({ tenant_id: tenantId || 'global', key: 'store_country', value: storeCountry });
+      await setSetting({ tenant_id: tenantId || 'global', key: 'vat_price_inclusive', value: vatPriceInclusive });
       if (localDomain !== shopDomain && isAdminRole(role)) {
         const res = await updateDomain(localDomain);
         if (!res.success) throw new Error(res.error);
@@ -193,6 +199,9 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         if (res && res.success === false) throw new Error(`${name}: ${res.error}`);
       }
 
+      setStoreCountry(storeCountry);
+      setStoreTimezone(storeTimezone);
+      setStoreVatInclusive(vatPriceInclusive);
       // Notify application and invalidate stale tab reservations
       try {
         useAuthStore.setState({ shopName: shopNameLocal });
@@ -261,6 +270,8 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         shopPhone,
         shopEmail,
         shopWebsite,
+        vatPriceInclusive,
+        storeCountry,
         storeTimezone,
         upiId,
         showUpiQr,

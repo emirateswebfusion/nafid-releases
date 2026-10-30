@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React from 'react';
 import clsx from 'clsx';
@@ -213,7 +214,7 @@ export function BillingWorkspace({
                 >
                   <div className="text-xs font-bold truncate group-hover:text-primary transition-colors">{prod.name}</div>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                    <span>₹{prod.base_price || 0}</span>
+                    <span>{getCurrencyPrefix()}{prod.base_price || 0}</span>
                     {prod.current_stock !== undefined && (
                       <span className={clsx(prod.current_stock as number <= 5 ? "text-amber-500 font-bold" : "")}>
                         Stock: {prod.current_stock}

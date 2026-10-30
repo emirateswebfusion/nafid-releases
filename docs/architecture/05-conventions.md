@@ -45,6 +45,7 @@ only in a deliberate maintenance change after debt went **down**.
 - Shared UI primitives come from `components/ui/`. Do not restyle a new button/input from scratch.
 - Format money with `formatCurrency` from `src/utils/pricing/money.ts` (billing screens use the compact
   `formatCurrency` re-exported by `components/billing/BillingConstants.ts`).
+- Semantic icons only: use standard, purpose-fit Lucide icons. Do not use decorative or AI-styled icons like `Sparkles` for system actions, sync statuses, or notification badges.
 
 ## 5.4 State
 
@@ -96,3 +97,4 @@ Python, open files with `encoding='utf8', newline=''`.
 - **Rich UI transformation:** The renderer transforms release notes dynamically using `releaseNotesToCards()` (`src/components/settings/releaseNotesUtils.ts`), assigning category tags (Printing, Billing, Hardware, Settings, Checkout, Sync, Improvement, Resource), Tailwind accents, and link buttons.
 - **Persistence:** When an update is detected, `releaseNotes` are cached in `localStorage` under `nafid_release_notes_<version>` and `nafid_cached_release_notes` so the user-facing cards remain active even after updating.
 - **Fallback:** `whatsNew.ts` provides `getWhatsNewItems()`, resolving active notes -> version cache -> general cache -> evergreen baseline (`DEFAULT_WHATS_NEW`).
+- **Semantic update icons:** App update triggers and notification banners must use purposeful, semantic icons — never decorative or AI-styled icons like `Sparkles`. Use `<Download className="..." />` when an update is available, spinning `<Loader2 className="animate-spin ..." />` during active download, and `<RotateCcw />` when ready to restart.

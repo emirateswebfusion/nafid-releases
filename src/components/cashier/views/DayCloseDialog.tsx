@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { RedCrossButton } from '../../ui/RedCrossButton';
@@ -120,7 +121,7 @@ export function DayCloseDialog({
                   Actual Cash Count
                 </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
                     type="number"
                     value={actualCash || ''}

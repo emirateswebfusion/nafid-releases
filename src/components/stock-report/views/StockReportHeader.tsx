@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { BarChart3, FileText, Lock, Package, Printer, Receipt, RefreshCw, Shield, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../../store/authStore';
@@ -47,7 +48,7 @@ export function StockReportHeader({
           <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
             {loading ? <Skeleton className="h-3 w-16 inline-block align-middle" /> : products.length} products
             {lastUpdated && !loading && (
-              <span className="ml-2 font-normal text-muted-foreground/60">&middot; {lastUpdated.toLocaleTimeString('en-IN', { timeZone: getStoreTimezone(), hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="ml-2 font-normal text-muted-foreground/60">&middot; {lastUpdated.toLocaleTimeString(getStoreLocale(), { timeZone: getStoreTimezone(), hour: '2-digit', minute: '2-digit' })}</span>
             )}
           </p>
         </div>

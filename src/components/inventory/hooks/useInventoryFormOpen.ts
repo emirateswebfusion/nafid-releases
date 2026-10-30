@@ -1,6 +1,7 @@
 import type React from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { listProducts, getProductPricing } from '../../../data/products';
+import { isUaeStore } from '../../../utils/localization/storeProfile';
 import { DEFAULT_FORM, type Product, isGstProduct } from '../inventoryUtils';
 import { purchasesApi } from '../../../data/purchases';
 import type { InventoryState } from './useInventoryState';
@@ -46,7 +47,7 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
       }
     }
 
-    setFormData({ ...DEFAULT_FORM, sku_barcode: nextBarcode });
+    setFormData({ ...DEFAULT_FORM, sku_barcode: nextBarcode, tax_rate_percent: isUaeStore() ? 5 : 0, is_gst_applicable: isUaeStore() });
     setEditingProduct(null);
     setTierPrices({});
     setView('add');

@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { UserCheck, UserPlus, LogOut, GitMerge, Building2, Trash2, AlertTriangle, Loader2, Edit3, Filter, Save, Plus } from 'lucide-react';
@@ -605,7 +606,7 @@ export function CustomersPage({
                       ? `+${formatCurrency(matchedPartyToDelete.balance)} (Receivable)`
                       : matchedPartyToDelete.balance < 0
                       ? `-${formatCurrency(Math.abs(matchedPartyToDelete.balance))} (Payable)`
-                      : `₹0.00 (Settled)`}
+                      : `${getCurrencyPrefix()}0.00 (Settled)`}
                   </span>
                 </div>
                 {matchedPartyToDelete.balance !== 0 && (

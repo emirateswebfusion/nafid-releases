@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { resolveDateRange } from '../dates';
 import { calculatePaymentBreakdown, formatINR, pad } from '../format';
 import { NOT_HANDLED } from '../queryContext';
@@ -329,9 +330,9 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
         const threshold = parsed.params.minAmount;
         const filtered = validInvs.filter((i: AiRow) => Number(i.grand_total) >= threshold);
         const md = isMal
-          ? `### 🧾 ₹${threshold.toLocaleString()}-ൽ കൂടുതൽ തുകയുള്ള ബില്ലുകൾ (${range.label})\n\n` +
+          ? `### 🧾 ${getCurrencyPrefix()}${threshold.toLocaleString()}-ൽ കൂടുതൽ തുകയുള്ള ബില്ലുകൾ (${range.label})\n\n` +
             `* **ആകെ എണ്ണം:** **${filtered.length} ബില്ലുകൾ**\n`
-          : `### 🧾 Invoices Greater Than ₹${threshold.toLocaleString()} (${range.label})\n\n` +
+          : `### 🧾 Invoices Greater Than ${getCurrencyPrefix()}${threshold.toLocaleString()} (${range.label})\n\n` +
             `* **Total Matching Invoices:** **${filtered.length} bills**\n`;
 
         return { content: md, intent: parsed.intent };

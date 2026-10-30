@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../localization/storeProfile';
 import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
@@ -83,7 +84,7 @@ export function renderModernReceipt(ctx: ReceiptTextContext): string {
     if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
     const qtyRateText = isRateQty ? `${fmt.displayRate} x ${fmt.displayQty}` : `${fmt.displayQty} x ${fmt.displayRate}`;
     if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
-      text += `  MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
+      text += `  MRP ${getCurrencyPrefix()}${item.originalRate.toFixed(2)} → ${getCurrencyPrefix()}${fmt.displayRate}`;
       text += item.discountLabel ? ` (~ ${item.discountLabel})\n` : '\n';
       text += `  ${qtyRateText}\n`;
     } else {
@@ -117,17 +118,17 @@ export function renderModernReceipt(ctx: ReceiptTextContext): string {
   text += '\n';
   text += THIN + '\n';
   text += centerText('>> ** GRAND TOTAL ** <<', charsPerLine) + '\n';
-  text += centerText(`₹ ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
+  text += centerText(`${getCurrencyPrefix()} ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
   text += THIN + '\n';
 
   if (totalDeductions > 0) {
     if (refundAmount > 0) {
       text += centerText('>> ** REFUND AMOUNT ** <<', charsPerLine) + '\n';
-      text += centerText(`₹ ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
+      text += centerText(`${getCurrencyPrefix()} ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
       text += THIN + '\n';
     } else {
       text += centerText('>> ** NET PAYABLE ** <<', charsPerLine) + '\n';
-      text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+      text += centerText(`${getCurrencyPrefix()} ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
       text += THIN + '\n';
     }
   }

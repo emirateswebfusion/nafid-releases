@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Trash2, RotateCcw } from 'lucide-react';
 import { formatAmount } from '../../../utils/pricing/money';
 import { timeAgo, type DeletedProduct } from '../recycleBinTypes';
@@ -38,7 +39,7 @@ export function ProductCardsView({
                         Stock: <span className="font-bold text-foreground">{p.current_stock ?? 0}</span>
                       </p>
                       <p className="text-muted-foreground">
-                        Selling Price: <span className="font-bold text-foreground font-mono">₹{formatAmount(p.base_price)}</span>
+                        Selling Price: <span className="font-bold text-foreground font-mono">{getCurrencyPrefix()}{formatAmount(p.base_price)}</span>
                       </p>
                     </div>
                   </div>

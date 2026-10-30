@@ -1,3 +1,5 @@
+import { UaeQuotationDocumentView } from './UaeQuotationDocumentView';
+import { getStoreLocale, isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { useRef } from 'react';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { formatDateLabel, type Quotation } from '../quotationTypes';
@@ -21,6 +23,7 @@ export function QuotationDocumentView({
   selectedQuotation, shopName,
 }: QuotationDocumentViewProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  if (isUaeStore()) return <UaeQuotationDocumentView qm={qm} selectedQuotation={selectedQuotation} shopName={shopName} />;
   const {
     bankAccount, bankBranch, bankIfsc, bankName, previewGstEnabled, quotationItems, shopAddress, shopEmail, shopGstin,
     shopPhone, shopState, upiId,
@@ -71,7 +74,7 @@ export function QuotationDocumentView({
             <div className="text-[11px] sm:text-xs text-black mt-0.5"><strong>Phone:</strong> {selectedQuotation.customer_phone}</div>
           )}
           {selectedQuotation.customer_gstin && (
-            <div className="text-[11px] sm:text-xs text-black mt-0.5"><strong>GSTIN:</strong> {selectedQuotation.customer_gstin}</div>
+            <div className="text-[11px] sm:text-xs text-black mt-0.5"><strong>{localizeTaxText("GSTIN")}:</strong> {selectedQuotation.customer_gstin}</div>
           )}
           {selectedQuotation.customer_state && (
             <div className="text-[11px] sm:text-xs text-black mt-0.5"><strong>State:</strong> {selectedQuotation.customer_state}</div>
@@ -319,7 +322,7 @@ export function QuotationDocumentView({
 
       {/* Footer Note */}
       <p className="text-[9px] sm:text-[10px] text-black text-center pt-2 sm:pt-3 border-t border-slate-200 mt-2">
-        This is a computer-generated quotation issued on {new Date().toLocaleDateString('en-IN')}.
+        This is a computer-generated quotation issued on {new Date().toLocaleDateString(getStoreLocale())}.
       </p>
     </div>
   );

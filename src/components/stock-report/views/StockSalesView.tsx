@@ -1,3 +1,4 @@
+import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { ArrowLeft, BarChart3, Search, X } from 'lucide-react';
 import { Skeleton } from '../../ui/Skeleton';
 import type { StockReportState } from '../hooks/useStockReportState';
@@ -28,7 +29,7 @@ export function StockSalesView({ sr, salesTotals, filteredSalesSummary }: StockS
                 <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse shrink-0" />
               </div>
               <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
-                GST vs Bill of Supply quantities sold per product
+                {localizeTaxText("GST")} vs {localizeTaxText("Bill of Supply")} quantities sold per product
               </p>
             </div>
           </div>
@@ -47,19 +48,19 @@ export function StockSalesView({ sr, salesTotals, filteredSalesSummary }: StockS
         <div className="w-full px-4 sm:px-6 py-6 space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 select-none">
           <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
-            <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.products.toLocaleString('en-IN')}</p>
+            <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.products.toLocaleString(getStoreLocale())}</p>
             <p className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground mt-1">Products Sold</p>
           </div>
           <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
             <p className="text-2xl font-black text-sky-600 dark:text-sky-400 leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.gst.toFixed(0)}</p>
-            <p className="text-[9px] uppercase tracking-wider font-extrabold text-sky-500 mt-1">Sold as GST</p>
+            <p className="text-[9px] uppercase tracking-wider font-extrabold text-sky-500 mt-1">Sold as {localizeTaxText("GST")}</p>
           </div>
           <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
             <p className="text-2xl font-black text-amber-600 dark:text-amber-400 leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bos.toFixed(0)}</p>
             <p className="text-[9px] uppercase tracking-wider font-extrabold text-amber-500 mt-1">Sold as BoS</p>
           </div>
           <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
-            <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bosProducts.toLocaleString('en-IN')}</p>
+            <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bosProducts.toLocaleString(getStoreLocale())}</p>
             <p className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground mt-1">Sold as BoS (Ever)</p>
           </div>
         </div>
@@ -88,7 +89,7 @@ export function StockSalesView({ sr, salesTotals, filteredSalesSummary }: StockS
             >
               <option value="all">All Products</option>
               <option value="bos">Only BoS Sales</option>
-              <option value="gst">Only GST Sales</option>
+              <option value="gst">Only {localizeTaxText("GST")} Sales</option>
             </select>
           </div>
 
@@ -97,7 +98,7 @@ export function StockSalesView({ sr, salesTotals, filteredSalesSummary }: StockS
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Product</th>
-                  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">Sold as GST</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">Sold as {localizeTaxText("GST")}</th>
                   <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Sold as BoS</th>
                   <th className="text-right px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Total Sold</th>
                 </tr>

@@ -42,6 +42,7 @@ export async function setSetting(payload: SettingValuePayload): Promise<void> {
 
 /** Settings whose stored shape is known. Other keys read as `unknown`. */
 export interface KnownSettings {
+  store_country: 'IN' | 'AE';
   shop_name: string;
   shop_address: string;
   shop_phone: string;

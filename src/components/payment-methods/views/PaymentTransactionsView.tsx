@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { TYPE_CONFIG, QUICK_CATEGORIES, formatDateTime } from '../paymentMethodsTypes';
 import { formatCurrency } from '../../../utils/pricing/money';
@@ -124,7 +125,7 @@ export function PaymentTransactionsView({
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
             <div className="sm:col-span-3">
-              <label className="text-[10px] font-bold text-muted-foreground mb-1 block uppercase tracking-wider">Amount (₹) *</label>
+              <label className="text-[10px] font-bold text-muted-foreground mb-1 block uppercase tracking-wider">Amount ({getCurrencyPrefix()}) *</label>
               <Input
                 type="number"
                 step="0.01"

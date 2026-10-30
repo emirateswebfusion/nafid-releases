@@ -1,20 +1,22 @@
 import type { ShopClosingChecklist } from './shopClosingTypes.js';
 
 /** Formats the shop closing WhatsApp message from the summary data and the owner's checklist. */
-function formatCurrency(amount: number | null | undefined): string {
+function formatStoreCurrency(amount: number | null | undefined, country?: string): string {
   const num = Number(amount) || 0;
   const isNegative = num < 0;
-  const absFormatted = Math.abs(num).toLocaleString('en-IN', {
+  const absFormatted = Math.abs(num).toLocaleString(country === 'AE' ? 'en-AE' : 'en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return isNegative ? `-₹${absFormatted}` : `₹${absFormatted}`;
+  const prefix = country === 'AE' ? 'AED ' : '₹';
+  return `${isNegative ? '-' : ''}${prefix}${absFormatted}`;
 }
 
 /**
  * Format the WhatsApp closing message based on checklist
  */
 export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof import('./shopClosingSummary.js').buildShopClosingSummaryData>, checklist: ShopClosingChecklist): string {
+  const formatCurrency = (amount: number | null | undefined) => formatStoreCurrency(amount, summaryData.storeCountry);
   const lines: string[] = [];
 
   // Header
@@ -161,7 +163,7 @@ export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof impo
       } else if (summaryData.cashExcess > 0) {
         lines.push(`• ➕ *Cash Excess:* +${formatCurrency((summaryData.cashExcess as number | null | undefined))}`);
       } else {
-        lines.push(`• ✅ *Cash Variance:* Balanced (₹0.00)`);
+        lines.push(`• ✅ *Cash Variance:* Balanced (${formatCurrency(0)})`);
       }
     }
   }

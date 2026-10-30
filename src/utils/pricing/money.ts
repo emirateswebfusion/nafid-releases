@@ -1,7 +1,9 @@
 /**
- * Money formatting — the single implementation for the renderer. Amounts are Indian Rupees.
+ * Money formatting — the single implementation for the renderer. Amounts use the active shop currency; formatting never converts values.
  * Do not define local formatCurrency/formatINR helpers in components; import from here.
  */
+import { getStoreProfile } from '../localization/storeProfile';
+
 export interface MoneyFormatOptions {
   /** en-IN digit grouping (1,23,456.00). Default true. */
   grouping?: boolean;
@@ -22,10 +24,10 @@ export function formatCurrency(amount: unknown, options: MoneyFormatOptions = {}
   const n = toNumber(amount);
   const abs = Math.abs(n);
   const digits = grouping
-    ? abs.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+    ? abs.toLocaleString(getStoreProfile().locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
     : abs.toFixed(decimals);
   const sign = n < 0 && Number(digits.replace(/,/g, '')) !== 0 ? '-' : '';
-  return `${sign}${symbol ? '\u20B9' : ''}${digits}`;
+  return `${sign}${symbol ? getStoreProfile().currencyPrefix : ''}${digits}`;
 }
 
 /** Grouped amount without the currency symbol: `1,234.50`. */

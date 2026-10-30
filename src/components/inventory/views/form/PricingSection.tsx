@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import { Tag, ChevronDown, Layers } from 'lucide-react';
 import clsx from 'clsx';
@@ -45,11 +47,11 @@ export function PricingSection({
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <div>
               <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                Purchase Price (₹)
+                Purchase Price ({getCurrencyPrefix()})
                 {formData.grade_id && <span className="text-indigo-500 ml-1 font-normal normal-case">(grade)</span>}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">{getCurrencyPrefix()}</span>
                 <input
                   type="number" step="0.01"
                   onWheel={e => (e.target as HTMLInputElement).blur()}
@@ -62,11 +64,11 @@ export function PricingSection({
 
             <div>
               <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                MRP (₹)
+                MRP ({getCurrencyPrefix()})
                 {formData.grade_id && <span className="text-indigo-500 ml-1 font-normal normal-case">(grade)</span>}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">{getCurrencyPrefix()}</span>
                 <input
                   type="number" step="0.01"
                   onWheel={e => (e.target as HTMLInputElement).blur()}
@@ -148,20 +150,20 @@ export function PricingSection({
             <div className="flex items-center justify-between pb-2 border-b border-purple-500/15">
               <span className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                Paper Product (GST Ledger)
+                Paper Product ({localizeTaxText("GST")} Ledger)
               </span>
               <span className="text-[10px] font-black bg-purple-500/15 text-purple-600 dark:text-purple-400 px-2.5 py-0.5 rounded-full border border-purple-500/20 uppercase tracking-wider">
-                PAPER GST
+                PAPER {localizeTaxText("GST")}
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                  Paper Purchase (₹)
+                  Paper Purchase ({getCurrencyPrefix()})
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">{getCurrencyPrefix()}</span>
                   <input
                     type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
@@ -174,10 +176,10 @@ export function PricingSection({
 
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1 truncate">
-                  Paper MRP (₹)
+                  Paper MRP ({getCurrencyPrefix()})
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">{getCurrencyPrefix()}</span>
                   <input
                     type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
@@ -191,7 +193,7 @@ export function PricingSection({
 
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                  Paper Stock (GST)
+                  Paper Stock ({localizeTaxText("GST")})
                 </label>
                 <input
                   type="number" step="0.01"
@@ -221,7 +223,7 @@ export function PricingSection({
                   {tier.name}
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                   <input
                     type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}

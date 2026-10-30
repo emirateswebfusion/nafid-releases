@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { Check, Loader2, Tag, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -97,7 +98,7 @@ export function AddGradeModal({ categories, handleAdd, handleFormKeyDown, sg }: 
                 Purchase
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   placeholder="0.00"
@@ -112,7 +113,7 @@ export function AddGradeModal({ categories, handleAdd, handleFormKeyDown, sg }: 
                 MRP
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   placeholder="0.00"
@@ -127,7 +128,7 @@ export function AddGradeModal({ categories, handleAdd, handleFormKeyDown, sg }: 
                 Offer
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   placeholder="0.00"

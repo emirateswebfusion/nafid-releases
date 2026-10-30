@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
 import { Plus, RefreshCw, ArrowUp } from 'lucide-react';
@@ -38,7 +39,7 @@ export function AiComposer({
               "Compare this month's sales with last month",
               "Show low stock items below reorder level",
               "Which items are completely out of stock?",
-              "Which customers have credit balance above ₹5,000?",
+              localizeCurrencyText("Which customers have credit balance above ₹5,000?"),
               "What is total customer receivables outstanding?",
               "What are the total shop expenses recorded this month?"
             ].map((p, idx) => (

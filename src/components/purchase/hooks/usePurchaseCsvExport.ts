@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { purchasesApi } from '../../../data/purchases';
@@ -54,7 +55,7 @@ export function usePurchaseCsvExport(ctx: UsePurchaseCsvExportContext) {
         const taxableAmount = (b.total_amount ?? 0) - totalGst;
         return [
           escape(b.bill_number),
-          escape(new Date(b.bill_date as string).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-')),
+          escape(new Date(b.bill_date as string).toLocaleString(getStoreLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-')),
           escape(b.supplier_name),
           escape((b as typeof b & { supplier_gstin?: string }).supplier_gstin || ''),
           escape((b.total_amount ?? 0).toFixed(2)),

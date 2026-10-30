@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 
@@ -30,7 +32,7 @@ export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: stri
 
   const bal = Number(activeParty.balance || 0);
   const isDue = bal > 0;
-  const fmtN = (n: number) => Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtN = (n: number) => Math.abs(n).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div
@@ -48,7 +50,7 @@ export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: stri
             ? "bg-rose-50 dark:bg-rose-950/70 border-rose-200 dark:border-rose-800/80 text-rose-800 dark:text-rose-200"
             : "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-800/80 text-emerald-800 dark:text-emerald-200"
         )}
-        title={isDue ? `Outstanding Old Due: ₹${fmtN(bal)}` : `Advance Credit: ₹${fmtN(bal)}`}
+        title={isDue ? `Outstanding Old Due: ${getCurrencyPrefix()}${fmtN(bal)}` : `Advance Credit: ${getCurrencyPrefix()}${fmtN(bal)}`}
       >
         <span className="font-extrabold text-[11px] uppercase tracking-wider opacity-90">
           {isDue ? 'Due:' : 'Credit:'}
@@ -57,7 +59,7 @@ export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: stri
           "px-2 py-0.5 rounded-md text-xs font-black text-white shadow-2xs",
           isDue ? "bg-rose-600 dark:bg-rose-600" : "bg-emerald-600 dark:bg-emerald-600"
         )}>
-          ₹{fmtN(bal)}
+          {getCurrencyPrefix()}{fmtN(bal)}
         </span>
       </div>
     </div>

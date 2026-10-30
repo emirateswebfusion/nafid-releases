@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Loader2, Search, X, Plus, Clock } from 'lucide-react';
 import clsx from 'clsx';
@@ -57,7 +59,7 @@ export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, hand
               ref={searchRef}
               type="text"
               autoFocus={uiConfig.entryFocusOrder !== 'customer-first'}
-              placeholder={isScrapActive ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationActive ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? "Search GST products or scan barcode... (Press F2)" : "Search products or scan barcode... (Press F2)"}
+              placeholder={isScrapActive ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationActive ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? localizeTaxText("Search GST products or scan barcode... (Press F2)") : "Search products or scan barcode... (Press F2)"}
               value={searchQuery}
               onChange={e => {
                 const val = e.target.value;
@@ -186,7 +188,7 @@ export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, hand
                   </div>
                   <div className="text-right shrink-0">
                     <span className="text-sm font-mono font-black text-foreground block">{formatCurrency(inv.grand_total)}</span>
-                    <span className="text-[10px] text-muted-foreground mt-0.5 block">{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5 block">{parseUTCDate(inv.created_at).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })}</span>
                   </div>
                 </button>
               ))}

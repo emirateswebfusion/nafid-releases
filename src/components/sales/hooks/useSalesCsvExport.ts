@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
@@ -102,19 +103,19 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
         'HSN / SAC Code',
         'Quantity',
         'UOM',
-        'Unit Price (₹)',
-        'Discount (₹)',
-        'Taxable Amount (₹)',
+        localizeCurrencyText('Unit Price (₹)'),
+        localizeCurrencyText('Discount (₹)'),
+        localizeCurrencyText('Taxable Amount (₹)'),
         'Total GST %',
-        'Total GST (₹)',
+        localizeCurrencyText('Total GST (₹)'),
         'CGST %',
-        'CGST (₹)',
+        localizeCurrencyText('CGST (₹)'),
         'SGST %',
-        'SGST (₹)',
+        localizeCurrencyText('SGST (₹)'),
         'IGST %',
-        'IGST (₹)',
-        'Item Total (₹)',
-        taxFilterActive ? 'Filtered Product Total (₹)' : 'Invoice Grand Total (₹)',
+        localizeCurrencyText('IGST (₹)'),
+        localizeCurrencyText('Item Total (₹)'),
+        taxFilterActive ? localizeCurrencyText('Filtered Product Total (₹)') : localizeCurrencyText('Invoice Grand Total (₹)'),
         'Biller Name',
         'Description / Remarks'
       ];

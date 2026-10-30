@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { Skeleton } from '../../../ui/Skeleton';
 import { formatCurrency } from '../../BillingConstants';
@@ -66,7 +67,7 @@ export function GrandTotalSection({
             <Skeleton className="h-6 w-28 my-1 rounded-md" />
           ) : isEditingTotal ? (
             <div className="relative mt-1">
-              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-sm font-black text-primary select-none">₹</span>
+              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-sm font-black text-primary select-none">{getCurrencyPrefix()}</span>
               <input
                 ref={totalOverrideInputRef}
                 type="number"
@@ -85,7 +86,7 @@ export function GrandTotalSection({
                 }}
                 onBlur={() => commitTotalOverride()}
                 placeholder={String(rawDisplayGrandTotal)}
-                className="w-32 pl-5 pr-2 py-0.5 bg-background border-2 border-primary rounded-xl text-xl font-black text-foreground outline-none no-spinners shadow-xs"
+                className="w-32 pl-12 pr-2 py-0.5 bg-background border-2 border-primary rounded-xl text-xl font-black text-foreground outline-none no-spinners shadow-xs"
                 autoFocus
               />
             </div>
@@ -124,7 +125,7 @@ export function GrandTotalSection({
             <div className="inline-flex w-[190px] max-w-full items-center justify-between gap-2 rounded-xl border border-orange-400/40 bg-orange-500/10 px-2.5 py-1.5 shadow-sm">
               <span className="text-[10px] font-black uppercase tracking-wide text-orange-700 dark:text-orange-300">Paid</span>
               <div className="relative w-28 shrink-0">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-orange-600/70">₹</span>
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-orange-600/70">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   min="0"
@@ -134,7 +135,7 @@ export function GrandTotalSection({
                   onChange={e => updateActiveTab({ actualRefundPaid: e.target.value === '' ? 0 : Number(e.target.value) })}
                   onFocus={e => e.target.select()}
                   aria-label="Amount paid as refund"
-                  className="no-spinners h-8 w-full rounded-lg border border-orange-300/50 bg-background/90 pl-6 pr-2 text-right text-sm font-black tabular-nums text-orange-700 shadow-inner transition-colors placeholder:text-orange-400/60 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:text-orange-300"
+                  className="no-spinners h-8 w-full rounded-lg border border-orange-300/50 bg-background/90 pl-12 pr-2 text-right text-sm font-black tabular-nums text-orange-700 shadow-inner transition-colors placeholder:text-orange-400/60 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:text-orange-300"
                 />
               </div>
             </div>
@@ -154,7 +155,7 @@ export function GrandTotalSection({
           {paymentMethod === 'CREDIT' ? 'Paid' : 'Received'}
         </p>
         <div className="relative">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground/60">₹</span>
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground/60">{getCurrencyPrefix()}</span>
           <input
             ref={receivedInputRef}
             type="number"
@@ -177,7 +178,7 @@ export function GrandTotalSection({
             }}
             placeholder={(Number(grandTotal) || 0).toFixed(2)}
             inputMode="decimal"
-            className="w-full pl-5 pr-2 py-1.5 bg-background/80 border border-border focus:border-primary focus:ring-1 focus:ring-primary/15 rounded-lg text-sm font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-full pl-12 pr-2 py-1.5 bg-background/80 border border-border focus:border-primary focus:ring-1 focus:ring-primary/15 rounded-lg text-sm font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         </div>
       </div>
@@ -212,7 +213,7 @@ export function GrandTotalSection({
                 <span className={clsx(
                   'absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black',
                   isDue ? 'text-amber-500' : 'text-emerald-500'
-                )}>₹</span>
+                )}>{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   min="0"
@@ -221,7 +222,7 @@ export function GrandTotalSection({
                   readOnly
                   inputMode="decimal"
                   className={clsx(
-                    'w-full pl-5 pr-2 py-1.5 border rounded-lg text-sm font-black text-right transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+                    'w-full pl-12 pr-2 py-1.5 border rounded-lg text-sm font-black text-right transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
                     isDue
                       ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
                       : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
@@ -245,7 +246,7 @@ export function GrandTotalSection({
               <span className={clsx(
                 'absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black',
                 isOverpaid ? 'text-emerald-500' : 'text-amber-500'
-              )}>₹</span>
+              )}>{getCurrencyPrefix()}</span>
               <input
                 type="number"
                 min="0"
@@ -254,7 +255,7 @@ export function GrandTotalSection({
                 readOnly
                 inputMode="decimal"
                 className={clsx(
-                  'w-full pl-5 pr-2 py-1.5 border rounded-lg text-sm font-black text-right transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+                  'w-full pl-12 pr-2 py-1.5 border rounded-lg text-sm font-black text-right transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
                   isOverpaid
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                     : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'

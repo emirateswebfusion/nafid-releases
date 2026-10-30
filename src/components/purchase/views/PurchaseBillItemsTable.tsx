@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
 import { Pencil, Trash, Send } from 'lucide-react';
@@ -84,7 +86,7 @@ export function PurchaseBillItemsTable({
                   placeholder="—"
                 />
                 <div className="text-right font-bold text-foreground text-xs">
-                  ₹{((Number(item.quantity) || 0) * (Number(item.purchase_price) || 0)).toFixed(2)}
+                  {getCurrencyPrefix()}{((Number(item.quantity) || 0) * (Number(item.purchase_price) || 0)).toFixed(2)}
                 </div>
                 <div className="flex items-center gap-0.5">
                   <button
@@ -111,7 +113,7 @@ export function PurchaseBillItemsTable({
                     hsn_sac_code: item.hsn_sac_code,
                   })}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-amber-500/50 hover:text-amber-500 hover:bg-amber-500/10 transition-all cursor-pointer shrink-0 opacity-0 group-hover:opacity-100 mx-auto"
-                  title="Send to GST Bill"
+                  title={localizeTaxText("Send to GST Bill")}
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -234,20 +236,20 @@ export function PurchaseBillItemsTable({
                 </select>
                 <div className="text-right text-xs">
                   {hasGst ? (
-                    <span className="font-bold text-foreground">₹{(gstAmt / 2).toFixed(2)}</span>
+                    <span className="font-bold text-foreground">{getCurrencyPrefix()}{(gstAmt / 2).toFixed(2)}</span>
                   ) : (
-                    <span className="text-muted-foreground/50 font-semibold">₹0.00</span>
+                    <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}0.00</span>
                   )}
                 </div>
                 <div className="text-right text-xs">
                   {hasGst ? (
-                    <span className="font-bold text-foreground">₹{(gstAmt / 2).toFixed(2)}</span>
+                    <span className="font-bold text-foreground">{getCurrencyPrefix()}{(gstAmt / 2).toFixed(2)}</span>
                   ) : (
-                    <span className="text-muted-foreground/50 font-semibold">₹0.00</span>
+                    <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}0.00</span>
                   )}
                 </div>
                 <div className="text-right font-bold text-foreground text-xs">
-                  ₹{itemTotal.toFixed(2)}
+                  {getCurrencyPrefix()}{itemTotal.toFixed(2)}
                 </div>
                 <div className="flex items-center gap-0.5">
                   <button

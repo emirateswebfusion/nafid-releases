@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../localization/storeProfile';
 import { getStoreTimezone } from '../../time/timezoneHelper';
 
 export interface ReceiptItem {
@@ -247,7 +248,7 @@ export function formatBillDateTime(date: Date | string | number): string {
   const tz = getStoreTimezone();
   
   try {
-    const formatter = new Intl.DateTimeFormat('en-IN', {
+    const formatter = new Intl.DateTimeFormat(getStoreLocale(), {
       timeZone: tz,
       day: '2-digit',
       month: '2-digit',
@@ -264,7 +265,7 @@ export function formatBillDateTime(date: Date | string | number): string {
     });
     return `${datePart}, ${timeStr}`;
   } catch {
-    return d.toLocaleString('en-IN', { timeZone: tz });
+    return d.toLocaleString(getStoreLocale(), { timeZone: tz });
   }
 }
 

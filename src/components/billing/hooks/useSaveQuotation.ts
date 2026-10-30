@@ -1,8 +1,11 @@
+import { defaultQuotationTerms } from '../../../utils/localization/quotationTerms';
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { v4 as uuidv4 } from 'uuid';
 import { quotationsApi } from '../../../data/quotations';
+import { isUaeStore } from '../../../utils/localization/storeProfile';
 import { buildQuotationLines } from '../../../utils/pricing/checkoutLines';
 import { type QuotationPrintData, generateQuotationHtml } from '../../../utils/print/quotationHtmlGenerator';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
@@ -88,7 +91,7 @@ export function useSaveQuotation(ctx: UseSaveQuotationContext) {
 
       const qSubtotal = qItems.reduce((s, i) => s + i.amount, 0);
       const qDiscountTotal = qItems.reduce((s, i) => s + (i.discount_amount || 0), 0);
-      const qTaxTotal = isGstQuotation ? qItems.reduce((s, i) => s + (i.cgst_amount + i.sgst_amount + i.igst_amount), 0) : 0;
+      const qTaxTotal = isGstQuotation ? qItems.reduce((s, i) => s + (isUaeStore() ? Math.round(i.taxable_amount * i.tax_rate_percent) / 100 : i.cgst_amount + i.sgst_amount + i.igst_amount), 0) : 0;
       const qGrandTotal = qSubtotal + qTaxTotal;
 
       const quotationPayload = {
@@ -129,7 +132,7 @@ export function useSaveQuotation(ctx: UseSaveQuotationContext) {
           shopGstin: shopGstin || undefined,
           shopState: shopState || undefined,
           quotationNumber,
-          date: new Date().toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' }),
+          date: new Date().toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' }),
           validUntil: '15 Days from Issue Date',
           billerName: userName || undefined,
           customerName: customerName || undefined,
@@ -209,7 +212,7 @@ export function useSaveQuotation(ctx: UseSaveQuotationContext) {
           receivedAmount: 0,
           reservedQuotationNumber: '',
         });
-        setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+        setQuotationTerms(defaultQuotationTerms());
         await reserveQuotationNumberForTab(true);
         syncActiveSnapshot();
       } else {
@@ -224,7 +227,7 @@ export function useSaveQuotation(ctx: UseSaveQuotationContext) {
           reservedQuotationNumber: '',
         });
         syncActiveSnapshot();
-        setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+        setQuotationTerms(defaultQuotationTerms());
         await reserveInvoiceNumberForTab(true);
         const tab = getActiveTab();
         if (tab?.reservedInvoiceNumber) {

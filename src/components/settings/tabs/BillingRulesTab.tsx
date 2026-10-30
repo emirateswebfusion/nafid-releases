@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Receipt, Shield } from 'lucide-react';
 import { useFeatureFlagsStore } from '../../../config/featureFlags';
@@ -32,7 +33,7 @@ export const BillingRulesTab: React.FC<BillingRulesTabProps> = ({
         <div className="space-y-3.5">
           <ToggleRow
             label="Show Old MRP on Price Overrides (Billing Page)"
-            description="Show the original MRP when the unit price is manually overridden or discounted on the billing page (e.g. MRP ₹100 → Overridden ₹80)."
+            description={localizeCurrencyText("Show the original MRP when the unit price is manually overridden or discounted on the billing page (e.g. MRP ₹100 → Overridden ₹80).")}
             checked={showPriceOverrideMrp}
             onToggle={() => setShowPriceOverrideMrp(!showPriceOverrideMrp)}
           />

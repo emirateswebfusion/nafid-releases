@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { X, Save } from 'lucide-react';
 import clsx from 'clsx';
@@ -59,7 +60,7 @@ export const MatrixRow = React.memo(({
 
       {/* Base MRP */}
       <div className="w-28 text-center text-xs font-black text-muted-foreground shrink-0">
-        ₹{Number(product.base_price || 0).toFixed(2)}
+        {getCurrencyPrefix()}{Number(product.base_price || 0).toFixed(2)}
       </div>
 
       {/* Tier Price Inputs */}
@@ -69,7 +70,7 @@ export const MatrixRow = React.memo(({
         return (
           <div key={t.pricing_tier_id} className="w-36 shrink-0">
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
               <input
                 type="number"
                 min="0"

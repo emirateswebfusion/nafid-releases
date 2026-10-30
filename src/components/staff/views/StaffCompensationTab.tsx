@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { DollarSign, KeyRound, Lock, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../../utils/pricing/money';
 import clsx from 'clsx';
@@ -35,7 +36,7 @@ export function StaffCompensationTab({
           </span>
         </div>
         <div className="relative">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-black text-muted-foreground">₹</span>
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-black text-muted-foreground">{getCurrencyPrefix()}</span>
           <input
             type="number"
             placeholder="0"
@@ -59,7 +60,7 @@ export function StaffCompensationTab({
                     : 'bg-background border-border text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
-                ₹{(amt / 1000)}k
+                {getCurrencyPrefix()}{(amt / 1000)}k
               </button>
             ))}
           </div>

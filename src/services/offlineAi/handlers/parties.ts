@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { hasBridge } from '../../../data/client';
 import { customersApi } from '../../../data/customers';
 import { partiesApi } from '../../../data/parties';
@@ -40,8 +41,8 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       if (debtors.length === 0) {
         return {
           content: isMal
-            ? (minAmount > 0 ? `₹${minAmount.toLocaleString()}-ൽ കൂടുതൽ കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ഇല്ല.` : `കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ആരും ഇല്ല.`)
-            : (minAmount > 0 ? `No customers found with outstanding credit above ₹${minAmount.toLocaleString()}.` : `No customers found with outstanding credit balance.`),
+            ? (minAmount > 0 ? `${getCurrencyPrefix()}${minAmount.toLocaleString()}-ൽ കൂടുതൽ കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ഇല്ല.` : `കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ ആരും ഇല്ല.`)
+            : (minAmount > 0 ? `No customers found with outstanding credit above ${getCurrencyPrefix()}${minAmount.toLocaleString()}.` : `No customers found with outstanding credit balance.`),
         };
       }
 

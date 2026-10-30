@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Modal } from '../../ui/Modal';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import { Banknote, BookOpen, CheckCheck, CreditCard, AlertCircle, FileText, RefreshCw, Smartphone, Wallet } from 'lucide-react';
@@ -107,7 +108,7 @@ export function CollectPaymentModal({
                   {collectPaymentMethod === 'CREDIT' ? 'Amount Paid' : 'Amount Received'}
                 </p>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/60">₹</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/60">{getCurrencyPrefix()}</span>
                   <input
                     type="number"
                     min="0"

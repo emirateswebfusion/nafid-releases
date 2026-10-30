@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { ShoppingCart, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw } from 'lucide-react';
 import { cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../../../config/featureFlags';
 import { hasPermission } from '../../../utils/security/permissions';
@@ -99,7 +100,7 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
     {
       id: 'financial-report',
       title: 'Financial Report',
-      desc: 'View P&L statement, revenue breakdown, GST liability & profit margins',
+      desc: localizeTaxText('View P&L statement, revenue breakdown, GST liability & profit margins'),
       icon: Landmark,
       color: 'text-green-600',
       bgColor: 'bg-green-600/10',
@@ -129,7 +130,7 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
     {
       id: 'purchase-bills',
       title: 'Purchase Bills',
-      desc: 'Record and manage GST purchase bills',
+      desc: localizeTaxText('Record and manage GST purchase bills'),
       icon: Receipt,
       color: 'text-pink-500',
       bgColor: 'bg-pink-500/10',

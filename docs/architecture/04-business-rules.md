@@ -257,3 +257,56 @@ backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test
 - **Weight and Scrap Quantities**: All weight and scrap items (`billing_type === 'WEIGHT'` or unit in `kg`, `kgs`, `g`, `gm`, `gram`) must format with exactly 3 decimal places (`numQty.toFixed(3)`, e.g., `1.000`, `2.500`, `0.200`), preserving trailing zeroes. In retail scrap and weight trade, decimals denote grams ($1\text{ kg} = 1000\text{ g}$); stripping zeroes (`1.0` or `1`) causes disputes at checkout.
 - **Roll width and column budget**: 80mm roll width (8.0 cm / 42 characters per line) and `boxed` style are the standard defaults. On 42-char lines, the inner table budget is 36 characters: `idxW(2)` + `nameW(13)` + `qtyW(6)` + `rateW(7)` + `amtW(8)` = 36. `qtyW = 6` guarantees quantities up to `99.999` fit without column shifting or truncation. Total labels occupy 31 characters, aligning the right vertical pipe `│` exactly with the column pipe between Rate and Amount.
 - Tests: `tests/unit/thermalPrint.test.ts`, `tests/unit/printGenerators.characterization.test.ts`.
+
+
+### India / UAE shop profile
+
+`src/utils/localization/storeProfile.ts` owns renderer country, currency, locale and tax terminology.
+`store_country` defaults to `IN` for existing shops; `AE` selects AED, en-AE, Asia/Dubai and VAT/TRN.
+`vat_price_inclusive` is a shared boolean setting. Select both before entering prices or transactions.
+`electron/services/storeCountryService.ts` rejects country changes on shops with monetary data and rejects
+UAE price-basis changes after trading starts; neither operation converts balances. SQL remains in
+`electron/db/statements/settings.ts`. Existing India behavior and persisted invoice kinds remain compatible.
+
+`src/utils/pricing/vat.ts` owns inclusive extraction and two-decimal line VAT rounding. Zero product rates
+remain zero; new UAE product forms start at 5%. Checkout, receipt and quotation line builders use the same
+basis. UAE VAT is stored in existing `tax_amount` / `tax_total`; CGST/SGST/IGST fields stay zero, including
+conversion copies. Saved net rates are restored to the selected price basis when editing a UAE sale.
+`useStoreProfile` loads tenant settings before authenticated screens and reloads after settings/sync events.
+
+`src/utils/print/uaeInvoice.ts` renders UAE AED/TRN/VAT invoices and thermal receipts. UAE uses this layout
+rather than the Indian templates; quotation and purchase print entry points also dispatch through it.
+This is local VAT billing support, not an accredited UAE e-invoicing integration. Exempt/zero-rated supply
+classification, reverse-charge workflows and statutory filing exports require separate domain work.
+Tests: `storeProfile.test.ts`, `storeCountryGuard.test.ts`, `storeProfileSync.test.ts`, and UAE conversion
+coverage in `bosConversionService.test.ts`; Indian print snapshots remain unchanged.
+
+UAE real-UI regression checks (29 Oct 2026): numeric-only `shop_gstin` values remain text in both
+settings reads (`taxRegistrationSetting.test.ts`), so TRNs survive billing load. UAE invoice item
+details treat stored `total` as net, add stored `tax_amount` for gross, and never infer CGST/SGST
+(`uaeInvoiceItems.ui.test.tsx`). Verified in an isolated desktop shop: create product at AED 105
+inclusive, quantity 2, save pending invoice, review net 200 / VAT 10 / gross 210, reopen for editing,
+and verify stock 10 → 8. Physical printer output was not tested.
+
+UAE quotation persistence uses net `rate` and `taxable_amount`. `pricing/quotationPrice.ts` recovers the
+net unit rate from stored taxable amount / quantity (including older quotes with gross `rate`) and restores
+the configured selling-price basis for the cart. Quotation printing uses that same net rate. Explicit zero
+VAT rates survive reopening. `localization/quotationTerms.ts` supplies profile-aware defaults without rewriting
+saved shop terms. `pricing/receiptCredits.ts` owns UAE printed payable/refund totals: the print contract receives
+`grandTotal` after discounts/points but before scrap and return credits. HTML and thermal apply those credits
+once, retain fils, and show any excess as a refund. Reprint callers that supply a net-only total omit credits.
+Regression tests: `uaeReleaseBlockers.test.ts`; existing Indian checkout/print snapshots remain unchanged.
+
+Quotation history uses `components/quotation/quotationPrintData.ts` for preview/print/PDF input. UAE preview
+embeds the same escaped HTML document in a sandboxed iframe (`UaeQuotationDocumentView`); it does not reuse
+the Indian tax-split preview. Coverage: `uaeQuotationPreview.ui.test.tsx`.
+
+UAE terminology follow-up (29 Oct): `resolveQuotationTerms` upgrades only the exact legacy built-in
+GST terms to the selected VAT basis; custom text stays unchanged. `displayInvoiceNumber` and billing tabs
+show actual UAE identifiers without adding a GST display prefix. Main-process `invoiceNumberPrefix.ts`
+resolves the built-in single tax-series prefix from GST- to VAT- for future UAE allocations, keeping the
+counter and collision checks. Saved document numbers, custom prefixes and B2B/B2C series are unchanged;
+o sync payload or server route shape changes (the server already accepts the requested prefix). Online,
+peek and allocation paths share this rule. Tests: `uaeNumbering.characterization.test.ts`.
+UAE ERP display reuses `buildCheckoutLines`; UAE cashier items reuse `InvoiceItemsTable`, showing VAT
+without an Indian tax split. UI coverage: `uaeWording.ui.test.tsx`.

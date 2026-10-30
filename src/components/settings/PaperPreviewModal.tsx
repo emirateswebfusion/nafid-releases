@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
+import { localizeCurrencyText } from '../../utils/localization/storeProfile';
 import { useState, useMemo, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -7,7 +9,7 @@ import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '
 import { useAuthStore } from '../../store/authStore';
 
 const SAMPLE_ITEMS: ReceiptItem[] = [
-  { name: 'Premium Basmati Rice', brand: 'India Gate', quantity: 2, unit_price: 125.00, total: 250.00, originalRate: 140.00, discountLabel: '₹15 off' },
+  { name: 'Premium Basmati Rice', brand: 'India Gate', quantity: 2, unit_price: 125.00, total: 250.00, originalRate: 140.00, discountLabel: localizeCurrencyText('₹15 off') },
   { name: 'Fresh Apples (Weight)', quantity: 0.5, unit_price: 180.00, total: 90.00, billing_type: 'WEIGHT', pieces_per_kg: 6 },
   { name: 'Organic Wheat Flour', quantity: 1, unit_price: 45.00, total: 45.00 },
   { name: 'Cold Pressed Coconut Oil', brand: 'Parachute', quantity: 3, unit_price: 85.00, total: 255.00 },
@@ -42,7 +44,7 @@ function createSampleReceiptData(
     showUpiQr: false,
     showProductOffers,
     invoiceNumber: 'INV-001',
-    date: new Date().toLocaleDateString('en-IN'),
+    date: new Date().toLocaleDateString(getStoreLocale()),
     billerName: bs.showBillerName !== false ? 'Admin' : undefined,
     items: SAMPLE_ITEMS,
     subtotal: SAMPLE_SUBTOTAL,
@@ -89,7 +91,7 @@ function createSampleInvoiceData(
     bankBranch: shopInfo?.bankBranch,
     upiId: 'nafid@upi',
     invoiceNumber: 'INV-001',
-    date: new Date().toLocaleDateString('en-IN'),
+    date: new Date().toLocaleDateString(getStoreLocale()),
     billerName: bs.showBillerName !== false ? 'Admin' : undefined,
     items: SAMPLE_ITEMS as InvoiceItemDisplay[],
     subtotal: SAMPLE_SUBTOTAL,

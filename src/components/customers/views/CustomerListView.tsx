@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Loader2, Search, X, UserCheck, CreditCard, AlertTriangle, Tag, FilterX, Award, Gift, User, Phone, Trash2, ChevronRight, Clock, Calendar, Star } from 'lucide-react';
 import clsx from 'clsx';
@@ -300,7 +301,7 @@ export function CustomerListView({
                         )}
                         {customer.party_balance != null && customer.party_balance > 0 && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 font-mono">
-                            Due: ₹{customer.party_balance.toFixed(2)}
+                            Due: {getCurrencyPrefix()}{customer.party_balance.toFixed(2)}
                           </span>
                         )}
                         {customer.pricing_tier_name && (

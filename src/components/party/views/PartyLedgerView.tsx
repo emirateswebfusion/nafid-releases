@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { AlertTriangle, MinusCircle, PlusCircle } from 'lucide-react';
 import { LedgerEntries } from './ledger/LedgerEntries';
@@ -144,7 +146,7 @@ export const PartyLedgerView: React.FC<PartyLedgerViewProps> = ({
                 <div>
                   <span className="font-bold">Overdue Payment Warning: </span>
                   <span>
-                    This customer has {selectedParty.overdue_bills_count || 'pending'} overdue credit bill(s) totaling ₹{Number(selectedParty.overdue_amount || 0).toLocaleString('en-IN')}.
+                    This customer has {selectedParty.overdue_bills_count || 'pending'} overdue credit bill(s) totaling {getCurrencyPrefix()}{Number(selectedParty.overdue_amount || 0).toLocaleString(getStoreLocale())}.
                     {selectedParty.restrict_on_credit_expiry !== false && selectedParty.restrict_on_credit_expiry !== 0
                       ? ' New credit billing is restricted.'
                       : ' Credit purchases allowed (Warning only).'}

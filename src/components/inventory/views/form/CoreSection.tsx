@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, localizeCurrencyText } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import { PackagePlus, Package, X, Check, Plus, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
@@ -179,7 +181,7 @@ export function CoreSection({
                   searchable
                   options={categoryGrades.map(g => ({
                     value: g.grade_id,
-                    label: (g.grade_name || '(General)') + ' (₹' + g.rate + ')'
+                    label: (g.grade_name || '(General)') + localizeCurrencyText(' (₹') + g.rate + ')'
                   }))}
                   renderOption={(option, isSelected) => {
                     const grade = grades.find(g => g.grade_id === option.value);
@@ -187,7 +189,7 @@ export function CoreSection({
                       <>
                         <div className="flex-1 min-w-0">
                           <div className={clsx('text-sm truncate', isSelected && 'font-medium')}>{grade?.grade_name || '(General)'}</div>
-                          <div className="text-xs text-muted-foreground">₹{Number(grade?.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                          <div className="text-xs text-muted-foreground">{getCurrencyPrefix()}{Number(grade?.rate || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                         </div>
                         {isSelected && <Check className="w-4 h-4 shrink-0 text-primary" />}
                       </>

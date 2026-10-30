@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useRef, useCallback, useMemo } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
@@ -395,8 +396,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     const tz = getStoreTimezone();
     const d = parseUTCDate(dateStr);
     if (isNaN(d.getTime())) return '-';
-    const [dd, mm, yyyy] = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).split('/');
-    const dayName = d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' });
+    const [dd, mm, yyyy] = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).split('/');
+    const dayName = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, weekday: 'long' });
     return `${dd}/${mm}/${yyyy} ${dayName}`;
   };
 

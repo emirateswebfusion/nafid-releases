@@ -1,3 +1,5 @@
+import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { PurchaseWhatsAppButton } from './PurchaseWhatsAppButton';
 import clsx from 'clsx';
@@ -236,18 +238,18 @@ export function PurchaseBillViewDialog({
                         </div>
 
                         <div className="text-right text-muted-foreground font-semibold">
-                          ₹{Number(item.purchase_price).toFixed(2)}
+                          {getCurrencyPrefix()}{Number(item.purchase_price).toFixed(2)}
                         </div>
 
                         {viewingBill.bill_type === 'GST' && (
                           <div className="text-right">
                             {hasGst ? (
                               <div className="leading-tight">
-                                <p className="font-bold text-foreground">₹{(gstAmt / 2).toFixed(2)}</p>
+                                <p className="font-bold text-foreground">{getCurrencyPrefix()}{(gstAmt / 2).toFixed(2)}</p>
                                 <p className="text-[9px] text-muted-foreground font-semibold">{(taxRate / 2).toFixed(1)}%</p>
                               </div>
                             ) : (
-                              <span className="text-muted-foreground/50 font-semibold">₹0.00</span>
+                              <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}0.00</span>
                             )}
                           </div>
                         )}
@@ -255,17 +257,17 @@ export function PurchaseBillViewDialog({
                           <div className="text-right">
                             {hasGst ? (
                               <div className="leading-tight">
-                                <p className="font-bold text-foreground">₹{(gstAmt / 2).toFixed(2)}</p>
+                                <p className="font-bold text-foreground">{getCurrencyPrefix()}{(gstAmt / 2).toFixed(2)}</p>
                                 <p className="text-[9px] text-muted-foreground font-semibold">{(taxRate / 2).toFixed(1)}%</p>
                               </div>
                             ) : (
-                              <span className="text-muted-foreground/50 font-semibold">₹0.00</span>
+                              <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}0.00</span>
                             )}
                           </div>
                         )}
 
                         <div className="text-right font-black text-foreground">
-                          ₹{(Number(item.total_amount) + gstAmt).toFixed(2)}
+                          {getCurrencyPrefix()}{(Number(item.total_amount) + gstAmt).toFixed(2)}
                         </div>
                       </div>
                     );
@@ -319,37 +321,37 @@ export function PurchaseBillViewDialog({
                     <>
                       <div className="flex justify-between text-xs border-t border-border/30 pt-2">
                         <span className="text-muted-foreground font-semibold">Taxable Value</span>
-                        <span className="font-bold text-foreground">₹{taxableValue.toFixed(2)}</span>
+                        <span className="font-bold text-foreground">{getCurrencyPrefix()}{taxableValue.toFixed(2)}</span>
                       </div>
                       <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2.5 space-y-1.5 mt-0.5">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-1.5">GST Breakdown</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-1.5">{localizeTaxText("GST")} Breakdown</p>
                         <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground font-semibold">CGST</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{halfGst.toFixed(2)}</span>
+                          <span className="text-muted-foreground font-semibold">{isUaeStore() ? 'VAT' : 'CGST'}</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{(isUaeStore() ? totalGst : halfGst).toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between text-xs">
+                        {!isUaeStore() && <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground font-semibold">SGST</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{halfGst.toFixed(2)}</span>
-                        </div>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{(isUaeStore() ? totalGst : halfGst).toFixed(2)}</span>
+                        </div>}
                         <div className="flex justify-between text-xs border-t border-emerald-500/20 pt-1.5">
-                          <span className="text-muted-foreground font-bold">Total GST</span>
-                          <span className="font-black text-emerald-600 dark:text-emerald-400">₹{totalGst.toFixed(2)}</span>
+                          <span className="text-muted-foreground font-bold">Total {localizeTaxText("GST")}</span>
+                          <span className="font-black text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{totalGst.toFixed(2)}</span>
                         </div>
                       </div>
                     </>
                   ) : (
-                    <div className="text-[10px] text-muted-foreground/50 italic text-center py-1">No GST applicable on items</div>
+                    <div className="text-[10px] text-muted-foreground/50 italic text-center py-1">No {localizeTaxText("GST")} applicable on items</div>
                   );
                 })()}
                 {viewingBill.bill_type === 'ESTIMATE' && (
                   <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold text-center py-1.5 bg-amber-500/5 border border-amber-500/20 rounded-lg px-2">
-                    Estimate — No GST Applicable
+                    Estimate — No {localizeTaxText("GST")} Applicable
                   </div>
                 )}
               </div>
               <div className="flex items-center justify-between px-5 py-4 bg-primary/[0.06]">
                 <span className="text-xs font-black uppercase tracking-widest text-primary">Grand Total</span>
-                <span className="text-2xl font-black text-foreground">₹{Number(viewingBill.total_amount).toFixed(2)}</span>
+                <span className="text-2xl font-black text-foreground">{getCurrencyPrefix()}{Number(viewingBill.total_amount).toFixed(2)}</span>
               </div>
             </div>
           </div>

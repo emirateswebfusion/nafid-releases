@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
 import { SplitSquareHorizontal, Banknote, CreditCard, Smartphone, Wallet, CheckCircle2, AlertTriangle } from 'lucide-react';
@@ -100,7 +101,7 @@ export function SplitSettlementDialog({
                   </button>
                 </div>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
                     type="number"
                     value={splitCash}
@@ -130,7 +131,7 @@ export function SplitSettlementDialog({
                   </button>
                 </div>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
                     type="number"
                     value={splitCard}
@@ -160,7 +161,7 @@ export function SplitSettlementDialog({
                   </button>
                 </div>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
                     type="number"
                     value={splitUpi}
@@ -206,7 +207,7 @@ export function SplitSettlementDialog({
                   </button>
                 </div>
                 <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
                     type="number"
                     value={splitBank}

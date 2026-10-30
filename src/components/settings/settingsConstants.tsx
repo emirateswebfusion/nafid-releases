@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../utils/localization/storeProfile';
 import clsx from 'clsx';
 
 export function DefaultStockReportViewSelector({ value, onChange }: { value: string; onChange: (val: string) => void }) {
@@ -21,8 +22,8 @@ export function DefaultStockReportViewSelector({ value, onChange }: { value: str
               : 'bg-background border-border text-muted-foreground hover:border-primary/30 hover:text-foreground'
           )}
         >
-          <span className="text-xs font-bold">{opt.label}</span>
-          <span className="text-[10px] opacity-75 mt-0.5">{opt.desc}</span>
+          <span className="text-xs font-bold">{localizeTaxText(opt.label)}</span>
+          <span className="text-[10px] opacity-75 mt-0.5">{localizeTaxText(opt.desc)}</span>
         </button>
       ))}
     </div>

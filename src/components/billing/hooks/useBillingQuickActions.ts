@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { useEffect } from 'react';
 import { type SplitDetails } from '../../../store/tabStore';
 import type { Tab } from '../../../store/tabStore';
@@ -55,7 +56,7 @@ export function useBillingQuickActions(ctx: UseBillingQuickActionsContext) {
     const nextRec = (Number(nextDetails.cash) || 0) + (Number(nextDetails.card) || 0) + (Number(nextDetails.upi) || 0) + (Number(nextDetails.cheque) || 0) + (Number(nextDetails.bank_transfer) || 0);
 
     updateActiveTab({ splitDetails: nextDetails, receivedAmount: nextRec });
-    setInfoToast(`Filled Rest: ₹${rem} into ${field}`);
+    setInfoToast(`Filled Rest: ${getCurrencyPrefix()}${rem} into ${field}`);
     setTimeout(() => setInfoToast(null), 1500);
   };
 

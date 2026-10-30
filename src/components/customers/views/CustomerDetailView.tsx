@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { getInitials, formatDate, formatDateTime, renderPaymentMethodBadge, renderBillTypeBadge } from '../customerFormat';
 import { Phone, MapPin, Calendar, Building2, ExternalLink, Clock, Award, ShoppingBag, Receipt, TrendingUp, Gift, Loader2, FileText, Download, RotateCw, SlidersHorizontal, CreditCard, FilterX, Eye, ChevronRight } from 'lucide-react';
@@ -122,7 +123,7 @@ export function CustomerDetailView({
                 </div>
                 <p className={clsx("text-sm font-black font-mono tracking-tight mt-0.5 truncate", colorStyles.amount)}>
                   {matchedParty
-                    ? (isReceivable ? `+${formatCurrency(bal)}` : isPayable ? `-${formatCurrency(Math.abs(bal))}` : `₹0.00`)
+                    ? (isReceivable ? `+${formatCurrency(bal)}` : isPayable ? `-${formatCurrency(Math.abs(bal))}` : `${getCurrencyPrefix()}0.00`)
                     : 'No Ledger'}
                 </p>
               </div>

@@ -159,3 +159,12 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
 `whatsapp:sendInvoice` also accepts optional `receiptText` and `receiptWidthMm` (58 or 80).
 The adapter renders receipt text through the existing hardware receipt renderer, then generates a receipt-width PDF.
 Existing HTML and text payloads retain their behavior; PDF rendering failures return a failed result.
+
+
+### Shop localization settings
+
+Shared settings `store_country` (`IN` / `AE`) and `vat_price_inclusive` (boolean) use existing settings IPC
+and cloud/LAN settings payloads. Legacy pulls allow both keys. No columns or invoice enum values change;
+UAE VAT remains `tax_total` / `tax_amount`, with Indian component fields zero. Older clients are not UAE
+aware: all terminals of a UAE shop must run a UAE-capable version. Server contract coverage:
+`nafid-server/tests/storeProfileSync.test.ts`; POS pull coverage: `storeProfileSync.test.ts`.

@@ -1,3 +1,6 @@
+import { getCurrencyPrefix } from '../localization/storeProfile';
+import { isUaeStore, getStoreVatInclusive } from '../localization/storeProfile';
+import { calculateVat } from './vat';
 import { v4 as uuidv4 } from 'uuid';
 import type { CartItem } from '../../store/cartStore';
 import { listRate, resolveLinePrice } from './linePricing';
@@ -21,6 +24,7 @@ export function splitTaxAmount(tax: number): { cgst: number; sgst: number } {
 
 /** Inter-state only for GST invoices when both states are known and differ. */
 export function resolveSupplyType(invoiceType: InvoiceKind, shopState: string, customerState: string): SupplyType {
+  if (isUaeStore()) return 'INTRA';
   const shop = shopState.trim().toUpperCase();
   const customer = customerState.trim().toUpperCase();
   return invoiceType === 'GST' && shop !== '' && customer !== '' && shop !== customer ? 'INTER' : 'INTRA';
@@ -41,20 +45,22 @@ export interface CheckoutLineContext {
 export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) {
   const { invoiceType, supplyType, bosTaxRatePercent, bosTaxInclusive, pcsSnapshot, newId = uuidv4 } = ctx;
   return items.map(item => {
-    if (item.isServiceItem) {
+    if (item.isServiceItem && !isUaeStore()) {
       const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
       return { item_id: item.item_id || newId(), product_id: item.product_id, name: item.name, quantity: 1, unit_price: servicePrice, tax_amount: 0, total: servicePrice, isServiceItem: true, cgst_rate: 0, sgst_rate: 0, igst_rate: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, hsn_sac_code: null, supply_type: supplyType };
     }
 
     const rate = listRate(item);
-    const qty = Number(item.quantity) || 0;
+    const qty = item.isServiceItem ? 1 : Number(item.quantity) || 0;
 
     const effectiveRateInfo = resolveLinePrice(item, rate);
     const effectiveRate = effectiveRateInfo.unitRate;
 
-    const total = effectiveRate * qty;
+    const rawTotal = effectiveRate * qty;
+    const vat = calculateVat(rawTotal, item.tax_rate_percent, getStoreVatInclusive());
+    const total = isUaeStore() && invoiceType === 'GST' ? vat.taxable : rawTotal;
     const unitPrice = qty > 0 ? total / qty : effectiveRate;
-    const itemTax = invoiceType === 'GST' ? total * (item.tax_rate_percent / 100)
+    const itemTax = invoiceType === 'GST' ? (isUaeStore() ? vat.tax : total * (item.tax_rate_percent / 100))
       : (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0
         ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
         : 0);
@@ -66,7 +72,7 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
     const halfRate = taxRatePercent / 2;
     let cgst_rate = 0, sgst_rate = 0, igst_rate = 0;
     let cgst_amount = 0, sgst_amount = 0, igst_amount = 0;
-    if (itemTax > 0) {
+    if (itemTax > 0 && !isUaeStore()) {
       if (supplyType === 'INTER') {
         igst_rate = taxRatePercent;
         igst_amount = round2(itemTax);
@@ -89,6 +95,7 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
       tax_amount: itemTax,
       total,
       pieces_sold,
+      ...(item.isServiceItem ? { isServiceItem: true } : {}),
       billing_type: item.billing_type,
       uom: item.uom || item.unit,
       // GST split
@@ -101,22 +108,23 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
 }
 
 /** Lines for the printed receipt: unit price plus the MRP/discount label shown to the customer. */
-export function buildReceiptLines(items: CartItem[], pcsSnapshot: Record<string, number | undefined>) {
+export function buildReceiptLines(items: CartItem[], pcsSnapshot: Record<string, number | undefined>, taxable = true) {
   return items.map(item => {
-    if (item.isServiceItem) {
+    if (item.isServiceItem && !isUaeStore()) {
       const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
       return { name: item.name, quantity: 1, unit_price: servicePrice, total: servicePrice, originalRate: undefined, discountLabel: 'Service' };
     }
 
     const rate = listRate(item);
-    const qty = Number(item.quantity) || 0;
+    const qty = item.isServiceItem ? 1 : Number(item.quantity) || 0;
     const effectiveRateInfo = resolveLinePrice(item, rate);
     const catalogPriceRec = effectiveRateInfo.catalogRate;
     const isAdhocOfferRec = effectiveRateInfo.adjustment === 'offer';
     const isAdhocDiscFlatRec = effectiveRateInfo.adjustment === 'flat';
     const isAdhocDiscPctRec = effectiveRateInfo.adjustment === 'percent';
     const effectiveRate = effectiveRateInfo.unitRate;
-    const total = effectiveRate * qty;
+    const rawTotal = effectiveRate * qty;
+    const total = isUaeStore() && taxable ? calculateVat(rawTotal, item.tax_rate_percent, getStoreVatInclusive()).taxable : rawTotal;
     const unitPrice = qty > 0 ? total / qty : effectiveRate;
     const mrpRate = (item.original_base_price != null && Number(item.original_base_price) > rate)
       ? Number(item.original_base_price)
@@ -128,7 +136,7 @@ export function buildReceiptLines(items: CartItem[], pcsSnapshot: Record<string,
       discountLabel = 'Offer';
     } else if (isAdhocDiscFlatRec) {
       originalRate = mrpRate;
-      discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
+      discountLabel = `-${getCurrencyPrefix()}${Number(item.discount_flat).toFixed(0)}`;
     } else if (isAdhocDiscPctRec) {
       originalRate = mrpRate;
       discountLabel = `${item.discount_percent}% OFF`;
@@ -149,6 +157,7 @@ export function buildReceiptLines(items: CartItem[], pcsSnapshot: Record<string,
       originalRate,
       discountLabel,
       isPriceOverride,
+      tax_rate_percent: item.tax_rate_percent,
       brand: item.brand_manufacturer || undefined,
       billing_type: item.billing_type,
       pieces_sold: pcsVal != null ? Number(pcsVal) : undefined,
@@ -169,20 +178,20 @@ export function buildQuotationLines(items: CartItem[], opts: { isGstQuotation: b
     const effectiveRateInfo = resolveLinePrice(item, rate);
     const effectiveRate = effectiveRateInfo.unitRate;
 
-    const qty = Number(item.quantity) || 0;
-    const amount = effectiveRate * qty;
-    const dAmt = Math.max(0, (rate - effectiveRate) * qty);
-
+    const qty = item.isServiceItem ? 1 : Number(item.quantity) || 0;
+    const rawAmount = effectiveRate * qty;
     const itemTaxRate = isGstQuotation && (item as CartItem & { is_gst_applicable?: boolean; hsn_code?: string; hsn?: string }).is_gst_applicable !== false ? (Number(item.tax_rate_percent) || 0) : 0;
+    const amount = isUaeStore() && isGstQuotation ? calculateVat(rawAmount, itemTaxRate, getStoreVatInclusive()).taxable : rawAmount;
+    const dAmt = Math.max(0, (rate - effectiveRate) * qty);
     const itemTax = isGstQuotation ? Math.round(amount * (itemTaxRate / 100) * 100) / 100 : 0;
     const halfRate = itemTaxRate / 2;
-    const cgst_rate = isInterState ? 0 : halfRate;
-    const sgst_rate = isInterState ? 0 : halfRate;
-    const igst_rate = isInterState ? itemTaxRate : 0;
+    const cgst_rate = isUaeStore() || isInterState ? 0 : halfRate;
+    const sgst_rate = isUaeStore() || isInterState ? 0 : halfRate;
+    const igst_rate = !isUaeStore() && isInterState ? itemTaxRate : 0;
     const taxSplit = splitTaxAmount(itemTax);
-    const cgst_amount = isInterState ? 0 : taxSplit.cgst;
-    const sgst_amount = isInterState ? 0 : taxSplit.sgst;
-    const igst_amount = isInterState ? itemTax : 0;
+    const cgst_amount = isUaeStore() || isInterState ? 0 : taxSplit.cgst;
+    const sgst_amount = isUaeStore() || isInterState ? 0 : taxSplit.sgst;
+    const igst_amount = !isUaeStore() && isInterState ? itemTax : 0;
 
     return {
       item_id: item.item_id || newId(),
@@ -190,7 +199,7 @@ export function buildQuotationLines(items: CartItem[], opts: { isGstQuotation: b
       name: item.name,
       quantity: qty,
       weight: item.billing_type === 'WEIGHT' ? qty : 0,
-      rate: effectiveRate,
+      rate: isUaeStore() && isGstQuotation && qty > 0 ? amount / qty : effectiveRate,
       base_price: rate,
       discount_flat: item.discount_flat ?? null,
       discount_percent: item.discount_percent ?? null,

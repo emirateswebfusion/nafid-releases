@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Recycle, Pencil, Plus, Printer, Trash } from 'lucide-react';
 import clsx from 'clsx';
@@ -137,7 +138,7 @@ export function ScrapInvoiceDetailView({
                 </div>
                 <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
                 <div className="col-span-2 text-right font-bold text-orange-600 dark:text-orange-400">{formatCurrency(tx.total_amount)}</div>
-                <div className="col-span-1 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</div>
+                <div className="col-span-1 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })}</div>
                 {isOwner && (
                   <div className="col-span-2 text-center flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button

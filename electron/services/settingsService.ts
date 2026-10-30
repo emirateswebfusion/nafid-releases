@@ -1,3 +1,4 @@
+import { saveStoreCountry, saveVatPriceBasis } from './storeCountryService.js';
 import type { SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import * as settingsSql from '../db/statements/settings.js';
@@ -35,8 +36,9 @@ export function getAll({ tenant_id }: { tenant_id: string }) {
     const rows = settingsSql.findSettings(db).all(tid) as SettingRow[];
 
     const resultMap: Record<string, unknown> = {};
-    const parseVal = (rawVal: string | null | undefined) => {
+    const parseVal = (rawVal: string | null | undefined, key: string) => {
       if (rawVal === undefined || rawVal === null) return null;
+      if (key === 'shop_gstin') return rawVal.trim().replace(/^"|"$/g, '');
       try {
         let parsed = JSON.parse(rawVal);
         if (typeof parsed === 'string') parsed = parsed.trim().replace(/^["']|["']$/g, '');
@@ -49,14 +51,14 @@ export function getAll({ tenant_id }: { tenant_id: string }) {
 
     for (const r of rows) {
       if (r.tenant_id === 'global') {
-        resultMap[r.key] = parseVal(r.value);
+        resultMap[r.key] = parseVal(r.value, r.key);
       }
     }
     for (const r of rows) {
       if (r.tenant_id === tid && tid !== 'global') {
         const isLocal = LOCAL_DEVICE_SETTING_KEYS.includes(r.key);
         if (!isLocal || resultMap[r.key] === undefined) {
-          resultMap[r.key] = parseVal(r.value);
+          resultMap[r.key] = parseVal(r.value, r.key);
         }
       }
     }
@@ -94,6 +96,7 @@ export function get({ tenant_id, key }: { tenant_id: string; key: string }) {
     }
 
     if (row && row.value !== undefined) {
+      if (key === 'shop_gstin') return row.value.trim().replace(/^"|"$/g, '');
       try {
         let parsed = JSON.parse(row.value);
         if (typeof parsed === 'string') {
@@ -121,6 +124,8 @@ export async function set({ tenant_id, key, value }: { tenant_id: string; key: s
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
     const syncStatus = isLocalDeviceKey ? 'LOCAL' : 'PENDING';
     const tid = tenant_id || 'global';
+    if (key === 'store_country') return saveStoreCountry(db, tid, value);
+    if (key === 'vat_price_inclusive') return saveVatPriceBasis(db, tid, value);
     if (key === 'network_sync_config' && value && typeof value === 'object') value = withPreservedLanKey(value as Record<string, unknown>);
     const valString = typeof value === 'string' ? value : JSON.stringify(value);
 

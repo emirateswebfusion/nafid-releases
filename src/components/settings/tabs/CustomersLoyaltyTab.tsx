@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { TrendingUp, Handshake, Layers, Check, FileText, Wallet, Info } from 'lucide-react';
 import clsx from 'clsx';
@@ -37,7 +39,7 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                   </div>
                   <div>
                     <h3 className="text-xs font-black text-foreground uppercase tracking-widest">Party Ledger Balance Modes</h3>
-                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Control whether party ledgers track separate GST &amp; Estimate balances or a single balance</p>
+                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Control whether party ledgers track separate {localizeTaxText("GST")} &amp; Estimate balances or a single balance</p>
                   </div>
                 </div>
 
@@ -73,13 +75,13 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                               </span>
                             )}
                           </div>
-                          <h4 className="text-sm font-black text-foreground">Separate GST &amp; Estimate Balances</h4>
+                          <h4 className="text-sm font-black text-foreground">Separate {localizeTaxText("GST")} &amp; Estimate Balances</h4>
                           <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                            Maintains separate GST and Estimate ledgers. In transactions, choose which balance to adjust against. Both are shown with distinct colors.
+                            Maintains separate {localizeTaxText("GST")} and Estimate ledgers. In transactions, choose which balance to adjust against. Both are shown with distinct colors.
                           </p>
                         </div>
                         <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/40 text-[10px] font-bold">
-                          <span className="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">GST Balance: Active</span>
+                          <span className="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">{localizeTaxText("GST")} Balance: Active</span>
                           <span className="px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20">Estimate: Active</span>
                         </div>
                       </div>
@@ -100,7 +102,7 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">
-                              <FileText className="w-4 h-4" /> GST Only
+                              <FileText className="w-4 h-4" /> {localizeTaxText("GST")} Only
                             </span>
                             {currentMode === 'GST_ONLY' && (
                               <span className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-black shadow-xs">
@@ -108,13 +110,13 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                               </span>
                             )}
                           </div>
-                          <h4 className="text-sm font-black text-foreground">GST Balance Only</h4>
+                          <h4 className="text-sm font-black text-foreground">{localizeTaxText("GST")} Balance Only</h4>
                           <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                            Party ledgers track GST tax balance. Estimate balance is turned off and <strong>never shown anywhere</strong> in the app.
+                            Party ledgers track {localizeTaxText("GST")} tax balance. Estimate balance is turned off and <strong>never shown anywhere</strong> in the app.
                           </p>
                         </div>
                         <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/40 text-[10px] font-bold">
-                          <span className="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">GST Balance: Active</span>
+                          <span className="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">{localizeTaxText("GST")} Balance: Active</span>
                           <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">Estimate: Hidden Everywhere</span>
                         </div>
                       </div>
@@ -145,12 +147,12 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                           </div>
                           <h4 className="text-sm font-black text-foreground">Estimate Balance Only</h4>
                           <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                            Party ledgers track Estimate / Non-GST balance. GST balance is turned off and <strong>never shown anywhere</strong> in the app.
+                            Party ledgers track Estimate / Non-{localizeTaxText("GST")} balance. {localizeTaxText("GST")} balance is turned off and <strong>never shown anywhere</strong> in the app.
                           </p>
                         </div>
                         <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/40 text-[10px] font-bold">
                           <span className="px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20">Estimate Balance: Active</span>
-                          <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">GST: Hidden Everywhere</span>
+                          <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">{localizeTaxText("GST")}: Hidden Everywhere</span>
                         </div>
                       </div>
 
@@ -180,7 +182,7 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                           </div>
                           <h4 className="text-sm font-black text-foreground">Single General Balance</h4>
                           <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                            Traditional unified ledger. Combines all bills into one balance without GST or Estimate labels anywhere.
+                            Traditional unified ledger. Combines all bills into one balance without {localizeTaxText("GST")} or Estimate labels anywhere.
                           </p>
                         </div>
                         <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/40 text-[10px] font-bold">
@@ -215,7 +217,7 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                     <div className="space-y-1.5 p-4 rounded-2xl bg-muted/20 border border-border/60">
                       <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Earning Rate</label>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-muted-foreground font-mono">₹</span>
+                        <span className="text-sm font-bold text-muted-foreground font-mono">{getCurrencyPrefix()}</span>
                         <input
                           type="number"
                           min="1"
@@ -225,12 +227,12 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                         />
                         <span className="text-xs font-bold text-muted-foreground shrink-0">= 1 Pt</span>
                       </div>
-                      <p className="text-[10px] text-muted-foreground/70 mt-1">Customer earns 1 point per ₹{loyaltyEarningRate} spent.</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">Customer earns 1 point per {getCurrencyPrefix()}{loyaltyEarningRate} spent.</p>
                     </div>
                     <div className="space-y-1.5 p-4 rounded-2xl bg-muted/20 border border-border/60">
                       <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Redemption Value</label>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = ₹</span>
+                        <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = {getCurrencyPrefix()}</span>
                         <input
                           type="number"
                           min="0.01"
@@ -240,7 +242,7 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                           className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono"
                         />
                       </div>
-                      <p className="text-[10px] text-muted-foreground/70 mt-1">Each point gives ₹{loyaltyRedemptionRate} discount on bills.</p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">Each point gives {getCurrencyPrefix()}{loyaltyRedemptionRate} discount on bills.</p>
                     </div>
                   </div>
 

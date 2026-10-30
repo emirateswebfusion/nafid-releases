@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { resolveDateRange } from '../dates';
 import { formatINR } from '../format';
 import { NOT_HANDLED } from '../queryContext';
@@ -107,13 +108,13 @@ export async function handleDiagnosticsIntent(parsed: ParsedOfflineIntent, ctx: 
           `* **ഇന്നത്തെ ചെലവ് വൗച്ചറുകൾ:** **${expenseTxs.length} എണ്ണം**\n` +
           `* **ഓരോ വൗച്ചറുകളുടെയും ആകെത്തുക:** **${formatINR(sumLineItems)}**\n` +
           `* **റിപ്പോർട്ട് ചെയ്ത ആകെ ചെലവ്:** **${formatINR(sumLineItems)}**\n` +
-          `* **വ്യത്യാസം:** **₹0.00 (പൂർണ്ണമായും കൃത്യം ✅)**\n\n` +
+          `* **വ്യത്യാസം:** **${getCurrencyPrefix()}0.00 (പൂർണ്ണമായും കൃത്യം ✅)**\n\n` +
           `എല്ലാ ചെലവ് ഇടപാടുകളും കൃത്യമായി രേഖപ്പെടുത്തിയിട്ടുണ്ട്.`
         : `### ⚖️ Expense Total vs Recorded Transactions Verification\n\n` +
           `* **Expense Transactions Audited:** **${expenseTxs.length} records**\n` +
           `* **Sum of Line Item Vouchers:** **${formatINR(sumLineItems)}**\n` +
           `* **Total Operating Expenses Reported:** **${formatINR(sumLineItems)}**\n` +
-          `* **Variance / Discrepancy:** **₹0.00 (100% Balanced ✅)**\n\n` +
+          `* **Variance / Discrepancy:** **${getCurrencyPrefix()}0.00 (100% Balanced ✅)**\n\n` +
           `All recorded expense transactions match the operating expense ledger without discrepancies.\n`;
 
       return { content: md, intent: parsed.intent };

@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 /** Scrap screen display helpers: amount and stock formatting, dates, day grouping, avatar colour and initials. */
 import { formatCurrency as formatMoney } from '../../utils/pricing/money';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
@@ -20,10 +21,10 @@ export const formatGroupDate = (dateStr?: string | null) => {
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   if (isNaN(d.getTime())) return '-';
-  const dd = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit' });
-  const mm = d.toLocaleDateString('en-IN', { timeZone: tz, month: '2-digit' });
-  const yyyy = d.toLocaleDateString('en-IN', { timeZone: tz, year: 'numeric' });
-  const dayName = d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' });
+  const dd = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit' });
+  const mm = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, month: '2-digit' });
+  const yyyy = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, year: 'numeric' });
+  const dayName = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, weekday: 'long' });
   return `${dd}/${mm}/${yyyy} ${dayName}`;
 };
 

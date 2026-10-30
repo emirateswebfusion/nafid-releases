@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Recycle, IndianRupee, Loader2, Save } from 'lucide-react';
 import { Select } from '../../ui/Select';
@@ -65,9 +66,9 @@ export function ScrapCategoryForm({
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Rate (₹)</label>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Rate ({getCurrencyPrefix()})</label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   step="0.01"
@@ -81,9 +82,9 @@ export function ScrapCategoryForm({
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Selling Rate (₹)</label>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Selling Rate ({getCurrencyPrefix()})</label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   step="0.01"

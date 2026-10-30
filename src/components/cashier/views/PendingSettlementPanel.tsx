@@ -1,3 +1,4 @@
+import { getCurrencyPrefix, localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import React, { Fragment } from 'react';
 import { Search, CheckCircle2, Receipt, Zap, User } from 'lucide-react';
 import clsx from 'clsx';
@@ -186,12 +187,12 @@ export function PendingSettlementPanel({
                       <div className="flex items-center justify-center gap-1 flex-wrap mt-0.5">
                         {returnD > 0 && (
                           <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
-                            Return ₹{returnD}
+                            Return {getCurrencyPrefix()}{returnD}
                           </span>
                         )}
                         {scrapD > 0 && (
                           <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/25">
-                            Scrap ₹{scrapD}
+                            Scrap {getCurrencyPrefix()}{scrapD}
                           </span>
                         )}
                       </div>
@@ -228,7 +229,7 @@ export function PendingSettlementPanel({
                       onBlur={() => setRowPlusInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                       onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
-                      step="0.01" placeholder="+₹"
+                      step="0.01" placeholder={localizeCurrencyText("+₹")}
                     />
                   </div>
                 ) : (
@@ -250,7 +251,7 @@ export function PendingSettlementPanel({
                       onBlur={() => setRowDiscInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                       onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
-                      step="1" min="0" placeholder="₹"
+                      step="1" min="0" placeholder={localizeCurrencyText("₹")}
                     />
                   </div>
                 )}
@@ -260,7 +261,7 @@ export function PendingSettlementPanel({
                   {isMinus ? (
                     <div className="flex items-center justify-center">
                       <div className="flex items-center border border-emerald-500/30 rounded-lg overflow-hidden focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all bg-card w-full max-w-[105px]">
-                        <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-emerald-600 dark:text-emerald-400 select-none leading-none">-₹</span>
+                        <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-emerald-600 dark:text-emerald-400 select-none leading-none">-{getCurrencyPrefix()}</span>
                         <input
                           type="number"
                           value={rowNetInputs[inv.invoice_id] !== undefined ? rowNetInputs[inv.invoice_id] : (absNet === 0 ? '' : absNet.toFixed(2))}
@@ -275,7 +276,7 @@ export function PendingSettlementPanel({
                   ) : (
                     <div className="flex items-center justify-center">
                       <div className="flex items-center border border-primary/30 rounded-lg overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all bg-card w-full max-w-[90px]">
-                        <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-primary select-none leading-none">₹</span>
+                        <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-primary select-none leading-none">{getCurrencyPrefix()}</span>
                         <input
                           type="number"
                           value={rowNetInputs[inv.invoice_id] !== undefined ? rowNetInputs[inv.invoice_id] : (net === 0 ? '' : net.toFixed(2))}

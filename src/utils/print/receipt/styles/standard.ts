@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../localization/storeProfile';
 import { formatPrintItem, shouldShowItemMrp, getDocumentTitle, formatBalanceLines, formatTaxBreakupSection } from '../receiptCore';
 import type { ReceiptTextContext } from '../receiptText';
 
@@ -110,7 +111,7 @@ export function renderStandardReceipt(ctx: ReceiptTextContext): string {
       }
     }
     if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
-      const mrpLine = `  MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
+      const mrpLine = `  MRP ${getCurrencyPrefix()}${item.originalRate.toFixed(2)} → ${getCurrencyPrefix()}${fmt.displayRate}`;
       const clipped = mrpLine.length > charsPerLine ? mrpLine.substring(0, charsPerLine - 3) + '..' : mrpLine;
       text += `${clipped}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
     } else if (data.invoiceType === 'SCRAP') {
@@ -149,17 +150,17 @@ export function renderStandardReceipt(ctx: ReceiptTextContext): string {
   text += '\n';
   text += FRAME + '\n';
   text += centerText('** GRAND TOTAL **', charsPerLine) + '\n';
-  text += centerText(`₹ ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
+  text += centerText(`${getCurrencyPrefix()} ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
   text += FRAME + '\n';
 
   if (totalDeductions > 0) {
     if (refundAmount > 0) {
       text += centerText('** REFUND AMOUNT **', charsPerLine) + '\n';
-      text += centerText(`₹ ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
+      text += centerText(`${getCurrencyPrefix()} ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
       text += FRAME + '\n';
     } else {
       text += centerText('** NET PAYABLE **', charsPerLine) + '\n';
-      text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+      text += centerText(`${getCurrencyPrefix()} ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
       text += FRAME + '\n';
     }
   }
@@ -178,7 +179,7 @@ export function renderStandardReceipt(ctx: ReceiptTextContext): string {
     }, 0);
     const totalSaved = perProductSavings + data.discount;
     if (totalSaved > 0) {
-      text += centerText(`++ You Saved ₹${totalSaved.toFixed(2)} ++`, charsPerLine) + '\n';
+      text += centerText(`++ You Saved ${getCurrencyPrefix()}${totalSaved.toFixed(2)} ++`, charsPerLine) + '\n';
       text += LIGHT + '\n';
     }
   }

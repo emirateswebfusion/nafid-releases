@@ -1,3 +1,4 @@
+import { getCurrencyPrefix, localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Package, List, LayoutGrid, X, RefreshCw, Plus, Tag, Layers, Save } from 'lucide-react';
 import { Select } from '../../ui/Select';
@@ -215,7 +216,7 @@ export function PurchaseProductFormModal({
                   searchable
                   options={newProductGrades.filter(g => g.category === newProductCategory).map(g => ({
                     value: g.grade_id,
-                    label: (g.grade_name || '(General)') + ' (₹' + g.rate + ')'
+                    label: (g.grade_name || '(General)') + localizeCurrencyText(' (₹') + g.rate + ')'
                   }))}
                   triggerClassName="rounded-lg h-[40px] text-sm"
                 />
@@ -234,8 +235,8 @@ export function PurchaseProductFormModal({
             </div>
             <div className="flex gap-4">
               {[
-                { label: 'Purchase Price', field: 'purchasePrice', prefix: '₹' },
-                { label: 'MRP *', field: 'basePrice', prefix: '₹' },
+                { label: 'Purchase Price', field: 'purchasePrice', prefix: localizeCurrencyText('₹') },
+                { label: 'MRP *', field: 'basePrice', prefix: localizeCurrencyText('₹') },
                 { label: editingProductItemId ? 'Bill Qty' : 'Purchase Qty', field: 'stock' },
                 { label: 'Low Stock Alert', field: 'reorderLevel' },
               ].map(({ label, field, prefix }) => (
@@ -307,7 +308,7 @@ export function PurchaseProductFormModal({
                         {tier.name}
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                         <input
                           type="number" step="0.01"
                           onWheel={e => (e.target as HTMLInputElement).blur()}
@@ -344,7 +345,7 @@ export function PurchaseProductFormModal({
                     className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-50 no-spinners text-sm" />
                 </div>
                 <div className="flex-1 min-w-[100px]">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Disc ₹</label>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Disc {getCurrencyPrefix()}</label>
                   <input type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={newProductDiscountFlat}
@@ -353,7 +354,7 @@ export function PurchaseProductFormModal({
                     className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-50 no-spinners text-sm" />
                 </div>
                 <div className="flex-1 min-w-[110px]">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Offer Price ₹</label>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Offer Price {getCurrencyPrefix()}</label>
                   <input type="number" step="0.01"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={newProductOfferPrice}
@@ -380,7 +381,7 @@ export function PurchaseProductFormModal({
                         className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount ({getCurrencyPrefix()})</label>
                       <input type="number" step="0.01"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={newProductDiscountFlat}
@@ -396,7 +397,7 @@ export function PurchaseProductFormModal({
                     <span className="text-xs text-muted-foreground">Overrides MRP</span>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price (₹)</label>
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price ({getCurrencyPrefix()})</label>
                     <input type="number" step="0.01"
                       onWheel={e => (e.target as HTMLInputElement).blur()}
                       value={newProductOfferPrice}

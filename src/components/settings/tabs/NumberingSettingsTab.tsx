@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import React from 'react';
 import { Receipt } from 'lucide-react';
@@ -83,7 +84,7 @@ export const NumberingSettingsTab: React.FC<NumberingSettingsTabProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
                     <span className="text-xs font-black text-purple-500 uppercase tracking-widest">3 Invoice Series</span>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Separate counters for B2B &amp; B2C GST invoices</p>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Separate counters for B2B &amp; B2C {localizeTaxText("GST")} invoices</p>
                   </div>
                   <button type="button" onClick={() => setEnableThreeInvoiceSeries(!enableThreeInvoiceSeries)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableThreeInvoiceSeries ? 'bg-purple-500 shadow-[0_2px_8px_rgba(168,85,247,0.3)]' : 'bg-muted-foreground/20')}>
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableThreeInvoiceSeries ? 'translate-x-5' : 'translate-x-0')} />
@@ -96,7 +97,7 @@ export const NumberingSettingsTab: React.FC<NumberingSettingsTabProps> = ({
                       <div className="flex items-center justify-between">
                         <h5 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                          GST B2B Invoice Series
+                          {localizeTaxText("GST")} B2B Invoice Series
                         </h5>
                         <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border px-2 py-0.5 rounded-lg">{b2bPrefix || 'B2B'}-{String(Number(b2bStartNumber) || 1).padStart(3, '0')}</span>
                       </div>
@@ -115,7 +116,7 @@ export const NumberingSettingsTab: React.FC<NumberingSettingsTabProps> = ({
                       <div className="flex items-center justify-between">
                         <h5 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                          GST B2C Invoice Series
+                          {localizeTaxText("GST")} B2C Invoice Series
                         </h5>
                         <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border px-2 py-0.5 rounded-lg">{b2cPrefix || 'B2C'}-{String(Number(b2cStartNumber) || 1).padStart(3, '0')}</span>
                       </div>

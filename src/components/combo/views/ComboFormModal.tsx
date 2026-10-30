@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { Plus, Percent, Search, Trash2, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -134,11 +135,11 @@ export function ComboFormModal({
                             <div className="flex items-center gap-1.5 text-[11px]">
                               {hasOffer ? (
                                 <>
-                                  <span className="text-muted-foreground/60 line-through">MRP: ₹{prod.base_price}</span>
-                                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">Offer: ₹{effOffer}</span>
+                                  <span className="text-muted-foreground/60 line-through">MRP: {getCurrencyPrefix()}{prod.base_price}</span>
+                                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">Offer: {getCurrencyPrefix()}{effOffer}</span>
                                 </>
                               ) : (
-                                <span className="font-bold text-foreground">MRP: ₹{prod.base_price}</span>
+                                <span className="font-bold text-foreground">MRP: {getCurrencyPrefix()}{prod.base_price}</span>
                               )}
                             </div>
                             <Plus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -166,10 +167,10 @@ export function ComboFormModal({
                         <div className="flex-1 pr-2">
                           <div className="font-bold text-foreground">{item.product_name}</div>
                           <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-2">
-                            <span>Unit MRP: <span className={clsx(hasOffer && "line-through opacity-70")}>₹{item.product_price || 0}</span></span>
+                            <span>Unit MRP: <span className={clsx(hasOffer && "line-through opacity-70")}>{getCurrencyPrefix()}{item.product_price || 0}</span></span>
                             {hasOffer && (
                               <span className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                Offer Price: ₹{item.offer_price}
+                                Offer Price: {getCurrencyPrefix()}{item.offer_price}
                               </span>
                             )}
                           </div>
@@ -189,11 +190,11 @@ export function ComboFormModal({
 
                           <div className="w-24 text-right">
                             <div className="font-extrabold text-foreground">
-                              ₹{(effectiveLinePrice * item.quantity).toFixed(2)}
+                              {getCurrencyPrefix()}{(effectiveLinePrice * item.quantity).toFixed(2)}
                             </div>
                             {hasOffer && (
                               <div className="text-[9px] text-muted-foreground line-through">
-                                ₹{((item.product_price || 0) * item.quantity).toFixed(2)}
+                                {getCurrencyPrefix()}{((item.product_price || 0) * item.quantity).toFixed(2)}
                               </div>
                             )}
                           </div>
@@ -218,7 +219,7 @@ export function ComboFormModal({
               <div className="flex items-center justify-between">
                 <div>
                   <label className="block text-xs font-bold text-purple-700 dark:text-purple-300 mb-1">
-                    Special Combo Selling Price (₹) *
+                    Special Combo Selling Price ({getCurrencyPrefix()}) *
                   </label>
                   <input
                     type="number"
@@ -234,11 +235,11 @@ export function ComboFormModal({
                 <div className="text-right">
                   <div className="text-xs text-muted-foreground font-semibold">Regular Items MRP Total:</div>
                   <div className="text-base font-bold text-muted-foreground line-through">
-                    ₹{standaloneTotal.toFixed(2)}
+                    {getCurrencyPrefix()}{standaloneTotal.toFixed(2)}
                   </div>
                   {calcOfferPriceTotal() < standaloneTotal && (
                     <div className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
-                      Product Offer Total: ₹{calcOfferPriceTotal().toFixed(2)}
+                      Product Offer Total: {getCurrencyPrefix()}{calcOfferPriceTotal().toFixed(2)}
                     </div>
                   )}
                 </div>
@@ -251,7 +252,7 @@ export function ComboFormModal({
                     Customer Savings:
                   </span>
                   <span className="font-black text-emerald-600 dark:text-emerald-400">
-                    ₹{savingsAmount.toFixed(2)} ({savingsPct}% OFF)
+                    {getCurrencyPrefix()}{savingsAmount.toFixed(2)} ({savingsPct}% OFF)
                   </span>
                 </div>
               )}

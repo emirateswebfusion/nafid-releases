@@ -47,6 +47,16 @@ beforeEach(() => {
   state.items = [{ item_id: 'line', product_id: 'p1', name: 'Rice', quantity: 2, unit_price: 50, total: 100 }];
 });
 describe('BOS to B2C service characterization', () => {
+  it('keeps UAE conversion VAT out of Indian component fields across emirates', async () => {
+    state.settings.store_country = '"AE"';
+    state.settings.shop_state = '"DUBAI"';
+    state.invoice.customer_state = 'ABU_DHABI';
+    await convertBosToGst(payload);
+    const row = state.inserted.mock.calls[0];
+    expect(row[5]).toBeGreaterThan(0);
+    expect(row.slice(26, 29)).toEqual([0, 0, 0]);
+    expect(state.insertedItem.mock.calls[0].slice(15, 21)).toEqual([0, 0, 0, 0, 0, 0]);
+  });
   it.each(['EXCLUSIVE', 'INCLUSIVE'] as const)('preview and save agree for %s GST', async tax_mode => {
     const preview = previewConvertBosToGst({ ...payload, tax_mode });
     await convertBosToGst({ ...payload, tax_mode });

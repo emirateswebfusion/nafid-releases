@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Input } from '../../ui/Input';
 import { Lock, Check } from 'lucide-react';
 import type { PaymentMethodsState } from '../hooks/usePaymentMethodsState';
@@ -158,7 +159,7 @@ export function PaymentSourceFormFields({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-bold text-foreground mb-1.5 block flex items-center justify-between">
-              <span>Opening Balance (₹)</span>
+              <span>Opening Balance ({getCurrencyPrefix()})</span>
               {!!editing && (editing.transaction_count ?? 0) > 0 && (
                 <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1">
                   <Lock className="w-3 h-3" /> Locked

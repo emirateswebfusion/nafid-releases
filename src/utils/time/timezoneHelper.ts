@@ -3,7 +3,9 @@
  * Standardizes UTC storage in Database and localized presentation in Store Timezone.
  */
 
-// Default store timezone (India IST)
+import { getStoreProfile } from '../localization/storeProfile';
+
+// Legacy shops keep India unless a country is explicitly selected.
 const DEFAULT_STORE_TIMEZONE = 'Asia/Kolkata';
 
 export const SUPPORTED_TIMEZONES = [
@@ -26,7 +28,7 @@ export function normalizeStoreTimezone(value: unknown): string {
     try { parsed = JSON.parse(parsed); } catch { return DEFAULT_STORE_TIMEZONE; }
   }
   const tz = typeof parsed === 'string' ? parsed : parsed && typeof parsed === 'object' && 'timezone' in parsed ? parsed.timezone : null;
-  if (typeof tz !== 'string' || !tz) return DEFAULT_STORE_TIMEZONE;
+  if (typeof tz !== 'string' || !tz) return getStoreProfile().timezone;
   try { new Intl.DateTimeFormat('en', { timeZone: tz }); return tz; } catch { return DEFAULT_STORE_TIMEZONE; }
 }
 

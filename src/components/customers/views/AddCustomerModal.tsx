@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
 import clsx from 'clsx';
@@ -47,9 +48,9 @@ export function AddCustomerModal({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Credit Limit (₹)</label>
+              <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">Credit Limit ({getCurrencyPrefix()})</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   min="0"

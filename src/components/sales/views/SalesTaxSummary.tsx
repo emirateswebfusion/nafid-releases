@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getSalesTaxBreakdown } from '../../../utils/pricing/salesHistoryAmount';
 import { formatCurrency } from '../../../utils/pricing/money';
 
@@ -21,7 +22,7 @@ export function SalesTaxSummary({ totalIncludingGst, gstAmount, isHidden, isMask
     {figures.map(figure => (
       <div key={figure.label} className="px-3 py-2 rounded-xl bg-background border border-border/60 min-w-[155px]"
         title="After invoice discounts; before scrap / return credits">
-        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block">{figure.label}</span>
+        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block">{localizeTaxText(figure.label)}</span>
         <span className="text-xs font-black font-mono tabular-nums text-teal-600 dark:text-teal-400 block mt-0.5">
           {loading ? '…' : isHidden ? '••••••••' : figure.protected ? 'Protected' : formatCurrency(figure.amount)}
         </span>

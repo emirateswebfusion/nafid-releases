@@ -1,8 +1,9 @@
 import React from 'react';
+import { getStoreProfile, type StoreCountry } from '../../../utils/localization/storeProfile';
 import { QrCode, Building, Check, Copy } from 'lucide-react';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
-import { SUPPORTED_TIMEZONES, setStoreTimezone } from '../../../utils/time/timezoneHelper';
+import { SUPPORTED_TIMEZONES } from '../../../utils/time/timezoneHelper';
 
 export interface StoreSettingsTabProps {
   connectCode: string;
@@ -13,6 +14,8 @@ export interface StoreSettingsTabProps {
   shopPhone: string; setShopPhone: (v: string) => void;
   shopEmail: string; setShopEmail: (v: string) => void;
   shopWebsite: string; setShopWebsite: (v: string) => void;
+  vatPriceInclusive: boolean; setVatPriceInclusive: (v: boolean) => void;
+  storeCountry: StoreCountry; setStoreCountryState: (v: StoreCountry) => void;
   storeTimezone: string; setStoreTimezoneState: (v: string) => void;
 }
 
@@ -24,7 +27,7 @@ export const StoreSettingsTab: React.FC<StoreSettingsTabProps> = ({
   shopPhone, setShopPhone,
   shopEmail, setShopEmail,
   shopWebsite, setShopWebsite,
-  storeTimezone, setStoreTimezoneState,
+  vatPriceInclusive, setVatPriceInclusive, storeCountry, setStoreCountryState, storeTimezone, setStoreTimezoneState,
 }) => {
   return (
           <div className="space-y-6 animate-in fade-in duration-300">
@@ -65,6 +68,16 @@ export const StoreSettingsTab: React.FC<StoreSettingsTabProps> = ({
               </div>
             </div>
 
+            <section className="bg-card border border-border rounded-2xl p-6 space-y-3">
+              <label className="text-sm font-bold">Country &amp; currency</label>
+              <Select value={storeCountry} options={[{ value: 'IN', label: 'India — INR / GST' }, { value: 'AE', label: 'United Arab Emirates — AED / VAT' }]} onChange={value => {
+                const country: StoreCountry = value === 'AE' ? 'AE' : 'IN';
+                setStoreCountryState(country);
+                setStoreTimezoneState(getStoreProfile(country).timezone);
+              }} />
+              {storeCountry === 'AE' && <label className="flex gap-2 text-sm"><input type="checkbox" checked={vatPriceInclusive} onChange={event => setVatPriceInclusive(event.target.checked)} /> Product selling prices include VAT</label>}
+              <p className="text-xs text-muted-foreground">Choose before entering products or transactions. Currency changes do not convert balances. Save to apply the profile. UAE standard VAT is 5%; zero-rated and exempt supplies need their correct product tax treatment.</p>
+            </section>
             {/* Card 1: Shop Profile */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
@@ -80,7 +93,7 @@ export const StoreSettingsTab: React.FC<StoreSettingsTabProps> = ({
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Phone Number</label>
-                  <Input type="text" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} placeholder="e.g. +91 98765 43210" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  <Input type="text" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} placeholder={storeCountry === 'AE' ? 'e.g. +971 50 123 4567' : 'e.g. +91 98765 43210'} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Email Address (E-Mail)</label>
@@ -103,7 +116,6 @@ export const StoreSettingsTab: React.FC<StoreSettingsTabProps> = ({
                     value={storeTimezone}
                     onChange={(val) => {
                       setStoreTimezoneState(val);
-                      setStoreTimezone(val);
                     }}
                     options={SUPPORTED_TIMEZONES}
                   />

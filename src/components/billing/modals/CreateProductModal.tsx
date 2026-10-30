@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, localizeCurrencyText, isUaeStore } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React from 'react';
 import type { ProductFormState } from '../hooks/useProductFormState';
@@ -261,7 +263,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                       searchable
                       options={newProductGrades.filter(g => g.category === newProductCategory).map(g => ({
                         value: g.grade_id,
-                        label: (g.grade_name || '(General)') + ' (₹' + g.rate + ')'
+                        label: (g.grade_name || '(General)') + localizeCurrencyText(' (₹') + g.rate + ')'
                       }))}
                       triggerClassName="rounded-lg h-[40px] text-sm"
                     />
@@ -280,8 +282,8 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
               </div>
               <div className="flex gap-4">
                 {[
-                  { label: 'Purchase Price', field: 'purchasePrice', prefix: '₹' },
-                  { label: 'MRP *', field: 'basePrice', prefix: '₹' },
+                  { label: 'Purchase Price', field: 'purchasePrice', prefix: localizeCurrencyText('₹') },
+                  { label: 'MRP *', field: 'basePrice', prefix: localizeCurrencyText('₹') },
                   { label: 'Current Stock', field: 'stock' },
                   { label: 'Low Stock Alert', field: 'reorderLevel' },
                 ].map(({ label, field, prefix }) => (
@@ -307,7 +309,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                         }}
                         className={clsx(
                           'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm',
-                          prefix && 'pl-8',
+                          prefix && (isUaeStore() ? 'pl-14' : 'pl-8'),
                           field === 'basePrice' && 'text-emerald-600 dark:text-emerald-400 font-bold'
                         )}
                       />
@@ -354,14 +356,14 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                           {tier.name}
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                           <input
                             type="number" step="0.01"
                             onWheel={e => (e.target as HTMLInputElement).blur()}
                             value={productFormTierPrices[tier.pricing_tier_id] ?? ''}
                             onChange={e => setProductFormTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}
                             placeholder={newProductBasePrice ? `= ${newProductBasePrice}` : 'MRP'}
-                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm pl-8"
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm pl-14"
                           />
                         </div>
                       </div>
@@ -408,7 +410,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                         className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount ({getCurrencyPrefix()})</label>
                       <input type="number" step="0.01"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={newProductDiscountFlat}
@@ -436,7 +438,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     <span className="text-xs text-muted-foreground">Overrides MRP</span>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price (₹)</label>
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price ({getCurrencyPrefix()})</label>
                     <input type="number" step="0.01"
                       onWheel={e => (e.target as HTMLInputElement).blur()}
                       value={newProductOfferPrice}
@@ -502,7 +504,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                 ) : (
                   <>
                     <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{localizeTaxText("GST")} Applicable</label>
                       <div
                         onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
                         onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}

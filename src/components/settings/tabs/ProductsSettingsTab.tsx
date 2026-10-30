@@ -1,3 +1,5 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Key, Tags, Upload, Package } from 'lucide-react';
 import clsx from 'clsx';
@@ -89,7 +91,7 @@ export const ProductsSettingsTab: React.FC<ProductsSettingsTabProps> = ({
                     <span className="text-xs font-black uppercase tracking-widest text-foreground">Purchase Price Coding System</span>
                   </div>
                   <p className="text-xs text-muted-foreground/80 leading-relaxed">
-                    Assign a unique, non-repeating letter to each digit (0-9). This lets you print encoded purchase prices on product labels (e.g. code "BHXY" for ₹1250).
+                    Assign a unique, non-repeating letter to each digit (0-9). This lets you print encoded purchase prices on product labels (e.g. code "BHXY" for {getCurrencyPrefix()}1250).
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
@@ -260,10 +262,10 @@ export const ProductsSettingsTab: React.FC<ProductsSettingsTabProps> = ({
                       <div className="flex-1 min-w-0">
                         <label className="text-xs font-bold text-foreground block flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-purple-500" />
-                          Show Paper Stock in GST Billing
+                          Show Paper Stock in {localizeTaxText("GST")} Billing
                         </label>
                         <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">
-                          Show and allow Paper products &amp; Paper Stock when billing in GST Invoice mode.
+                          Show and allow Paper products &amp; Paper Stock when billing in {localizeTaxText("GST")} Invoice mode.
                         </p>
                       </div>
                       <button

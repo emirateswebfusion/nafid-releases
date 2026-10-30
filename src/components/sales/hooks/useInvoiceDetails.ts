@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type { DisplayInvoiceItem, DisplayComboItem } from '../invoiceDisplayTypes';
 import type { Product } from '../../../data/products';
 import type { ComboOfferWithItems } from '../../../data/combos';
@@ -123,13 +124,13 @@ export function useInvoiceDetails(ctx: UseInvoiceDetailsContext) {
               isPriceOverride = false;
             } else if (catalogPrice < mrp && Math.abs(catalogPrice - soldPrice) < 0.01) {
               originalRate = mrp;
-              discountLabel = catalogDiscFlat ? `-₹${catalogDiscFlat.toFixed(0)}` : catalogDiscPct ? `${catalogDiscPct}% OFF` : 'Offer';
+              discountLabel = catalogDiscFlat ? `-${getCurrencyPrefix()}${catalogDiscFlat.toFixed(0)}` : catalogDiscPct ? `${catalogDiscPct}% OFF` : 'Offer';
               isPriceOverride = false;
             } else {
               const diff = mrp - soldPrice;
               if (diff >= 0.05) {
                 originalRate = mrp;
-                discountLabel = `-₹${diff.toFixed(0)}`;
+                discountLabel = `-${getCurrencyPrefix()}${diff.toFixed(0)}`;
                 isPriceOverride = true;
               }
             }

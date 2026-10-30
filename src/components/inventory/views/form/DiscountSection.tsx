@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import { Tag } from 'lucide-react';
 import type { InventoryFormViewProps } from '../InventoryFormView';
 
@@ -41,7 +42,7 @@ export function DiscountSection({
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
+              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount ({getCurrencyPrefix()})</label>
               <input
                 type="number"
                 step="0.01"
@@ -61,7 +62,7 @@ export function DiscountSection({
             <h4 className="text-sm font-bold text-foreground">Offer</h4>
             <span className="text-xs text-muted-foreground">Overrides MRP</span>
           </div>
-          <div>                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price (₹)</label>
+          <div>                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price ({getCurrencyPrefix()})</label>
             <input
               type="number"
               step="0.01"

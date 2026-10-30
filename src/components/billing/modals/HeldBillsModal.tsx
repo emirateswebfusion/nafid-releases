@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import { PauseCircle, Play, Trash } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
@@ -52,8 +53,8 @@ export function HeldBillsModal({
               const billId = bill.invoice_id || bill.id;
               const invNum = bill.invoice_number || bill.id?.substring(0, 8) || 'HLD';
               const createdTime = bill.created_at
-                ? parseUTCDate(bill.created_at).toLocaleString('en-IN', { timeZone: getStoreTimezone() })
-                : (bill.heldAt ? parseUTCDate(bill.heldAt).toLocaleString('en-IN', { timeZone: getStoreTimezone() }) : '');
+                ? parseUTCDate(bill.created_at).toLocaleString(getStoreLocale(), { timeZone: getStoreTimezone() })
+                : (bill.heldAt ? parseUTCDate(bill.heldAt).toLocaleString(getStoreLocale(), { timeZone: getStoreTimezone() }) : '');
               const totalAmt = Number(bill.grand_total) || 0;
               const itemCount = Array.isArray(bill.items) ? bill.items.length : 0;
               const customer = bill.customer_name || bill.customerName || (bill.customer_phone || bill.customerPhone ? (bill.customer_phone || bill.customerPhone) : 'Walk-in Customer');

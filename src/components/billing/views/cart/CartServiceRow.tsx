@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
 import { Pencil, Trash } from 'lucide-react';
@@ -45,7 +46,7 @@ export const CartServiceRow: React.FC<CartServiceRowProps> = ({
         </div>
       </div>
       <div className="flex items-center gap-0.5 bg-violet-500/10 border border-violet-500/30 rounded-lg py-0.5 shrink-0">
-        <span className="text-[10px] text-muted-foreground font-black uppercase pl-2">₹</span>
+        <span className="text-[10px] text-muted-foreground font-black uppercase pl-2">{getCurrencyPrefix()}</span>
         <input type="number" step="any" min="0"
           className="w-24 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           value={serviceAmount || ''}

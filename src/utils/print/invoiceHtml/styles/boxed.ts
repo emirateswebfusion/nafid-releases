@@ -1,3 +1,4 @@
+import { localizeCurrencyText } from '../../../localization/storeProfile';
 import { getEffectiveBillSettings, formatPrintItem, numberToIndianWords } from '../../receiptGenerator';
 import { splitTaxAmount } from '../../../pricing/checkoutLines';
 import { type InvoiceData, shouldShowItemMrpHtml, formatItemNameForBill } from '../invoiceHtmlCore';
@@ -34,7 +35,7 @@ export function generateBoxedHtml(data: InvoiceData, title: string): string {
       ? `<br><b style="font-size:9.5px; color:#6b21a8; font-weight:800; letter-spacing:0.3px;">[COMBO OFFER]</b> <span style="font-size:9px; color:#4b5563; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
     const offerLabelText = item.discountLabel || (item.originalRate != null && item.originalRate !== item.unit_price ? 'Offer' : '');
-    const offerHtml = shouldShowItemMrpHtml(data, item) && offerLabelText ? `<br><span style="font-size:9px; color:#dc2626; font-weight:600;">${offerLabelText}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
+    const offerHtml = shouldShowItemMrpHtml(data, item) && offerLabelText ? `<br><span style="font-size:9px; color:#dc2626; font-weight:600;">${offerLabelText}${item.originalRate ? localizeCurrencyText(' (was ₹') + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
 
     const hsnCode = item.hsn || item.hsn_code || '-';
     const qtyNum = Number(item.quantity) || 1;

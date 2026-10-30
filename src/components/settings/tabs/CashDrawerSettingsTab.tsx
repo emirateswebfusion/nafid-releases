@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Wallet, Calculator } from 'lucide-react';
 import { CashRegisterSettings } from './CashRegisterSettings';
@@ -39,10 +40,10 @@ export const CashDrawerSettingsTab: React.FC<CashDrawerSettingsTabProps> = ({
           />
           {autoOpenCashDrawer && (
             <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-              <label className="text-xs font-bold text-foreground mb-1 block">Default Opening Amount (₹)</label>
+              <label className="text-xs font-bold text-foreground mb-1 block">Default Opening Amount ({getCurrencyPrefix()})</label>
               <p className="text-[10px] text-muted-foreground/75 mb-2.5">Set a default cash amount to start the drawer with. If empty or cleared, opening balance will be 0 (starts from 0).</p>
               <div className="relative max-w-xs">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                 <input
                   type="number"
                   min="0"

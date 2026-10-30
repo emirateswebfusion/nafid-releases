@@ -1,3 +1,5 @@
+import { getStoreLocale } from '../localization/storeProfile';
+import { getCurrencyPrefix } from '../localization/storeProfile';
 import { formatPurchaseLedgerMessage } from './whatsappSharing';
 
 export interface WhatsAppBillDetails {
@@ -28,8 +30,8 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
   const inv = data.invoiceNumber;
   const date = data.date;
   const cust = data.customerName ? `\n👤 *Customer:* ${data.customerName}` : '';
-  const total = Number(data.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const received = Number(data.receivedAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const total = Number(data.grandTotal || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const received = Number(data.receivedAmount || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const balance = Number(data.balanceAmount || 0);
 
   // Items breakdown (up to first 8 items for a clean preview, followed by ... if more)
@@ -38,8 +40,8 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
     itemsText += '\n\n📦 *Bill Items:*';
     const previewItems = data.items.slice(0, 8);
     previewItems.forEach((item, idx) => {
-      const itemTotal = Number(item.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-      itemsText += `\n${idx + 1}. ${item.name} (${item.quantity}x) - ₹${itemTotal}`;
+      const itemTotal = Number(item.total || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 });
+      itemsText += `\n${idx + 1}. ${item.name} (${item.quantity}x) - ${getCurrencyPrefix()}${itemTotal}`;
     });
     if (data.items.length > 8) {
       itemsText += `\n...and ${data.items.length - 8} more item(s)`;
@@ -48,14 +50,14 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
 
   // Credit / Payment Details
   let paymentText = `\n\n💳 *Payment Mode:* ${data.paymentMethod || 'CASH'}`;
-  paymentText += `\n💵 *Total Amount:* ₹${total}`;
+  paymentText += `\n💵 *Total Amount:* ${getCurrencyPrefix()}${total}`;
   if (data.receivedAmount !== undefined) {
-    paymentText += `\n✅ *Paid Amount:* ₹${received}`;
+    paymentText += `\n✅ *Paid Amount:* ${getCurrencyPrefix()}${received}`;
   }
 
   if (balance > 0) {
-    const balFormatted = balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    paymentText += `\n⚠️ *Due Balance:* ₹${balFormatted}`;
+    const balFormatted = balance.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    paymentText += `\n⚠️ *Due Balance:* ${getCurrencyPrefix()}${balFormatted}`;
     if (data.dueDate) {
       paymentText += `\n📅 *Credit Period Due Date:* *${data.dueDate}*`;
       if (data.creditPeriodDays) {
@@ -65,8 +67,8 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
   }
 
   if (data.customerBalance && data.customerBalance > 0) {
-    const totalOutstanding = Number(data.customerBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-    paymentText += `\n📊 *Total Outstanding Ledger Due:* ₹${totalOutstanding}`;
+    const totalOutstanding = Number(data.customerBalance).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 });
+    paymentText += `\n📊 *Total Outstanding Ledger Due:* ${getCurrencyPrefix()}${totalOutstanding}`;
   }
 
   const footer = `\n\n🙏 *Thank you for your business!*\n📄 Detailed PDF invoice is attached below.`;
@@ -89,10 +91,10 @@ export interface WhatsAppStatementDetails {
 
 export function formatWhatsAppStatementMessage(data: WhatsAppStatementDetails): string {
   const shop = data.shopName || 'STORE';
-  const bal = Math.abs(data.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const bal = Math.abs(data.balance).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const typeText = data.balance > 0 ? 'Receivable (Due)' : data.balance < 0 ? 'Payable (Advance/Credit)' : 'Settled';
 
-  return `📑 *ACCOUNT STATEMENT*\n🏢 *${shop}*\n👤 *Party:* ${data.partyName} (${data.partyType || 'Customer'})\n\n💰 *Current Balance:* ₹${bal} [${data.balanceLabel || typeText}]\n📊 *Total Entries:* ${data.entryCount}${data.lastDate ? `\n📅 *Last Activity:* ${data.lastDate}` : ''}\n\n🙏 *Thank you!*`;
+  return `📑 *ACCOUNT STATEMENT*\n🏢 *${shop}*\n👤 *Party:* ${data.partyName} (${data.partyType || 'Customer'})\n\n💰 *Current Balance:* ${getCurrencyPrefix()}${bal} [${data.balanceLabel || typeText}]\n📊 *Total Entries:* ${data.entryCount}${data.lastDate ? `\n📅 *Last Activity:* ${data.lastDate}` : ''}\n\n🙏 *Thank you!*`;
 }
 
 export interface WhatsAppStaffSalaryDetails {
@@ -106,10 +108,10 @@ export interface WhatsAppStaffSalaryDetails {
 
 export function formatWhatsAppStaffSalaryMessage(data: WhatsAppStaffSalaryDetails): string {
   const shop = data.shopName || 'STORE';
-  const bal = Number(data.currentBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const sal = data.monthlySalary ? Number(data.monthlySalary).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : null;
+  const bal = Number(data.currentBalance || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const sal = data.monthlySalary ? Number(data.monthlySalary).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 }) : null;
 
-  return `👤 *STAFF SALARY STATEMENT*\n🏢 *${shop}*\n👔 *Employee:* ${data.staffName} (${data.staffCode || 'Staff'})\n${sal ? `💼 *Monthly Salary:* ₹${sal}\n` : ''}💰 *Pending Balance:* ₹${bal}\n\n🙏 *Thank you!*`;
+  return `👤 *STAFF SALARY STATEMENT*\n🏢 *${shop}*\n👔 *Employee:* ${data.staffName} (${data.staffCode || 'Staff'})\n${sal ? `💼 *Monthly Salary:* ${getCurrencyPrefix()}${sal}\n` : ''}💰 *Pending Balance:* ${getCurrencyPrefix()}${bal}\n\n🙏 *Thank you!*`;
 }
 
 export interface WhatsAppLedgerTxDetails {
@@ -157,7 +159,7 @@ export function formatWhatsAppLedgerTxMessage(data: WhatsAppLedgerTxDetails): st
   const labelWidth = Math.max('OB'.length, methodName.length, 'Bal'.length);
   const padLabel = (lbl: string) => lbl + ' '.repeat(Math.max(1, labelWidth - lbl.length + 2));
 
-  let message = `${padLabel('OB')}₹ ${ob}/-\n${padLabel(methodName)}₹ ${amt}/-\n${padLabel('Bal')}₹ ${bal}/-`;
+  let message = `${padLabel('OB')}${getCurrencyPrefix()} ${ob}/-\n${padLabel(methodName)}${getCurrencyPrefix()} ${amt}/-\n${padLabel('Bal')}${getCurrencyPrefix()} ${bal}/-`;
 
   if (data.includeShopName && data.shopName && data.shopName.trim()) {
     message += `\n\n— *${data.shopName.trim()}*`;

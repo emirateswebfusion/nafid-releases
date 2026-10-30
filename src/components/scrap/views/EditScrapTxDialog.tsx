@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Pencil, X, Loader2, Save } from 'lucide-react';
 import { Select } from '../../ui/Select';
@@ -56,7 +57,7 @@ export function EditScrapTxDialog({
               }}
               options={categories.map(c => ({
                 value: c.scrap_category_id,
-                label: `${c.name} (${c.unit}) - Default: ₹${c.purchase_price}/${c.unit}`
+                label: `${c.name} (${c.unit}) - Default: ${getCurrencyPrefix()}${c.purchase_price}/${c.unit}`
               }))}
             />
           </div>
@@ -75,7 +76,7 @@ export function EditScrapTxDialog({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Rate (₹) *</label>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Rate ({getCurrencyPrefix()}) *</label>
               <input
                 required
                 type="number"
@@ -114,7 +115,7 @@ export function EditScrapTxDialog({
             <div className="pt-3 border-t border-border flex items-center justify-between">
               <span className="text-xs font-semibold text-muted-foreground">New Line Total:</span>
               <span className="text-lg font-black text-orange-500">
-                ₹{(Number(editTxForm.quantity) * Number(editTxForm.rate)).toFixed(2)}
+                {getCurrencyPrefix()}{(Number(editTxForm.quantity) * Number(editTxForm.rate)).toFixed(2)}
               </span>
             </div>
           )}

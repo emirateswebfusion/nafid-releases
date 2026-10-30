@@ -1,3 +1,7 @@
+import { resolveQuotationTerms } from '../../../utils/localization/quotationTerms';
+import { isUaeStore, getStoreVatInclusive } from '../../../utils/localization/storeProfile';
+import { restoreQuotationSellingPrice } from '../../../utils/pricing/quotationPrice';
+import { restoreVatPrice } from '../../../utils/pricing/vat';
 import { priceReturnSource } from '../../../utils/pricing/returnPricing';
 import type * as B from '../billingTypes';
 import React, { useEffect } from 'react';
@@ -220,6 +224,15 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             }
           }
 
+          if (isUaeStore() && invoice.invoice_type === 'GST') {
+            const netPrice = Number(item.unit_price) || 0;
+            const base = netPrice * Number(item.quantity);
+            tax_rate_percent = base > 0 ? (Number(item.tax_amount) || 0) / base * 100 : 0;
+            base_price = restoreVatPrice(netPrice, tax_rate_percent, getStoreVatInclusive());
+            offer_price = base_price; discount_flat = null; discount_percent = null;
+            catalog_offer_price = null; catalog_discount_flat = null; catalog_discount_percent = null;
+            pricing_mode = 'FIXED';
+          }
           const qty = billing_type === 'WEIGHT'
             ? Number(item.calculated_weight || item.quantity) || 1
             : Number(item.quantity) || 1;
@@ -557,7 +570,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         } else {
           setInvoiceType('BILL_OF_SUPPLY');
         }
-        if (quotation.terms_conditions) setQuotationTerms(quotation.terms_conditions);
+        setQuotationTerms(resolveQuotationTerms(quotation.terms_conditions));
         
         if (Array.isArray(qItems)) {
           const productIds = qItems.map((i) => i.product_id).filter(Boolean);
@@ -613,12 +626,17 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
               }
             }
 
+            if (isUaeStore() && quotation.is_gst) {
+              offer_price = restoreQuotationSellingPrice({ ...item, quantity: qty }, getStoreVatInclusive());
+              discount_flat = null; discount_percent = null;
+            }
             addItem({
               product_id: productId,
               name: item.name || dbProduct.name || 'Product',
               base_price: basePrice,
               purchase_price: Number(dbProduct.purchase_price || item.purchase_price) || 0,
-              tax_rate_percent: Number(item.tax_rate_percent || dbProduct.tax_rate_percent || (dbProduct as B.BillingProduct).gst_percent || 0),
+              tax_rate_percent: isUaeStore() ? Number(item.tax_rate_percent ?? dbProduct.tax_rate_percent ?? (dbProduct as B.BillingProduct).gst_percent ?? 0)
+                : Number(item.tax_rate_percent || dbProduct.tax_rate_percent || (dbProduct as B.BillingProduct).gst_percent || 0),
               hsn_sac_code: item.hsn_code || (item as B.BillingInvoiceItem).hsn_sac_code || dbProduct.hsn_sac_code || dbProduct.hsn_code || null,
               is_gst_applicable: (dbProduct as B.BillingProduct).is_gst_applicable !== 0,
               billing_type: item.weight && Number(item.weight) > 0 ? 'WEIGHT' : (dbProduct.billing_type || undefined),

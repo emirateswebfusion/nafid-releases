@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Trash2, RotateCcw, Eye } from 'lucide-react';
 import { formatAmount } from '../../../utils/pricing/money';
 import { timeAgo, type DeletedInvoice } from '../recycleBinTypes';
@@ -43,7 +44,7 @@ export function InvoiceTableView({
                       </td>
                       <td className="px-4 py-3 uppercase text-[11px] text-muted-foreground">{inv.payment_method}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold text-foreground">
-                        ₹{formatAmount(inv.grand_total)}
+                        {getCurrencyPrefix()}{formatAmount(inv.grand_total)}
                       </td>
                       <td className="px-4 py-3 text-[11px] text-rose-500 font-semibold">{timeAgo(inv.updated_at)}</td>
                       <td className="px-4 py-3 text-right">

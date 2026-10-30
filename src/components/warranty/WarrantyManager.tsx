@@ -1,3 +1,4 @@
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useRef } from 'react';
 import { parseUTCDate } from '../../utils/print/receiptGenerator';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
@@ -158,7 +159,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
             </div>
             ${content}
             <div class="footer">
-              <p>This warranty is valid from ${parseUTCDate(warranty.purchase_date).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })} to ${parseUTCDate(warranty.expiry_date).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</p>
+              <p>This warranty is valid from ${parseUTCDate(warranty.purchase_date).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })} to ${parseUTCDate(warranty.expiry_date).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })}</p>
               <p>Please present this card for any warranty service.</p>
             </div>
             <div class="stamp">
@@ -194,7 +195,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
   const formatDate = (dateStr: string) => {
     const tz = getStoreTimezone();
     const d = parseUTCDate(dateStr);
-    return d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'long', year: 'numeric' });
+    return d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'long', year: 'numeric' });
   };
 
   const isExpired = (expiry: string) => new Date(expiry) < new Date();

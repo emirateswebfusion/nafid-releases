@@ -1,3 +1,4 @@
+import { defaultQuotationTerms } from '../../../utils/localization/quotationTerms';
 import type * as B from '../billingTypes';
 import { useState } from 'react';
 import { type UpiPageConfig, DEFAULT_UPI_PAGE_CONFIG } from '../../../utils/print/upiConfig';
@@ -65,7 +66,7 @@ export function useBillingPageState() {
   const [scrapInvoiceViewData, setScrapInvoiceViewData] = useState<{ transactions: B.ScrapTransaction[]; totalAmount: number; invoiceNumber: string } | null>(null);
   const [scrapInvoiceViewLoading, _setScrapInvoiceViewLoading] = useState(false);
   // Quotation state
-  const [quotationTerms, setQuotationTerms] = useState('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+  const [quotationTerms, setQuotationTerms] = useState(defaultQuotationTerms);
   const [quotationSaving, setQuotationSaving] = useState(false);
   const [quotationSuccess, setQuotationSuccess] = useState<string | null>(null);
   const [scrapDeductionDropdownStyle, setScrapDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);

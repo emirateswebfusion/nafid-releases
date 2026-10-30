@@ -1,3 +1,4 @@
+import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { Printer, FileText, Pencil, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Quotation } from '../quotationTypes';
@@ -43,7 +44,7 @@ export function QuotationDetailView({
             )}
           >
             <span className={clsx('w-2 h-2 rounded-full', previewGstEnabled ? 'bg-purple-500' : 'bg-slate-400')} />
-            {previewGstEnabled ? 'GST Enabled (Tax Breakdown)' : 'Non-GST (Compact)'}
+            {localizeTaxText(previewGstEnabled ? 'GST Enabled (Tax Breakdown)' : 'Non-GST (Compact)')}
           </button>
           <span className="text-[10px] sm:text-[11px] text-muted-foreground hidden sm:inline">
             (Toggle adjusts columns &amp; tax summary dynamically)

@@ -1,3 +1,4 @@
+import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useEffect, useState, type ReactNode } from 'react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
@@ -170,9 +171,9 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
               {item.price !== undefined && !isNaN(item.price) && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '1px', padding: '0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
                   <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10px', fontWeight: 700, lineHeight: 1.1, color: '#000', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontWeight: item.sp !== undefined && !isNaN(item.sp) ? 600 : 800 }}>MRP ₹{formatPrice(item.price)}</span>
+                    <span style={{ fontWeight: item.sp !== undefined && !isNaN(item.sp) ? 600 : 800 }}>MRP {getCurrencyPrefix()}{formatPrice(item.price)}</span>
                     {item.sp !== undefined && !isNaN(item.sp) && (
-                      <span style={{ marginLeft: '1.5ch', fontWeight: 800 }}>{item.spType || 'SP'} ₹{formatPrice(item.sp)}</span>
+                      <span style={{ marginLeft: '1.5ch', fontWeight: 800 }}>{item.spType || 'SP'} {getCurrencyPrefix()}{formatPrice(item.sp)}</span>
                     )}
                   </div>
                 </div>
