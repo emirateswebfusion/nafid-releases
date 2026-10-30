@@ -4,6 +4,7 @@ import fs from 'fs';
 import { getDb } from '../db/localDb';
 import * as printerSql from '../db/statements/printer.js';
 import { buildReceiptHtml } from './receiptHtml.js';
+import { getReceiptPrintArea } from './windowsPrintArea.js';
 import { getSharedA4Html, setSharedA4Html, clearSharedA4Html } from '../whatsapp/sharedPrintHtml.js';
 import { ESC_INIT, ESC_BOLD_ON, ESC_BOLD_OFF, ESC_DENSITY, ESC_CUT, ESC_DRAWER_KICK, ESC_POS_HEADER, sanitizeForEscPos, sendToNetworkPrinter } from './escPos.js';
 import type { BulkPrintItem } from './printingTypes.js';
@@ -633,7 +634,10 @@ function executePrintWithFallback(
       printBackground: true,
     };
 
-    if (receiptJob) primaryOptions.scaleFactor = 100;
+    if (receiptJob) {
+      primaryOptions.scaleFactor = 100;
+      primaryOptions.usePrinterDefaultPageSize = true;
+    }
     if (deviceName) {
       primaryOptions.deviceName = deviceName;
     }
@@ -770,7 +774,8 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     try {
-      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm, true);
+      const printArea = await getReceiptPrintArea(resolved.deviceName);
+      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm, true, printArea);
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
     } catch (err) {
       clearTimeout(timer);

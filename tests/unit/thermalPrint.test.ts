@@ -58,7 +58,7 @@ it.each([80, 300, 1800])('waits for content readiness and uses the driver roll f
     loadURL = vi.fn();
   }
   const context = {
-    BrowserWindow: Window, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    BrowserWindow: Window, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     resolvePrinterDeviceName: async () => ({ deviceName: 'thermal', actualNameUsed: 'thermal' }),
     executePrintWithFallback: print, buildReceiptHtml: vi.fn(async () => ''),
     pendingPrint: (fn: (resolve: () => void, reject: () => void) => Promise<void>) => new Promise(fn),
@@ -70,7 +70,7 @@ it.each([80, 300, 1800])('waits for content readiness and uses the driver roll f
   void invoke('thermal', 58);
   context.currentReceiptText = 'Next bill';
   for (let i = 0; i < 10; i++) await Promise.resolve();
-  expect(context.buildReceiptHtml).toHaveBeenCalledWith('Original bill', 58, expect.any(String), 0, true);
+  expect(context.buildReceiptHtml).toHaveBeenCalledWith('Original bill', 58, expect.any(String), 0, true, undefined);
   loaded.get('did-finish-load')?.();
   expect(print).not.toHaveBeenCalled();
   await listeners.get('print-ready-11')!(height);
@@ -87,7 +87,7 @@ it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without
     loadURL = vi.fn();
   }
   const context = {
-    BrowserWindow: Window, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    BrowserWindow: Window, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     resolvePrinterDeviceName: async () => ({ deviceName: 'thermal', actualNameUsed: 'thermal' }),
     executePrintWithFallback: print, buildReceiptHtml: async () => '',
     pendingPrint: (fn: (resolve: () => void, reject: () => void) => Promise<void>) => new Promise(fn),

@@ -46,17 +46,25 @@ Do not submit measured custom lengths to thermal drivers: Epson APD can substitu
 the length difference before the bill (reproduced as 193 mm leading blank on a short v2.2.2 receipt).
 Keep the driver configured for the selected roll width and continuous/long receipt paper; do not change the user's
 printer defaults from Nafid. A4 and barcode jobs retain their explicit sizes and existing fallback behavior.
-Physical receipt bodies reserve an additional 4 mm from roll width and shift 1 mm inside the driver's left margin
-before applying saved calibration. At 80 mm this is a 76 mm body, with the existing padding inside it; 58/76 mm
-rolls use the same reserved-edge rule. Positive calibration offsets additionally reduce body width. Negative
-calibration is still supported within the existing bound and must be checked against the actual printer's margins.
+Windows receipt jobs query the selected queue's current GDI device caps in `hardware/windowsPrintArea.ts`:
+`HORZRES`, `LOGPIXELSX`, `PHYSICALWIDTH`, `PHYSICALOFFSETX`. No printer-model lookup or fixed 58/80 mm
+printable width is assumed. `usePrinterDefaultPageSize` selects that queue's form; no custom height is submitted.
+`receiptHtml.ts` positions the border ink inside those physical bounds, accounting for the existing 3 mm body
+padding and two CSS pixels of raster rounding allowance. Positive calibration reduces width, preserving the right
+edge; negative offsets are clamped at zero for measured Windows geometry to avoid entering the hardware margin.
+The HTML page width follows the driver while the app's width remains the receipt column/font-format preference.
+An 80 mm text layout on a 58 mm queue therefore fits rather than losing its Amount column. Invalid/non-thermal
+caps or a failed Windows query stop before printing; errors request driver settings/retry instead of guessing.
+Non-Windows system printers retain legacy geometry. PDF/WhatsApp geometry is unchanged.
+Sources: [Windows GetDeviceCaps](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdevicecaps),
+[Electron 42.4.1 printing API](https://github.com/electron/electron/blob/v42.4.1/docs/api/web-contents.md#contentsprintoptions-callback).
 Rows fit available width after assets load, before `printReady(height)` signals content readiness. Height is a
 readiness/validity check only for physical jobs, not their paper length. Missing readiness messages recover by
 measuring that same window directly. Invalid direct measurements report a retry error; never feed guessed paper.
 Each USB job captures its receipt text before printer discovery. Receipt failures never retry on a different/default
 printer. PDF/WhatsApp callers keep their original body geometry and dynamic CSS page sizing.
 
-Unit coverage: `tests/unit/thermalPrint.test.ts`, `printerPromise.test.ts`, `whatsappPdfDelivery.test.ts`.
+Unit coverage: `tests/unit/windowsPrintArea.test.ts`, `thermalPrint.test.ts`, `printerPromise.test.ts`, `whatsappPdfDelivery.test.ts`.
 Windows driver/emulator gate: `tests/characterization/thermal-driver.cjs` (see its README). Unlike `printToPDF`, this
 runs real Windows spooling through a thermal driver into local emupos, checking short and 60-item bills for one
 cut-delimited receipt, <= 8 mm leading blank, and visible ink bounds inside both edges. The Epson APD 5.13 / TM-T88V

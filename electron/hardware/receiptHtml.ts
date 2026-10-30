@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import type { ReceiptPrintArea } from './windowsPrintArea.js';
 
 /** Receipt rendering for USB / system printers: the text receipt as HTML (borders, dividers, QR and Code 128
  * barcodes). Pure functions, no printer state. */
@@ -106,7 +107,7 @@ function stripOuterPipes(str: string): string {
   return str;
 }
 
-export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0, systemPrinter: boolean = false): Promise<string> {
+export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0, systemPrinter: boolean = false, printArea?: ReceiptPrintArea): Promise<string> {
   const lines = receiptText.split('\n');
   let startIdx = 0;
   while (startIdx < lines.length && lines[startIdx].trim() === '') startIdx++;
@@ -128,7 +129,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
       if (match) {
         try {
           const dataUrl = await QRCode.toDataURL(match[1], { width: 280, margin: 1, errorCorrectionLevel: 'M' });
-          rowsHtml += `<div style="width:100%;text-align:center;margin:6px 0;"><img src="${dataUrl}" style="max-width:180px;height:auto;display:inline-block;" /></div>`;
+          rowsHtml += `<div style="width:100%;text-align:center;margin:6px 0;"><img src="${dataUrl}" style="max-width:min(180px,100%);height:auto;display:inline-block;" /></div>`;
         } catch {
           rowsHtml += `<pre style="margin:0;text-align:center;">[QR CODE]</pre>`;
         }
@@ -214,10 +215,13 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     ? `<div style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
     : rowsHtml;
 
-  // Physical drivers have non-printable edges; reserve 4 mm and shift inside the left hardware margin.
-  const driverInsetMm = systemPrinter ? 4 : 0;
-  const driverShiftMm = systemPrinter ? 1 : 0;
-  const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(-3, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
+  // The border sits INSIDE the 3 mm body padding: position its ink, not the padded body origin.
+  const edgeGuardMm = 2 * 25.4 / 96; // Two CSS pixels keeps raster rounding inside the device's printable bounds.
+  const measuredArea = systemPrinter ? printArea : undefined;
+  const driverShiftMm = systemPrinter ? measuredArea ? Math.max(0, measuredArea.leftMm - 3 + edgeGuardMm) : 1 : 0;
+  const bodyWidthMm = measuredArea ? Math.min(widthMm, measuredArea.paperWidthMm - driverShiftMm,
+    measuredArea.leftMm + measuredArea.printableWidthMm - driverShiftMm + 3 - edgeGuardMm) : widthMm - (systemPrinter ? 4 : 0);
+  const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(measuredArea ? 0 : -3, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
 
   return `<!DOCTYPE html>
 <html>
@@ -236,7 +240,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     font-size: ${fontSize};
     color: #000;
     background: #fff;
-    width: ${widthMm}mm;
+    width: ${systemPrinter && printArea ? printArea.paperWidthMm : widthMm}mm;
     height: auto !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact;
@@ -247,7 +251,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     margin: 0;
     position: relative;
     left: ${offset + driverShiftMm}mm;
-    width: ${widthMm - driverInsetMm - Math.max(0, offset)}mm;
+    width: ${bodyWidthMm - Math.max(0, offset)}mm;
     height: auto !important;
     overflow: visible !important;
   }

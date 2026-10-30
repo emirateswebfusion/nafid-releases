@@ -29,6 +29,7 @@ Module._extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.re
 }).outputText, file);
 const { generateReceiptText } = require(path.join(base, 'src/utils/print/receiptGenerator.ts'));
 const receiptHtml = require(path.join(base, 'dist-electron/hardware/receiptHtml.js'));
+const windowsPrintArea = require(path.join(base, 'dist-electron/hardware/windowsPrintArea.js'));
 const source = fs.readFileSync(path.join(base, 'dist-electron/hardware/printer.js'), 'utf8');
 function extract(name) {
   const start = source.indexOf(`function ${name}(`);
@@ -63,11 +64,11 @@ ipcMain.handle('hardware:printReady', (event, height) => {
 app.whenReady().then(async () => {
   const results = [];
   try {
-    for (const count of [2, 60]) {
+    for (const count of [1, 2, 60]) {
       const before = new Set((await receipts()).map(receipt => receipt.id));
       const data = {
         shopName: 'NAFID THERMAL TEST', shopAddress: 'Synthetic test - no customer data', shopPhone: '0000000000',
-        invoiceNumber: `LAB-${count}`, date: '2026-10-30T10:00:00Z', staffName: 'TEST', state: 'KL',
+        invoiceNumber: `LAB-${count}`, date: '2026-10-30T10:00:00Z', billerName: 'TEST', shopState: 'KL',
         items: count === 2 ? [
           { name: 'S.S Baby Bucket No 4', quantity: 1, unit_price: 195, total: 195 },
           { name: 'Fiber Cap No 1', quantity: 1, unit_price: 135, total: 135 },
@@ -75,7 +76,15 @@ app.whenReady().then(async () => {
         subtotal: count === 2 ? 330 : 600, discount: count === 2 ? 30 : 0, grandTotal: count === 2 ? 300 : 600,
         tax: 0, invoiceType: 'BOS',
       };
+      if (count === 1) Object.assign(data, {
+        customerName: 'TEST CUSTOMER', customerPhone: '0000000000', customerState: 'KL',
+        items: [{ name: 'PRESSURE COOKER AL 2', quantity: 1, unit_price: 1430, total: 1430, mrp: 1485 }],
+        subtotal: 1430, discount: 66.2, scrapDeduction: 923.8, grandTotal: 1363.8,
+        tax: 68.1, cgst: 34.05, sgst: 34.05,
+      });
       let printCalls = 0;
+      const receiptText = generateReceiptText(data, width / 10, undefined, 'boxed');
+      if (count === 1) assert.ok(receiptText.includes('440.00'), 'Fixture net total must be 440 after scrap deduction');
       class ObservedWindow extends BrowserWindow {
         constructor(settings) {
           super(settings);
@@ -85,14 +94,16 @@ app.whenReady().then(async () => {
             assert.equal(settings.deviceName, options.printer);
             assert.equal(settings.scaleFactor, 100);
             assert.equal(settings.pageSize, undefined, 'Thermal print must use the configured driver roll');
+            assert.equal(settings.usePrinterDefaultPageSize, true);
             nativePrint(settings, callback);
           };
         }
       }
       const context = {
         electron_1: { app, BrowserWindow: ObservedWindow, ipcMain }, path_1: { default: path }, receiptHtml_js_1: receiptHtml,
+        windowsPrintArea_js_1: windowsPrintArea,
         __dirname: path.join(base, 'dist-electron/hardware'), getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
-        currentReceiptText: generateReceiptText(data, width / 10, undefined, 'boxed'),
+        currentReceiptText: receiptText,
         resolvePrinterDeviceName: async () => ({ deviceName: options.printer, actualNameUsed: options.printer }),
         setTimeout, clearTimeout, console,
       };
@@ -115,6 +126,18 @@ app.whenReady().then(async () => {
       const leadingBlankMm = bounds.top * 25.4 / dpi;
       assert.ok(leadingBlankMm <= 8, `Excessive leading feed: ${leadingBlankMm} mm`);
       assert.ok(bounds.left > 0 && bounds.right < image.width - 1, 'Receipt ink/borders must not touch clipped driver edges');
+      for (const edge of [bounds.left, bounds.right]) {
+        let longestColumn = 0;
+        for (let x = Math.max(0, edge - 4); x <= Math.min(image.width - 1, edge + 4); x++) {
+          let ink = 0;
+          for (let y = bounds.top; y <= bounds.bottom; y++) {
+            const index = (y * image.width + x) * 4;
+            if (image.data[index + 3] && image.data[index] < 200) ink++;
+          }
+          longestColumn = Math.max(longestColumn, ink);
+        }
+        assert.ok(longestColumn > (bounds.bottom - bounds.top) * 0.8, 'Both outer vertical borders must remain visible');
+      }
       assert.equal(printCalls, 1);
       results.push({ count, receipt, image: { width: image.width, height: image.height }, bounds, leadingBlankMm, printCalls });
       console.log(JSON.stringify(results.at(-1)));
@@ -126,6 +149,6 @@ app.whenReady().then(async () => {
     process.exitCode = 1;
   } finally {
     for (const win of BrowserWindow.getAllWindows()) win.destroy();
-    app.quit();
+    app.exit(process.exitCode || 0);
   }
 });

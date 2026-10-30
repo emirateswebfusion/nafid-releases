@@ -195,3 +195,5 @@ receipt page size), one print submission and one cut per 2-item/60-item bill, le
 strictly inside the printable width. It saves PNGs and measured JSON results there. It requires the same local
 `emupos` API and `pngjs` already provided transitively by `qrcode`. It is optional in CI because CI has no Windows
 thermal queue. Automated unit tests retain coverage for A4/barcode sizes, readiness recovery and PDF geometry.
+
+Also run the 58 mm queue with `--width=80`: this intentional app/driver width mismatch must retain both borders and all amounts. The harness uses the real Windows capability query, never a mocked printable width. Failures exit nonzero.

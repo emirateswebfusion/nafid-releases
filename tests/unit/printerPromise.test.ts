@@ -46,7 +46,7 @@ function harness(name: string, failure?: 'setup' | 'print' | 'load') {
     },
     clearTimeout: (timer: typeof timers[number]) => { timer.cleared = true; },
     setImmediate: vi.fn(),
-    getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     buildReceiptHtml: async () => '<p>receipt</p>',
     currentReceiptText: '', currentA4Html: '', currentBulkPrintItems: [], pendingReceiptHeightPx: 0,
     app: { isPackaged: false }, process: { env: {} }, console,

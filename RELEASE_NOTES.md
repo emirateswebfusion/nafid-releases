@@ -1,3 +1,13 @@
+# Nafid POS v2.2.4
+
+Thermal printing correction:
+- Fit receipt borders, Amount, totals and signatures to the selected Windows printer's measured printable area.
+- Account for hardware margins and existing receipt padding instead of a fixed inset for every printer.
+- Preserve continuous receipt printing without submitting a custom paper length.
+- Keep WhatsApp/PDF, A4, labels and unrelated trial/login work unchanged.
+
+Validation covers native Windows thermal driver output for short/long 58 mm and 80 mm jobs, including an intentional app/driver width mismatch. Physical hardware still requires shop confirmation.
+
 # Nafid POS v2.2.3 Release Notes
 
 ## Thermal printing fixes
