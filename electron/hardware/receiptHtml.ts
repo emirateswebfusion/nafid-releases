@@ -1,9 +1,8 @@
 import QRCode from 'qrcode';
-import { receiptLayoutScript } from './receiptLayout.js';
-import type { ReceiptPrintArea } from './windowsPrintArea.js';
 
-/** Receipt rendering for USB / system printers: the text receipt as HTML (borders, dividers, QR and Code 128
- * barcodes). Pure functions, no printer state. */
+/** Thermal receipt rendering: the plain-text receipt as HTML (borders, dividers, QR and Code 128 barcodes).
+ * Pure function, no printer state. The page geometry is driven by @page (width fixed, height set after
+ * content measurement) so a long receipt prints as a single continuous page with one cut at the end. */
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -108,7 +107,7 @@ function stripOuterPipes(str: string): string {
   return str;
 }
 
-export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0, systemPrinter: boolean = false, printArea?: ReceiptPrintArea): Promise<string> {
+export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0): Promise<string> {
   const lines = receiptText.split('\n');
   let startIdx = 0;
   while (startIdx < lines.length && lines[startIdx].trim() === '') startIdx++;
@@ -208,21 +207,15 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     }
 
     const lh = isBillStyle ? 1.08 : 1.25;
-    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:${systemPrinter ? 'var(--receipt-row-size, inherit)' : 'inherit'};line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;${systemPrinter && isCentered ? 'display:flex;justify-content:center;' : ''}">${systemPrinter ? `<span class="receipt-row-text" style="transform-origin:${isCentered ? 'center' : 'left'} center;">${escapeHtml(finalValue)}</span>` : escapeHtml(finalValue)}</pre>`;
+    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;">${escapeHtml(finalValue)}</pre>`;
   }
 
   const fontSize = widthMm <= 58 ? '10px' : '12px';
   const contentBody = isBillStyle
-    ? `<div ${systemPrinter ? 'class="receipt-content"' : ''} style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
-    : systemPrinter ? `<div class="receipt-content">${rowsHtml}</div>` : rowsHtml;
+    ? `<div style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
+    : rowsHtml;
 
-  // The border sits INSIDE the 3 mm body padding: position its ink, not the padded body origin.
-  const edgeGuardMm = 2 * 25.4 / 96; // Two CSS pixels keeps raster rounding inside the device's printable bounds.
-  const measuredArea = systemPrinter ? printArea : undefined;
-  const driverShiftMm = systemPrinter ? measuredArea ? Math.max(0, measuredArea.leftMm - 3 + edgeGuardMm) : 1 : 0;
-  const bodyWidthMm = measuredArea ? Math.min(widthMm, measuredArea.paperWidthMm - driverShiftMm,
-    measuredArea.leftMm + measuredArea.printableWidthMm - driverShiftMm + 3 - edgeGuardMm) : widthMm - (systemPrinter ? 4 : 0);
-  const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(measuredArea ? 0 : -3, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
+  const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(0, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
 
   return `<!DOCTYPE html>
 <html>
@@ -230,7 +223,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 <meta charset="utf-8">
 <style>
   @page {
-    ${systemPrinter ? '' : `size: ${widthMm}mm auto;`}
+    size: ${widthMm}mm auto;
     margin: 0;
   }
   * { box-sizing: border-box; }
@@ -241,7 +234,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     font-size: ${fontSize};
     color: #000;
     background: #fff;
-    width: ${systemPrinter && printArea ? printArea.paperWidthMm : widthMm}mm;
+    width: ${widthMm}mm;
     height: auto !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact;
@@ -251,13 +244,11 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     padding: 2mm 3mm;
     margin: 0;
     position: relative;
-    left: ${offset + driverShiftMm}mm;
-    width: ${bodyWidthMm - Math.max(0, offset)}mm;
+    left: ${offset}mm;
+    width: ${widthMm - offset}mm;
     height: auto !important;
     overflow: visible !important;
   }
-  ${systemPrinter ? `.receipt-content { container-type: inline-size; width: 100%; }
-  .receipt-row-text { display: inline-block; flex-shrink: 0; white-space: pre; transform: scale(min(1, calc(100cqw / var(--receipt-glyph-width, 1px)))); }` : ''}
   pre, img, svg { max-width: 100%; }
   pre, img, svg, hr { break-inside: avoid; page-break-inside: avoid; }
   @media print {
@@ -278,8 +269,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
           ]);
         } catch { /* proceed */ }
       }
-      ${systemPrinter ? `await ${receiptLayoutScript};
-` : `      // Fit every fixed-width row before measuring height, including wide fonts and calibrated offsets.
+      // Fit every fixed-width row before measuring height, including wide fonts and calibrated offsets.
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       let scale = 1;
@@ -290,12 +280,11 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
         if (needed > row.clientWidth) scale = Math.min(scale, row.clientWidth / needed);
       }
       if (scale < 1) document.body.style.fontSize = (parseFloat(getComputedStyle(document.body).fontSize) * scale * 0.99) + 'px';
-`}
       const height = document.body.scrollHeight;
       const pageHeightMm = Math.max(40, Math.ceil(height * 25.4 / 96 + 3));
-      ${systemPrinter ? '/* Native print options own paper size; CSS sizes can be centered inside a driver form. */' : `const pageStyle = document.createElement('style');
+      const pageStyle = document.createElement('style');
       pageStyle.textContent = '@page { size: ${widthMm}mm ' + pageHeightMm + 'mm; margin: 0; }';
-      document.head.appendChild(pageStyle);`}
+      document.head.appendChild(pageStyle);
       if (window.electronAPI?.printReady) {
         window.electronAPI.printReady(height);
       }

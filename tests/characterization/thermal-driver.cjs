@@ -29,8 +29,6 @@ Module._extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.re
 }).outputText, file);
 const { generateReceiptText } = require(path.join(base, 'src/utils/print/receiptGenerator.ts'));
 const receiptHtml = require(path.join(base, 'dist-electron/hardware/receiptHtml.js'));
-const receiptLayout = require(path.join(base, 'dist-electron/hardware/receiptLayout.js'));
-const windowsPrintArea = require(path.join(base, 'dist-electron/hardware/windowsPrintArea.js'));
 const source = fs.readFileSync(path.join(base, 'dist-electron/hardware/printer.js'), 'utf8');
 function extract(name) {
   const start = source.indexOf(`function ${name}(`);
@@ -108,9 +106,9 @@ app.whenReady().then(async () => {
           this.webContents.print = (settings, callback) => {
             printCalls++;
             assert.equal(settings.deviceName, options.printer);
-            assert.equal(settings.scaleFactor, 100);
-            assert.equal(settings.pageSize, undefined, 'Thermal print must use the configured driver roll');
-            assert.equal(settings.usePrinterDefaultPageSize, true);
+            assert.equal(settings.scaleFactor, undefined);
+            assert.ok(settings.pageSize, 'Thermal print must use an explicit full-receipt page size (one page, one cut)');
+            assert.equal(settings.usePrinterDefaultPageSize, undefined, 'Driver default page size must not be used (causes receipt splitting)');
             assert.equal(settings.margins.marginType, 'none');
             nativePrint(settings, callback);
           };
@@ -118,7 +116,6 @@ app.whenReady().then(async () => {
       }
       const context = {
         electron_1: { app, BrowserWindow: ObservedWindow, ipcMain }, path_1: { default: path }, receiptHtml_js_1: receiptHtml,
-        windowsPrintArea_js_1: windowsPrintArea, receiptLayout_js_1: receiptLayout,
         __dirname: path.join(base, 'dist-electron/hardware'), getPrintFormatConfig: () => ({ receiptFont: options.font || 'courier' }), getPrinterConfig: () => ({}),
         currentReceiptText: receiptText,
         resolvePrinterDeviceName: async () => ({ deviceName: options.printer, actualNameUsed: options.printer }),

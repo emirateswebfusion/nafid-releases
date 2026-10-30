@@ -4,10 +4,8 @@ import fs from 'fs';
 import { getDb } from '../db/localDb';
 import * as printerSql from '../db/statements/printer.js';
 import { buildReceiptHtml } from './receiptHtml.js';
-import { prepareReceiptLayout } from './receiptLayout.js';
-import { getReceiptPrintArea } from './windowsPrintArea.js';
 import { getSharedA4Html, setSharedA4Html, clearSharedA4Html } from '../whatsapp/sharedPrintHtml.js';
-import { ESC_INIT, ESC_BOLD_ON, ESC_BOLD_OFF, ESC_DENSITY, ESC_CUT, ESC_DRAWER_KICK, ESC_POS_HEADER, sanitizeForEscPos, sendToNetworkPrinter } from './escPos.js';
+import { ESC_INIT, ESC_BOLD_ON, ESC_BOLD_OFF, ESC_DENSITY, ESC_CUT, ESC_FEED_4, ESC_DRAWER_KICK, ESC_POS_HEADER, sanitizeForEscPos, sendToNetworkPrinter } from './escPos.js';
 import type { BulkPrintItem } from './printingTypes.js';
 
 function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barcode') {
@@ -275,7 +273,7 @@ export function initPrinter() {
       if (config.type === 'network') {
         const asciiText = sanitizeForEscPos(receiptText);
         const textBuffer = Buffer.from(asciiText, 'ascii');
-        const finalBuffer = Buffer.concat([ESC_POS_HEADER, ESC_DENSITY, ESC_BOLD_ON, textBuffer, ESC_BOLD_OFF, ESC_CUT]);
+        const finalBuffer = Buffer.concat([ESC_POS_HEADER, ESC_DENSITY, ESC_BOLD_ON, textBuffer, ESC_BOLD_OFF, ESC_FEED_4, ESC_CUT]);
         await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
         return { success: true };
       }
@@ -621,7 +619,7 @@ function executePrintWithFallback(
   heightMicrons?: number,
   pageSizeName?: string,
   landscape: boolean = false,
-  receiptJob: boolean = false
+  noRetry: boolean = false
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!printWindow || printWindow.isDestroyed()) {
@@ -635,16 +633,12 @@ function executePrintWithFallback(
       printBackground: true,
     };
 
-    if (receiptJob) {
-      primaryOptions.scaleFactor = 100;
-      primaryOptions.usePrinterDefaultPageSize = true;
-    }
     if (deviceName) {
       primaryOptions.deviceName = deviceName;
     }
     if (pageSizeName) {
       (primaryOptions as { pageSize?: string }).pageSize = pageSizeName;
-    } else if (!receiptJob && widthMm && heightMicrons) {
+    } else if (widthMm && heightMicrons) {
       primaryOptions.pageSize = { width: widthMm * 1000, height: heightMicrons };
     }
 
@@ -663,8 +657,8 @@ function executePrintWithFallback(
       });
     };
 
-    // Attempt 1: Print with primary options. Retry only after the driver reports failure: a slow job is still
-    // spooled, so retrying on a timer prints the receipt twice (the caller's overall timeout covers a hung driver).
+    // Attempt 1: Print with primary options. A slow driver job is still spooled, so do not retry on a timer
+    // for receipts (noRetry) — that would print the receipt twice. Non-receipt jobs retry on driver failure.
     printWindow.webContents.print(primaryOptions, (success1, failureReason1) => {
       if (success1) {
         return resolve();
@@ -674,7 +668,7 @@ function executePrintWithFallback(
         return reject(new Error(`Print attempt 1 failed: ${failureReason1}`));
       }
 
-      if (receiptJob) {
+      if (noRetry) {
         return reject(new Error(`Could not print receipt to "${deviceName || 'Default'}": ${failureReason1 || 'Spooler error'}. Configure the driver for the selected thermal roll width and continuous receipt paper.`));
       }
 
@@ -742,9 +736,10 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
           throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
         }
-        await prepareReceiptLayout(printWindow);
-        // Thermal drivers can replace custom lengths with a fixed form and feed the difference before the bill.
-        await executePrintWithFallback(printWindow, resolved.deviceName, undefined, undefined, undefined, false, true);
+        // One continuous page whose height matches the measured receipt: the driver prints the whole bill
+        // as a single form and cuts only once at the end. No driver default page size (no pagination/split).
+        const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
+        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
@@ -776,8 +771,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     try {
-      const printArea = await getReceiptPrintArea(resolved.deviceName);
-      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm, true, printArea);
+      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm);
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
     } catch (err) {
       clearTimeout(timer);

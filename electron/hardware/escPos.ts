@@ -9,6 +9,7 @@ export const ESC_BOLD_ON = Buffer.from([0x1B, 0x45, 0x01]); // ESC E 1 — Empha
 export const ESC_BOLD_OFF = Buffer.from([0x1B, 0x45, 0x00]); // ESC E 0 — Emphasized (bold) mode OFF
 export const ESC_DENSITY = Buffer.from([0x1D, 0x28, 0x41, 0x02, 0x00, 0x08, 0x00]); // GS ( A — Max print density (+50%)
 export const ESC_CUT = Buffer.from([0x1D, 0x56, 0x00]); // Full Cut
+export const ESC_FEED_4 = Buffer.from([0x1B, 0x64, 0x04]); // ESC d 4 — feed 4 lines (clears print head past cutter)
 export const ESC_DRAWER_KICK = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // Open RJ11 Drawer
 
 export const ESC_POS_HEADER = Buffer.concat([ESC_INIT, ESC_FONT_A, ESC_DEFAULT_LINE_SPACING]);

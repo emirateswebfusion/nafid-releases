@@ -47,7 +47,7 @@ it('measures the receipt after assets load, without counting the viewport as pap
   expect(printReady).toHaveBeenCalledWith(1500);
 });
 
-it.each([80, 300, 1800])('waits for content readiness and uses the driver roll form for %s px receipts', async height => {
+it.each([80, 300, 1800])('waits for content readiness and prints one continuous page for %s px receipts', async height => {
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const loaded = new Map<string, () => void>();
   const print = vi.fn();
@@ -58,7 +58,7 @@ it.each([80, 300, 1800])('waits for content readiness and uses the driver roll f
     loadURL = vi.fn();
   }
   const context = {
-    BrowserWindow: Window, prepareReceiptLayout: async () => {}, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    BrowserWindow: Window, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     resolvePrinterDeviceName: async () => ({ deviceName: 'thermal', actualNameUsed: 'thermal' }),
     executePrintWithFallback: print, buildReceiptHtml: vi.fn(async () => ''),
     pendingPrint: (fn: (resolve: () => void, reject: () => void) => Promise<void>) => new Promise(fn),
@@ -70,11 +70,12 @@ it.each([80, 300, 1800])('waits for content readiness and uses the driver roll f
   void invoke('thermal', 58);
   context.currentReceiptText = 'Next bill';
   for (let i = 0; i < 10; i++) await Promise.resolve();
-  expect(context.buildReceiptHtml).toHaveBeenCalledWith('Original bill', 58, expect.any(String), 0, true, undefined);
+  expect(context.buildReceiptHtml).toHaveBeenCalledWith('Original bill', 58, expect.any(String), 0);
   loaded.get('did-finish-load')?.();
   expect(print).not.toHaveBeenCalled();
   await listeners.get('print-ready-11')!(height);
-  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', undefined, undefined, undefined, false, true));
+  const pageHeightMicrons = Math.max(40000, Math.ceil(height * 25.4 / 96 + 3) * 1000);
+  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, pageHeightMicrons, undefined, false, true));
 });
 
 it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without feeding blank paper', async height => {
@@ -87,7 +88,7 @@ it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without
     loadURL = vi.fn();
   }
   const context = {
-    BrowserWindow: Window, prepareReceiptLayout: async () => {}, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    BrowserWindow: Window, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     resolvePrinterDeviceName: async () => ({ deviceName: 'thermal', actualNameUsed: 'thermal' }),
     executePrintWithFallback: print, buildReceiptHtml: async () => '',
     pendingPrint: (fn: (resolve: () => void, reject: () => void) => Promise<void>) => new Promise(fn),
@@ -285,17 +286,19 @@ it('formats scrap and weight items with exactly 3 digits after the dot (e.g. 1.0
   });
 });
 
-it('lets native print options own physical paper size while keeping PDF sizing', async () => {
-  const physical = await buildReceiptHtml('Bill', 80, 'monospace', 0, true);
-  expect(physical).not.toMatch(/size:\s*80mm/);
-  expect(physical).not.toContain("document.head.appendChild(pageStyle)");
+it('always sets an explicit page size so the receipt prints as one continuous page', async () => {
+  const physical = await buildReceiptHtml('Bill', 80, 'monospace', 0);
+  expect(physical).toMatch(/size:\s*80mm/);
+  expect(physical).toContain('document.head.appendChild(pageStyle)');
   expect(await buildReceiptHtml('Bill', 80)).toContain('size: 80mm');
 });
-it('keeps positive calibration inside the roll and bounds unsafe negative offsets', async () => {
-  const positive = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', 10, true));
-  expect(positive.window.getComputedStyle(positive.window.document.body).width).toBe('66mm');
-  const negative = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', -20, true));
-  expect(negative.window.getComputedStyle(negative.window.document.body).left).toBe('-2mm');
+it('clamps the calibration offset inside the page and keeps body width consistent', async () => {
+  const positive = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', 10));
+  expect(positive.window.getComputedStyle(positive.window.document.body).width).toBe('70mm');
+  expect(positive.window.getComputedStyle(positive.window.document.body).left).toBe('10mm');
+  const negative = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', -20));
+  expect(negative.window.getComputedStyle(negative.window.document.body).left).toBe('0mm');
+  expect(negative.window.getComputedStyle(negative.window.document.body).width).toBe('80mm');
 });
 it('preserves PDF row fitting before measuring the paper length', async () => {
   const dom = new JSDOM(await buildReceiptHtml('1234567890', 58, 'monospace'));
@@ -311,22 +314,23 @@ it('preserves PDF row fitting before measuring the paper length', async () => {
   expect(parseFloat(dom.window.document.body.style.fontSize)).toBeCloseTo(7.92);
 });
 
-it('never submits a custom thermal length that the driver can turn into leading blank feed', async () => {
+it('submits an explicit full-receipt page size so the driver prints one continuous page', async () => {
   const print = vi.fn((_options, callback) => callback(true));
   const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console });
   await invoke({ isDestroyed: () => false, webContents: { print } }, 'thermal', 80, 194000, undefined, false, true);
-  expect(print.mock.calls[0][0]).toMatchObject({ scaleFactor: 100, margins: { marginType: 'none' }, deviceName: 'thermal' });
-  expect(print.mock.calls[0][0]).not.toHaveProperty('pageSize');
+  const options = print.mock.calls[0][0];
+  expect(options).toMatchObject({ margins: { marginType: 'none' }, deviceName: 'thermal' });
+  expect(options).not.toHaveProperty('scaleFactor');
+  expect(options).not.toHaveProperty('usePrinterDefaultPageSize');
+  expect(options.pageSize).toEqual({ width: 80000, height: 194000 });
 });
 
-it.each([58, 76, 80])('reserves driver edge space inside a %s mm physical roll while leaving PDF geometry intact', async width => {
-  const physical = new JSDOM(await buildReceiptHtml('Bill', width, 'monospace', 0, true));
-  const body = physical.window.getComputedStyle(physical.window.document.body);
-  expect(body.width).toBe(`${width - 4}mm`);
-  expect(body.left).toBe('1mm');
-  const pdf = new JSDOM(await buildReceiptHtml('Bill', width));
-  expect(pdf.window.getComputedStyle(pdf.window.document.body).width).toBe(`${width}mm`);
-  expect(pdf.window.getComputedStyle(pdf.window.document.body).left).toBe('0mm');
+it.each([58, 76, 80])('keeps the receipt body inside a %s mm page for both thermal and PDF output', async width => {
+  const dom = new JSDOM(await buildReceiptHtml('Bill', width, 'monospace', 0));
+  const body = dom.window.getComputedStyle(dom.window.document.body);
+  expect(body.width).toBe(`${width}mm`);
+  expect(body.left).toBe('0mm');
+  expect(dom.window.getComputedStyle(dom.window.document.documentElement).width).toBe(`${width}mm`);
 });
 it.each(['A4', undefined])('preserves explicit A4 and label paper sizes (%s)', async page => {
   const print = vi.fn((_options, callback) => callback(true));
