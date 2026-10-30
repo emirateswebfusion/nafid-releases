@@ -174,3 +174,24 @@ Legacy goldens currently predate one extra LOCAL settings row in HEAD. Compare b
 when checking that drift; do not update legacy goldens for the opt-in engine. IPC results include random `origin`
 values since migration 003: normalize these values in temporary comparison outputs (leave harness/goldens unchanged).
 The statement checker supplies representative inputs for the new column-filtered helpers.
+
+## Windows thermal-driver gate
+
+`thermal-driver.cjs` tests the actual compiled USB print helpers and real receipt text/HTML generators with a
+Windows spooler queue pointing at local emupos. It does not open the shop database or change printer settings.
+Build Electron first. Start emupos with a thermal profile matching the driver's resolution/printable dots, and
+configure a separate Windows thermal queue using the correct roll width. Do not use a generic text-only or PDF
+driver: those do not reproduce native thermal driver sizing/clipping.
+
+Example (PowerShell, repo root; emulator and Epson test queue must already be installed):
+
+```powershell
+npm run build:electron
+node_modules/electron/dist/electron.exe tests/characterization/thermal-driver.cjs --printer="Nafid Thermal Lab (Epson)" --width=80 --dpi=180 --device=thermal --api=http://127.0.0.1:8765 --output=C:/Users/Public/nafid-thermal-results
+```
+
+Use an absolute output directory outside the repository. The harness asserts native driver roll form (no custom
+receipt page size), one print submission and one cut per 2-item/60-item bill, leading blank <= 8 mm, and ink bounds
+strictly inside the printable width. It saves PNGs and measured JSON results there. It requires the same local
+`emupos` API and `pngjs` already provided transitively by `qrcode`. It is optional in CI because CI has no Windows
+thermal queue. Automated unit tests retain coverage for A4/barcode sizes, readiness recovery and PDF geometry.

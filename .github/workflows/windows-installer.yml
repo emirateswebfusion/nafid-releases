@@ -1,0 +1,47 @@
+name: Windows installer
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/windows-installer.yml']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      VITE_CLOUD_API: https://nafid-eta.vercel.app
+      VENDORA_CLOUD_API: https://nafid-eta.vercel.app
+      VENDORA_SYNC_INTERVAL_MINUTES: '2.0'
+      ALLOWED_CONNECT_ORIGINS: https://nafid-server.vercel.app,https://nafid.vercel.app,https://vendora-server.vercel.app,https://vendora-server-ruby.vercel.app,https://clients3.google.com,https://nafid-web-portal.vercel.app,https://nafid.emirateswebfusion.com
+      UPDATES_REPO_URL: https://github.com/emirateswebfusion/nafid-releases
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Prepare Electron and SQLite runtime
+        run: |
+          node node_modules/electron/install.js
+          New-Item -ItemType Directory -Force node_modules/better-sqlite3/build/Release | Out-Null
+          pnpm run rebuild
+      - run: pnpm run build
+      - name: Package without publishing
+        run: pnpm exec electron-builder --config electron-builder.config.js --win --publish never "-c.electronDist=node_modules/electron/dist"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            release/Nafid-Setup-*.exe
+            release/Nafid-Setup-*.exe.blockmap
+            release/latest.yml
+            release/win-unpacked/resources/app.asar
+            release/win-unpacked/resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node
+            release/win-unpacked/resources/app.env

@@ -619,7 +619,7 @@ function executePrintWithFallback(
   heightMicrons?: number,
   pageSizeName?: string,
   landscape: boolean = false,
-  requireExactPaper: boolean = false
+  receiptJob: boolean = false
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!printWindow || printWindow.isDestroyed()) {
@@ -633,13 +633,13 @@ function executePrintWithFallback(
       printBackground: true,
     };
 
-    if (requireExactPaper) primaryOptions.scaleFactor = 100;
+    if (receiptJob) primaryOptions.scaleFactor = 100;
     if (deviceName) {
       primaryOptions.deviceName = deviceName;
     }
     if (pageSizeName) {
       (primaryOptions as { pageSize?: string }).pageSize = pageSizeName;
-    } else if (widthMm && heightMicrons) {
+    } else if (!receiptJob && widthMm && heightMicrons) {
       primaryOptions.pageSize = { width: widthMm * 1000, height: heightMicrons };
     }
 
@@ -669,8 +669,8 @@ function executePrintWithFallback(
         return reject(new Error(`Print attempt 1 failed: ${failureReason1}`));
       }
 
-      if (requireExactPaper) {
-        return reject(new Error(`Could not print receipt to "${deviceName || 'Default'}": ${failureReason1 || 'Spooler error'}. Configure the driver for the selected roll width and a supported receipt length.`));
+      if (receiptJob) {
+        return reject(new Error(`Could not print receipt to "${deviceName || 'Default'}": ${failureReason1 || 'Spooler error'}. Configure the driver for the selected thermal roll width and continuous receipt paper.`));
       }
 
       console.warn(`[Printer] Print attempt 1 failed (${failureReason1}). Retrying attempt 2 without custom pageSize...`);
@@ -737,8 +737,8 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
           throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
         }
-        const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
-        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
+        // Thermal drivers can replace custom lengths with a fixed form and feed the difference before the bill.
+        await executePrintWithFallback(printWindow, resolved.deviceName, undefined, undefined, undefined, false, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();

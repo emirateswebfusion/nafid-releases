@@ -47,7 +47,7 @@ it('measures the receipt after assets load, without counting the viewport as pap
   expect(printReady).toHaveBeenCalledWith(1500);
 });
 
-it.each([80, 300, 1800])('waits for measurement and uses native paper length for %s px receipts', async height => {
+it.each([80, 300, 1800])('waits for content readiness and uses the driver roll form for %s px receipts', async height => {
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const loaded = new Map<string, () => void>();
   const print = vi.fn();
@@ -74,8 +74,7 @@ it.each([80, 300, 1800])('waits for measurement and uses native paper length for
   loaded.get('did-finish-load')?.();
   expect(print).not.toHaveBeenCalled();
   await listeners.get('print-ready-11')!(height);
-  expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, expect.any(Number), undefined, false, true);
-  expect(print.mock.calls[0][3]).toBe(Math.max(40, Math.ceil(height * 25.4 / 96 + 3)) * 1000);
+  expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', undefined, undefined, undefined, false, true);
 });
 
 it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without feeding blank paper', async height => {
@@ -294,9 +293,9 @@ it('lets native print options own physical paper size while keeping PDF sizing',
 });
 it('keeps positive calibration inside the roll and bounds unsafe negative offsets', async () => {
   const positive = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', 10, true));
-  expect(positive.window.getComputedStyle(positive.window.document.body).width).toBe('70mm');
+  expect(positive.window.getComputedStyle(positive.window.document.body).width).toBe('66mm');
   const negative = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', -20, true));
-  expect(negative.window.getComputedStyle(negative.window.document.body).left).toBe('-3mm');
+  expect(negative.window.getComputedStyle(negative.window.document.body).left).toBe('-2mm');
 });
 it('fits wide rows before measuring the paper length', async () => {
   const dom = new JSDOM(await buildReceiptHtml('1234567890', 58, 'monospace', 0, true));
@@ -312,9 +311,26 @@ it('fits wide rows before measuring the paper length', async () => {
   expect(parseFloat(dom.window.document.body.style.fontSize)).toBeCloseTo(7.92);
 });
 
-it('uses native receipt dimensions at explicit 100 percent scale', async () => {
+it('never submits a custom thermal length that the driver can turn into leading blank feed', async () => {
   const print = vi.fn((_options, callback) => callback(true));
   const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console });
   await invoke({ isDestroyed: () => false, webContents: { print } }, 'thermal', 80, 194000, undefined, false, true);
-  expect(print.mock.calls[0][0]).toMatchObject({ scaleFactor: 100, pageSize: { width: 80000, height: 194000 }, margins: { marginType: 'none' } });
+  expect(print.mock.calls[0][0]).toMatchObject({ scaleFactor: 100, margins: { marginType: 'none' }, deviceName: 'thermal' });
+  expect(print.mock.calls[0][0]).not.toHaveProperty('pageSize');
+});
+
+it.each([58, 76, 80])('reserves driver edge space inside a %s mm physical roll while leaving PDF geometry intact', async width => {
+  const physical = new JSDOM(await buildReceiptHtml('Bill', width, 'monospace', 0, true));
+  const body = physical.window.getComputedStyle(physical.window.document.body);
+  expect(body.width).toBe(`${width - 4}mm`);
+  expect(body.left).toBe('1mm');
+  const pdf = new JSDOM(await buildReceiptHtml('Bill', width));
+  expect(pdf.window.getComputedStyle(pdf.window.document.body).width).toBe(`${width}mm`);
+  expect(pdf.window.getComputedStyle(pdf.window.document.body).left).toBe('0mm');
+});
+it.each(['A4', undefined])('preserves explicit A4 and label paper sizes (%s)', async page => {
+  const print = vi.fn((_options, callback) => callback(true));
+  const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console });
+  await invoke({ isDestroyed: () => false, webContents: { print } }, 'other', 50, 25000, page);
+  expect(print.mock.calls[0][0].pageSize).toEqual(page || { width: 50000, height: 25000 });
 });

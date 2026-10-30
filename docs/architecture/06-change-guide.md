@@ -40,22 +40,28 @@
 
 USB/system receipts use `electron/hardware/receiptHtml.ts` (the React print-route view is not used by this path).
 Keep page padding at zero and apply the 2 mm vertical / 3 mm horizontal body padding once.
-The receipt window matches the configured roll width (defaulting to 80 mm / 42 characters wide, boxed style).
-Physical USB jobs pass `systemPrinter: true` to `buildReceiptHtml`: CSS supplies zero page margins but no paper size.
-Only native print options own the measured roll dimensions, with scale factor 100; this avoids competing CSS/native
-paper forms that can be centered or clipped by Windows drivers. PDF callers retain dynamic CSS sizing.
-After assets load, fixed-width rows are fitted to the available width before body height is measured.
-Positive calibration offsets reduce body width by the same amount; negative offsets cannot exceed the 3 mm inset.
-The per-window `printReady(height)` report supplies the native paper length:
-`Math.max(40, Math.ceil(height * 25.4 / 96 + 3))` mm. Never use another window's measurement.
-Driver rejection is reported rather than silently falling back to an unrelated paper form.
-Missing readiness reports recover by measuring that same window directly after fonts settle.
-If direct measurement also fails, report a retry error;
-never feed a guessed 600 mm sheet. Each USB job captures its receipt text before awaiting printer discovery.
-A4 and barcode fallback behavior is unchanged.
-Test with `tests/unit/thermalPrint.test.ts` and `printerPromise.test.ts`; characterization snapshot in
-`tests/unit/__snapshots__/printGenerators.characterization.test.ts.snap`. Hardware limits and calibrated offsets still
-need physical verification on each configured printer/driver.
+Physical USB jobs pass `systemPrinter: true` to `buildReceiptHtml`. CSS supplies zero page margins and no paper size;
+native printing also omits custom `pageSize` and uses the configured thermal driver's roll form at 100% scale.
+Do not submit measured custom lengths to thermal drivers: Epson APD can substitute its 80 x 297 mm form and feed
+the length difference before the bill (reproduced as 193 mm leading blank on a short v2.2.2 receipt).
+Keep the driver configured for the selected roll width and continuous/long receipt paper; do not change the user's
+printer defaults from Nafid. A4 and barcode jobs retain their explicit sizes and existing fallback behavior.
+Physical receipt bodies reserve an additional 4 mm from roll width and shift 1 mm inside the driver's left margin
+before applying saved calibration. At 80 mm this is a 76 mm body, with the existing padding inside it; 58/76 mm
+rolls use the same reserved-edge rule. Positive calibration offsets additionally reduce body width. Negative
+calibration is still supported within the existing bound and must be checked against the actual printer's margins.
+Rows fit available width after assets load, before `printReady(height)` signals content readiness. Height is a
+readiness/validity check only for physical jobs, not their paper length. Missing readiness messages recover by
+measuring that same window directly. Invalid direct measurements report a retry error; never feed guessed paper.
+Each USB job captures its receipt text before printer discovery. Receipt failures never retry on a different/default
+printer. PDF/WhatsApp callers keep their original body geometry and dynamic CSS page sizing.
+
+Unit coverage: `tests/unit/thermalPrint.test.ts`, `printerPromise.test.ts`, `whatsappPdfDelivery.test.ts`.
+Windows driver/emulator gate: `tests/characterization/thermal-driver.cjs` (see its README). Unlike `printToPDF`, this
+runs real Windows spooling through a thermal driver into local emupos, checking short and 60-item bills for one
+cut-delimited receipt, <= 8 mm leading blank, and visible ink bounds inside both edges. The Epson APD 5.13 / TM-T88V
+Receipt5 test queues were validated at 180 dpi: 80 mm / 512 dots and 58 mm / 360 dots. Emulator output does not verify physical cutter,
+mechanics, or every driver/firmware; other printer configurations still need targeted checks.
 
 ## 6.3 Modifying an existing feature safely
 
@@ -155,3 +161,7 @@ npm run package:win    # rebuild natives + build + electron-builder
 `outboxResults.ts` holds pure result/engine decisions. `sync_engine` is a device-local setting, default `legacy`;
 only the owner/admin beta toggle enables `outbox`. LAN/HYBRID roles ignore it. See design §7.4 for limits.
 Run `outbox-run.mts` plus unchanged legacy sync (both login modes), IPC and LAN harnesses for changes here.
+
+### Windows release packaging
+
+`.github/workflows/windows-installer.yml` builds an unsigned installer on a Windows runner with the existing Electron/SQLite rebuild recipe and public runtime settings. It uploads reviewable artifacts without publishing. Run it manually when local Application Control prevents NSIS from generating its uninstaller; do not disable local security controls. Verify the installer metadata, packaged runtime and thermal driver characterization before publishing release assets.

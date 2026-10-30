@@ -1,3 +1,15 @@
+# Nafid POS v2.2.3 Release Notes
+
+## Thermal printing fixes
+- Fixed excessive leading blank paper caused by custom receipt lengths being substituted by the Windows thermal driver.
+- Thermal receipts now use the driver's configured roll form at 100% scale.
+- Reserved additional printable-edge space so receipt borders and the Amount column stay inside the thermal print area.
+- Retained content-readiness recovery and duplicate-print protection. A4, barcode labels, and PDF paper sizing are unchanged.
+
+Validated through a Windows Epson thermal driver and a local receipt emulator on 58 mm and 80 mm rolls with short and 60-item bills. Physical printer mechanics and other driver configurations remain unverified.
+
+**Download:** [Nafid-Setup-2.2.3.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.3/Nafid-Setup-2.2.3.exe)
+
 # Nafid POS v2.2.2 Release Notes
 
 ## Thermal printing fixes

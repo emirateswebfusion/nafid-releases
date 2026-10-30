@@ -214,6 +214,9 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     ? `<div style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
     : rowsHtml;
 
+  // Physical drivers have non-printable edges; reserve 4 mm and shift inside the left hardware margin.
+  const driverInsetMm = systemPrinter ? 4 : 0;
+  const driverShiftMm = systemPrinter ? 1 : 0;
   const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(-3, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
 
   return `<!DOCTYPE html>
@@ -243,8 +246,8 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     padding: 2mm 3mm;
     margin: 0;
     position: relative;
-    left: ${offset}mm;
-    width: ${widthMm - Math.max(0, offset)}mm;
+    left: ${offset + driverShiftMm}mm;
+    width: ${widthMm - driverInsetMm - Math.max(0, offset)}mm;
     height: auto !important;
     overflow: visible !important;
   }
