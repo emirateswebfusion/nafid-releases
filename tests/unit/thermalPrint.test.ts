@@ -58,7 +58,7 @@ it.each([80, 300, 1800])('waits for content readiness and uses the driver roll f
     loadURL = vi.fn();
   }
   const context = {
-    BrowserWindow: Window, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    BrowserWindow: Window, prepareReceiptLayout: async () => {}, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     resolvePrinterDeviceName: async () => ({ deviceName: 'thermal', actualNameUsed: 'thermal' }),
     executePrintWithFallback: print, buildReceiptHtml: vi.fn(async () => ''),
     pendingPrint: (fn: (resolve: () => void, reject: () => void) => Promise<void>) => new Promise(fn),
@@ -74,7 +74,7 @@ it.each([80, 300, 1800])('waits for content readiness and uses the driver roll f
   loaded.get('did-finish-load')?.();
   expect(print).not.toHaveBeenCalled();
   await listeners.get('print-ready-11')!(height);
-  expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', undefined, undefined, undefined, false, true);
+  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', undefined, undefined, undefined, false, true));
 });
 
 it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without feeding blank paper', async height => {
@@ -87,7 +87,7 @@ it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without
     loadURL = vi.fn();
   }
   const context = {
-    BrowserWindow: Window, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    BrowserWindow: Window, prepareReceiptLayout: async () => {}, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     resolvePrinterDeviceName: async () => ({ deviceName: 'thermal', actualNameUsed: 'thermal' }),
     executePrintWithFallback: print, buildReceiptHtml: async () => '',
     pendingPrint: (fn: (resolve: () => void, reject: () => void) => Promise<void>) => new Promise(fn),
@@ -297,8 +297,8 @@ it('keeps positive calibration inside the roll and bounds unsafe negative offset
   const negative = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', -20, true));
   expect(negative.window.getComputedStyle(negative.window.document.body).left).toBe('-2mm');
 });
-it('fits wide rows before measuring the paper length', async () => {
-  const dom = new JSDOM(await buildReceiptHtml('1234567890', 58, 'monospace', 0, true));
+it('preserves PDF row fitting before measuring the paper length', async () => {
+  const dom = new JSDOM(await buildReceiptHtml('1234567890', 58, 'monospace'));
   const row = dom.window.document.querySelector('pre')!;
   Object.defineProperty(row, 'clientWidth', { value: 100 });
   dom.window.HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({ measureText: () => ({ width: 125 }) });

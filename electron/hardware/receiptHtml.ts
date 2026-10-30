@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { receiptLayoutScript } from './receiptLayout.js';
 import type { ReceiptPrintArea } from './windowsPrintArea.js';
 
 /** Receipt rendering for USB / system printers: the text receipt as HTML (borders, dividers, QR and Code 128
@@ -207,13 +208,13 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     }
 
     const lh = isBillStyle ? 1.08 : 1.25;
-    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;">${escapeHtml(finalValue)}</pre>`;
+    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:${systemPrinter ? 'var(--receipt-row-size, inherit)' : 'inherit'};line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;${systemPrinter && isCentered ? 'display:flex;justify-content:center;' : ''}">${systemPrinter ? `<span class="receipt-row-text" style="transform-origin:${isCentered ? 'center' : 'left'} center;">${escapeHtml(finalValue)}</span>` : escapeHtml(finalValue)}</pre>`;
   }
 
   const fontSize = widthMm <= 58 ? '10px' : '12px';
   const contentBody = isBillStyle
-    ? `<div style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
-    : rowsHtml;
+    ? `<div ${systemPrinter ? 'class="receipt-content"' : ''} style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
+    : systemPrinter ? `<div class="receipt-content">${rowsHtml}</div>` : rowsHtml;
 
   // The border sits INSIDE the 3 mm body padding: position its ink, not the padded body origin.
   const edgeGuardMm = 2 * 25.4 / 96; // Two CSS pixels keeps raster rounding inside the device's printable bounds.
@@ -255,6 +256,8 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     height: auto !important;
     overflow: visible !important;
   }
+  ${systemPrinter ? `.receipt-content { container-type: inline-size; width: 100%; }
+  .receipt-row-text { display: inline-block; flex-shrink: 0; white-space: pre; transform: scale(min(1, calc(100cqw / var(--receipt-glyph-width, 1px)))); }` : ''}
   pre, img, svg { max-width: 100%; }
   pre, img, svg, hr { break-inside: avoid; page-break-inside: avoid; }
   @media print {
@@ -275,7 +278,8 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
           ]);
         } catch { /* proceed */ }
       }
-      // Fit every fixed-width row before measuring height, including wide fonts and calibrated offsets.
+      ${systemPrinter ? `await ${receiptLayoutScript};
+` : `      // Fit every fixed-width row before measuring height, including wide fonts and calibrated offsets.
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       let scale = 1;
@@ -286,6 +290,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
         if (needed > row.clientWidth) scale = Math.min(scale, row.clientWidth / needed);
       }
       if (scale < 1) document.body.style.fontSize = (parseFloat(getComputedStyle(document.body).fontSize) * scale * 0.99) + 'px';
+`}
       const height = document.body.scrollHeight;
       const pageHeightMm = Math.max(40, Math.ceil(height * 25.4 / 96 + 3));
       ${systemPrinter ? '/* Native print options own paper size; CSS sizes can be centered inside a driver form. */' : `const pageStyle = document.createElement('style');

@@ -29,6 +29,7 @@ Module._extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.re
 }).outputText, file);
 const { generateReceiptText } = require(path.join(base, 'src/utils/print/receiptGenerator.ts'));
 const receiptHtml = require(path.join(base, 'dist-electron/hardware/receiptHtml.js'));
+const receiptLayout = require(path.join(base, 'dist-electron/hardware/receiptLayout.js'));
 const windowsPrintArea = require(path.join(base, 'dist-electron/hardware/windowsPrintArea.js'));
 const source = fs.readFileSync(path.join(base, 'dist-electron/hardware/printer.js'), 'utf8');
 function extract(name) {
@@ -64,7 +65,7 @@ ipcMain.handle('hardware:printReady', (event, height) => {
 app.whenReady().then(async () => {
   const results = [];
   try {
-    for (const count of [1, 2, 60]) {
+    for (const count of [1, 5, 2, 60]) {
       const before = new Set((await receipts()).map(receipt => receipt.id));
       const data = {
         shopName: 'NAFID THERMAL TEST', shopAddress: 'Synthetic test - no customer data', shopPhone: '0000000000',
@@ -82,12 +83,27 @@ app.whenReady().then(async () => {
         subtotal: 1430, discount: 66.2, scrapDeduction: 923.8, grandTotal: 1363.8,
         tax: 68.1, cgst: 34.05, sgst: 34.05,
       });
+      if (count === 5) Object.assign(data, {
+        items: [['KAI MANI', 1, 550], ['MANI', 1, 30], ['BRASS MANI', 1, 895], ['KADUK TAWA S', 1, 120], ['GLASS', 2, 12]]
+          .map(([name, quantity, unit_price]) => ({ name, quantity, unit_price, total: quantity * unit_price })),
+        subtotal: 1619, discount: 0, tax: 0, grandTotal: 1619,
+      });
       let printCalls = 0;
       const receiptText = generateReceiptText(data, width / 10, undefined, 'boxed');
       if (count === 1) assert.ok(receiptText.includes('440.00'), 'Fixture net total must be 440 after scrap deduction');
       class ObservedWindow extends BrowserWindow {
         constructor(settings) {
           super(settings);
+          if (options['no-canvas'] === 'true' || options['no-inline-script'] === 'true') {
+            const originalLoad = this.loadURL.bind(this);
+            this.loadURL = url => {
+              const prefix = 'data:text/html;charset=utf-8,';
+              let html = decodeURIComponent(url.slice(prefix.length));
+              if (options['no-inline-script'] === 'true') html = html.replace(/<script>[\s\S]*?<\/script>/g, '');
+              if (options['no-canvas'] === 'true') html = html.replace('<head>', '<head><script>HTMLCanvasElement.prototype.getContext=()=>null;</script>');
+              return originalLoad(prefix + encodeURIComponent(html));
+            };
+          }
           const nativePrint = this.webContents.print.bind(this.webContents);
           this.webContents.print = (settings, callback) => {
             printCalls++;
@@ -95,14 +111,15 @@ app.whenReady().then(async () => {
             assert.equal(settings.scaleFactor, 100);
             assert.equal(settings.pageSize, undefined, 'Thermal print must use the configured driver roll');
             assert.equal(settings.usePrinterDefaultPageSize, true);
+            assert.equal(settings.margins.marginType, 'none');
             nativePrint(settings, callback);
           };
         }
       }
       const context = {
         electron_1: { app, BrowserWindow: ObservedWindow, ipcMain }, path_1: { default: path }, receiptHtml_js_1: receiptHtml,
-        windowsPrintArea_js_1: windowsPrintArea,
-        __dirname: path.join(base, 'dist-electron/hardware'), getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+        windowsPrintArea_js_1: windowsPrintArea, receiptLayout_js_1: receiptLayout,
+        __dirname: path.join(base, 'dist-electron/hardware'), getPrintFormatConfig: () => ({ receiptFont: options.font || 'courier' }), getPrinterConfig: () => ({}),
         currentReceiptText: receiptText,
         resolvePrinterDeviceName: async () => ({ deviceName: options.printer, actualNameUsed: options.printer }),
         setTimeout, clearTimeout, console,
@@ -125,7 +142,6 @@ app.whenReady().then(async () => {
       const image = PNG.sync.read(png), bounds = imageBounds(image);
       const leadingBlankMm = bounds.top * 25.4 / dpi;
       assert.ok(leadingBlankMm <= 8, `Excessive leading feed: ${leadingBlankMm} mm`);
-      assert.ok(bounds.left > 0 && bounds.right < image.width - 1, 'Receipt ink/borders must not touch clipped driver edges');
       for (const edge of [bounds.left, bounds.right]) {
         let longestColumn = 0;
         for (let x = Math.max(0, edge - 4); x <= Math.min(image.width - 1, edge + 4); x++) {

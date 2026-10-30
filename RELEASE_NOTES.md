@@ -1,3 +1,14 @@
+# Nafid POS v2.2.5
+
+Thermal receipt text alignment:
+- Keep Amount, totals and signatures inside receipt borders even when canvas measurement is unavailable.
+- Refit real rendered text for print-width changes and installed font rendering differences.
+- Prepare and validate the receipt again immediately before sending it to the printer, including recovery when the receipt inline script did not run.
+
+Driver roll handling and measured printable bounds remain in place. A4, labels, billing math, WhatsApp/PDF and unrelated trial/login work are unchanged.
+
+Validated in real Chromium and through the Windows thermal driver/emulator. Physical shop confirmation remains necessary.
+
 # Nafid POS v2.2.4
 
 Thermal printing correction:

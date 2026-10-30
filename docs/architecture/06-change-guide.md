@@ -58,6 +58,15 @@ caps or a failed Windows query stop before printing; errors request driver setti
 Non-Windows system printers retain legacy geometry. PDF/WhatsApp geometry is unchanged.
 Sources: [Windows GetDeviceCaps](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdevicecaps),
 [Electron 42.4.1 printing API](https://github.com/electron/electron/blob/v42.4.1/docs/api/web-contents.md#contentsprintoptions-callback).
+`hardware/receiptLayout.ts` owns physical text fitting and the final main-process preflight. It measures real DOM
+text ranges, not canvas, uses container units for width changes, corrects hinted-font glyph bounds, and re-fits on
+font readiness, container resize and `beforeprint`. The same preparation runs from main immediately before spooling;
+it recovers when the HTML inline script did not execute, and rejects missing/overflowing layout instead of printing.
+PDF/WhatsApp retain their existing fitting path. Actual renderer coverage is `tests/characterization/receipt-layout.cjs`
+(54 receipts / 162 assertions with canvas disabled across nine styles, three fonts and 58/80 mm, including late
+narrowing). Native driver coverage includes unavailable canvas and removed inline scripts; the photographed five-item
+layout is a synthetic fixture. Merely removing body/page margins was tested and clipped both borders on the Epson
+APD queue, so do not assume driver defaults alone contain fixed-width HTML text.
 Rows fit available width after assets load, before `printReady(height)` signals content readiness. Height is a
 readiness/validity check only for physical jobs, not their paper length. Missing readiness messages recover by
 measuring that same window directly. Invalid direct measurements report a retry error; never feed guessed paper.

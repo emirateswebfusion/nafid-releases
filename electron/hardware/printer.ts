@@ -4,6 +4,7 @@ import fs from 'fs';
 import { getDb } from '../db/localDb';
 import * as printerSql from '../db/statements/printer.js';
 import { buildReceiptHtml } from './receiptHtml.js';
+import { prepareReceiptLayout } from './receiptLayout.js';
 import { getReceiptPrintArea } from './windowsPrintArea.js';
 import { getSharedA4Html, setSharedA4Html, clearSharedA4Html } from '../whatsapp/sharedPrintHtml.js';
 import { ESC_INIT, ESC_BOLD_ON, ESC_BOLD_OFF, ESC_DENSITY, ESC_CUT, ESC_DRAWER_KICK, ESC_POS_HEADER, sanitizeForEscPos, sendToNetworkPrinter } from './escPos.js';
@@ -741,6 +742,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
           throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
         }
+        await prepareReceiptLayout(printWindow);
         // Thermal drivers can replace custom lengths with a fixed form and feed the difference before the bill.
         await executePrintWithFallback(printWindow, resolved.deviceName, undefined, undefined, undefined, false, true);
         clearTimeout(timer);

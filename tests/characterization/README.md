@@ -197,3 +197,11 @@ strictly inside the printable width. It saves PNGs and measured JSON results the
 thermal queue. Automated unit tests retain coverage for A4/barcode sizes, readiness recovery and PDF geometry.
 
 Also run the 58 mm queue with `--width=80`: this intentional app/driver width mismatch must retain both borders and all amounts. The harness uses the real Windows capability query, never a mocked printable width. Failures exit nonzero.
+
+### Receipt text inside borders (no printer required)
+
+After `npm run build:electron`, run Electron with `tests/characterization/receipt-layout.cjs --output=ABS_DIR_OUTSIDE_REPO`.
+This uses real Chromium text ranges, no database or physical printer, and disables canvas. It verifies every row in
+nine receipt styles / three fonts / 58 and 80 mm, after load, after narrowing the container, and before printing.
+For the native thermal gate also run `--no-canvas=true --font=lucida` and `--no-inline-script=true` separately.
+Both exercise production preparation; the latter must recover through the main-process preflight before spooling.

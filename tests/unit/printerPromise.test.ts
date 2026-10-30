@@ -15,7 +15,7 @@ const compiled = ts.transpileModule(functions, {
 }).outputText;
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 
-function harness(name: string, failure?: 'setup' | 'print' | 'load') {
+function harness(name: string, failure?: 'setup' | 'print' | 'load' | 'layout') {
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const timers: { callback: () => void; delay: number; cleared: boolean }[] = [];
   const error = new Error('simulated failure');
@@ -46,7 +46,7 @@ function harness(name: string, failure?: 'setup' | 'print' | 'load') {
     },
     clearTimeout: (timer: typeof timers[number]) => { timer.cleared = true; },
     setImmediate: vi.fn(),
-    getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
+    prepareReceiptLayout: async () => { if (failure === 'layout') throw error; }, getReceiptPrintArea: async () => undefined, getPrintFormatConfig: () => ({}), getPrinterConfig: () => ({}),
     buildReceiptHtml: async () => '<p>receipt</p>',
     currentReceiptText: '', currentA4Html: '', currentBulkPrintItems: [], pendingReceiptHeightPx: 0,
     app: { isPackaged: false }, process: { env: {} }, console,
@@ -142,4 +142,13 @@ it.each(['missing', 'invalid'])('measures the real window when readiness is %s a
   expect(h.settled).toHaveBeenCalledWith('resolved');
   await h.listeners.get('print-ready-1')!(720);
   expect(h.print).toHaveBeenCalledOnce();
+});
+
+it('never sends a receipt to the spooler when final layout preparation fails', async () => {
+  const h = harness('printReceiptUSB', 'layout');
+  await flush();
+  await h.listeners.get('print-ready-1')!(600);
+  await flush();
+  expect(h.print).not.toHaveBeenCalled();
+  expect(h.settled).toHaveBeenCalledWith(h.error);
 });
