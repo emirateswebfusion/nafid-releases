@@ -633,6 +633,7 @@ function executePrintWithFallback(
       printBackground: true,
     };
 
+    if (requireExactPaper) primaryOptions.scaleFactor = 100;
     if (deviceName) {
       primaryOptions.deviceName = deviceName;
     }
@@ -729,9 +730,6 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
             if (document.fonts) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 600))]);
             const height = document.body?.scrollHeight;
             if (!Number.isFinite(height) || height <= 0) return null;
-            const style = document.createElement('style');
-            style.textContent = '@page { size: ${widthMm}mm ' + Math.max(40, Math.ceil(height * 25.4 / 96 + 3)) + 'mm; margin: 0; }';
-            document.head.appendChild(style);
             return height;
           })()`);
           contentHeightPx = typeof height === 'number' ? height : undefined;
@@ -772,7 +770,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     try {
-      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm);
+      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm, true);
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
     } catch (err) {
       clearTimeout(timer);

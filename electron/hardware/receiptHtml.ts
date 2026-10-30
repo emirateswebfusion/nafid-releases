@@ -106,7 +106,7 @@ function stripOuterPipes(str: string): string {
   return str;
 }
 
-export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0): Promise<string> {
+export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0, systemPrinter: boolean = false): Promise<string> {
   const lines = receiptText.split('\n');
   let startIdx = 0;
   while (startIdx < lines.length && lines[startIdx].trim() === '') startIdx++;
@@ -214,7 +214,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     ? `<div style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
     : rowsHtml;
 
-  const offset = Number.isFinite(leftMarginOffsetMm) ? leftMarginOffsetMm : 0;
+  const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(-3, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
 
   return `<!DOCTYPE html>
 <html>
@@ -222,7 +222,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 <meta charset="utf-8">
 <style>
   @page {
-    size: ${widthMm}mm auto;
+    ${systemPrinter ? '' : `size: ${widthMm}mm auto;`}
     margin: 0;
   }
   * { box-sizing: border-box; }
@@ -244,6 +244,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     margin: 0;
     position: relative;
     left: ${offset}mm;
+    width: ${widthMm - Math.max(0, offset)}mm;
     height: auto !important;
     overflow: visible !important;
   }
@@ -267,11 +268,22 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
           ]);
         } catch { /* proceed */ }
       }
+      // Fit every fixed-width row before measuring height, including wide fonts and calibrated offsets.
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      let scale = 1;
+      if (context) for (const row of document.querySelectorAll('pre')) {
+        const css = getComputedStyle(row);
+        context.font = css.fontWeight + ' ' + css.fontSize + ' ' + css.fontFamily;
+        const needed = context.measureText(row.textContent || '').width;
+        if (needed > row.clientWidth) scale = Math.min(scale, row.clientWidth / needed);
+      }
+      if (scale < 1) document.body.style.fontSize = (parseFloat(getComputedStyle(document.body).fontSize) * scale * 0.99) + 'px';
       const height = document.body.scrollHeight;
       const pageHeightMm = Math.max(40, Math.ceil(height * 25.4 / 96 + 3));
-      const pageStyle = document.createElement('style');
+      ${systemPrinter ? '/* Native print options own paper size; CSS sizes can be centered inside a driver form. */' : `const pageStyle = document.createElement('style');
       pageStyle.textContent = '@page { size: ${widthMm}mm ' + pageHeightMm + 'mm; margin: 0; }';
-      document.head.appendChild(pageStyle);
+      document.head.appendChild(pageStyle);`}
       if (window.electronAPI?.printReady) {
         window.electronAPI.printReady(height);
       }

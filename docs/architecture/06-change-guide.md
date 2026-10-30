@@ -41,14 +41,16 @@
 USB/system receipts use `electron/hardware/receiptHtml.ts` (the React print-route view is not used by this path).
 Keep page padding at zero and apply the 2 mm vertical / 3 mm horizontal body padding once.
 The receipt window matches the configured roll width (defaulting to 80 mm / 42 characters wide, boxed style).
-To avoid excessive blank paper feed at the top of continuous thermal rolls, CSS `@page` uses `size: ${widthMm}mm auto; margin: 0;`
-(a fixed oversized height in `@page` causes Chromium to vertically center content and feed empty paper before printing).
-After images and fonts load, the HTML measures body height (`document.body.scrollHeight`) and sends it through `printReady(height)`;
-the hardware adapter forwards height only to that window's listener. Electron print options calculate paper height dynamically as
-`Math.max(40, Math.ceil(height * 25.4 / 96 + 3))` mm without bloated buffer heights. Never start a receipt from `did-finish-load`
-or use another window's measurement. Receipt jobs require their exact paper dimensions: driver rejection is reported,
-rather than retrying with a shorter native/default page. Missing/invalid readiness reports recover by measuring that same window directly after fonts settle,
-setting matching CSS paper dimensions before printing. If direct measurement also fails, report a retry error;
+Physical USB jobs pass `systemPrinter: true` to `buildReceiptHtml`: CSS supplies zero page margins but no paper size.
+Only native print options own the measured roll dimensions, with scale factor 100; this avoids competing CSS/native
+paper forms that can be centered or clipped by Windows drivers. PDF callers retain dynamic CSS sizing.
+After assets load, fixed-width rows are fitted to the available width before body height is measured.
+Positive calibration offsets reduce body width by the same amount; negative offsets cannot exceed the 3 mm inset.
+The per-window `printReady(height)` report supplies the native paper length:
+`Math.max(40, Math.ceil(height * 25.4 / 96 + 3))` mm. Never use another window's measurement.
+Driver rejection is reported rather than silently falling back to an unrelated paper form.
+Missing readiness reports recover by measuring that same window directly after fonts settle.
+If direct measurement also fails, report a retry error;
 never feed a guessed 600 mm sheet. Each USB job captures its receipt text before awaiting printer discovery.
 A4 and barcode fallback behavior is unchanged.
 Test with `tests/unit/thermalPrint.test.ts` and `printerPromise.test.ts`; characterization snapshot in

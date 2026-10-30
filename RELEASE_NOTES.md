@@ -1,3 +1,15 @@
+# Nafid POS v2.2.2 Release Notes
+
+## Thermal printing fixes
+- Physical receipts use native paper dimensions at 100% scale, without competing CSS paper sizes.
+- Fixed-width receipt rows fit the available roll width, preserving the Amount column and right border.
+- Positive left-margin calibration reduces the available content width instead of moving the right edge off paper.
+- Existing measured-height recovery and duplicate-print protection are retained.
+
+Validated with automated print tests and Electron rendering across 58, 76 and 80 mm rolls. Physical printer output remains unverified.
+
+**Download:** [Nafid-Setup-2.2.2.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.2/Nafid-Setup-2.2.2.exe)
+
 # Nafid POS v2.2.1 Release Notes
 
 ## What's New

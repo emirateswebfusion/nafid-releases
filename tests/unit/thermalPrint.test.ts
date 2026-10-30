@@ -34,6 +34,7 @@ describe('thermal paper layout', () => {
 it('measures the receipt after assets load, without counting the viewport as paper', async () => {
   const dom = new JSDOM(await buildReceiptHtml(Array(60).fill('Product    10.00').join('\n'), 58));
   const printReady = vi.fn();
+  dom.window.HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
   Object.defineProperty(dom.window.document.body, 'scrollHeight', { value: 1500 });
   Object.defineProperty(dom.window.document.documentElement, 'scrollHeight', { value: 1800 });
   const listeners = new Map<string, () => Promise<void>>();
@@ -46,7 +47,7 @@ it('measures the receipt after assets load, without counting the viewport as pap
   expect(printReady).toHaveBeenCalledWith(1500);
 });
 
-it.each([80, 300, 1800])('waits for measurement and matches CSS paper length for %s px receipts', async height => {
+it.each([80, 300, 1800])('waits for measurement and uses native paper length for %s px receipts', async height => {
   const listeners = new Map<string, (height?: number) => Promise<void>>();
   const loaded = new Map<string, () => void>();
   const print = vi.fn();
@@ -69,7 +70,7 @@ it.each([80, 300, 1800])('waits for measurement and matches CSS paper length for
   void invoke('thermal', 58);
   context.currentReceiptText = 'Next bill';
   for (let i = 0; i < 10; i++) await Promise.resolve();
-  expect(context.buildReceiptHtml).toHaveBeenCalledWith('Original bill', 58, expect.any(String), 0);
+  expect(context.buildReceiptHtml).toHaveBeenCalledWith('Original bill', 58, expect.any(String), 0, true);
   loaded.get('did-finish-load')?.();
   expect(print).not.toHaveBeenCalled();
   await listeners.get('print-ready-11')!(height);
@@ -283,4 +284,37 @@ it('formats scrap and weight items with exactly 3 digits after the dot (e.g. 1.0
       expect(line.length).toBe(42);
     }
   });
+});
+
+it('lets native print options own physical paper size while keeping PDF sizing', async () => {
+  const physical = await buildReceiptHtml('Bill', 80, 'monospace', 0, true);
+  expect(physical).not.toMatch(/size:\s*80mm/);
+  expect(physical).not.toContain("document.head.appendChild(pageStyle)");
+  expect(await buildReceiptHtml('Bill', 80)).toContain('size: 80mm');
+});
+it('keeps positive calibration inside the roll and bounds unsafe negative offsets', async () => {
+  const positive = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', 10, true));
+  expect(positive.window.getComputedStyle(positive.window.document.body).width).toBe('70mm');
+  const negative = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', -20, true));
+  expect(negative.window.getComputedStyle(negative.window.document.body).left).toBe('-3mm');
+});
+it('fits wide rows before measuring the paper length', async () => {
+  const dom = new JSDOM(await buildReceiptHtml('1234567890', 58, 'monospace', 0, true));
+  const row = dom.window.document.querySelector('pre')!;
+  Object.defineProperty(row, 'clientWidth', { value: 100 });
+  dom.window.HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({ measureText: () => ({ width: 125 }) });
+  const listeners = new Map<string, () => Promise<void>>();
+  runInNewContext(dom.window.document.querySelector('script')!.textContent!, {
+    window: { addEventListener: (event: string, fn: () => Promise<void>) => listeners.set(event, fn) },
+    document: dom.window.document, getComputedStyle: () => ({ fontSize: '10px', fontFamily: 'monospace', fontWeight: '700' }),
+  });
+  await listeners.get('load')!();
+  expect(parseFloat(dom.window.document.body.style.fontSize)).toBeCloseTo(7.92);
+});
+
+it('uses native receipt dimensions at explicit 100 percent scale', async () => {
+  const print = vi.fn((_options, callback) => callback(true));
+  const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console });
+  await invoke({ isDestroyed: () => false, webContents: { print } }, 'thermal', 80, 194000, undefined, false, true);
+  expect(print.mock.calls[0][0]).toMatchObject({ scaleFactor: 100, pageSize: { width: 80000, height: 194000 }, margins: { marginType: 'none' } });
 });
