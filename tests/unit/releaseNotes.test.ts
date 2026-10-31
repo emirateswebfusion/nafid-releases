@@ -23,6 +23,28 @@ describe('releaseNotesUtils', () => {
 <p><strong>Download:</strong> <a href="https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.1.4/Nafid-Setup-2.1.4.exe">Nafid-Setup-2.1.4.exe</a></p>
 `;
 
+  const sampleV229Markdown = `
+Thermal receipt layout refinement:
+
+* Fixed right border not visible on 80mm rolls (was at 77mm, beyond typical 72 76mm printable area; now at 75mm).
+* Reduced left margin gap (body left padding reduced from 3mm to 1mm).
+* Removed excess top whitespace (body top padding reduced from 2mm to 0).
+* Re-calibrated font-size inner width calculation to match new padding geometry.
+
+All 35 thermal print tests pass.
+`;
+
+  const sampleV229Html = `
+<p>Thermal receipt layout refinement:</p>
+<ul>
+<li>Fixed right border not visible on 80mm rolls (was at 77mm, beyond typical 72 76mm printable area; now at 75mm).</li>
+<li>Reduced left margin gap (body left padding reduced from 3mm to 1mm).</li>
+<li>Removed excess top whitespace (body top padding reduced from 2mm to 0).</li>
+<li>Re-calibrated font-size inner width calculation to match new padding geometry.</li>
+</ul>
+<p>All 35 thermal print tests pass.</p>
+`;
+
   it('correctly decodes HTML entities', () => {
     expect(decodeHtmlEntities('&amp; &quot; &#39; &lt; &gt; &nbsp;')).toBe('& " \' < >  ');
   });
@@ -92,6 +114,36 @@ describe('releaseNotesUtils', () => {
     expect(items[0].description).toBe('Fixed crash during receipt printing');
     expect(items[1].isFix).toBe(false);
     expect(items[1].description).toBe('Added support for custom barcode scanning');
+  });
+
+  it('parses v2.2.9 release notes without section headers or test pass lines as cards', () => {
+    const mdItems = parseReleaseNotes(sampleV229Markdown);
+    expect(mdItems.length).toBe(4);
+
+    const htmlItems = parseReleaseNotes(sampleV229Html);
+    expect(htmlItems.length).toBe(4);
+
+    // Excludes "Thermal receipt layout refinement:" and "All 35 thermal print tests pass."
+    for (const item of mdItems) {
+      expect(item.description).not.toContain('tests pass');
+      expect(item.description).not.toBe('Thermal receipt layout refinement:');
+    }
+
+    const cards = releaseNotesToCards(sampleV229Markdown);
+    expect(cards.length).toBe(4);
+
+    // Titles should be derived and specific, not generic "New Feature"
+    expect(cards[0].title.en).toBe('Fixed right border not visible on 80mm rolls');
+    expect(cards[0].tag.en).toBe('Printing');
+
+    expect(cards[1].title.en).toBe('Reduced left margin gap');
+    expect(cards[1].tag.en).toBe('Printing');
+
+    expect(cards[2].title.en).toBe('Removed excess top whitespace');
+    expect(cards[2].tag.en).toBe('Printing');
+
+    expect(cards[3].title.en).toBe('Re-calibrated font-size inner width calculation');
+    expect(cards[3].tag.en).toBe('Printing');
   });
 
   it('handles array of release notes from electron-updater', () => {

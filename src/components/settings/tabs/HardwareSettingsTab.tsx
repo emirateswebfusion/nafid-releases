@@ -165,25 +165,46 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                       <p className="text-[10px] text-muted-foreground/70 mt-1">Standard thermal roll sizes are 58mm (5.8cm) and 80mm (8.0cm).</p>
                     </div>
 
-                    <div className="col-span-2 space-y-2 pt-2 border-t border-border/60">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider block">Left Margin Offset (mm) [Optional]</label>
-                        <span className="text-[10px] text-muted-foreground/70 font-mono">Default: 0mm</span>
-                      </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <Input
-                          type="number"
-                          value={receiptPrinter.leftMarginOffsetMm ?? 0}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? 0 : Number(e.target.value);
-                            setReceiptPrinter({ ...receiptPrinter, leftMarginOffsetMm: isNaN(val) ? 0 : val });
-                          }}
-                          placeholder="0"
-                          className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono w-32"
-                        />
-                        <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
-                          For POS80 / thermal printers shifted rightwards, enter a negative offset (e.g. <span className="font-mono font-bold text-foreground">-10</span> or <span className="font-mono font-bold text-foreground">-15</span>) to pull the print back to the left without affecting other printers.
-                        </p>
+                    <div className="col-span-2 space-y-4 pt-2 border-t border-border/60">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider block">Left Margin Offset (mm)</label>
+                            <span className="text-[10px] text-muted-foreground/70 font-mono">Default: 0mm</span>
+                          </div>
+                          <Input
+                            type="number"
+                            value={receiptPrinter.leftMarginOffsetMm ?? 0}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 0 : Number(e.target.value);
+                              setReceiptPrinter({ ...receiptPrinter, leftMarginOffsetMm: isNaN(val) ? 0 : val });
+                            }}
+                            placeholder="0"
+                            className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono w-full"
+                          />
+                          <p className="text-[10px] text-muted-foreground/80 leading-relaxed">
+                            Negative values (e.g. <span className="font-mono font-bold text-foreground">-5</span>) pull the print leftwards.
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider block">Top Margin Offset (mm)</label>
+                            <span className="text-[10px] text-muted-foreground/70 font-mono">Default: 0mm</span>
+                          </div>
+                          <Input
+                            type="number"
+                            value={receiptPrinter.topMarginOffsetMm ?? 0}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 0 : Number(e.target.value);
+                              setReceiptPrinter({ ...receiptPrinter, topMarginOffsetMm: isNaN(val) ? 0 : val });
+                            }}
+                            placeholder="0"
+                            className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono w-full"
+                          />
+                          <p className="text-[10px] text-muted-foreground/80 leading-relaxed">
+                            Fine-tune top start position saved directly to printer profile in local DB.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>

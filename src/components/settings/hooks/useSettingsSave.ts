@@ -67,7 +67,8 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         deviceName: receiptPrinter.deviceName || defaultSystemPrinter,
         port: Number(receiptPrinter.port) || 9100,
         receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 8.0,
-        leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0
+        leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0,
+        topMarginOffsetMm: Number(receiptPrinter.topMarginOffsetMm) || 0
       };
 
       // User-entered starting numbers take priority — do NOT use Math.max() here,
@@ -145,7 +146,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'cash_drawer_auto_close_time', value: autoCloseCashDrawerTime || '23:30' }), name: 'cash_drawer_auto_close_time' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'quotation_gst_enabled', value: billSettings.quotationGstEnabled !== false }), name: 'quotation_gst_enabled' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'default_opening_balance', value: defaultOpeningBalance === '' ? 0 : (Number(defaultOpeningBalance) || 0) }), name: 'default_opening_balance' },
-        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0, billSettings, scrapBillSettings } }), name: 'print_format' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, receiptFont, leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0, topMarginOffsetMm: Number(receiptPrinter.topMarginOffsetMm) || 0, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: setSetting({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
         { promise: setSetting({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
         { promise: setSetting({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${computedReturnPrefix}-`, counter: finalReturnCounter } }), name: 'return_counter' },

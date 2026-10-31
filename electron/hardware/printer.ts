@@ -684,6 +684,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     const printFmt = getPrintFormatConfig(tenantId);
     const receiptConfig = getPrinterConfig(tenantId, 'receipt');
     const leftMarginOffsetMm = Number(receiptConfig?.leftMarginOffsetMm ?? printFmt?.leftMarginOffsetMm ?? 0) || 0;
+    const topMarginOffsetMm = Number(receiptConfig?.topMarginOffsetMm ?? printFmt?.topMarginOffsetMm ?? 0) || 0;
     const fontKey = printFmt?.receiptFont || 'courier';
     const fontMap: Record<string, string> = {
       courier: 'Consolas, "Courier New", monospace',
@@ -709,7 +710,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
-    console.log(`[Printer] Resolved receipt printer "${deviceName}" -> "${resolved.actualNameUsed}" (leftOffset: ${leftMarginOffsetMm}mm)`);
+    console.log(`[Printer] Resolved receipt printer "${deviceName}" -> "${resolved.actualNameUsed}" (leftOffset: ${leftMarginOffsetMm}mm, topOffset: ${topMarginOffsetMm}mm)`);
 
     const timer = setTimeout(() => {
       if (!printWindow.isDestroyed()) {
@@ -771,7 +772,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     try {
-      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm);
+      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm, topMarginOffsetMm);
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
     } catch (err) {
       clearTimeout(timer);

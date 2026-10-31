@@ -107,7 +107,7 @@ function stripOuterPipes(str: string): string {
   return str;
 }
 
-export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0): Promise<string> {
+export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0, topMarginOffsetMm: number = 0): Promise<string> {
   const lines = receiptText.split('\n');
   let startIdx = 0;
   while (startIdx < lines.length && lines[startIdx].trim() === '') startIdx++;
@@ -232,9 +232,11 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     : `${Math.min(10.0, maxFontPx)}px`;
 
   const leftShift = widthMm >= 75 ? '-5mm' : '0';
+  const effectiveLeftShift = leftMarginOffsetMm !== 0 ? `${leftMarginOffsetMm}mm` : leftShift;
+  const topShift = topMarginOffsetMm !== 0 ? `${topMarginOffsetMm}mm` : '0';
   const contentBody = isBillStyle
-    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:${leftShift};padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
-    : `<div id="receipt-root" style="margin-top:0 !important;margin-left:${leftShift};">${rowsHtml}</div>`;
+    ? `<div id="receipt-root" style="border:2px solid black;margin-top:${topShift} !important;margin-left:${effectiveLeftShift};padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
+    : `<div id="receipt-root" style="margin-top:${topShift} !important;margin-left:${effectiveLeftShift};">${rowsHtml}</div>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -242,13 +244,12 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 <meta charset="utf-8">
 <style>
   @page {
-    size: ${widthMm}mm auto;
     margin: 0 !important;
   }
   * { box-sizing: border-box; }
   html, body {
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
     font-family: ${fontFamily};
     font-size: ${fontSize};
     color: #000;
@@ -261,7 +262,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   }
   body {
     padding: 0 10mm 0 0;
-    margin: 0;
+    margin: 0 !important;
     position: relative;
     left: ${offset}mm;
     width: ${widthMm - offset}mm;
@@ -271,7 +272,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   pre, img, svg { max-width: 100%; }
   pre, img, svg, hr { break-inside: avoid; page-break-inside: avoid; }
   @media print {
-    html, body { height: 100% !important; min-height: 100% !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; top: 0 !important; }
+    html, body { height: auto !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; top: 0 !important; }
     body { padding: 0 10mm 0 0 !important; }
     div, pre { overflow: visible !important; }
   }
@@ -301,10 +302,6 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
       }
       if (scale < 1) document.body.style.fontSize = (parseFloat(getComputedStyle(document.body).fontSize) * scale * 0.99) + 'px';
       const height = document.body.scrollHeight;
-      const pageHeightMm = Math.max(40, Math.ceil(height * 25.4 / 96 + 3));
-      const pageStyle = document.createElement('style');
-      pageStyle.textContent = '@page { size: ${widthMm}mm auto; margin: 0 !important; }';
-      document.head.appendChild(pageStyle);
       if (window.electronAPI?.printReady) {
         window.electronAPI.printReady(height);
       }
