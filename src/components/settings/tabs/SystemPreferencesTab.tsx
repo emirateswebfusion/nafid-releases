@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import { Download, RotateCcw, AlertCircle, CheckCircle2, Loader2, Bell, Globe, RefreshCw, Zap, ExternalLink } from 'lucide-react';
+import { Download, RotateCcw, AlertCircle, CheckCircle2, Loader2, Bell, Globe, RefreshCw, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import { formatTimeAgo, formatBytes } from '../settingsUtils';
 import { releaseNotesToCards } from '../releaseNotesUtils';
@@ -33,12 +33,16 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
   handleInstallUpdate,
 }) => {
   const displayItems = useMemo(() => {
-    return getWhatsNewItems(updateInfo?.releaseNotes, appVersion);
-  }, [updateInfo, appVersion]);
+    return getWhatsNewItems(null, appVersion);
+  }, [appVersion]);
 
   useEffect(() => {
     if (updateInfo?.releaseNotes) {
       try {
+        const cleanVer = updateInfo.version ? updateInfo.version.replace(/^v/, '') : '';
+        if (cleanVer) {
+          localStorage.setItem(`nafid_release_notes_${cleanVer}`, updateInfo.releaseNotes);
+        }
         localStorage.setItem(`nafid_release_notes_${updateInfo.version}`, updateInfo.releaseNotes);
         localStorage.setItem('nafid_cached_release_notes', updateInfo.releaseNotes);
       } catch (_) {
@@ -118,16 +122,52 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                       if (updateCards.length === 0) return null;
                       return (
                         <div className="px-5 py-4 bg-muted/20 border-b border-border/40 space-y-3">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <Zap className="w-4 h-4 text-amber-500 fill-amber-500/20 shrink-0" />
+                              <Bell className="w-4 h-4 text-primary shrink-0" />
                               <p className="text-xs font-black text-foreground uppercase tracking-wider">
-                                What's New in v{updateInfo.version}
+                                {whatsNewLang === 'ml' ? `v${updateInfo.version}-ലെ വിശേഷങ്ങൾ` : `What's New in v${updateInfo.version}`}
                               </p>
                             </div>
-                            <span className="text-[10px] font-semibold text-muted-foreground/70 bg-background/80 px-2 py-0.5 rounded-full border border-border/50">
-                              Release Highlights
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {/* Language Switcher */}
+                              <div className="flex items-center bg-background/90 p-0.5 rounded-xl border border-border/70 shadow-xs">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setWhatsNewLang('ml');
+                                    try { localStorage.setItem('nafid_whats_new_lang', 'ml'); } catch (_) { /* ignore */ }
+                                  }}
+                                  className={clsx(
+                                    "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer font-malayalam",
+                                    whatsNewLang === 'ml'
+                                      ? "bg-primary text-primary-foreground shadow-xs font-black"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  <Globe className="w-3 h-3" />
+                                  മലയാളം
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setWhatsNewLang('en');
+                                    try { localStorage.setItem('nafid_whats_new_lang', 'en'); } catch (_) { /* ignore */ }
+                                  }}
+                                  className={clsx(
+                                    "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer",
+                                    whatsNewLang === 'en'
+                                      ? "bg-primary text-primary-foreground shadow-xs font-black"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  English
+                                </button>
+                              </div>
+                              <span className="text-[10px] font-semibold text-muted-foreground/70 bg-background/80 px-2 py-0.5 rounded-full border border-border/50 hidden sm:inline-block">
+                                {whatsNewLang === 'ml' ? 'സവിശേഷതകൾ' : 'Release Highlights'}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="max-h-72 overflow-y-auto pr-1">
@@ -217,8 +257,9 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
               </div>
             </div>
 
-            {/* What's New */}
-            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+            {/* What's New — shown for current version when no pending update release notes are already shown above */}
+            {(!updateInfo || !updateInfo.releaseNotes) && (
+              <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
                 <div className="space-y-3.5">
                   <div className="flex flex-wrap items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2">
@@ -310,7 +351,8 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                     ))}
                   </div>
                 </div>
-            </div>
+              </div>
+            )}
           </div>
   );
 };

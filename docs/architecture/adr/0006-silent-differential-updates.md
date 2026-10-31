@@ -17,6 +17,7 @@ Status: accepted
    - Explicitly enabled differential downloading (`autoUpdater.disableDifferentialDownload = false`).
    - Routed updater diagnostics to `log` via `autoUpdater.logger = log`.
    - Changed IPC handler to `autoUpdater.quitAndInstall(true, true)` (`isSilent = true`, `isForceRunAfter = true`). NSIS executes with `/S` in the background, updating changed files and relaunching the POS in ~2 seconds.
+   - The handler only installs when an update is actually downloaded (`updaterState === 'downloaded'`). A synchronous install failure (e.g. missing installer filepath) is returned to the renderer as `{ success: false, error }` and moves the updater to `error`; the app never force-exits, so the UI can re-download instead of closing with nothing installed.
 3. **Compact, non-intrusive UI messaging (`UpdateBanner.tsx`, `SettingsManager.tsx`, `SystemPreferencesTab.tsx`, `DashboardHeader.tsx`).**
    - Title shortened from `"Update Ready to Install"` to `"Update Ready"`.
    - Subtitle shortened from `"Restart to apply the latest update"` to `"Restart to update"`.

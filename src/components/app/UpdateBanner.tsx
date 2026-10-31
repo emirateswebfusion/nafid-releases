@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, RotateCcw, Zap } from 'lucide-react';
+import { X, RotateCcw, Download, Bell } from 'lucide-react';
 import clsx from 'clsx';
 import { getReleaseNotesSummary } from '../settings/releaseNotesUtils';
 import { useUpdateStore } from '../../store/updateStore';
@@ -52,7 +52,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
             'p-2 rounded-xl shrink-0',
             updateReady ? 'bg-emerald-500/20 text-emerald-600' : 'bg-blue-500/20 text-blue-600'
           )}>
-            {updateReady ? <RotateCcw className="w-4 h-4 animate-spin-reverse" /> : <Zap className="w-4 h-4 fill-blue-500/20" />}
+            {updateReady ? <RotateCcw className="w-4 h-4 animate-spin-reverse" /> : <Download className="w-4 h-4" />}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -94,7 +94,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
               onClick={() => { handleDismiss(); onOpenSettings(); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-blue-500/15 text-blue-700 hover:bg-blue-500/25 border border-blue-500/30 transition-all active:scale-95 cursor-pointer"
             >
-              <Zap className="w-3 h-3 fill-blue-500/20" />
+              <Bell className="w-3 h-3" />
               See What's New
             </button>
           )}

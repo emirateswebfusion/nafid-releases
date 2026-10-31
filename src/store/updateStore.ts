@@ -30,6 +30,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         set({ updateReady: true, isDownloading: false });
       } else if (status === 'downloading') {
         set({ isDownloading: true });
+      } else if (status === 'error') {
+        // The main process only reports 'error' when there is no installable update,
+        // so a stale "Restart to update" button must not survive it.
+        set({ updateReady: false, isDownloading: false, downloadProgress: null });
       }
     });
 
@@ -64,17 +68,26 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   },
 
   installUpdate: () => {
-    appApi.installUpdate();
+    void appApi.installUpdate().then((res) => {
+      if (!res || res.success) return;
+      // No installer was launched, so the app is still open. Drop the dead
+      // "Restart to update" button and re-download. Download state is driven by
+      // the main process events, so a failed re-check cannot leave a spinner stuck.
+      set({ updateReady: false, downloadProgress: null });
+      void get().checkForUpdates();
+    }).catch(() => {});
   },
 
   checkForUpdates: async () => {
     try {
       const res = await appApi.checkForUpdates();
-      if (res && 'updateInfo' in res && res.updateInfo) {
-        set({ updateInfo: res.updateInfo });
+      if (res && res.success) {
+        set(res.updateInfo
+          ? { updateInfo: res.updateInfo }
+          : { updateInfo: null, updateReady: false, isDownloading: false, downloadProgress: null });
       }
     } catch (_) {
-      /* ignore */
+      set({ isDownloading: false });
     }
   },
 }));

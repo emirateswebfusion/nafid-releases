@@ -13,6 +13,11 @@ export type AppCheckForUpdatesResult =
   | { success: true; updateInfo: UpdateInfoPayload | null }
   | { success: false; error: string };
 
+/** Result of `app:installUpdate`. `success: false` means the app stayed open because no installer was launched. */
+export type AppInstallUpdateResult =
+  | { success: true }
+  | { success: false; error: string };
+
 /** App shell: version, updater, network info, error logging. Channel catalog — the only way UI code reaches these IPC channels. */
 export const appApi = bindBridge({
   logError: 'logError',

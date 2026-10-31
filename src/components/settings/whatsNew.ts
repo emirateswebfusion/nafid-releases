@@ -85,7 +85,9 @@ export function getWhatsNewItems(releaseNotes?: string | null, appVersion?: stri
 
   try {
     if (typeof localStorage !== 'undefined') {
+      const cleanVer = appVersion ? appVersion.replace(/^v/, '') : '';
       const cached =
+        (cleanVer ? localStorage.getItem(`nafid_release_notes_${cleanVer}`) : null) ||
         (appVersion ? localStorage.getItem(`nafid_release_notes_${appVersion}`) : null) ||
         localStorage.getItem('nafid_cached_release_notes');
       if (cached) {

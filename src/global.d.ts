@@ -1,5 +1,5 @@
 import type { Invoice, InvoiceItem, InvoiceItemWithProduct } from './data/invoices';
-import type { AppCheckForUpdatesResult, UpdateInfoPayload } from './data/app';
+import type { AppCheckForUpdatesResult, AppInstallUpdateResult, UpdateInfoPayload } from './data/app';
 import type { Product } from './data/products';
 import type { StockReportResult } from './data/products';
 import type { Party } from './data/parties';
@@ -44,7 +44,7 @@ export interface IElectronAPI {
   dbDebugSyncState: (tenant_id: string) => Promise<unknown>;
   appCheckForUpdates: () => Promise<AppCheckForUpdatesResult>;
   appGetVersion: () => Promise<string>;
-  appInstallUpdate: () => Promise<void>;
+  appInstallUpdate: () => Promise<AppInstallUpdateResult>;
   appDownloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   dbGetProducts: (params: unknown) => Promise<Product[]>;
   dbGetProductsCount: (params: unknown) => Promise<number>;

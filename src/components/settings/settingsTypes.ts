@@ -15,7 +15,6 @@ export type PrinterConfig = KnownSettings['receipt_printer_config'] & {
   labelHeightMm?: number | string;
   labelColumns?: number | string;
   leftMarginOffsetMm?: number | string;
-  topMarginOffsetMm?: number | string;
 };
 export type OsPrinterRow = Awaited<ReturnType<typeof printingApi.getPrinters>>[number];
 export type ServiceChargeProductRow = Product;

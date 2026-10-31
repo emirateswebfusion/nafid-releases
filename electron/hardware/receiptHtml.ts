@@ -107,7 +107,7 @@ function stripOuterPipes(str: string): string {
   return str;
 }
 
-export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0, topMarginOffsetMm: number = 0): Promise<string> {
+export async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace', leftMarginOffsetMm: number = 0): Promise<string> {
   const lines = receiptText.split('\n');
   let startIdx = 0;
   while (startIdx < lines.length && lines[startIdx].trim() === '') startIdx++;
@@ -233,10 +233,9 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 
   const leftShift = widthMm >= 75 ? '-5mm' : '0';
   const effectiveLeftShift = leftMarginOffsetMm !== 0 ? `${leftMarginOffsetMm}mm` : leftShift;
-  const topShift = topMarginOffsetMm !== 0 ? `${topMarginOffsetMm}mm` : '0';
   const contentBody = isBillStyle
-    ? `<div id="receipt-root" style="border:2px solid black;margin-top:${topShift} !important;margin-left:${effectiveLeftShift};padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
-    : `<div id="receipt-root" style="margin-top:${topShift} !important;margin-left:${effectiveLeftShift};">${rowsHtml}</div>`;
+    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:${effectiveLeftShift};padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
+    : `<div id="receipt-root" style="margin-top:0 !important;margin-left:${effectiveLeftShift};">${rowsHtml}</div>`;
 
   return `<!DOCTYPE html>
 <html>

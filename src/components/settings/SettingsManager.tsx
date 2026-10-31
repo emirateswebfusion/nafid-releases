@@ -258,7 +258,24 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     returnStartNumber, role, shopDomain, updateDomain,
   });
 
-  const handleInstallUpdate = () => { setUpdateStatus('Restarting to update...'); appApi.installUpdate(); };
+  const handleInstallUpdate = async () => {
+    setUpdateStatus('Restarting to update...');
+    try {
+      const res = await appApi.installUpdate();
+      if (!res || res.success) return;
+      setUpdateReady(false);
+      setIsDownloading(false);
+      setDownloadProgress(null);
+      setUpdateStatus('Update not ready — re-downloading...');
+      const check = await appApi.checkForUpdates();
+      setLastChecked(new Date());
+      if (!check.success) setUpdateStatus(check.error || 'Update check failed');
+      else if (!check.updateInfo) setUpdateStatus('Up to date');
+    } catch {
+      setIsDownloading(false);
+      setUpdateStatus('Download failed');
+    }
+  };
 
   const handleRetryDownload = () => {
     if (!isDesktopRuntime()) return;

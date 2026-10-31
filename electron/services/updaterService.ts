@@ -78,7 +78,13 @@ export function setupAutoUpdater(): void {
     } catch (err) {
       const msg = (err as Error).message || '';
       log.error('[Updater] Check error:', msg);
-      
+
+      // A failed re-check must never discard an installer that is already downloaded.
+      if (updaterState === 'downloaded') {
+        log.warn('[Updater] Check failed after download; keeping update ready to install');
+        return;
+      }
+
       // Network errors are not critical - keep app usable
       const isNetworkError = 
         msg.includes('net::ERR_') ||
@@ -175,21 +181,34 @@ export function setupAutoUpdater(): void {
 
 export function registerUpdaterIpc(): void {
 ipcMain.handle('app:installUpdate', () => {
+  if (updaterState !== 'downloaded') {
+    log.warn(`[Updater] Install requested without a downloaded update (state: ${updaterState})`);
+    return { success: false, error: 'No downloaded update is ready to install.' };
+  }
+
   log.info('[Updater] Triggering silent differential quitAndInstall...');
-  setImmediate(() => {
-    try {
-      // Run NSIS silently (/S) without showing wizard dialogs or asking user to reinstall
-      autoUpdater.quitAndInstall(true, true);
-    } catch (e) {
-      log.error('[Updater] quitAndInstall error:', e);
-    }
-    setTimeout(() => {
-      BrowserWindow.getAllWindows().forEach(w => {
-        try { w.destroy(); } catch { /* ignore */ }
-      });
-      app.exit(0);
-    }, 1500);
-  });
+  let installError: Error | null = null;
+  const captureInstallError = (err: Error) => { installError = err; };
+  autoUpdater.once('error', captureInstallError);
+  try {
+    // Run NSIS silently (/S) without showing wizard dialogs or asking user to reinstall.
+    // On success electron-updater quits the app itself and NSIS relaunches it (--force-run).
+    autoUpdater.quitAndInstall(true, true);
+  } catch (e) {
+    installError = e instanceof Error ? e : new Error(String(e));
+  } finally {
+    autoUpdater.removeListener('error', captureInstallError);
+  }
+
+  if (installError) {
+    const message = installError.message || 'Could not start the update installer';
+    log.error('[Updater] quitAndInstall failed:', message);
+    // The pending installer is unusable; let the renderer re-download it instead of
+    // leaving a restart button that can never succeed.
+    setUpdaterState('error');
+    return { success: false, error: message };
+  }
+  return { success: true };
 });
 
 ipcMain.handle('app:downloadUpdate', async () => {
@@ -250,6 +269,11 @@ ipcMain.handle('app:checkForUpdates', async () => {
   } catch (error) {
     log.error('[Updater] Manual check error:', error);
     const msg = (error as Error).message || '';
+    // A failed re-check must never discard an installer that is already downloaded.
+    if (updaterState === 'downloaded') {
+      log.warn('[Updater] Manual check failed after download; keeping update ready to install');
+      return { success: false, error: msg || 'Update check failed' };
+    }
     // 404 means no release found on the current channel — likely already up-to-date
     if (msg.includes('404') || msg.includes('Cannot find') || msg.includes('no published version')) {
       setUpdaterState('idle');

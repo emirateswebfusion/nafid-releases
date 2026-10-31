@@ -684,7 +684,6 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     const printFmt = getPrintFormatConfig(tenantId);
     const receiptConfig = getPrinterConfig(tenantId, 'receipt');
     const leftMarginOffsetMm = Number(receiptConfig?.leftMarginOffsetMm ?? printFmt?.leftMarginOffsetMm ?? 0) || 0;
-    const topMarginOffsetMm = Number(receiptConfig?.topMarginOffsetMm ?? printFmt?.topMarginOffsetMm ?? 0) || 0;
     const fontKey = printFmt?.receiptFont || 'courier';
     const fontMap: Record<string, string> = {
       courier: 'Consolas, "Courier New", monospace',
@@ -710,7 +709,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
-    console.log(`[Printer] Resolved receipt printer "${deviceName}" -> "${resolved.actualNameUsed}" (leftOffset: ${leftMarginOffsetMm}mm, topOffset: ${topMarginOffsetMm}mm)`);
+    console.log(`[Printer] Resolved receipt printer "${deviceName}" -> "${resolved.actualNameUsed}" (leftOffset: ${leftMarginOffsetMm}mm)`);
 
     const timer = setTimeout(() => {
       if (!printWindow.isDestroyed()) {
@@ -737,10 +736,10 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
           throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
         }
-        // One continuous page whose height matches the measured receipt: the driver prints the whole bill
-        // as a single form and cuts only once at the end. No driver default page size (no pagination/split).
-        const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
-        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
+        // Thermal receipts print starting at the top (y=0) using the driver roll form without passing a custom pageSize.
+        // Passing a custom pageSize causes Windows GDI to vertically center the receipt inside the driver form (e.g. 297mm),
+        // which introduced 40-60mm of unwanted leading blank space before the bill.
+        await executePrintWithFallback(printWindow, resolved.deviceName, undefined, undefined, undefined, false, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
@@ -772,7 +771,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     try {
-      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm, topMarginOffsetMm);
+      const receiptHtml = await buildReceiptHtml(receiptText, widthMm, chosenFont, leftMarginOffsetMm);
       await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml)}`);
     } catch (err) {
       clearTimeout(timer);
