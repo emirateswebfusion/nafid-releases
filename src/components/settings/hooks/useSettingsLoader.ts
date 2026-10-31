@@ -384,7 +384,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         if (printFmt.a5Orientation === 'vertical' || printFmt.a5Orientation === 'horizontal') {
           finalA5Orientation = printFmt.a5Orientation;
         }
-        finalPrintWidth = Number(printFmt.width) || Math.round((Number(finalReceipt.receiptWidthCm) || 5.8) * 10);
+        finalPrintWidth = Number(printFmt.width) || Math.round((Number(finalReceipt.receiptWidthCm) || 8.0) * 10);
         if (printFmt.thermalStyle) {
           finalThermalStyle = printFmt.thermalStyle;
         } else if (printFmt.format === 'thermal' && printFmt.style) {

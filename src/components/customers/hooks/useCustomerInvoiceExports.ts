@@ -60,7 +60,7 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
     ]);
     const printFmt = parsePrintFormat(printFmtRaw);
     const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
-    const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+    const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 8.0;
     const combos: ComboOffer[] = Array.isArray(combosRaw) ? combosRaw : [];
     return { shopNameVal, shopAddr, shopPh, shopGstin, shopStateVal, upiVal, showQr, printFmt, billSettings, receiptWidthCm, shopEmailVal, shopWebsiteVal, combos };
   };
