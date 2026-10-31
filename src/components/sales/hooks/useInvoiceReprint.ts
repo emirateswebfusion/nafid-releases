@@ -39,7 +39,7 @@ export function useInvoiceReprint(ctx: UseInvoiceReprintContext) {
         getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_website' }),
       ]);
       const receiptConfig = await getSetting<ReceiptPrinterConfig>({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
-      const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+      const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 8.0;
       const printFmtRaw = await getSetting<PrintFormatSettings>({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       const invoiceType = selectedInvoice.invoice_type as string | undefined;

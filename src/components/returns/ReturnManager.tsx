@@ -116,7 +116,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         settingsApi.get({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
       ]);
       const receiptConfig = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
-      const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+      const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 8.0;
       const printFmtRaw = await settingsApi.get({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       const isHalfA4 = printFmt.format === 'half-a4';

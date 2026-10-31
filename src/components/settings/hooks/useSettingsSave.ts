@@ -66,7 +66,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         type: receiptPrinter.type || 'usb',
         deviceName: receiptPrinter.deviceName || defaultSystemPrinter,
         port: Number(receiptPrinter.port) || 9100,
-        receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8,
+        receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 8.0,
         leftMarginOffsetMm: Number(receiptPrinter.leftMarginOffsetMm) || 0
       };
 

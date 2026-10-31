@@ -1,3 +1,13 @@
+# Nafid POS v2.2.8
+
+Thermal receipt column clipping fix:
+- Fixed Amount, totals and Authorised Signatory being cut off at the right border on 80mm rolls.
+- Receipt HTML renderer now auto-fits font size to the actual character count and roll width instead of a fixed 12px, preventing overflow on Boxed style.
+- Unified default roll width to 80mm across all reprint, return, scrap, and cashier print paths (was incorrectly defaulting to 58mm).
+- Table rows use overflow:hidden to stay inside the border box.
+
+All existing thermal print tests pass. Snapshot unchanged.
+
 # Nafid POS v2.2.5
 
 Thermal receipt text alignment:

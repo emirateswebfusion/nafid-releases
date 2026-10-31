@@ -207,15 +207,33 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     }
 
     const lh = isBillStyle ? 1.08 : 1.25;
-    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;">${escapeHtml(finalValue)}</pre>`;
+    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:${isCentered ? 'break-word' : 'normal'};overflow:hidden;">${escapeHtml(finalValue)}</pre>`;
   }
 
-  const fontSize = widthMm <= 58 ? '10px' : '12px';
-  const contentBody = isBillStyle
-    ? `<div style="border:2px solid black;padding:4px 2px;width:100%;box-sizing:border-box;background:#fff;display:block;overflow:visible;">${rowsHtml}</div>`
-    : rowsHtml;
+  let maxContentChars = 0;
+  for (const line of activeLines) {
+    if (line.includes('[[') && line.includes(']]')) continue;
+    let s = line.replace(/\r/g, '');
+    if (isBillStyle) {
+      if (isTopBorderLine(s) || isBottomBorderLine(s) || isDividerLine(s)) continue;
+      s = stripOuterPipes(s);
+    }
+    const len = s.length;
+    if (len > maxContentChars) maxContentChars = len;
+  }
 
   const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(0, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
+  const innerWidthMm = Math.max(30, (widthMm - offset) - (isBillStyle ? 9 : 6));
+  const innerWidthPx = innerWidthMm * (96 / 25.4);
+  const targetChars = Math.max(maxContentChars, widthMm >= 75 ? 40 : 30);
+  const maxFontPx = Math.floor((innerWidthPx / (targetChars * 0.61)) * 10) / 10;
+  const fontSize = widthMm <= 58
+    ? (maxContentChars > 34 ? `${Math.min(8.0, maxFontPx)}px` : `${Math.min(9.5, maxFontPx)}px`)
+    : `${Math.min(10.5, maxFontPx)}px`;
+
+  const contentBody = isBillStyle
+    ? `<div style="border:2px solid black;padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
+    : rowsHtml;
 
   return `<!DOCTYPE html>
 <html>

@@ -137,7 +137,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
       if (!saveOnly) {
         const cfg = await getSetting<ReceiptPrinterConfig>({ tenant_id: tid, key: 'receipt_printer_config' });
         const printFmt = await getSetting<PrintFormatSettings>({ tenant_id: tid, key: 'print_format' });
-        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : (cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8);
+        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : (cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 8.0);
         const thermalStyle = printFmt?.style || 'standard';
         const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
         const returnReceiptData: ReceiptData = {

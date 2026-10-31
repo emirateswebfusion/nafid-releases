@@ -110,7 +110,7 @@ export async function runScrapCheckout(ctx: CheckoutContext, run: { saveOnly: bo
   scrapPrintSuccess = true;
   if (!saveOnly) {
     const cfg = await getSetting<ReceiptPrinterConfig>({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
-    const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
+    const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 8.0;
     const printFmt = await getSetting<PrintFormatSettings>({ tenant_id: tenantId || 'global', key: 'print_format' });
     const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
     const thermalStyle = printFmt?.style || 'standard';
