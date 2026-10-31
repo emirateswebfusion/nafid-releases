@@ -22,6 +22,7 @@
 | Printer / scale / scanner / WhatsApp behaviour | `electron/hardware/*`, `electron/whatsapp/*` | Adapters only |
 | A synced table or column | `electron/sync/entities/*Sync.ts` + `nafid-server/src/routes/sync/*` + server migration | A new synced table needs: add it to `SYNCED_TABLES` and a migration that re-creates the outbox triggers. Characterization test first; update both repos and the docs together |
 | Release notes / "What's New" cards | `src/components/settings/releaseNotesUtils.ts` + `whatsNew.ts` | **Never hardcode release notes in source code.** Features are sourced dynamically from GitHub Releases via `updateInfo.releaseNotes`, parsed into rich cards with `releaseNotesToCards()`, and cached in `localStorage`. `whatsNew.ts` provides `getWhatsNewItems()` and evergreen fallback only |
+| Updater / install behaviour | `electron/services/updaterService.ts` (+ `src/store/updateStore.ts`, `src/components/settings/SettingsManager.tsx`) | Only install from the `downloaded` state; never force-exit when the installer fails; return `{ success, error }` so the renderer can re-check/re-download. See ADR 0006 |
 
 ## 6.2 Workflow for any change
 

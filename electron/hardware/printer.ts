@@ -626,12 +626,11 @@ function executePrintWithFallback(
       return reject(new Error('Print window was destroyed before printing could start'));
     }
 
-    const primaryOptions: Electron.WebContentsPrintOptions & { preferCSSPageSize?: boolean } = {
+    const primaryOptions: Electron.WebContentsPrintOptions = {
       silent: true,
       margins: { marginType: 'none' },
       landscape,
       printBackground: true,
-      preferCSSPageSize: true,
     };
 
     if (deviceName) {
@@ -737,11 +736,10 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
           throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
         }
-        // Continuous thermal receipt: let the driver use its roll-paper form (auto-height).
-        // Passing a custom DMPAPER_CUSTOM size caused XPrinter drivers to fall back to a
-        // fixed form (~200mm) where Windows GDI vertically centers the content (~50mm blank
-        // top). The driver's roll-paper mode prints flush at the top edge automatically.
-        await executePrintWithFallback(printWindow, resolved.deviceName, undefined, undefined, undefined, false, true);
+        // One continuous page whose height matches the measured receipt: the driver prints the whole bill
+        // as a single form and cuts only once at the end. No driver default page size (no pagination/split).
+        const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
+        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
