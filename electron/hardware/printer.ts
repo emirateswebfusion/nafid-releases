@@ -737,10 +737,11 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
           throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
         }
-        // Continuous thermal receipt: preferCSSPageSize and exact height prevent Chromium and
-        // Windows GDI from vertically centering the receipt inside a default 210mm/297mm form.
-        const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
-        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
+        // Continuous thermal receipt: let the driver use its roll-paper form (auto-height).
+        // Passing a custom DMPAPER_CUSTOM size caused XPrinter drivers to fall back to a
+        // fixed form (~200mm) where Windows GDI vertically centers the content (~50mm blank
+        // top). The driver's roll-paper mode prints flush at the top edge automatically.
+        await executePrintWithFallback(printWindow, resolved.deviceName, undefined, undefined, undefined, false, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();

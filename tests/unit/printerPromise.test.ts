@@ -138,7 +138,7 @@ it.each(['missing', 'invalid'])('measures the real window when readiness is %s a
   }
   await flush();
   expect(h.measure).toHaveBeenCalledOnce();
-  expect(h.print).toHaveBeenCalledWith(expect.anything(), 'printer', 80, 194000, undefined, false, true);
+  expect(h.print).toHaveBeenCalledWith(expect.anything(), 'printer', undefined, undefined, undefined, false, true);
   expect(h.settled).toHaveBeenCalledWith('resolved');
   await h.listeners.get('print-ready-1')!(720);
   expect(h.print).toHaveBeenCalledOnce();
