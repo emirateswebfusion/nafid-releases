@@ -74,7 +74,8 @@ it.each([80, 300, 1800])('waits for content readiness and prints one continuous 
   loaded.get('did-finish-load')?.();
   expect(print).not.toHaveBeenCalled();
   await listeners.get('print-ready-11')!(height);
-  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', undefined, undefined, undefined, false, true));
+  const pageHeightMicrons = Math.max(40000, Math.ceil(height * 25.4 / 96 + 3) * 1000);
+  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, pageHeightMicrons, undefined, false, true));
 });
 
 it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without feeding blank paper', async height => {
@@ -285,15 +286,12 @@ it('formats scrap and weight items with exactly 3 digits after the dot (e.g. 1.0
   });
 });
 
-it('does not embed a fixed page size in @page — the driver controls form height', async () => {
+it('sets explicit @page dimensions so preferCSSPageSize prints top-aligned without vertical centering', async () => {
   const physical = await buildReceiptHtml('Bill', 80, 'monospace', 0);
-  // @page must have margin:0 but no explicit size (driver decides form height)
   expect(physical).toContain('@page');
   expect(physical).toContain('margin: 0 !important');
-  expect(physical).not.toMatch(/size:\s*\d+mm/);
-  // No runtime JS page-style injection either
-  expect(physical).not.toContain('document.head.appendChild(pageStyle)');
-  // width is set on html/body via CSS
+  expect(physical).toContain('size: 80mm auto');
+  expect(physical).toContain('document.head.appendChild(pageStyle)');
   expect(physical).toContain('width: 80mm');
 });
 it('clamps the calibration offset inside the page and keeps body width consistent', async () => {

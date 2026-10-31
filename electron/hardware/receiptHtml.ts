@@ -243,6 +243,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 <meta charset="utf-8">
 <style>
   @page {
+    size: ${widthMm}mm auto;
     margin: 0 !important;
   }
   * { box-sizing: border-box; }
@@ -301,6 +302,10 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
       }
       if (scale < 1) document.body.style.fontSize = (parseFloat(getComputedStyle(document.body).fontSize) * scale * 0.99) + 'px';
       const height = document.body.scrollHeight;
+      const heightMm = Math.ceil(height * 25.4 / 96 + 3);
+      const pageStyle = document.createElement('style');
+      pageStyle.textContent = '@page { size: ' + ${widthMm} + 'mm ' + heightMm + 'mm !important; margin: 0 !important; } html, body { height: ' + heightMm + 'mm !important; }';
+      document.head.appendChild(pageStyle);
       if (window.electronAPI?.printReady) {
         window.electronAPI.printReady(height);
       }

@@ -626,11 +626,12 @@ function executePrintWithFallback(
       return reject(new Error('Print window was destroyed before printing could start'));
     }
 
-    const primaryOptions: Electron.WebContentsPrintOptions = {
+    const primaryOptions: Electron.WebContentsPrintOptions & { preferCSSPageSize?: boolean } = {
       silent: true,
       margins: { marginType: 'none' },
       landscape,
       printBackground: true,
+      preferCSSPageSize: true,
     };
 
     if (deviceName) {
@@ -736,10 +737,10 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
           throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
         }
-        // Thermal receipts print starting at the top (y=0) using the driver roll form without passing a custom pageSize.
-        // Passing a custom pageSize causes Windows GDI to vertically center the receipt inside the driver form (e.g. 297mm),
-        // which introduced 40-60mm of unwanted leading blank space before the bill.
-        await executePrintWithFallback(printWindow, resolved.deviceName, undefined, undefined, undefined, false, true);
+        // Continuous thermal receipt: preferCSSPageSize and exact height prevent Chromium and
+        // Windows GDI from vertically centering the receipt inside a default 210mm/297mm form.
+        const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
+        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
