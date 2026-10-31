@@ -223,7 +223,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   }
 
   const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(0, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
-  const innerWidthMm = Math.max(30, (widthMm - offset) - (isBillStyle ? 9 : 6));
+  const innerWidthMm = Math.max(30, (widthMm - offset) - (isBillStyle ? 7 : 4));
   const innerWidthPx = innerWidthMm * (96 / 25.4);
   const targetChars = Math.max(maxContentChars, widthMm >= 75 ? 40 : 30);
   const maxFontPx = Math.floor((innerWidthPx / (targetChars * 0.61)) * 10) / 10;
@@ -259,7 +259,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     print-color-adjust: exact;
   }
   body {
-    padding: 2mm 3mm;
+    padding: 0 5mm 0 1mm;
     margin: 0;
     position: relative;
     left: ${offset}mm;

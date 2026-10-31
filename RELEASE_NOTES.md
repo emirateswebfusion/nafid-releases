@@ -1,3 +1,13 @@
+# Nafid POS v2.2.9
+
+Thermal receipt layout refinement:
+- Fixed right border not visible on 80mm rolls (right border was at 77mm, beyond the typical 72–76mm thermal printable area; now at 75mm).
+- Reduced left margin gap (body left padding reduced from 3mm to 1mm).
+- Removed excess top whitespace (body top padding reduced from 2mm to 0).
+- Re-calibrated font-size inner width calculation to match the new padding geometry.
+
+All 35 thermal print tests pass.
+
 # Nafid POS v2.2.8
 
 Thermal receipt column clipping fix:
