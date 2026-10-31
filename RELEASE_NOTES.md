@@ -1,3 +1,11 @@
+# Nafid POS v2.2.11
+
+Thermal receipt horizontal centering & zero-top margin fix:
+- Reduced left margin gap: shifted the receipt container 5mm to the left on 80mm rolls to compensate for the printer's hardware margin, achieving perfectly centered ~7mm margins on both left and right sides of the paper.
+- Removed blank top space: enforced `height: 100% !important; min-height: 100% !important; top: 0 !important;` during print so Chromium aligns receipts flush to the top of the form instead of vertically centering short bills.
+
+All 35 thermal print tests pass.
+
 # Nafid POS v2.2.10
 
 Thermal receipt alignment & zero-margin top feed fix:

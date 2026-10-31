@@ -231,9 +231,10 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     ? (maxContentChars > 34 ? `${Math.min(8.0, maxFontPx)}px` : `${Math.min(9.5, maxFontPx)}px`)
     : `${Math.min(10.0, maxFontPx)}px`;
 
+  const leftShift = widthMm >= 75 ? '-5mm' : '0';
   const contentBody = isBillStyle
-    ? `<div style="border:2px solid black;padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
-    : rowsHtml;
+    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:${leftShift};padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
+    : `<div id="receipt-root" style="margin-top:0 !important;margin-left:${leftShift};">${rowsHtml}</div>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -270,7 +271,8 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   pre, img, svg { max-width: 100%; }
   pre, img, svg, hr { break-inside: avoid; page-break-inside: avoid; }
   @media print {
-    html, body { height: auto !important; overflow: visible !important; }
+    html, body { height: 100% !important; min-height: 100% !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; top: 0 !important; }
+    body { padding: 0 10mm 0 0 !important; }
     div, pre { overflow: visible !important; }
   }
 </style>
