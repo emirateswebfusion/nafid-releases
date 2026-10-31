@@ -1,3 +1,13 @@
+# Nafid POS v2.2.10
+
+Thermal receipt alignment & zero-margin top feed fix:
+- Fixed excessive blank space at top of thermal receipts by setting `@page { size: auto; margin: 0 !important; }`, preventing Chromium from vertically centering short receipts on the driver's default form.
+- Fixed right border cutoff by sizing content within 70mm usable print head area (padding: `0 10mm 0 0` on 80mm roll).
+- Eliminated extra left gap by aligning content flush with the printer's physical hardware margin (left padding: 0).
+- Calibrated font size to 10.0px Consolas to guarantee 42 columns fit cleanly with visible borders on both sides.
+
+All 35 thermal print tests pass.
+
 # Nafid POS v2.2.9
 
 Thermal receipt layout refinement:

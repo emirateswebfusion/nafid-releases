@@ -223,13 +223,13 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   }
 
   const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(0, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
-  const innerWidthMm = Math.max(30, (widthMm - offset) - (isBillStyle ? 7 : 4));
+  const innerWidthMm = Math.max(30, (widthMm - offset) - (isBillStyle ? 10 : 4));
   const innerWidthPx = innerWidthMm * (96 / 25.4);
   const targetChars = Math.max(maxContentChars, widthMm >= 75 ? 40 : 30);
   const maxFontPx = Math.floor((innerWidthPx / (targetChars * 0.61)) * 10) / 10;
   const fontSize = widthMm <= 58
     ? (maxContentChars > 34 ? `${Math.min(8.0, maxFontPx)}px` : `${Math.min(9.5, maxFontPx)}px`)
-    : `${Math.min(10.5, maxFontPx)}px`;
+    : `${Math.min(10.0, maxFontPx)}px`;
 
   const contentBody = isBillStyle
     ? `<div style="border:2px solid black;padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
@@ -242,7 +242,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 <style>
   @page {
     size: ${widthMm}mm auto;
-    margin: 0;
+    margin: 0 !important;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -259,7 +259,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     print-color-adjust: exact;
   }
   body {
-    padding: 0 5mm 0 1mm;
+    padding: 0 10mm 0 0;
     margin: 0;
     position: relative;
     left: ${offset}mm;
@@ -301,7 +301,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
       const height = document.body.scrollHeight;
       const pageHeightMm = Math.max(40, Math.ceil(height * 25.4 / 96 + 3));
       const pageStyle = document.createElement('style');
-      pageStyle.textContent = '@page { size: ${widthMm}mm ' + pageHeightMm + 'mm; margin: 0; }';
+      pageStyle.textContent = '@page { size: ${widthMm}mm auto; margin: 0 !important; }';
       document.head.appendChild(pageStyle);
       if (window.electronAPI?.printReady) {
         window.electronAPI.printReady(height);
