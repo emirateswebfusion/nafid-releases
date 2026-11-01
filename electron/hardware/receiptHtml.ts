@@ -187,7 +187,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
           continue;
         }
 
-        rowsHtml += `<hr style="border:none;border-top:2px solid black;margin:0 -3px;padding:0;" />`;
+        rowsHtml += `<hr style="border:none;border-top:2px solid black;margin:2px -3px;padding:0;" />`;
         continue;
       }
 
@@ -206,7 +206,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
       }
     }
 
-    const lh = isBillStyle ? 1.08 : 1.25;
+    const lh = isBillStyle ? 1.22 : 1.28;
     rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:${isCentered ? 'break-word' : 'normal'};overflow:hidden;">${escapeHtml(finalValue)}</pre>`;
   }
 
@@ -229,10 +229,10 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   const maxFontPx = Math.floor((innerWidthPx / (targetChars * 0.61)) * 10) / 10;
   const fontSize = widthMm <= 58
     ? (maxContentChars > 34 ? `${Math.min(8.0, maxFontPx)}px` : `${Math.min(9.5, maxFontPx)}px`)
-    : `${Math.min(10.5, maxFontPx)}px`;
+    : `${Math.min(11.5, maxFontPx)}px`;
 
   const contentBody = isBillStyle
-    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:0;padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
+    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:0;padding:4px 3px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
     : `<div id="receipt-root" style="margin-top:0 !important;margin-left:0;">${rowsHtml}</div>`;
 
   return `<!DOCTYPE html>

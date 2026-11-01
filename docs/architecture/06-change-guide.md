@@ -42,7 +42,7 @@
 USB/system receipts use `electron/hardware/receiptHtml.ts` (the React print-route view is not used by this path).
 Keep page padding at zero and apply the 2 mm vertical / 3 mm horizontal body padding once.
 Physical USB jobs pass `systemPrinter: true` to `buildReceiptHtml`. CSS supplies zero page margins and no paper size;
-native printing also omits custom `pageSize` and uses the configured thermal driver's roll form at 100% scale.
+native printing also omits custom `pageSize` and uses the configured thermal driver's roll form at 100% scale (`usePrinterDefaultPageSize: true`). Do not submit measured custom lengths or dynamic `pageSize` objects to thermal drivers: Windows GDI drivers reject arbitrary custom heights, causing driver fallback that adds vertical blank margins (~40 mm top gap), clips outer left/right table borders, and halts/truncates printing prematurely (e.g., stopping at ~200 mm / item 18). For continuous multi-item printing without mid-bill cuts, the driver's cutter action should be set to "Document Cut" (cut at end of document/job) rather than "Page Cut" (cut after every 200 mm page break).
 Do not submit measured custom lengths to thermal drivers: Epson APD can substitute its 80 x 297 mm form and feed
 the length difference before the bill (reproduced as 193 mm leading blank on a short v2.2.2 receipt).
 Keep the driver configured for the selected roll width and continuous/long receipt paper; do not change the user's
