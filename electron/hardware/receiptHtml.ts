@@ -232,8 +232,8 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     : `${Math.min(11.5, maxFontPx)}px`;
 
   const contentBody = isBillStyle
-    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:0;padding:4px 3px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
-    : `<div id="receipt-root" style="margin-top:0 !important;margin-left:0;">${rowsHtml}</div>`;
+    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:${widthMm >= 75 ? '-3.5mm' : '0'};padding:4px 3px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
+    : `<div id="receipt-root" style="margin-top:0 !important;margin-left:${widthMm >= 75 ? '-3.5mm' : '0'};">${rowsHtml}</div>`;
 
   return `<!DOCTYPE html>
 <html>
