@@ -1,3 +1,13 @@
+# Nafid POS v2.2.23
+
+## What's New
+- **UAE Store Trial Onboarding**: Self-service registration flow with 14-day cloud trial provisioning, valid UAE TRN verification, and store profile initialization.
+- **GST Phase 2A & VAT 201 Filing**: Statutory tax calculation engines, Form VAT 201 return preparation, FTA Audit File (FAF) generation, and compliance filing records.
+- **Stock Operation Stream**: Robust LAN sync streams, monotonic stock timestamps, and vector clock idempotency to prevent rollbacks.
+- **Thermal Receipt Typography**: High-density bold receipt typography with 80mm roll hardware margin centering and clean divider spacing.
+
+**Download:** [Nafid-Setup-2.2.23.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.23/Nafid-Setup-2.2.23.exe)
+
 # Nafid POS v2.2.11
 
 Thermal receipt horizontal centering & zero-top margin fix:
