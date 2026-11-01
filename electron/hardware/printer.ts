@@ -745,7 +745,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         // One continuous receipt flush to the top edge: usePrinterDefaultPageSize queries the driver's
         // native roll-paper form without injecting vertical centering margins.
         const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
-        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true, false);
+        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
