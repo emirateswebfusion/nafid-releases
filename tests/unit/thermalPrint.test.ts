@@ -21,13 +21,13 @@ describe('thermal paper layout', () => {
     expect(style.padding).toBe('0px');
     const body = dom.window.getComputedStyle(dom.window.document.body);
     expect(body.width).toBe(`${width}mm`);
-    expect(body.padding).toBe('0px 10mm 0px 0px');
+    expect(body.padding).toBe('0px');
   });
   it('applies the calibration offset once', async () => {
     const dom = new JSDOM(await buildReceiptHtml('Item', 58, 'monospace', 2));
     expect(dom.window.getComputedStyle(dom.window.document.documentElement).marginLeft).toBe('0px');
     expect(dom.window.getComputedStyle(dom.window.document.body).left).toBe('2mm');
-    expect(dom.window.getComputedStyle(dom.window.document.body).padding).toBe('0px 10mm 0px 0px');
+    expect(dom.window.getComputedStyle(dom.window.document.body).padding).toBe('0px');
   });
 });
 

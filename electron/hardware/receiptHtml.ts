@@ -223,18 +223,17 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   }
 
   const offset = Number.isFinite(leftMarginOffsetMm) ? Math.max(0, Math.min(leftMarginOffsetMm, widthMm / 4)) : 0;
-  const innerWidthMm = Math.max(30, (widthMm - offset) - (isBillStyle ? 10 : 4));
+  const innerWidthMm = Math.max(30, (widthMm - offset) - (isBillStyle ? 4 : 2));
   const innerWidthPx = innerWidthMm * (96 / 25.4);
   const targetChars = Math.max(maxContentChars, widthMm >= 75 ? 40 : 30);
   const maxFontPx = Math.floor((innerWidthPx / (targetChars * 0.61)) * 10) / 10;
   const fontSize = widthMm <= 58
     ? (maxContentChars > 34 ? `${Math.min(8.0, maxFontPx)}px` : `${Math.min(9.5, maxFontPx)}px`)
-    : `${Math.min(10.0, maxFontPx)}px`;
+    : `${Math.min(10.5, maxFontPx)}px`;
 
-  const leftShift = widthMm >= 75 ? '-5mm' : '0';
   const contentBody = isBillStyle
-    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:${leftShift};padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
-    : `<div id="receipt-root" style="margin-top:0 !important;margin-left:${leftShift};">${rowsHtml}</div>`;
+    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:0;padding:3px 2px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
+    : `<div id="receipt-root" style="margin-top:0 !important;margin-left:0;">${rowsHtml}</div>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -260,7 +259,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     print-color-adjust: exact;
   }
   body {
-    padding: 0 10mm 0 0;
+    padding: 0;
     margin: 0;
     position: relative;
     left: ${offset}mm;
@@ -272,7 +271,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   pre, img, svg, hr { break-inside: avoid; page-break-inside: avoid; }
   @media print {
     html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; top: 0 !important; }
-    body { padding: 0 10mm 0 0 !important; margin: 0 !important; }
+    body { padding: 0 !important; margin: 0 !important; }
     div, pre { overflow: visible !important; }
   }
 </style>
