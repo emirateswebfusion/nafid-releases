@@ -48,6 +48,49 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
   testingNetwork, setTestingNetwork,
   setMessage,
 }) => {
+  const RESYNC_CATEGORIES = [
+    { id: 'products', label: 'Products & Barcodes', desc: 'Products, Barcodes, Pricing & Combos' },
+    { id: 'invoices', label: 'Invoices & Sales', desc: 'Invoices, Items, Returns & Quotes' },
+    { id: 'parties', label: 'Customers & Parties', desc: 'Customers, Suppliers & Ledgers' },
+    { id: 'purchases', label: 'Purchases & Inward Stock', desc: 'Purchase Bills, Inward Stock & Items' },
+    { id: 'cash', label: 'Cash & Drawer', desc: 'Cash Drawer, Transactions & Accounts' },
+  ] as const;
+
+  const [selectedResyncCategories, setSelectedResyncCategories] = React.useState<string[]>(['products']);
+  const [isResyncing, setIsResyncing] = React.useState(false);
+
+  const toggleResyncCategory = (id: string) => {
+    setSelectedResyncCategories((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllResync = () => {
+    if (selectedResyncCategories.length === RESYNC_CATEGORIES.length) {
+      setSelectedResyncCategories([]);
+    } else {
+      setSelectedResyncCategories(RESYNC_CATEGORIES.map((c) => c.id));
+    }
+  };
+
+  const handleForceResyncEntities = async () => {
+    if (!hasBridge('forceResyncEntities') || selectedResyncCategories.length === 0) return;
+    setIsResyncing(true);
+    setMessage({ type: 'success', text: `Starting full re-sync for ${selectedResyncCategories.length} selected category(s)...` });
+    try {
+      const res = await syncApi.forceResyncEntities(selectedResyncCategories);
+      if (res && (res as { success?: boolean; error?: string }).success === false) {
+        setMessage({ type: 'error', text: `Re-sync error: ${(res as { error?: string }).error || 'Failed'}` });
+      } else {
+        setMessage({ type: 'success', text: 'Selective re-sync completed! Local pending data was pushed and selected categories were refreshed from cloud.' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: `Re-sync error: ${(err as Error).message}` });
+    } finally {
+      setIsResyncing(false);
+    }
+  };
+
   const handleManualQueueDrain = async () => {
     if (!hasBridge('drainPendingCloudQueue')) return;
     setDrainingQueue(true);
@@ -476,6 +519,75 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
                   <RefreshCw className={clsx("w-3.5 h-3.5", testingNetwork && "animate-spin")} />
                   <span>{testingNetwork ? 'Testing Connection...' : 'Test Connection Status'}</span>
                 </button>
+              </div>
+
+              {/* Selective Cloud Re-sync */}
+              <div className="p-4 bg-muted/20 border border-border/80 rounded-2xl mt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground">Selective Cloud Re-sync</h4>
+                    <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                      Select data categories to force re-pull from the cloud. Local changes are pushed first so nothing is lost.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllResync}
+                    className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                  >
+                    {selectedResyncCategories.length === RESYNC_CATEGORIES.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {RESYNC_CATEGORIES.map((cat) => {
+                    const checked = selectedResyncCategories.includes(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => toggleResyncCategory(cat.id)}
+                        className={clsx(
+                          'p-3 rounded-xl border text-left transition-all cursor-pointer relative',
+                          checked
+                            ? 'border-primary/60 bg-primary/10 text-foreground shadow-xs'
+                            : 'border-border bg-background/60 hover:border-primary/30 text-muted-foreground'
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {}}
+                            className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-0 cursor-pointer pointer-events-none"
+                          />
+                          <span className={clsx("text-xs font-bold block truncate", checked ? "text-primary" : "text-foreground")}>
+                            {cat.label}
+                          </span>
+                        </div>
+                        <span className="text-[9.5px] opacity-75 leading-tight block line-clamp-2">
+                          {cat.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleForceResyncEntities}
+                    disabled={isResyncing || selectedResyncCategories.length === 0}
+                    className="flex items-center gap-2 text-xs font-bold px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+                  >
+                    <RefreshCw className={clsx("w-3.5 h-3.5", isResyncing && "animate-spin")} />
+                    <span>
+                      {isResyncing
+                        ? 'Re-syncing...'
+                        : `Re-sync Selected (${selectedResyncCategories.length})`}
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

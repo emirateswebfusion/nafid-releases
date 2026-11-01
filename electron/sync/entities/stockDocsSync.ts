@@ -179,7 +179,7 @@ export async function syncPurchaseBills(token: string, tenantId: string) {
     // Enrich with items
     const enriched = batch.map((bill: Record<string, unknown>) => {
       const items = stockDocsSyncSql.selectPurchaseBillItems(db).all(bill.purchase_bill_id, tenantId);
-      return { ...bill, items };
+      return { ...bill, stock_sync_mode: 'PRODUCT_SNAPSHOT', items };
     });
     const synced = await pushBatch(
       '/api/sync/purchase_bills',
@@ -302,7 +302,7 @@ export async function syncReturns(token: string, tenantId: string) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const enriched = batch.map((r: Record<string, unknown>) => {
       const items = stockDocsSyncSql.selectReturnItems(db).all(r.return_id, tenantId);
-      return { ...r, items };
+      return { ...r, stock_sync_mode: 'PRODUCT_SNAPSHOT', items };
     });
     const synced = await pushBatch(
       '/api/sync/returns',

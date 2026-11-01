@@ -149,7 +149,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
 
         {/* Add / Edit Form View */}
         {view === 'form' && (
-          <div className="max-w-5xl mx-auto space-y-6">
+          <div className="w-full space-y-6">
             {/* Step 1: Visual Channel Type Selector */}
             <PaymentTypeSelector
               pmState={pmState}

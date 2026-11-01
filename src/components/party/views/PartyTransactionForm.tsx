@@ -203,8 +203,8 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
               {/* Payment method */}
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Payment Method</label>
-                <div className="grid grid-cols-6 gap-2">
-                  {(['CASH', 'BANK_TRANSFER', 'UPI', 'CARD', 'CHEQUE', 'OTHER'] as const).map(m => (
+                <div className="grid grid-cols-7 gap-2">
+                  {(['CASH', 'BANK_TRANSFER', 'UPI', 'CARD', 'CHEQUE', 'OTHER', 'PURCHASE'] as const).map(m => (
                     <button
                       key={m}
                       type="button"
@@ -219,7 +219,7 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
                       )}
                     >
                       <PaymentMethodIcon method={m} />
-                      {m === 'CASH' ? 'Cash' : m === 'BANK_TRANSFER' ? 'Bank' : m === 'UPI' ? 'UPI' : m === 'CARD' ? 'Card' : m === 'CHEQUE' ? 'Cheque' : 'Other'}
+                      {m === 'CASH' ? 'Cash' : m === 'BANK_TRANSFER' ? 'Bank' : m === 'UPI' ? 'UPI' : m === 'CARD' ? 'Card' : m === 'CHEQUE' ? 'Cheque' : m === 'PURCHASE' ? 'Purchase' : 'Other'}
                     </button>
                   ))}
                 </div>

@@ -12,6 +12,7 @@ const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'grades',
   'pricing-tiers',
   'financial-report',
+  'gst-reports',
   'stock-print',
   'quotations',
   'purchase-bills',

@@ -1,6 +1,7 @@
 import { getStoreLocale } from '../localization/storeProfile';
 import { getCurrencyPrefix } from '../localization/storeProfile';
 import { formatPurchaseLedgerMessage } from './whatsappSharing';
+import { withNafidFooter } from './messageFooter';
 
 export interface WhatsAppBillDetails {
   shopName: string;
@@ -73,7 +74,7 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
 
   const footer = `\n\n🙏 *Thank you for your business!*\n📄 Detailed PDF invoice is attached below.`;
 
-  return `🧾 *INVOICE: ${inv}*\n🏢 *${shop}*\n📅 *Date:* ${date}${cust}${itemsText}${paymentText}${footer}`;
+  return withNafidFooter(`🧾 *INVOICE: ${inv}*\n🏢 *${shop}*\n📅 *Date:* ${date}${cust}${itemsText}${paymentText}${footer}`);
 }
 
 export interface WhatsAppStatementDetails {
@@ -94,7 +95,7 @@ export function formatWhatsAppStatementMessage(data: WhatsAppStatementDetails): 
   const bal = Math.abs(data.balance).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const typeText = data.balance > 0 ? 'Receivable (Due)' : data.balance < 0 ? 'Payable (Advance/Credit)' : 'Settled';
 
-  return `📑 *ACCOUNT STATEMENT*\n🏢 *${shop}*\n👤 *Party:* ${data.partyName} (${data.partyType || 'Customer'})\n\n💰 *Current Balance:* ${getCurrencyPrefix()}${bal} [${data.balanceLabel || typeText}]\n📊 *Total Entries:* ${data.entryCount}${data.lastDate ? `\n📅 *Last Activity:* ${data.lastDate}` : ''}\n\n🙏 *Thank you!*`;
+  return withNafidFooter(`📑 *ACCOUNT STATEMENT*\n🏢 *${shop}*\n👤 *Party:* ${data.partyName} (${data.partyType || 'Customer'})\n\n💰 *Current Balance:* ${getCurrencyPrefix()}${bal} [${data.balanceLabel || typeText}]\n📊 *Total Entries:* ${data.entryCount}${data.lastDate ? `\n📅 *Last Activity:* ${data.lastDate}` : ''}\n\n🙏 *Thank you!*`);
 }
 
 export interface WhatsAppStaffSalaryDetails {
@@ -111,7 +112,7 @@ export function formatWhatsAppStaffSalaryMessage(data: WhatsAppStaffSalaryDetail
   const bal = Number(data.currentBalance || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const sal = data.monthlySalary ? Number(data.monthlySalary).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 }) : null;
 
-  return `👤 *STAFF SALARY STATEMENT*\n🏢 *${shop}*\n👔 *Employee:* ${data.staffName} (${data.staffCode || 'Staff'})\n${sal ? `💼 *Monthly Salary:* ${getCurrencyPrefix()}${sal}\n` : ''}💰 *Pending Balance:* ${getCurrencyPrefix()}${bal}\n\n🙏 *Thank you!*`;
+  return withNafidFooter(`👤 *STAFF SALARY STATEMENT*\n🏢 *${shop}*\n👔 *Employee:* ${data.staffName} (${data.staffCode || 'Staff'})\n${sal ? `💼 *Monthly Salary:* ${getCurrencyPrefix()}${sal}\n` : ''}💰 *Pending Balance:* ${getCurrencyPrefix()}${bal}\n\n🙏 *Thank you!*`);
 }
 
 export interface WhatsAppLedgerTxDetails {
@@ -129,7 +130,8 @@ export interface WhatsAppLedgerTxDetails {
 export function formatWhatsAppLedgerTxMessage(data: WhatsAppLedgerTxDetails): string {
   if (/^purchase bill\b/i.test(data.description || '')) {
     const message = formatPurchaseLedgerMessage({ credit_amount: 0, debit_amount: data.amount, running_balance: data.newBalance });
-    return data.includeShopName && data.shopName?.trim() ? `${message}\n\n— *${data.shopName.trim()}*` : message;
+    const withShop = data.includeShopName && data.shopName?.trim() ? `${message}\n\n— *${data.shopName.trim()}*` : message;
+    return data.paymentMethod === 'CASH' ? withNafidFooter(withShop) : withShop;
   }
   const methodMap: Record<string, string> = {
     UPI: 'UPI',
@@ -165,5 +167,5 @@ export function formatWhatsAppLedgerTxMessage(data: WhatsAppLedgerTxDetails): st
     message += `\n\n— *${data.shopName.trim()}*`;
   }
 
-  return message;
+  return withNafidFooter(message);
 }

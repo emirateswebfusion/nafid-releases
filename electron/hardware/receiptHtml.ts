@@ -207,7 +207,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     }
 
     const lh = isBillStyle ? 1.22 : 1.28;
-    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:${isCentered ? 'break-word' : 'normal'};overflow:hidden;">${escapeHtml(finalValue)}</pre>`;
+    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:800;-webkit-text-stroke:0.25px #000;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:${isCentered ? 'break-word' : 'normal'};overflow:hidden;">${escapeHtml(finalValue)}</pre>`;
   }
 
   let maxContentChars = 0;
@@ -257,6 +257,8 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     overflow: visible !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
   }
   body {
     padding: 0;

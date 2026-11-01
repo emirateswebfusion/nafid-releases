@@ -1,6 +1,6 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { Fragment } from 'react';
-import { Search, X, Download, Plus, Receipt, FileText, User, Calendar, Printer, Pencil, Trash, Eye } from 'lucide-react';
+import { Search, X, Download, Plus, Receipt, FileText, User, Calendar, Printer, Pencil, Trash, Eye, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { DateRangeFilter } from '../../ui/DateRangeFilter';
 import { Skeleton } from '../../ui/Skeleton';
@@ -33,6 +33,8 @@ export interface PurchaseBillListProps {
   setShowAddForm: React.Dispatch<React.SetStateAction<boolean>>;
   showAddForm: boolean;
   viewingBill: PurchaseBill | null;
+  isResyncing?: boolean;
+  onResyncPurchases?: () => void;
 }
 
 /** Purchase bill list: filters (type, search), summary, and the bills table with view / edit / print / delete actions. */
@@ -40,7 +42,7 @@ export function PurchaseBillList({
   bills, billSummaries, dateFrom, dateTo, filteredBills, filterType, handleDelete, handleEditBill, handleExportCSV,
   handlePrintBill, handleViewBill, isExporting, loading, searchQuery, setDateFrom, setDateTo, setEditHasItems,
   setEditingBill, setEstHasItems, setFilterType, setGstHasItems, setSearchQuery, setShowAddForm, showAddForm,
-  viewingBill,
+  viewingBill, isResyncing, onResyncPurchases,
 }: PurchaseBillListProps) {
   return (
     <>
@@ -110,6 +112,17 @@ export function PurchaseBillList({
       </div>
 
       <div className="flex items-center gap-2">
+        {onResyncPurchases && (
+          <button
+            onClick={onResyncPurchases}
+            disabled={isResyncing}
+            title="Force refresh / download purchase bills from cloud"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-4 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={clsx("w-4 h-4", isResyncing && "animate-spin text-primary")} />
+            <span className="hidden sm:inline">{isResyncing ? 'Syncing...' : 'Re-sync'}</span>
+          </button>
+        )}
         {/* Export Button */}
         {!showAddForm && filteredBills.length > 0 && (
           <button

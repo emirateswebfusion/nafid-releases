@@ -1,5 +1,6 @@
 import { getStoreLocale } from '../../utils/localization/storeProfile';
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo, useState } from 'react';
+import { syncApi } from '../../data/sync';
 import { useAuthStore } from '../../store/authStore';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
@@ -89,6 +90,19 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   }, [existingCategories, formData.category]);
 
   const categoryGrades = grades.filter(g => (g.category || '').trim().toLowerCase() === (formData.category || '').trim().toLowerCase());
+
+  const [isSyncingCatalog, setIsSyncingCatalog] = useState(false);
+  const handleSyncCatalog = async () => {
+    setIsSyncingCatalog(true);
+    try {
+      await syncApi.forceResyncEntities(['products']);
+      await loadProducts(true);
+    } catch (e) {
+      console.error('Catalog resync failed:', e);
+    } finally {
+      setIsSyncingCatalog(false);
+    }
+  };
 
   const LIMIT = 50;
 
@@ -438,7 +452,7 @@ return (
       ═══════════════════════════════════════════════════ */}
       <InventoryHeader
         downloadCsv={downloadCsv} onClose={onClose} openAdd={openAdd} searchInputRef={searchInputRef}
-        tenantId={tenantId} inv={inv}
+        tenantId={tenantId} inv={inv} onSyncCatalog={handleSyncCatalog} isSyncingCatalog={isSyncingCatalog}
       />
 
       {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}

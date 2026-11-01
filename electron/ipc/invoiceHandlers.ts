@@ -5,6 +5,8 @@ import * as paymentSourcesService from '../services/paymentSourcesService.js';
 import * as returnsService from '../services/returnsService.js';
 import * as quotationsService from '../services/quotationsService.js';
 import * as warrantiesService from '../services/warrantiesService.js';
+import * as gstReportService from '../services/gstReportService.js';
+import * as vatReportService from '../services/vatReportService.js';
 
 export function registerInvoiceHandlers(): void {
   handle('db:checkout', invoicesService.checkout, { safe: true });
@@ -117,5 +119,15 @@ export function registerInvoiceHandlers(): void {
   handle('db:getWarranties', warrantiesService.getWarranties);
 
   handle('db:deleteWarranty', warrantiesService.deleteWarranty);
+
+  // ── GST Reports IPC ──────────────────────────────────────────────
+  handle('db:getGstReport', gstReportService.getGstReport);
+  handle('db:getLocalGstFilings', gstReportService.getLocalGstFilings);
+  handle('db:upsertLocalGstFiling', gstReportService.upsertLocalGstFiling);
+  handle('db:recordLocalManualAcknowledgement', gstReportService.recordLocalManualAcknowledgement);
+  handle('db:getVatReport', vatReportService.getVatReport);
+  handle('db:getLocalVatFilings', vatReportService.getLocalVatFilings);
+  handle('db:upsertLocalVatFiling', vatReportService.upsertLocalVatFiling);
+  handle('db:recordLocalVatManualAck', vatReportService.recordLocalVatManualAck);
 
 }

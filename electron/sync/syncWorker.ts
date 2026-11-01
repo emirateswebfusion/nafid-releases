@@ -6,8 +6,7 @@ import { cloudTokenUnusable, LAN_PLACEHOLDER_TOKEN } from './syncAuth.js';
 import { syncState } from './syncState.js';
 import { calculateEffectiveCloudAccess } from './cloudAccess.js';
 import { pullCashCategories, pullCashDrawer, pullCashTransactions, pullCashierAuditLog, pullPaymentSourceTransactions, pullPaymentSources, syncCashCategories, syncCashDrawer, syncCashTransactions, syncCashierAuditLog, syncPaymentSourceTransactions, syncPaymentSources } from './entities/cashSync.js';
-import { pushCustomers } from './entities/partiesSync.js';
-import { pullInvoices, pullQuotations, pullWarranties, syncInvoices, syncQuotations, syncWarranties } from './entities/salesDocsSync.js';
+import { pullQuotations, pullWarranties, syncQuotations, syncWarranties } from './entities/salesDocsSync.js';
 import { getAuthConfig, getSyncIntervalMs } from './syncConfig.js';
 import { pullLightweightPendingBills, runSyncCycle } from './syncCycle.js';
 import { getTotalPendingRecords, notifyRenderer } from './syncProgress.js';
@@ -260,31 +259,12 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   syncState.lastUrgentInvoiceSyncTime = now;
   const config = getAuthConfig();
   if (!config) return;
-  const { jwt_token, tenant_id } = config;
-  if (outboxEnabled(tenant_id)) { await runSyncCycle(); return; }
-  const endpoints = getSyncEndpoints();
-  if (endpoints.primaryRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) return;
 
-  const conn = await checkSyncConnectivity();
-  if (!conn.ok) {
-    return;
+  if (syncState.syncPromise) {
+    await syncState.syncPromise;
   }
 
-  syncState.urgentInvoiceSyncInProgress = true;
-  try {
-    console.log('[SyncWorker] Express priority invoice push/pull running...');
-    await pushCustomers(jwt_token, tenant_id);
-    await syncInvoices(jwt_token, tenant_id);
-    const updated = await pullInvoices(jwt_token, tenant_id);
-    notifyRenderer();
-    if (updated) {
-      console.log('[SyncWorker] Express priority invoice sync completed: renderer notified.');
-    }
-  } catch (err) {
-    console.error('[SyncWorker] Express invoice sync error:', (err as Error).message);
-  } finally {
-    syncState.urgentInvoiceSyncInProgress = false;
-  }
+  await runSyncCycle();
 }
 
 export async function triggerUrgentQuotationSync(): Promise<void> {
@@ -429,6 +409,36 @@ export async function forceResyncInvoices(sender?: WebContents) {
     );
   }
   return runInitialSync(sender);
+}
+
+export async function forceResyncCatalog(sender?: WebContents) {
+  return forceResyncEntities(['products'], sender);
+}
+
+export async function forceResyncEntities(categories: string[], sender?: WebContents) {
+  console.log('[SyncWorker] Forcing resync for categories:', categories);
+  const config = getAuthConfig();
+  if (config?.tenant_id && Array.isArray(categories)) {
+    const db = getDb();
+    const deleteKey = syncWorkerSql.deleteSyncMeta2(db);
+    const tenantId = config.tenant_id;
+    const keyMap: Record<string, string[]> = {
+      products: ['products', 'product_pricing', 'combo_offers', 'product_grades', 'pricing_tiers'],
+      invoices: ['invoices', 'returns', 'quotations', 'warranties'],
+      parties: ['parties', 'party_ledger', 'customers', 'loyalty_transactions'],
+      purchases: ['purchase_bills'],
+      cash: ['cash_drawer', 'cash_transactions', 'cash_categories', 'payment_sources', 'payment_source_transactions'],
+      settings: ['settings'],
+    };
+    for (const cat of categories) {
+      const tables = keyMap[cat] || [cat];
+      for (const table of tables) {
+        deleteKey.run(cursorKey(tenantId, table));
+      }
+    }
+  }
+  await runSyncCycle(sender);
+  return { success: true };
 }
 
 // Shared progress context for the parallel pull phase (set by runSyncCycle).

@@ -1,12 +1,7 @@
 import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import {
-  X, Trash2, User,
-  CheckCircle2, AlertCircle, Save,
-  Receipt, Tag, RefreshCw,
-  UserPlus,
-} from 'lucide-react';
+import { X, Trash2, User, CheckCircle2, AlertCircle, Save, Tag, RefreshCw, UserPlus } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { Modal } from '../ui/Modal';
@@ -24,6 +19,8 @@ import { usePurchaseBillSummaries } from './hooks/usePurchaseBillSummaries';
 import { SupplierCreateDialog } from './views/SupplierCreateDialog';
 import { PurchaseBillViewDialog } from './views/PurchaseBillViewDialog';
 import { PurchaseBillList } from './views/PurchaseBillList';
+import { PurchaseBillHeader } from './views/PurchaseBillHeader';
+import { syncApi } from '../../data/sync';
 import { PurchaseBillFormSection } from './PurchaseBillFormSection';
 
 export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
@@ -42,9 +39,28 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [loadingViewingItems, setLoadingViewingItems] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
+
+  const handleResyncPurchases = async () => {
+    if (isResyncing) return;
+    setIsResyncing(true);
+    try {
+      const res = await syncApi.forceResyncEntities(['purchases']);
+      if (res?.success) {
+        setStatusMessage({ text: 'Purchase bills synced from cloud', type: 'success' });
+        await loadBills();
+      } else {
+        setStatusMessage({ text: res?.error || 'Re-sync failed', type: 'error' });
+      }
+    } catch {
+      setStatusMessage({ text: 'Re-sync failed', type: 'error' });
+    } finally {
+      setIsResyncing(false);
+    }
+  };
   const [editingBill, setEditingBill] = useState<PurchaseBill | null>(null);
   const [editHasItems, setEditHasItems] = useState(false);
-  const handleEditItemsLoaded = useCallback(() => setEditHasItems(true), []);
+  const handleEditItemsLoaded = useCallback(() => setEditHasItems(true), [setEditHasItems]);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
@@ -198,7 +214,6 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadBills starts the purchase-list request after tenant or search changes.
     loadBills();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadBills is render-local; tenantId and searchQuery are the intended fetch triggers.
   }, [tenantId, searchQuery]);
@@ -437,35 +452,19 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   };
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
-      {/* ═══════════════════════════════════════════════════
-          HEADER
-      ═══════════════════════════════════════════════════ */}
-      <header className="shrink-0 z-10 border-b border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-              <Receipt className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 text-left">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-bold text-foreground truncate">
-                  {showAddForm ? (editingBill ? `Edit Purchase Bill - ${editingBill.bill_number}` : 'New Purchase Bill') : 'Purchase Bills'}
-                </h1>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              </div>
-              <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
-                {showAddForm ? 'Record a purchase entry' : `${bills.length} purchase bills`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <RedCrossButton
-              onClick={showAddForm ? () => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); } : onClose}
-              title="Close"
-            />
-          </div>
-        </div>
-      </header>
+      <PurchaseBillHeader
+        showAddForm={showAddForm}
+        editingBill={editingBill}
+        billsCount={bills.length}
+        onClose={onClose}
+        onCloseForm={() => {
+          setShowAddForm(false);
+          setEditingBill(null);
+          setEditHasItems(false);
+          setGstHasItems(false);
+          setEstHasItems(false);
+        }}
+      />
 
       {/* ─── FLOATING TOASTS ─── */}
       <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
@@ -497,6 +496,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             setEditingBill={setEditingBill} setEstHasItems={setEstHasItems} setFilterType={setFilterType}
             setGstHasItems={setGstHasItems} setSearchQuery={setSearchQuery} setShowAddForm={setShowAddForm}
             showAddForm={showAddForm} viewingBill={viewingBill}
+            isResyncing={isResyncing} onResyncPurchases={handleResyncPurchases}
           />
         </>
       )}

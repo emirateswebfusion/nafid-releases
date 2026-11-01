@@ -102,13 +102,12 @@ export function ensureSchemaColumns(db: Database.Database) {
         'current_points_balance', 'pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'last_purchase_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     returns: [
-        'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone', 'customer_address',
-        'subtotal', 'tax_total', 'grand_total', 'reason', 'return_date', 'sync_status', 'created_at', 'updated_at',
-        'refund_method', 'adjusted_invoice_number', 'adjusted_amount'
+        'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone', 'customer_address', 'subtotal', 'tax_total', 'grand_total', 'reason', 'return_date', 'sync_status', 'created_at', 'updated_at', 'refund_method', 'adjusted_invoice_number', 'adjusted_amount',
+        'credit_note_number', 'original_invoice_number', 'original_invoice_date', 'customer_gstin', 'supply_type', 'pos_state_code', 'cgst_total', 'sgst_total', 'igst_total', 'note_type', 'reason_code'
     ],
     return_items: [
-        'return_item_id', 'return_id', 'tenant_id', 'invoice_item_id', 'product_id', 'name', 'quantity',
-        'unit_price', 'tax_amount', 'total', 'sync_status', 'created_at'
+        'return_item_id', 'return_id', 'tenant_id', 'invoice_item_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'sync_status', 'created_at',
+        'taxable_amount', 'cgst_rate', 'sgst_rate', 'igst_rate', 'cgst_amount', 'sgst_amount', 'igst_amount', 'hsn_sac_code'
     ],
     loyalty_transactions: [
         'transaction_id', 'tenant_id', 'customer_id', 'invoice_id', 'transaction_type', 'points',

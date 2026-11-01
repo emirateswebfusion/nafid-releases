@@ -26,6 +26,7 @@ import { isAdminRole, hasPermission } from '../../utils/security/permissions';
 import { hasBridge, isDesktopRuntime } from '../../data/client';
 import { bridgeEvents } from '../../data/events';
 import { invoicesApi } from '../../data/invoices';
+import { syncApi } from '../../data/sync';
 import { paymentSourcesApi } from '../../data/paymentSources';
 import { formatGroupDate, groupByDay } from './salesHistoryFormat';
 import type { InvoiceDetailsCacheEntry, SalesInvoiceItemRow, SalesInvoiceRow, UpiSourceOption } from './salesTypes';
@@ -488,6 +489,20 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     accountingView, filterDate, filterDateEnd, invoiceTypeFilter, paymentFilter, search, setExportStatusMsg,
     setIsExporting, taxFilterActive, taxPercentageFilter,
   });
+
+  const [isResyncingBills, setIsResyncingBills] = useState(false);
+  const handleResyncBills = async () => {
+    setIsResyncingBills(true);
+    try {
+      await syncApi.forceResyncEntities(['invoices']);
+      await loadInvoices(true);
+      showToast('Bills re-synced from cloud!', 'success');
+    } catch (e) {
+      showToast('Re-sync failed: ' + (e as Error).message, 'error');
+    } finally {
+      setIsResyncingBills(false);
+    }
+  };
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
 
@@ -539,6 +554,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         isExporting={isExporting} isStaff={isStaff} maskingConfig={maskingConfig} permissions={permissions} role={role}
         setFilterDate={setFilterDate} setFilterDateEnd={setFilterDateEnd} setViewMode={setViewMode}
         shouldMask={shouldMask} staffDateScope={staffDateScope} viewMode={viewMode}
+        onResyncBills={handleResyncBills} isResyncingBills={isResyncingBills}
       />
 
       {/* ─── BODY ─── */}

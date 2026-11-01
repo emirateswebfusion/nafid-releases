@@ -88,11 +88,13 @@ export const insertInvoiceItems = (db: Db) => db.prepare(`
     INSERT INTO invoice_items (
       item_id, invoice_id, tenant_id, product_id,
       name, quantity, unit_price, tax_amount, total, qty_from_paper_stock, pieces_sold, billing_type, uom,
-      cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, hsn_sac_code, supply_type
+      cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, hsn_sac_code, supply_type,
+      combo_id, combo_details, is_service_item
     ) VALUES (
       @item_id, @invoice_id, @tenant_id, @product_id,
       @name, @quantity, @unit_price, @tax_amount, @total, @qty_from_paper_stock, @pieces_sold, @billing_type, @uom,
-      @cgst_rate, @sgst_rate, @igst_rate, @cgst_amount, @sgst_amount, @igst_amount, @hsn_sac_code, @supply_type
+      @cgst_rate, @sgst_rate, @igst_rate, @cgst_amount, @sgst_amount, @igst_amount, @hsn_sac_code, @supply_type,
+      @combo_id, @combo_details, @is_service_item
     )
     ON CONFLICT(item_id) DO UPDATE SET
       name = excluded.name,
@@ -111,7 +113,10 @@ export const insertInvoiceItems = (db: Db) => db.prepare(`
       sgst_amount = excluded.sgst_amount,
       igst_amount = excluded.igst_amount,
       hsn_sac_code = excluded.hsn_sac_code,
-      supply_type = excluded.supply_type
+      supply_type = excluded.supply_type,
+      combo_id = COALESCE(excluded.combo_id, invoice_items.combo_id),
+      combo_details = COALESCE(excluded.combo_details, invoice_items.combo_details),
+      is_service_item = COALESCE(excluded.is_service_item, invoice_items.is_service_item)
   `);
 export const deleteInvoiceItems = (db: Db) => db.prepare('DELETE FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?');
 export const selectInvoices2 = (db: Db) => db.prepare('SELECT sync_status, updated_at, is_deleted FROM invoices WHERE invoice_id = ? AND tenant_id = ?');

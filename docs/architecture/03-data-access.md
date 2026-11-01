@@ -43,6 +43,7 @@ const inv = await scrapApi.getScrapInvoiceByNumber({ tenant_id, scrap_invoice_nu
 | `settings.ts` | key/value settings + typed helpers (`getSetting`, `getStringSetting`, `setSetting`, …) |
 | `products.ts`, `grades.ts`, `pricingTiers.ts`, `combos.ts` | catalog, stock, print queue, grades, tier prices, combos |
 | `invoices.ts` | checkout, invoices, numbering, held bills, BOS→GST conversion |
+| `gst.ts`, `vat.ts` | statutory tax returns (GSTR-1, GSTR-3B, Form VAT 201), FTA Audit File (FAF), local filing lifecycles |
 | `quotations.ts`, `returns.ts`, `warranties.ts` | documents |
 | `scrap.ts`, `purchases.ts` | scrap buy-back and purchase bills |
 | `parties.ts`, `customers.ts` | party ledger accounts, customers, credit status, loyalty |

@@ -1,8 +1,10 @@
+import { mergeCountersSql, counterDeltaSql } from '../stockCounters.js';
 import type { Db } from '../types.js';
 
 /** SQL used by electron/sync/lanUpsert.ts. Each factory prepares its statement on the given connection. */
 
 export const selectInvoices = (db: Db) => db.prepare(`SELECT invoice_id FROM invoices WHERE invoice_id = ?`);
+export const selectInvoiceStockState = (db: Db) => db.prepare('SELECT invoice_id, is_deleted, stock_applied FROM invoices WHERE invoice_id = ?');
 export const selectReturns = (db: Db) => db.prepare(`SELECT return_id FROM returns WHERE return_id = ?`);
 export const selectPurchaseBills = (db: Db) => db.prepare(`SELECT purchase_bill_id FROM purchase_bills WHERE purchase_bill_id = ?`);
 export const selectCashDrawer = (db: Db) => db.prepare(`
@@ -60,7 +62,7 @@ export const updateCashDrawer2 = (db: Db) => db.prepare(`
                   UPDATE cash_drawer SET cash_sales = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
                   WHERE drawer_id = ?
                 `);
-export const updateProducts2 = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`);
+export const updateProducts2 = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)`);
 export const updateScrapTransactions = (db: Db) => db.prepare(`UPDATE scrap_transactions SET payment_status = 'SETTLED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_invoice_number = ?`);
 export const deleteQuotationItems = (db: Db) => db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?');
 
@@ -69,6 +71,32 @@ export function upsertRows(db: Db, tableName: string, allCols: string[], pkCols:
   let sql = `INSERT INTO ${tableName} (${allCols.join(', ')}) VALUES (${allCols.map(c => `@${c}`).join(', ')})`;
   if (tableName === 'product_pricing') {
     sql += ` ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
+  } else if (tableName === 'products' && pkCols.length > 0) {
+    const hasCounters = allCols.includes('stock_counters');
+    const updateClauses = updateCols.map(c => {
+      if (c === 'current_stock') {
+        if (hasCounters) {
+          return `current_stock = CASE WHEN EXCLUDED.stock_counters IS NOT NULL THEN products.current_stock + ${counterDeltaSql('products.stock_counters', 'EXCLUDED.stock_counters')} WHEN products.stock_counters IS NULL AND (products.updated_at IS NULL OR EXCLUDED.updated_at > products.updated_at) THEN EXCLUDED.current_stock ELSE products.current_stock END`;
+        }
+        return `current_stock = CASE WHEN products.updated_at IS NULL OR EXCLUDED.updated_at > products.updated_at THEN EXCLUDED.current_stock ELSE products.current_stock END`;
+      }
+      if (c === 'stock_counters' && hasCounters) {
+        return `stock_counters = CASE WHEN products.stock_counters IS NULL AND EXCLUDED.stock_counters IS NULL THEN NULL ELSE ${mergeCountersSql('products.stock_counters', 'EXCLUDED.stock_counters')} END`;
+      }
+      if (c === 'updated_at') {
+        return `updated_at = CASE WHEN products.updated_at IS NULL OR EXCLUDED.updated_at > products.updated_at THEN EXCLUDED.updated_at ELSE products.updated_at END`;
+      }
+      return `${c} = EXCLUDED.${c}`;
+    });
+    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateClauses.join(', ')}`;
+  } else if (tableName === 'returns' && pkCols.length > 0) {
+    const updateClauses = updateCols.map(c => {
+      if (c === 'is_deleted') {
+        return `is_deleted = CASE WHEN returns.is_deleted = 1 THEN 1 ELSE EXCLUDED.is_deleted END`;
+      }
+      return `${c} = EXCLUDED.${c}`;
+    });
+    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateClauses.join(', ')}`;
   } else if (pkCols.length > 0 && updateCols.length > 0) {
     sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
   } else if (pkCols.length > 0) {

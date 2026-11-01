@@ -26,4 +26,7 @@ export const authApi = bindBridge({
   clearToken: 'authClearToken',
   saveLocalUser: 'authSaveLocalUser',
   loginOffline: 'authLoginOffline',
+  getTrialAccess: 'authGetTrialAccess',
+  refreshTrialSession: 'authRefreshTrialSession',
+  blockTrialAccess: 'authBlockTrialAccess',
 });

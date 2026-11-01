@@ -24,12 +24,14 @@ export interface SalesHistoryHeaderProps {
   shouldMask: boolean;
   staffDateScope: { startDate: string | null; endDate: string | null; isLocked: boolean; scopeLabel: string; };
   viewMode: "bills" | "analytics";
+  onResyncBills?: () => Promise<void>;
+  isResyncingBills?: boolean;
 }
 
 /** Sales History header: title, Bills / Analytics switch, date filter, Recycle Bin, CSV export and close. */
 export function SalesHistoryHeader({
   onClose, isRestricted, filterDate, filterDateEnd, handleExportCSV, isExporting, isStaff, maskingConfig, permissions, role, setFilterDate,
-  setFilterDateEnd, setViewMode, shouldMask, staffDateScope, viewMode,
+  setFilterDateEnd, setViewMode, shouldMask, staffDateScope, viewMode, onResyncBills, isResyncingBills,
 }: SalesHistoryHeaderProps) {
   return (
     <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
@@ -112,6 +114,19 @@ export function SalesHistoryHeader({
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Recycle Bin</span>
+            </button>
+          )}
+
+          {onResyncBills && (
+            <button
+              type="button"
+              onClick={onResyncBills}
+              disabled={isResyncingBills}
+              title="Re-sync bills from cloud"
+              className="h-8.5 px-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border flex items-center gap-1.5 bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/25 hover:bg-sky-500/20 active:scale-95 disabled:opacity-50 shrink-0 shadow-2xs hover:shadow-sky-500/10"
+            >
+              <RefreshCw className={clsx("w-3.5 h-3.5", isResyncingBills && "animate-spin text-sky-600 dark:text-sky-400")} />
+              <span>{isResyncingBills ? 'Syncing…' : 'Re-sync'}</span>
             </button>
           )}
 

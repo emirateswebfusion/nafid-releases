@@ -18,7 +18,7 @@ export const updateProductPricing3 = (db: Db) => db.prepare(`
     WHERE (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
   `);
 export const selectProducts = (db: Db) => db.prepare(`SELECT * FROM products WHERE sync_status = 'PENDING' AND tenant_id = ?`);
-export const updateProducts = (db: Db) => db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ? AND tenant_id = ?`);
+export const updateProducts = (db: Db) => db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ? AND tenant_id = ? AND updated_at IS ? AND current_stock IS ?`);
 export const insertProductGrades = (db: Db) => db.prepare(`
     INSERT INTO product_grades (
       grade_id, tenant_id, category, grade_name, rate, purchase_price, offer_price, is_deleted,

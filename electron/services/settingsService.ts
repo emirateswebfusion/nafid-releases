@@ -70,9 +70,25 @@ export function getAll({ tenant_id }: { tenant_id: string }) {
 }
 
 /** IPC `settings:get` */
-export function get({ tenant_id, key }: { tenant_id: string; key: string }) {
+export function get({ tenant_id, key, tenant_only }: { tenant_id: string; key: string; tenant_only?: boolean }) {
   try {
     const db = getDb();
+    if (tenant_only) {
+      const tid = tenant_id || 'global';
+      const row = settingsSql.findSettingsByKeyValue(db).get(tid, key) as SettingRow | null | undefined;
+      if (row && row.value !== undefined) {
+        if (key === 'shop_gstin') return row.value.trim().replace(/^"|"$/g, '');
+        try {
+          let parsed = JSON.parse(row.value);
+          if (typeof parsed === 'string') parsed = parsed.trim().replace(/^["']|["']$/g, '');
+          if (parsed && typeof parsed === 'object' && (parsed.error === 'Operation failed' || parsed.success === false)) return null;
+          return parsed;
+        } catch {
+          return String(row.value).trim().replace(/^["']|["']$/g, '');
+        }
+      }
+      return null;
+    }
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
 
     let row: SettingRow | null | undefined = null;

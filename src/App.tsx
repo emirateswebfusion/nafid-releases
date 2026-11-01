@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useLayoutEffect, useState, useRef } from 'react';
-import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, preloadBilling } from './components/app/lazyScreens';
+import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, preloadBilling } from './components/app/lazyScreens';
 import UpdateBanner from './components/app/UpdateBanner';
 import { PermissionGuard } from './components/app/PermissionGuard';
 import { LoginScreen } from './components/auth/LoginScreen';
@@ -24,6 +24,8 @@ import { SYNC_QUOTES } from './components/owner-dashboard/syncQuotes';
 function App() {
   const [showAiAssistant, setShowAiAssistant] = useState(false);
   const [showFinancialReport, setShowFinancialReport] = useState(false);
+  const [showGstReports, setShowGstReports] = useState(false);
+  const [showVatReports, setShowVatReports] = useState(false);
 
   const panic = useEmergencyPanicTrigger();
 
@@ -114,7 +116,7 @@ function App() {
   }, [isAuthenticated, loadFlags]);
 
   useScreenEvents({
-    enableScrapRef, featureFlagsRef, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager,
+    enableScrapRef, featureFlagsRef, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowGstReports, setShowVatReports, setShowInventoryManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager,
   });
 
   // Fetch the billing chunk in the background once signed in (screens are lazy, see lazyScreens.ts).
@@ -289,6 +291,14 @@ function App() {
       ) : showFinancialReport ? (
         <PermissionGuard permission="reports.financial" onBack={() => setShowFinancialReport(false)}>
           <FinancialReport onClose={() => setShowFinancialReport(false)} />
+        </PermissionGuard>
+      ) : showVatReports ? (
+        <PermissionGuard permission="reports.view" onBack={() => setShowVatReports(false)}>
+          <VatReportScreen onBack={() => setShowVatReports(false)} />
+        </PermissionGuard>
+      ) : showGstReports ? (
+        <PermissionGuard permission="reports.view" onBack={() => setShowGstReports(false)}>
+          <GstReportScreen onBack={() => setShowGstReports(false)} />
         </PermissionGuard>
       ) : showEcommercePortal ? (
         <PermissionGuard permission="products.view" onBack={() => setShowEcommercePortal(false)}>

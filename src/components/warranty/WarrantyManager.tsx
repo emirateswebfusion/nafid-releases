@@ -5,6 +5,7 @@ import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { useAuthStore } from '../../store/authStore';
 import { Plus, Search, Printer, Shield, ShieldCheck, Trash, Trash2, AlertCircle, RefreshCw, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import clsx from 'clsx';
 import { Skeleton } from '../ui/Skeleton';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { Select } from '../ui/Select';
@@ -13,6 +14,7 @@ import { RedCrossButton } from '../ui/RedCrossButton';
 import { FloatToast } from '../ui/FloatToast';
 import { isDesktopRuntime } from '../../data/client';
 import { warrantiesApi } from '../../data/warranties';
+import { syncApi } from '../../data/sync';
 import type * as Rows from '../../data/dbRows';
 
 type Warranty = Rows.WarrantiesRow;
@@ -26,6 +28,25 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
   const [showCreate, setShowCreate] = useState(false);
   const [selectedWarranty, setSelectedWarranty] = useState<Warranty | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [isResyncing, setIsResyncing] = useState(false);
+
+  const handleResyncWarranties = async () => {
+    if (isResyncing) return;
+    setIsResyncing(true);
+    try {
+      const res = await syncApi.forceResyncEntities(['invoices']);
+      if (res?.success) {
+        setStatusMessage({ text: 'Warranties synced from cloud', type: 'success' });
+        await loadWarranties();
+      } else {
+        setStatusMessage({ text: res?.error || 'Re-sync failed', type: 'error' });
+      }
+    } catch {
+      setStatusMessage({ text: 'Re-sync failed', type: 'error' });
+    } finally {
+      setIsResyncing(false);
+    }
+  };
 
   const [form, setForm] = useState({
     customer_name: '',
@@ -266,6 +287,15 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleResyncWarranties}
+                disabled={isResyncing}
+                title="Force refresh / download warranties from cloud"
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-input bg-background hover:bg-secondary text-foreground text-sm font-bold transition-all duration-200 active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                <RefreshCw className={clsx("w-3.5 h-3.5", isResyncing && "animate-spin text-primary")} />
+                <span className="hidden sm:inline">{isResyncing ? 'Syncing...' : 'Re-sync'}</span>
+              </button>
               <button onClick={() => setShowCreate(true)} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
                 <Plus className="w-4 h-4" /> New Warranty
               </button>

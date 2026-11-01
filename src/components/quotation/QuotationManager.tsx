@@ -1,5 +1,5 @@
 import { localizeTaxText } from '../../utils/localization/storeProfile';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { X, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
@@ -13,6 +13,7 @@ import { useQuotationExport } from './hooks/useQuotationExport';
 import { QuotationListView } from './views/QuotationListView';
 import { QuotationDetailView } from './views/QuotationDetailView';
 import { QuotationConfirmDialog } from './views/QuotationConfirmDialog';
+import { syncApi } from '../../data/sync';
 
 export function QuotationManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
@@ -24,6 +25,25 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   } = qm;
 
   const { loadQuotations } = useQuotationLoader({ qm, tenantId });
+  const [isResyncing, setIsResyncing] = useState(false);
+
+  const handleResyncQuotations = async () => {
+    if (isResyncing) return;
+    setIsResyncing(true);
+    try {
+      const res = await syncApi.forceResyncEntities(['invoices']);
+      if (res?.success) {
+        setStatusMessage({ text: 'Quotations synced from cloud', type: 'success' });
+        await loadQuotations();
+      } else {
+        setStatusMessage({ text: res?.error || 'Re-sync failed', type: 'error' });
+      }
+    } catch {
+      setStatusMessage({ text: 'Re-sync failed', type: 'error' });
+    } finally {
+      setIsResyncing(false);
+    }
+  };
 
   const {
     handleCreateNewQuotation, viewQuotation, handleEditQuotation, handleDeleteQuotation, handleConvertToInvoice,
@@ -129,6 +149,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             handleEditQuotation={handleEditQuotation}
             qm={qm}
             viewQuotation={viewQuotation}
+            isResyncing={isResyncing}
+            onResyncQuotations={handleResyncQuotations}
           />
         )}
 

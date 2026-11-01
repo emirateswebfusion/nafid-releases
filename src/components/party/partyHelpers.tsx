@@ -8,6 +8,7 @@ export const PaymentMethodIcon = ({ method }: { method: string }) => {
     UPI: <Smartphone className="w-3.5 h-3.5" />,
     CARD: <CreditCard className="w-3.5 h-3.5" />,
     CHEQUE: <Receipt className="w-3.5 h-3.5" />,
+    PURCHASE: <Receipt className="w-3.5 h-3.5" />,
     OTHER: <MoreHorizontal className="w-3.5 h-3.5" />,
   };
   return map[method] ?? <MoreHorizontal className="w-3.5 h-3.5" />;

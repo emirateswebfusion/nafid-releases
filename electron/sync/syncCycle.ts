@@ -289,6 +289,18 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         }
       }
 
+      // One-time auto-heal: reset products pull cursor so all terminals re-sync any missing products from cloud
+      const productHealingKey = `product_cursor_heal_v1:${tenant_id}`;
+      if (!getMeta(productHealingKey)) {
+        try {
+          syncCycleSql.deleteSyncMeta2(db).run(`pull_cursor:${tenant_id}:products`);
+          setMeta(productHealingKey, 'true');
+          console.log('[SyncWorker] One-time reset of products cursor applied to re-sync all products from cloud.');
+        } catch (e) {
+          console.error('[SyncWorker] Error performing product cursor reset:', (e as Error).message);
+        }
+      }
+
       const totalRecords = getTotalPendingRecords(db, tenant_id);
 
       try {

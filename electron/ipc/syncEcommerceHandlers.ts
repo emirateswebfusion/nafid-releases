@@ -68,6 +68,16 @@ ipcMain.handle('sync:forceResyncInvoices', async (event) => {
   return forceResyncInvoices(event.sender);
 });
 
+ipcMain.handle('sync:forceResyncCatalog', async (event) => {
+  const { forceResyncCatalog } = await import('../sync/syncWorker.js');
+  return forceResyncCatalog(event.sender);
+});
+
+ipcMain.handle('sync:forceResyncEntities', async (event, categories: string[]) => {
+  const { forceResyncEntities } = await import('../sync/syncWorker.js');
+  return forceResyncEntities(categories, event.sender);
+});
+
 handle('sync:getProgress', syncService.getSyncProgress);
 
 handle('sync:testConnection', syncService.testNetworkConnection);

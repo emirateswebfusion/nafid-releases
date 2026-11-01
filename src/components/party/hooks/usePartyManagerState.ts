@@ -72,7 +72,7 @@ export function usePartyManagerState() {
     amount: '', transaction_type: 'CREDIT' as 'CREDIT' | 'DEBIT',
     description: '', transaction_date: '', reference_number: '',
     balance_type: 'GST' as 'GST' | 'ESTIMATE',
-    payment_method: 'CASH' as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'CHEQUE' | 'OTHER',
+    payment_method: 'CASH' as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'CHEQUE' | 'OTHER' | 'PURCHASE',
     send_whatsapp: true,
   });
   const [deleteTxModalOpen, setDeleteTxModalOpen] = useState(false);

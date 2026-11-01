@@ -171,8 +171,15 @@ export async function syncProducts(token: string, tenantId: string) {
     );
     if (synced.length > 0) {
       totalSynced += synced.length;
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
-      tx(synced);
+      const syncedSet = new Set(synced);
+      const tx = db.transaction((rows: Record<string, unknown>[]) => {
+        for (const p of rows) {
+          if (syncedSet.has(p.product_id as string)) {
+            updateStmt.run(p.product_id, tenantId, p.updated_at ?? null, p.current_stock ?? null);
+          }
+        }
+      });
+      tx(batch);
     }
   }
   console.log(`[SyncWorker] Pushed ${totalSynced} products to cloud.`);

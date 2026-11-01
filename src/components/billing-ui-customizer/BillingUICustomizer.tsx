@@ -45,7 +45,7 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
     }
   };
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12 relative">
+    <div className="space-y-6 w-full pb-12 relative">
       
       {/* ─── TOP BANNER ─── */}
       <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

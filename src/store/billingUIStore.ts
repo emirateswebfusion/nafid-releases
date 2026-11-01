@@ -19,7 +19,8 @@ export type QuickPageKey =
   | 'stock_report'
   | 'staff'
   | 'combo_offers'
-  | 'warranties';
+  | 'warranties'
+  | 'gst_reports';
 
 export interface QuickPageDef {
   key: QuickPageKey;
@@ -35,6 +36,7 @@ export const QUICK_PAGES_LIST: QuickPageDef[] = [
   { key: 'inventory', label: 'Inventory', eventName: 'open-inventory-manager', featureKey: 'inventory', desc: 'Manage products, stock levels & prices' },
   { key: 'purchase_bills', label: 'Purchase Bills', eventName: 'open-purchase-bills', featureKey: 'purchase_bills', desc: 'Record & manage GST purchase bills' },
   { key: 'financial_report', label: 'Financial Report', eventName: 'open-financial-report', desc: 'Financial profit/loss & tax summaries' },
+  { key: 'gst_reports', label: 'GST Reports', eventName: 'open-gst-reports', featureKey: 'gst_reports', desc: 'GSTR-1, HSN summary & tax return filing' },
   { key: 'stock_report', label: 'Stock Report', eventName: 'open-stock-report', featureKey: 'stock_report', desc: 'View and print detailed stock reports' },
   { key: 'staff', label: 'Staff Directory', eventName: 'open-staff-manager', featureKey: 'staff', desc: 'Staff directory, salary & attendance' },
   { key: 'combo_offers', label: 'Combo Offers', eventName: 'open-combo-manager', featureKey: 'combo_offers', desc: 'Manage product bundles and combo offers' },

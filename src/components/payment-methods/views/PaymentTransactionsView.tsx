@@ -26,7 +26,7 @@ export function PaymentTransactionsView({
 }: PaymentTransactionsViewProps) {
   const { isSavingTx, loadingTx, setShowNotes, setTxForm, setTxSearch, showNotes, txForm, txSearch } = pmState;
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="w-full space-y-6 animate-in fade-in duration-300">
       
       {/* Header channel summary card */}
       <div className="bg-card/80 border border-border/80 rounded-3xl p-6 shadow-sm backdrop-blur-md select-none flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

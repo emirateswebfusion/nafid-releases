@@ -95,7 +95,7 @@ export function DesignSettings() {
 
   const scalePresets = [80, 90, 100, 110, 120, 130];
   return (
-    <div className="space-y-8 max-w-6xl mx-auto pb-12 animate-in fade-in duration-300">
+    <div className="space-y-8 w-full pb-12 animate-in fade-in duration-300">
 
       {/* ─── STUDIO HERO BANNER ─── */}
       <DesignStudioHero

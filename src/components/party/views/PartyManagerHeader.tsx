@@ -1,4 +1,5 @@
-import { Handshake, ArrowLeft, Upload, Link, UserPlus, PlusCircle } from 'lucide-react';
+import { Handshake, ArrowLeft, Upload, Link, UserPlus, PlusCircle, RefreshCw } from 'lucide-react';
+import clsx from 'clsx';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import type { PartyManagerState } from '../hooks/usePartyManagerState';
 
@@ -10,11 +11,13 @@ export interface PartyManagerHeaderProps {
   openTxForm: (transactionType?: "CREDIT" | "DEBIT") => void;
   resetPartyForm: () => void;
   pm: PartyManagerState;
+  onResyncParties?: () => Promise<void>;
+  isResyncingParties?: boolean;
 }
 
 /** Ledger screen header: title and counts, back / close, and the upload / connect / add party actions. */
 export function PartyManagerHeader({
-  isOwner, loadParties, onBackToCustomers, onClose, openTxForm, resetPartyForm, pm,
+  isOwner, loadParties, onBackToCustomers, onClose, openTxForm, resetPartyForm, pm, onResyncParties, isResyncingParties,
 }: PartyManagerHeaderProps) {
   const { editingParty, editingTx, editReturnView, parties, selectedParty, setShowConnectModal, setShowUploadModal, setView, view } = pm;
   return (
@@ -80,6 +83,17 @@ export function PartyManagerHeader({
         <div className="flex items-center gap-2 shrink-0">
           {view === 'list' && isOwner && (
             <>
+              {onResyncParties && (
+                <button
+                  type="button"
+                  onClick={onResyncParties}
+                  disabled={isResyncingParties}
+                  className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-50"
+                  title="Re-sync parties & ledgers from cloud"
+                >
+                  <RefreshCw className={clsx("w-4 h-4", isResyncingParties && "animate-spin text-primary")} />
+                </button>
+              )}
               <button
                 onClick={() => setShowUploadModal(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"

@@ -1,15 +1,16 @@
-import { Database, Sun, Moon, LogOut } from 'lucide-react';
+import { Database, Sun, Moon, LogOut, Landmark } from 'lucide-react';
 
 export interface SuperDashboardHeaderProps {
   handleLogout: () => void;
   theme: "light" | "dark";
   toggleTheme: () => void;
   userName: string | null;
+  onOpenManagedGsp?: () => void;
 }
 
 /** Header bar: title, signed-in user, theme toggle and logout. */
 export function SuperDashboardHeader({
-  handleLogout, theme, toggleTheme, userName,
+  handleLogout, theme, toggleTheme, userName, onOpenManagedGsp,
 }: SuperDashboardHeaderProps) {
   return (
     <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
@@ -31,6 +32,18 @@ export function SuperDashboardHeader({
             <span className="text-[11px] font-bold text-foreground block leading-tight">{userName || 'Platform Admin'}</span>
             <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">Platform Admin</span>
           </div>
+
+          {onOpenManagedGsp && (
+            <button
+              onClick={onOpenManagedGsp}
+              className="px-2.5 py-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-400 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Configure NAFID Managed GSP platform connection"
+            >
+              <Landmark className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Managed GSP</span>
+            </button>
+          )}
+
           <span className="w-px h-5 bg-border/40 hidden sm:block" />
           <button
             onClick={toggleTheme}

@@ -22,6 +22,9 @@ and update every caller in the same change.
 | Store timezone and UTC parsing | `src/utils/time/timezoneHelper.ts` | — |
 | Staff data masking | `src/utils/security/staffDataMasking.ts` | — |
 | Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
+| Tax calculations (GST split CGST/SGST/IGST & UAE VAT 5% inclusive/exclusive) | `src/utils/pricing/taxEngine.ts`, `electron/utils/gstEngine.ts` | `tests/unit/taxEngine.test.ts` |
+| UAE TRN validation (15 digits, prefix 100) & Emirate normalization | `src/utils/pricing/trnValidator.ts`, `electron/utils/trnValidator.ts` | `tests/unit/trnValidator.test.ts` |
+| UAE Form VAT 201 Return, FTA Audit File (FAF), and filing lifecycle | `electron/services/vatReportService.ts`, `vatFilingService.ts`, `src/utils/export/ftaAuditFileExporter.ts` | `tests/unit/vatReportService.test.ts`, `vat201JsonSerializer.test.ts`, `vatDashboardCard.test.ts` |
 | Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts`, `receiptCore.ts`, `styles/boxed.ts` | `tests/unit/thermalPrint.test.ts`, `printGenerators.characterization.test.ts` |
 
 Sales History date filters and dashboard sales use invoice creation instants in the store timezone. The shared `electron/db/statements/invoiceDates.ts` predicate parses legacy UTC space-separated timestamps and ISO timestamps numerically; later settlement does not move a sale to another date. Tests: `invoiceDateFilters.test.ts`.
@@ -256,6 +259,9 @@ backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test
 - **Receipt Totals**: Dual `Grand Total` / `Net Total` lines are banned. Thermal receipts must show a single clean `Net Total` after all deductions (`Total` − `Discount` − `Scrap Return Amount` = `Net Total`). This avoids customer confusion when scrap or return deductions are applied. Tax breakdown (CGST, SGST, Cess) is never mingled into the payable calculation lines; it is reported strictly in the dedicated `TAX BREAKUP` section.
 - **Weight and Scrap Quantities**: All weight and scrap items (`billing_type === 'WEIGHT'` or unit in `kg`, `kgs`, `g`, `gm`, `gram`) must format with exactly 3 decimal places (`numQty.toFixed(3)`, e.g., `1.000`, `2.500`, `0.200`), preserving trailing zeroes. In retail scrap and weight trade, decimals denote grams ($1\text{ kg} = 1000\text{ g}$); stripping zeroes (`1.0` or `1`) causes disputes at checkout.
 - **Roll width and column budget**: 80mm roll width (8.0 cm / 42 characters per line) and `boxed` style are the standard defaults. On 42-char lines, the inner table budget is 36 characters: `idxW(2)` + `nameW(13)` + `qtyW(6)` + `rateW(7)` + `amtW(8)` = 36. `qtyW = 6` guarantees quantities up to `99.999` fit without column shifting or truncation. Total labels occupy 31 characters, aligning the right vertical pipe `│` exactly with the column pipe between Rate and Amount.
+- **Receipt typography and vertical spacing**: 80mm thermal receipts use an `11.5px` font size (dynamically clamped by DOM canvas character budget if lines exceed printable width), `1.22` line height for clear row distinction, `font-weight: 800` with `-webkit-text-stroke: 0.25px #000` to ensure solid, high-density black strokes on 203 DPI thermal heads without gray dithering, `2px` vertical margins around horizontal divider rules (`<hr>`) to prevent text from touching dividers, and `4px 3px` inner padding inside the 2px border.
+- **Roll margin balance and centering**: 80mm printers have a native hardware origin ~12mm from the roll's physical left edge. `#receipt-root` applies `margin-left: -3.5mm` on >= 75mm rolls, symmetrically centering the boxed receipt with ~7.5-8.5mm balanced margins on both sides without clipping either border.
+- **Continuous roll printing**: Always render with `usePrinterDefaultPageSize: true` and CSS `@page { size: auto; margin: 0 !important; }`. Custom micro-heights or dynamic page sizes cause Windows GDI thermal drivers to fall back to centered multi-page cuts with top empty voids (~40mm) and cut-offs. Cutter mode in Windows driver settings must be configured to "Document Cut" (end of job) rather than "Page Cut" to guarantee continuous single-piece receipts regardless of item count.
 - Tests: `tests/unit/thermalPrint.test.ts`, `tests/unit/printGenerators.characterization.test.ts`.
 
 
@@ -276,10 +282,16 @@ conversion copies. Saved net rates are restored to the selected price basis when
 
 `src/utils/print/uaeInvoice.ts` renders UAE AED/TRN/VAT invoices and thermal receipts. UAE uses this layout
 rather than the Indian templates; quotation and purchase print entry points also dispatch through it.
-This is local VAT billing support, not an accredited UAE e-invoicing integration. Exempt/zero-rated supply
-classification, reverse-charge workflows and statutory filing exports require separate domain work.
-Tests: `storeProfile.test.ts`, `storeCountryGuard.test.ts`, `storeProfileSync.test.ts`, and UAE conversion
-coverage in `bosConversionService.test.ts`; Indian print snapshots remain unchanged.
+UAE Form VAT 201 Return & FTA Audit File (FAF) subsystem (`docs/architecture/vat-uae-integration.md`) implements
+the complete statutory tax filing preparation engine:
+- Section 1: Standard rated supplies across 7 Emirates (Box 1a–1g), Box 4 Zero-Rated Supplies, Box 5 Exempt Supplies, Box 8 Total Output Tax.
+- Section 2: Box 9 Standard Rated Purchases & Box 11 Total Recoverable Input Tax.
+- Section 3: Net VAT Due / Reclaimable (Box 14).
+- Full vs Simplified Tax Invoice rules (AED 10,000 threshold under Cabinet Decision No. 52).
+- Credit Note adjustments per Emirate mapped to original invoice references.
+- Statutory Exporters: Official tab-delimited FTA Audit File (FAF), Form VAT 201 multi-sheet Excel workbook, JSON export.
+- Offline filing lifecycle management in local SQLite (`vat_local_filings`) with manual EmaraTax acknowledgement tracking.
+Tests: `trnValidator.test.ts`, `vatReportService.test.ts`, `vat201JsonSerializer.test.ts`, `vatDashboardCard.test.ts`.
 
 UAE real-UI regression checks (29 Oct 2026): numeric-only `shop_gstin` values remain text in both
 settings reads (`taxRegistrationSetting.test.ts`), so TRNs survive billing load. UAE invoice item

@@ -1,7 +1,7 @@
 import { BrowserWindow } from 'electron';
 
 const BARCODE_MAX_INTERVAL_MS = 50; // Milliseconds between keystrokes to be considered a scanner
-const BARCODE_MIN_LENGTH = 5;
+const BARCODE_MIN_LENGTH = 2; // Supports short barcodes, e.g. service charge '99', 3-digit barcodes '001', etc.
 
 let buffer = '';
 let lastTimestamp = 0;

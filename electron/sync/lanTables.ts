@@ -12,6 +12,7 @@ export const LAN_PULL_TABLES: ReadonlySet<string> = new Set([
   'returns', 'return_items', 'customers', 'loyalty_transactions', 'payment_sources',
   'payment_source_transactions', 'pricing_tiers', 'product_pricing', 'combo_offers',
   'combo_items', 'staff', 'staff_salaries', 'staff_transactions', 'staff_ledger', 'staff_attendance', 'sync_meta',
+  'stock_operations',
 ]);
 
 export const LAN_PUSH_TABLES: ReadonlySet<string> = new Set([
@@ -19,4 +20,5 @@ export const LAN_PUSH_TABLES: ReadonlySet<string> = new Set([
   'combo_offers', 'customers', 'invoices', 'loyalty_transactions', 'parties', 'party_ledger',
   'payment_source_transactions', 'payment_sources', 'pricing_tiers', 'product_grades', 'product_pricing', 'products',
   'purchase_bills', 'quotations', 'returns', 'scrap_categories', 'scrap_transactions', 'settings', 'warranties',
+  'stock_operations',
 ]);

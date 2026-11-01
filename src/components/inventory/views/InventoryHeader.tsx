@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, PackagePlus, Pencil, Save, Upload, Search, Loader2, X, Layers, CheckCircle2, AlertTriangle, AlertCircle, Tag, Plus, Trash } from 'lucide-react';
+import { Package, PackagePlus, Pencil, Save, Upload, Search, Loader2, X, Layers, CheckCircle2, AlertTriangle, AlertCircle, Tag, Plus, Trash, RefreshCw } from 'lucide-react';
 import { isAdminRole, formatRoleName } from '../../../utils/security/permissions';
 import { useAuthStore } from '../../../store/authStore';
 import { RedCrossButton } from '../../ui/RedCrossButton';
@@ -16,11 +16,13 @@ export interface InventoryHeaderProps {
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   tenantId: string | null;
   inv: InventoryState;
+  onSyncCatalog?: () => Promise<void>;
+  isSyncingCatalog?: boolean;
 }
 
 /** Inventory screen header: title and counts, list / form switch, view mode, date / stock / sort filters, search and the add / bulk / print / export actions. */
 export function InventoryHeader({
-  downloadCsv, onClose, openAdd, searchInputRef, tenantId, inv,
+  downloadCsv, onClose, openAdd, searchInputRef, tenantId, inv, onSyncCatalog, isSyncingCatalog,
 }: InventoryHeaderProps) {
   const { editingProduct, filterDate, filterDateEnd, isSearching, searchQuery, selectedProductIds, setDebouncedSearchQuery, setFilterDate, setFilterDateEnd, setSearchQuery, setShowBulkDeleteConfirm, setShowUploadModal, setSortBy, setStockFilter, setView, setViewMode, sortBy, stockFilter, totalCount, view, viewMode } = inv;
   return (
@@ -49,6 +51,17 @@ export function InventoryHeader({
         <div className="flex items-center gap-2 shrink-0">
           {view === 'list' && (
             <>
+              {onSyncCatalog && (
+                <button
+                  type="button"
+                  onClick={onSyncCatalog}
+                  disabled={isSyncingCatalog}
+                  className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-50"
+                  title="Re-sync all products from cloud"
+                >
+                  <RefreshCw className={clsx("w-4 h-4", isSyncingCatalog && "animate-spin text-primary")} />
+                </button>
+              )}
               <button
                 onClick={downloadCsv}
                 className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"

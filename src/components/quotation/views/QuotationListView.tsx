@@ -12,11 +12,13 @@ export interface QuotationListViewProps {
   handleEditQuotation: (q: Quotation) => void;
   qm: QuotationState;
   viewQuotation: (q: Quotation) => Promise<void>;
+  isResyncing?: boolean;
+  onResyncQuotations?: () => void;
 }
 
 /** Quotations list: search and status filters, loading / empty states, and the quotation rows. */
 export function QuotationListView({
-  filteredQuotations, handleCreateNewQuotation, handleDeleteQuotation, handleEditQuotation, qm, viewQuotation,
+  filteredQuotations, handleCreateNewQuotation, handleDeleteQuotation, handleEditQuotation, qm, viewQuotation, isResyncing, onResyncQuotations,
 }: QuotationListViewProps) {
   const { loading, search, setSearch, statusFilter, setStatusFilter } = qm;
   return (
@@ -56,6 +58,17 @@ export function QuotationListView({
             </button>
           </div>
 
+          {onResyncQuotations && (
+            <button
+              onClick={onResyncQuotations}
+              disabled={isResyncing}
+              title="Force refresh / download quotations from cloud"
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold border border-input bg-background hover:bg-secondary text-foreground transition-all duration-200 active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={clsx("w-3.5 h-3.5", isResyncing && "animate-spin text-primary")} />
+              <span className="hidden sm:inline">{isResyncing ? 'Syncing...' : 'Re-sync'}</span>
+            </button>
+          )}
           <button
             onClick={handleCreateNewQuotation}
             className="px-3.5 sm:px-4 py-1.5 sm:py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer whitespace-nowrap"

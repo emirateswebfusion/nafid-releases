@@ -24,7 +24,8 @@ export type FeatureKey =
   | 'loyalty'
   | 'ecommerce'
   | 'ai_assistant'
-  | 'recycle_bin';
+  | 'recycle_bin'
+  | 'gst_reports';
 
 export type FeatureFlags = Record<FeatureKey, boolean>;
 
@@ -60,6 +61,7 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'sales_staff', label: 'Enable Customer Handler / Sales Staff', desc: 'Allow selecting customer handler / sales staff on billing for sales attribution' },
   { key: 'staff_credit_billing', label: 'Show Staff in Billing & Ledger', desc: 'Show staff in customer search and record staff credit purchases directly in staff ledger' },
   { key: 'sales_history', label: 'Sales History', desc: 'Review past transactions and reports' },
+  { key: 'gst_reports', label: 'GST Reports & Returns', desc: 'GSTR-1 returns, HSN summaries, and tax return filing export' },
   { key: 'recycle_bin', label: 'Recycle Bin', desc: 'Restore accidentally deleted bills, inventory items, and customer contacts' },
   { key: 'loyalty', label: 'Loyalty Points', desc: 'Earn and redeem loyalty points on purchases' },
   ...(isAiAssistantAvailable ? [
@@ -91,6 +93,7 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   sales_staff: false,
   staff_credit_billing: false,
   sales_history: true,
+  gst_reports: true,
   loyalty: true,
   ai_assistant: isAiAssistantAvailable,
   recycle_bin: true,

@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { ManagedGspModal } from './views/ManagedGspModal';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { Store, Wrench, Gem, ShoppingBag } from 'lucide-react';
@@ -18,6 +19,7 @@ import { SuperDashboardHeader } from './views/SuperDashboardHeader';
 
 export default function SuperDashboard() {
   const { userName, logout } = useAuthStore();
+  const [managedGspModalOpen, setManagedGspModalOpen] = useState(false);
   const { theme, toggleTheme } = useThemeStore();
   const sd = useSuperDashboardState();
   const {
@@ -149,6 +151,7 @@ export default function SuperDashboard() {
       {/* Header bar */}
       <SuperDashboardHeader
         handleLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} userName={userName}
+        onOpenManagedGsp={() => setManagedGspModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -196,6 +199,12 @@ export default function SuperDashboard() {
       <SuperAdminWhatsAppModal
         isOpen={whatsappModalOpen}
         onClose={() => setWhatsappModalOpen(false)}
+      />
+
+      {/* Super Admin Managed GSP Modal */}
+      <ManagedGspModal
+        isOpen={managedGspModalOpen}
+        onClose={() => setManagedGspModalOpen(false)}
       />
       </main>
     </div>

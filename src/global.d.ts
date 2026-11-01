@@ -66,6 +66,14 @@ export interface IElectronAPI {
   dbGetInvoices: (filters: unknown) => Promise<Invoice[]>;
   dbGetInvoicesSummary: (filters: unknown) => Promise<import('./data/invoices').InvoiceSummary>;
   dbGetDashboardStats: (tenantId: string) => Promise<{ success: boolean; totalSales: number; totalSalesBeforeDeductions?: number; invoiceCount: number; error?: string }>;
+  dbGetGstReport: (payload: { tenant_id: string; from_date: string; to_date: string; shop_state_code?: string }) => Promise<import('../electron/services/gstReportService').Gstr1Report | { error: string }>;
+  dbGetLocalGstFilings: () => Promise<import('../electron/services/gstReportService').LocalGstFilingRow[] | { error: string }>;
+  dbUpsertLocalGstFiling: (payload: { id?: string; period: string; return_type: string; status: string; filing_mode: string; gross_taxable_value: number; total_tax_amount: number; summary_payload?: string; approved_by?: string; approved_at?: string }) => Promise<{ success: boolean; id?: string } | { error: string }>;
+  dbRecordLocalManualAcknowledgement: (payload: { id?: string; period: string; return_type: string; acknowledgement_number: string; filing_date: string; gross_taxable_value: number; total_tax_amount: number; approved_by?: string; approved_at?: string }) => Promise<{ success: boolean; id?: string } | { error: string }>;
+  dbGetVatReport: (payload: { tenant_id: string; from_date: string; to_date: string; shop_emirate?: string; shop_trn?: string; shop_name?: string }) => Promise<import('../electron/services/vatReportService').Vat201Report | { error: string }>;
+  dbGetLocalVatFilings: () => Promise<import('../electron/services/vatFilingService').LocalVatFilingRow[] | { error: string }>;
+  dbUpsertLocalVatFiling: (payload: { id?: string; period: string; return_type?: string; status: string; filing_mode: string; net_output_vat: number; recoverable_input_vat: number; net_vat_payable: number; net_vat_status: string; summary_payload?: string; notes?: string; approved_by?: string; approved_at?: string }) => Promise<{ success: boolean; id?: string } | { error: string }>;
+  dbRecordLocalVatManualAck: (payload: { id?: string; period: string; return_type?: string; filing_mode?: string; acknowledgement_number: string; filing_date: string; net_output_vat: number; recoverable_input_vat: number; net_vat_payable: number; net_vat_status: string; notes?: string; approved_by?: string; approved_at?: string }) => Promise<{ success: boolean; id?: string } | { error: string }>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<InvoiceItem[]>;
   dbUpdateInvoice: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: unknown }) => Promise<{ success: boolean; error?: string }>;
@@ -102,6 +110,8 @@ export interface IElectronAPI {
 
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
   forceResyncInvoices: () => Promise<{ success: boolean; error?: string }>;
+  forceResyncCatalog: () => Promise<{ success: boolean; error?: string }>;
+  forceResyncEntities: (categories: string[]) => Promise<{ success: boolean; error?: string }>;
   getSyncProgress: () => Promise<SyncProgress | null>;
   testNetworkConnection?: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number; lanPairingKey?: string }) => Promise<{ ok: boolean; route?: string; fallback?: boolean; message?: string; error?: string }>;
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean }) => Promise<{ success: boolean; error?: string }>;
@@ -111,6 +121,9 @@ export interface IElectronAPI {
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
   authSaveLocalUser: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   authLoginOffline: (payload: { email: string; password: string }) => Promise<OfflineLoginResult>;
+  authGetTrialAccess: (payload: { tenant_id: string }) => Promise<{ is_trial: boolean; allowed: boolean; error?: string; token?: string; expires_at?: number }>;
+  authRefreshTrialSession: (payload: { expected_token: string; tenant_id: string; user_id: string; token: string; role: 'ADMIN' | 'STAFF'; permissions: string[]; user_name: string; restricted_page: string | null }) => Promise<{ success: boolean; error?: string }>;
+  authBlockTrialAccess: (payload: { tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
   appGetLocalIp?: () => Promise<string>;
   appGetNetworkDetails?: () => Promise<{ ip: string; subnetPrefix: string; netmask: string; gateway: string; dns: string }>;
   getCloudAccessState?: () => Promise<EffectiveCloudState | null>;
@@ -118,7 +131,7 @@ export interface IElectronAPI {
   drainPendingCloudQueue?: () => Promise<{ success: boolean; error?: string }>;
   updateCloudAccessConfig?: (config: unknown) => Promise<{ success: boolean; error?: string }>;
   onDeepLink: (callback: (token: string) => void) => void;
-  settingsGet: (payload: { tenant_id: string; key: string }) => Promise<unknown>;
+  settingsGet: (payload: { tenant_id: string; key: string; tenant_only?: boolean }) => Promise<unknown>;
   settingsGetAll?: (payload: { tenant_id: string }) => Promise<Record<string, unknown>>;
   settingsSet: (payload: { tenant_id: string; key: string; value: unknown }) => Promise<{ success: boolean; error?: string }>;
   printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string; skipped?: boolean }>;

@@ -24,6 +24,8 @@ export const WarrantyManager = lazy(() => import('../warranty/WarrantyManager').
 export const ReturnManager = lazy(() => import('../returns/ReturnManager').then((m) => ({ default: m.ReturnManager })));
 export const StockReport = lazy(() => import('../stock-report/StockReport').then((m) => ({ default: m.StockReport })));
 export const FinancialReport = lazy(() => import('../reports/FinancialReport').then((m) => ({ default: m.FinancialReport })));
+export const GstReportScreen = lazy(() => import('../reports/GstReportScreen').then((m) => ({ default: m.GstReportScreen })));
+export const VatReportScreen = lazy(() => import('../reports/VatReportScreen').then((m) => ({ default: m.VatReportScreen })));
 export const PurchaseBillManager = lazy(() => import('../purchase/PurchaseBillManager').then((m) => ({ default: m.PurchaseBillManager })));
 export const CustomersPage = lazy(() => import('../customers/CustomersPage').then((m) => ({ default: m.CustomersPage })));
 export const AiAssistant = lazy(() => import('../ai-assistant/AiAssistant').then((m) => ({ default: m.AiAssistant })));

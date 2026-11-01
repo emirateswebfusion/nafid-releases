@@ -31,6 +31,8 @@ export const syncApi = bindBridge({
   debugSyncState: 'dbDebugSyncState',
   runInitialSync: 'runInitialSync',
   forceResyncInvoices: 'forceResyncInvoices',
+  forceResyncCatalog: 'forceResyncCatalog',
+  forceResyncEntities: 'forceResyncEntities',
   getSyncProgress: 'getSyncProgress',
   getCloudAccessState: 'getCloudAccessState',
   updateCloudAccessConfig: 'updateCloudAccessConfig',

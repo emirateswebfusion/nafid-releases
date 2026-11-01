@@ -439,7 +439,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
         {/* ─── Main Content Area ─── */}
         <main className="flex-1 overflow-y-auto bg-background" style={{ scrollbarGutter: 'stable' }}>
-          <div className="w-full max-w-7xl 2xl:max-w-full mx-auto p-6 lg:p-8 animate-in fade-in duration-300">
+          <div className="w-full p-6 lg:p-8 animate-in fade-in duration-300">
 
             {/* Section Header */}
             {activeItem && (

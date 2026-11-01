@@ -1,7 +1,7 @@
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash, IndianRupee, Clock, Printer } from 'lucide-react';
+import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash, IndianRupee, Clock, Printer, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from '../ui/Skeleton';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
@@ -17,6 +17,7 @@ import { printingApi } from '../../data/printing';
 import { ReturnCashRegisterNote } from './ReturnCashRegisterNote';
 import { returnsApi } from '../../data/returns';
 import { settingsApi } from '../../data/settings';
+import { syncApi } from '../../data/sync';
 import { formatCurrency } from '../../utils/pricing/money';
 import type * as Rows from '../../data/dbRows';
 
@@ -49,6 +50,25 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
   const [itemsLoading, setItemsLoading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
+
+  const handleResyncReturns = async () => {
+    if (isResyncing) return;
+    setIsResyncing(true);
+    try {
+      const res = await syncApi.forceResyncEntities(['invoices']);
+      if (res?.success) {
+        setStatusMessage({ text: 'Returns synced from cloud', type: 'success' });
+        await loadReturns();
+      } else {
+        setStatusMessage({ text: res?.error || 'Re-sync failed', type: 'error' });
+      }
+    } catch {
+      setStatusMessage({ text: 'Re-sync failed', type: 'error' });
+    } finally {
+      setIsResyncing(false);
+    }
+  };
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const loadReturns = useCallback(async () => {
@@ -65,7 +85,6 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
   }, [tenantId, search]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadReturns starts the current tenant/search request after the screen commits.
     loadReturns();
   }, [loadReturns]);
 
@@ -225,6 +244,15 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleResyncReturns}
+              disabled={isResyncing}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border border-input bg-background hover:bg-secondary text-foreground transition-all duration-200 active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Force refresh / download return records from cloud"
+            >
+              <RefreshCw className={clsx("w-3.5 h-3.5", isResyncing && "animate-spin text-primary")} />
+              <span className="hidden sm:inline">{isResyncing ? 'Syncing...' : 'Re-sync'}</span>
+            </button>
             {isRestricted ? (
               <button onClick={() => useAuthStore.getState().logout()} className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all duration-200 active:scale-95 border border-red-500/20 cursor-pointer">
                 <LogOut className="w-4 h-4" /> Logout

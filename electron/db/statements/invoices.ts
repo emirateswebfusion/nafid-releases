@@ -1,3 +1,4 @@
+import { stockTimestampSql } from './stockTimestamp.js';
 import type { Db } from './types.js';
 import { counterSalePredicate, countsInRevenue } from './revenue.js';
 import { invoiceCreatedInRange, holdExpiryInstant } from './invoiceDates.js';
@@ -69,11 +70,11 @@ export const insertInvoiceItem = (db: Db) => db.prepare(`
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-export const updateProductCurrentStock = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\' WHERE product_id = ?');
+export const updateProductCurrentStock = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = ${stockTimestampSql} WHERE product_id = ?`);
 
 export const findProductsByProductId = (db: Db) => db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?');
 
-export const updateProductDomainAttributes = (db: Db) => db.prepare('UPDATE products SET domain_attributes = ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
+export const updateProductDomainAttributes = (db: Db) => db.prepare(`UPDATE products SET domain_attributes = ?, sync_status = 'PENDING', updated_at = ${stockTimestampSql} WHERE product_id = ?`);
 
 export const findOneScrapTransactionByScrapInvoiceNumber = (db: Db) => db.prepare(`
         SELECT payment_status FROM scrap_transactions
@@ -377,7 +378,7 @@ export const findInvoicesByInvoiceId3 = (db: Db) => db.prepare('SELECT tenant_id
 
 export const findInvoiceItemsByInvoiceIdProductIdAndQuantity3 = (db: Db) => db.prepare('SELECT product_id, quantity, qty_from_paper_stock FROM invoice_items WHERE invoice_id = ?');
 
-export const updateProductCurrentStockCurrentStock4 = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?');
+export const updateProductCurrentStockCurrentStock4 = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = ${stockTimestampSql} WHERE product_id = ? AND tenant_id = ?`);
 
 export const updateInvoiceItemIsDeleted = (db: Db) => db.prepare("UPDATE invoice_items SET is_deleted = 1, sync_status = 'PENDING' WHERE invoice_id = ?");
 

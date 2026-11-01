@@ -6,9 +6,10 @@ import { useScaleStore } from '../../../store/scaleStore';
 import { isAdminRole } from '../../../utils/security/permissions';
 import { isAiAssistantAvailable, type FeatureFlags, type FeatureKey } from '../../../config/featureFlags';
 import { isDesktopRuntime } from '../../../data/client';
+import { isUaeStore } from '../../../utils/localization/storeProfile';
 import { bridgeEvents } from '../../../data/events';
 
-type ScreenFlag = 'setShowAdsManager' | 'setShowAiAssistant' | 'setShowCashierSettlement' | 'setShowComboManager' | 'setShowCustomersPage' | 'setShowEcommercePortal' | 'setShowFinancialReport' | 'setShowInventoryManager' | 'setShowPartyManager' | 'setShowPaymentsPage' | 'setShowPurchaseBillManager' | 'setShowQuotationManager' | 'setShowRecycleBin' | 'setShowReturnManager' | 'setShowSalesHistory' | 'setShowScrapManager' | 'setShowSessionExpiredModal' | 'setShowSettingsGrades' | 'setShowSettingsManager' | 'setShowSettingsPricingTiers' | 'setShowStaffManager' | 'setShowStockReport' | 'setShowWarrantyManager';
+type ScreenFlag = 'setShowGstReports' | 'setShowVatReports' | 'setShowAdsManager' | 'setShowAiAssistant' | 'setShowCashierSettlement' | 'setShowComboManager' | 'setShowCustomersPage' | 'setShowEcommercePortal' | 'setShowFinancialReport' | 'setShowInventoryManager' | 'setShowPartyManager' | 'setShowPaymentsPage' | 'setShowPurchaseBillManager' | 'setShowQuotationManager' | 'setShowRecycleBin' | 'setShowReturnManager' | 'setShowSalesHistory' | 'setShowScrapManager' | 'setShowSessionExpiredModal' | 'setShowSettingsGrades' | 'setShowSettingsManager' | 'setShowSettingsPricingTiers' | 'setShowStaffManager' | 'setShowStockReport' | 'setShowWarrantyManager';
 
 /** The App state the screen events drive: one setter per full-screen view plus the targets some screens open with. */
 export type ScreenEventsContext = Record<ScreenFlag, Dispatch<SetStateAction<boolean>>> & {
@@ -28,7 +29,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     ctxRef.current = ctx;
   });
   useEffect(() => {
-    const { enableScrapRef, featureFlagsRef, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager } = ctxRef.current;
+    const { enableScrapRef, featureFlagsRef, setShowGstReports, setShowVatReports, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager } = ctxRef.current;
     const canOpen = (key: FeatureKey) => {
       if (key === 'ai_assistant') {
         return isAiAssistantAvailable && (featureFlagsRef.current ? featureFlagsRef.current.ai_assistant !== false : true);
@@ -40,6 +41,17 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     };
     const handleOpenInv = () => { if (canOpen('inventory')) setShowInventoryManager(true); };
     const handleOpenStockReport = () => { if (canOpen('stock_report')) setShowStockReport(true); };
+    const handleOpenGstReports = () => {
+      if (!canOpen('gst_reports')) return;
+      if (isUaeStore()) {
+        setShowVatReports(true);
+      } else {
+        setShowGstReports(true);
+      }
+    };
+    const handleOpenVatReports = () => {
+      if (canOpen('gst_reports')) setShowVatReports(true);
+    };
     const handleOpenHistory = () => { if (canOpen('sales_history')) setShowSalesHistory(true); };
     const handleOpenStaff = () => { if (canOpen('staff')) setShowStaffManager(true); };
     const handleOpenSettings = () => setShowSettingsManager(true);
@@ -300,6 +312,8 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     window.addEventListener('open-ads-manager', handleOpenAdsManager);
     window.addEventListener('open-financial-report', handleOpenFinancialReport);
     window.addEventListener('open-stock-report', handleOpenStockReport);
+    window.addEventListener('open-gst-reports', handleOpenGstReports);
+    window.addEventListener('open-vat-reports', handleOpenVatReports);
     window.addEventListener('open-sales-history', handleOpenHistory);
     const handleOpenRecycleBin = (e?: Event) => {
       const ce = e as CustomEvent;
@@ -367,6 +381,8 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       window.removeEventListener('open-combo-manager', handleOpenComboManager);
       window.removeEventListener('open-ads-manager', handleOpenAdsManager);
       window.removeEventListener('open-stock-report', handleOpenStockReport);
+      window.removeEventListener('open-gst-reports', handleOpenGstReports);
+      window.removeEventListener('open-vat-reports', handleOpenVatReports);
       window.removeEventListener('open-sales-history', handleOpenHistory);
       window.removeEventListener('open-staff-manager', handleOpenStaff);
       window.removeEventListener('open-settings-manager', handleOpenSettings);

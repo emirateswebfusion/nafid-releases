@@ -24,6 +24,7 @@ export interface SyncEndpoints {
   primaryRoute: 'LAN' | 'CLOUD';
   fallbackRoute?: 'CLOUD';
   disabled?: boolean;
+  isLanPrimary?: boolean;
 }
 
 export function getSyncEndpoints(): SyncEndpoints {
@@ -41,12 +42,14 @@ export function getSyncEndpoints(): SyncEndpoints {
         return {
           primaryUrl: `http://127.0.0.1:${port}`,
           primaryRoute: 'LAN',
+          isLanPrimary: true,
         };
       }
       if (parsed.syncMode === 'HYBRID' && parsed.lanRole === 'PRIMARY') {
         return {
           primaryUrl: defaultCloud,
           primaryRoute: 'CLOUD',
+          isLanPrimary: true,
         };
       }
       if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'SECONDARY' && parsed.lanHostIp) {
@@ -481,4 +484,5 @@ export interface SyncEndpoints {
   primaryRoute: 'LAN' | 'CLOUD';
   fallbackRoute?: 'CLOUD';
   disabled?: boolean;
+  isLanPrimary?: boolean;
 }

@@ -317,11 +317,12 @@ function parseMarkdownReleaseNotes(text: string): ParsedReleaseItem[] {
     let desc = cleaned;
 
     // Check for **Title**: or __Title__: or Title:
-    const titleMatch = cleaned.match(/^(?:\*\*([^*]+)\*\*|__([^_]+)__|([A-Za-z0-9\s&()/-]+?))(?::\s*|\s+[-–—]\s+)(.+)$/);
+    // Only match hyphen when surrounded by spaces so hyphenated words like "Re-calibrated" are not split
+    const titleMatch = cleaned.match(/^(?:\*\*([^*]+)\*\*|__([^_]+)__|([A-Za-z0-9\s&()/-]+?))(?::\s*|\s+[-–—]\s+|\s*[–—]\s*)(.*)$/);
     if (titleMatch) {
       const candidateTitle = (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim();
       const candidateDesc = (titleMatch[4] || '').trim();
-      if (candidateTitle.length > 0 && candidateTitle.length < 50 && candidateDesc.length > 0) {
+      if (candidateTitle.length >= 3 && candidateTitle.length < 50 && candidateDesc.length > 0) {
         title = candidateTitle;
         desc = candidateDesc;
       }
@@ -371,12 +372,11 @@ export function inferItemTag(title?: string, description?: string, sectionContex
   if (/\b(changelog|compare|download|release|github|commit)\b/i.test(combined)) {
     return { en: 'Resource', ml: 'വിവരങ്ങൾ' };
   }
-  // Printing keywords take priority over generic fix/bug labels
-  if (/\b(print|printing|printed|printer|thermal|receipt|paper|cutter|tax\s*receipt|roll|rolls|margin|padding|layout|font-size|alignment|border)\b/i.test(combined)) {
+  // Check Printing before general Improvement so thermal/receipt fixes get tagged Printing
+  if (/\b(print|printing|printed|printer|thermal|receipt|paper|cutter|tax\s*receipt|roll|rolls|margin|padding|layout|font-size|alignment)\b/i.test(combined)) {
     return { en: 'Printing', ml: 'പ്രിന്റിംഗ്' };
   }
-  // Explicit bug fix in title takes precedence over other categories
-  if (/\b(fix|fixes|fixed|bug|bugs|issue|issues|error|errors|resolved|patch|hotfix|revert)\b/i.test(title || '')) {
+  if (/\b(fix|fixes|fixed|bug|bugs|issue|issues|error|errors|resolved|patch|hotfix|revert)\b/i.test(combined)) {
     return { en: 'Improvement', ml: 'മെച്ചപ്പെടുത്തൽ' };
   }
   if (/\b(unit|pricing|product|cart|tax|gst|inclusive|exclusive|barcode|item)\b/i.test(combined)) {
@@ -396,9 +396,6 @@ export function inferItemTag(title?: string, description?: string, sectionContex
   }
   if (/\b(filing|accountant|collection|cash\s*on\s*hand|preference|settings)\b/i.test(combined)) {
     return { en: 'Settings', ml: 'സെറ്റിംഗ്സ്' };
-  }
-  if (/\b(fix|fixes|fixed|bug|bugs|issue|issues|error|errors|resolved|patch|hotfix|revert)\b/i.test(combined)) {
-    return { en: 'Improvement', ml: 'മെച്ചപ്പെടുത്തൽ' };
   }
   return { en: 'New Feature', ml: 'പുതിയ ഫീച്ചർ' };
 }

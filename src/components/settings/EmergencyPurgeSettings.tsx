@@ -348,7 +348,7 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
         <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside leading-relaxed">
           <li>Once the device is back under your control, reopen the application on this terminal.</li>
           <li>Log in normally using your Owner username and password.</li>
-          <li>Navigate to <strong>Settings &rarr; Network & Sync</strong> and click <strong>"Full Resync from Cloud"</strong>.</li>
+          <li>Navigate to <strong>Settings &rarr; Network & Sync</strong> and use <strong>"Selective Cloud Re-sync"</strong> (or click Select All &rarr; Re-sync).</li>
           <li>Within seconds, all your catalog products, customer ledgers, and invoice records will be restored from the cloud.</li>
         </ol>
       </div>

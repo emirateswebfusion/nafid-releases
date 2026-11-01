@@ -3,6 +3,7 @@ import { api, ensureSuccess, bindBridge } from './client';
 export interface SettingKeyPayload {
   tenant_id: string;
   key: string;
+  tenant_only?: boolean;
 }
 
 /**
@@ -83,7 +84,7 @@ const bridge = bindBridge({
 
 /** Key/value settings (per tenant). Channel catalog — the only way UI code reaches these IPC channels. */
 export const settingsApi = {
-  get: <K extends string>(payload: { tenant_id: string; key: K }) => bridge.get(payload) as Promise<SettingValue<K>>,
+  get: <K extends string>(payload: { tenant_id: string; key: K; tenant_only?: boolean }) => bridge.get(payload) as Promise<SettingValue<K>>,
   getAll: (payload: { tenant_id: string }) => bridge.getAll(payload) as Promise<SettingsSnapshot>,
   set: bridge.set,
 };

@@ -3,9 +3,12 @@ import { ArrowRight, Check, Clock3 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { TRIAL_COUNTRIES, validateTrialDetails } from './trialShopDetails';
+import { useTrialSignup } from './useTrialSignup';
+import { TrialCreateAccount } from './TrialCreateAccount';
 import type { TrialShopDetails } from './trialShopDetails';
 
 export function TrialRegistration({ onSignIn }: { onSignIn: () => void }) {
+  const signup = useTrialSignup();
   const [details, setDetails] = useState<TrialShopDetails>({ shopName: '', ownerName: '', email: '', phone: '', city: '', country: 'AE' });
   const [errors, setErrors] = useState<Partial<Record<keyof TrialShopDetails, string>>>({});
   const [reviewing, setReviewing] = useState(false);
@@ -29,6 +32,7 @@ export function TrialRegistration({ onSignIn }: { onSignIn: () => void }) {
             ].map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-medium">{value}</dd></div>)}
           </dl>
           <Button variant="outline" className="w-full" onClick={() => setReviewing(false)}>Edit details</Button>
+          <TrialCreateAccount signup={signup} details={details} onSignIn={onSignIn} />
         </section>
       ) : (
         <form noValidate className="space-y-4" onSubmit={event => {

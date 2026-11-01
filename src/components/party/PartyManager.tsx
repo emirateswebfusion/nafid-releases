@@ -1,4 +1,5 @@
-import { useCallback, useRef, useMemo } from 'react';
+import { useCallback, useRef, useMemo, useState } from 'react';
+import { syncApi } from '../../data/sync';
 import { useAuthStore } from '../../store/authStore';
 import { useTerminologyStore } from '../../store/terminologyStore';
 import { partyConnectCloud } from '../../data/cloud/partyConnect';
@@ -522,6 +523,20 @@ export function PartyManager({
   const { handleSendWhatsAppForEntry, handleDownloadPdf, handleSendWhatsAppPdf } = useLedgerSharing({
     pm, shopName, showStatus, statementData, tenantId, tLabels,
   });
+  const [isResyncingParties, setIsResyncingParties] = useState(false);
+  const handleResyncParties = async () => {
+    setIsResyncingParties(true);
+    try {
+      await syncApi.forceResyncEntities(['parties']);
+      await loadParties();
+      showStatus('Parties re-synced from cloud!', 'success');
+    } catch (e) {
+      showStatus('Re-sync failed: ' + (e as Error).message, 'error');
+    } finally {
+      setIsResyncingParties(false);
+    }
+  };
+
   usePartyManagerEffects({
     pm, initialPartyIdOrQuery, lastInteractedPartyId, listScrollRef, loadLedger, loadParties, loadPartySettings,
     prevViewRef, processedInitialTargetRef: processedInitialTarget, savedScrollTop, tenantId,
@@ -536,6 +551,7 @@ export function PartyManager({
       <PartyManagerHeader
         isOwner={isOwner} loadParties={loadParties} onBackToCustomers={onBackToCustomers} onClose={onClose}
         openTxForm={openTxForm} resetPartyForm={resetPartyForm} pm={pm}
+        onResyncParties={handleResyncParties} isResyncingParties={isResyncingParties}
       />
 
       {/* ══════════════════════════════════════════

@@ -13,6 +13,9 @@ import {
   readOfflineSession,
 } from '../services/authStorage.js';
 
+import { getTrialAccess, blockTrialAccess } from '../services/trialAccessService.js';
+import { refreshTrialSession } from '../services/trialSessionService.js';
+
 export function registerAuthHandlers(): void {
   ipcMain.removeHandler('auth:saveToken');
   ipcMain.handle('auth:saveToken', (_event, payload) => {
@@ -140,5 +143,23 @@ export function registerAuthHandlers(): void {
     } catch {
       return { success: false, error: 'Failed to clear token' };
     }
+  });
+
+  ipcMain.removeHandler('auth:getTrialAccess');
+  ipcMain.handle('auth:getTrialAccess', (_event, payload: { tenant_id: string }) => {
+    try { return getTrialAccess(payload); }
+    catch (error) { return { is_trial: true, allowed: false, error: (error as Error).message }; }
+  });
+
+  ipcMain.removeHandler('auth:refreshTrialSession');
+  ipcMain.handle('auth:refreshTrialSession', (_event, payload) => {
+    try { return refreshTrialSession(payload as Parameters<typeof refreshTrialSession>[0]); }
+    catch (error) { return { success: false, error: (error as Error).message }; }
+  });
+
+  ipcMain.removeHandler('auth:blockTrialAccess');
+  ipcMain.handle('auth:blockTrialAccess', (_event, payload: { tenant_id: string }) => {
+    try { return blockTrialAccess(payload); }
+    catch (error) { return { success: false, error: (error as Error).message }; }
   });
 }

@@ -1,3 +1,4 @@
+import { withNafidFooter } from './messageFooter';
 import { getCurrencyPrefix } from '../localization/storeProfile';
 import { formatAmount } from '../pricing/money';
 
@@ -29,7 +30,7 @@ export function buildBillShares(input: { phone: string; message: string; a4Html:
   if (!documents.length) return [{ phone: input.phone, message: summary }];
   return documents.map((format, index) => ({
     phone: input.phone,
-    message: formats.includes('text') && index === 0 ? summary : `${format === 'thermal' ? 'Receipt' : 'Invoice'} ${input.invoiceNumber}`,
+    message: formats.includes('text') && index === 0 ? summary : withNafidFooter(`${format === 'thermal' ? 'Receipt' : 'Invoice'} ${input.invoiceNumber}`),
     ...(format === 'thermal' ? { receiptText: input.receiptText, receiptWidthMm: input.receiptWidthMm || 80 } : { htmlContent: input.a4Html }),
     fileName: `${format === 'thermal' ? 'Receipt' : 'Invoice'}_${input.invoiceNumber}.pdf`,
   }));

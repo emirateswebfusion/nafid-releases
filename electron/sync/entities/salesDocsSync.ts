@@ -20,6 +20,7 @@ export async function syncInvoices(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const invoicesWithItems = batch.map((inv: Record<string, unknown>) => ({
+      stock_sync_mode: 'PRODUCT_SNAPSHOT',
       ...inv,
       subtotal: Number(inv.subtotal) || 0,
       tax_total: Number(inv.tax_total) || 0,
@@ -184,26 +185,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
                 description: currentInv.description || currentInv.notes || null,
               });
 
-              // If this invoice is soft-deleted and was active locally before this pull, restore local product stock
               const isDeletedPull = parseIsDeleted(currentInv.is_deleted) === 1;
-              if (isDeletedPull && prior && !prior.is_deleted && Array.isArray(currentInv.items)) {
-                const isConversionCopy = !!(currentInv.converted_from_invoice_id || currentInv.converted_from_invoice_number);
-                if (!isConversionCopy) {
-                  for (const item of currentInv.items) {
-                    salesDocsSyncSql.updateProducts(db).run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
-                  }
-                }
-              }
-
-              // If this invoice was soft-deleted locally but cloud is active, re-deduct local product stock (restored in cloud)
-              if (!isDeletedPull && prior && prior.is_deleted === 1 && Array.isArray(currentInv.items)) {
-                const isConversionCopy = !!(currentInv.converted_from_invoice_id || currentInv.converted_from_invoice_number);
-                if (!isConversionCopy) {
-                  for (const item of currentInv.items) {
-                    salesDocsSyncSql.updateProducts2(db).run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
-                  }
-                }
-              }
 
               // If this invoice is soft-deleted, ensure any local party ledger entries are also soft-deleted
               if (isDeletedPull && currentInv.invoice_number) {
@@ -279,6 +261,9 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
                 igst_amount: Number(item.igst_amount) || 0,
                 hsn_sac_code: item.hsn_sac_code || null,
                 supply_type: item.supply_type || 'INTRA',
+                combo_id: item.combo_id || null,
+                combo_details: item.combo_details ? (typeof item.combo_details === 'object' ? JSON.stringify(item.combo_details) : item.combo_details) : null,
+                is_service_item: item.is_service_item ? 1 : 0,
               });
             }
           }

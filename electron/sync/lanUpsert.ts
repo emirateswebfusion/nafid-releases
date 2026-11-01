@@ -1,3 +1,5 @@
+import { prepareProductBootstrap } from '../db/statements/stockBootstrap.js';
+import { normalizeStockCounters } from '../utils/stockCounters.js';
 import crypto from 'node:crypto';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import * as lanUpsertSql from '../db/statements/sync/lanUpsert.js';
@@ -115,10 +117,22 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
     for (const rawRow of rows) {
       if (!rawRow || typeof rawRow !== 'object') continue;
 
-      const itemId = extractItemId(rawRow);
-      const isNewInvoice = tableName === 'invoices' && itemId ? !lanUpsertSql.selectInvoices(db).get(itemId) : false;
+      const itemId = (meta?.pkCols?.length === 1 && rawRow[meta.pkCols[0]] != null)
+        ? String(rawRow[meta.pkCols[0]])
+        : extractItemId(rawRow);
+      const existingInvoice = tableName === 'invoices' && itemId
+        ? (lanUpsertSql.selectInvoiceStockState(db).get(itemId) as Record<string, unknown> | undefined)
+        : undefined;
+      const isNewInvoice = tableName === 'invoices' && !existingInvoice;
       const isNewReturn = tableName === 'returns' && itemId ? !lanUpsertSql.selectReturns(db).get(itemId) : false;
       const isNewPurchaseBill = tableName === 'purchase_bills' && itemId ? !lanUpsertSql.selectPurchaseBills(db).get(itemId) : false;
+
+      if (tableName === 'products') {
+        prepareProductBootstrap(db, rawRow);
+        if (rawRow.stock_counters != null) {
+          rawRow.stock_counters = normalizeStockCounters(rawRow.stock_counters);
+        }
+      }
 
       const paramObj: Record<string, unknown> = {};
 
@@ -140,7 +154,7 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
       }
 
       if (allCols.includes('updated_at')) {
-        paramObj['updated_at'] = toIsoTimestamp();
+        paramObj['updated_at'] = rawRow.updated_at ? new Date(rawRow.updated_at as string).toISOString() : toIsoTimestamp();
       }
 
       if (tableName === 'cash_transactions' && rawRow.drawer_id) {
@@ -245,6 +259,7 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
           stmt.run(paramObj);
           if (itemId) syncedIds.push(itemId);
         } catch (runErr) {
+          if (tableName.endsWith('_items')) throw runErr;
           console.warn(`[LocalHostServer] Error inserting row into ${tableName}:`, (runErr as Error).message);
         }
       }
@@ -266,16 +281,47 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
           upsertTableRows(db, 'invoice_items', rawRow.items);
         }
 
-        if (isNewInvoice && !isDeleted && !isConversionCopy) {
-          if (Array.isArray(rawRow.items)) {
-            for (const line of rawRow.items) {
-              if (line.product_id && Number(line.quantity) > 0 && !line.is_service_item) {
-                try {
-                  lanUpsertSql.updateProducts(db).run(Number(line.quantity), line.product_id);
-                } catch { /* ignore */ }
+        const isSnapshot = rawRow.stock_sync_mode === 'PRODUCT_SNAPSHOT';
+        const stockApplied = rawRow.stock_applied !== 0 && rawRow.stock_applied !== false && rawRow.stock_applied !== '0';
+
+        if (!isSnapshot && stockApplied && !isConversionCopy) {
+          if (isNewInvoice && !isDeleted) {
+            if (Array.isArray(rawRow.items)) {
+              for (const line of rawRow.items) {
+                if (line.product_id && Number(line.quantity) > 0 && !line.is_service_item) {
+                  try {
+                    lanUpsertSql.updateProducts(db).run(Number(line.quantity), line.product_id);
+                  } catch { /* ignore */ }
+                }
+              }
+            }
+          } else if (!isNewInvoice && existingInvoice) {
+            const wasDeleted = existingInvoice.is_deleted === 1 || existingInvoice.is_deleted === true || existingInvoice.is_deleted === '1';
+            if (!wasDeleted && isDeleted) {
+              if (Array.isArray(rawRow.items)) {
+                for (const line of rawRow.items) {
+                  if (line.product_id && Number(line.quantity) > 0) {
+                    try {
+                      lanUpsertSql.updateProducts2(db).run(Number(line.quantity), line.product_id);
+                    } catch { /* ignore */ }
+                  }
+                }
+              }
+            } else if (wasDeleted && !isDeleted) {
+              if (Array.isArray(rawRow.items)) {
+                for (const line of rawRow.items) {
+                  if (line.product_id && Number(line.quantity) > 0 && !line.is_service_item) {
+                    try {
+                      lanUpsertSql.updateProducts(db).run(Number(line.quantity), line.product_id);
+                    } catch { /* ignore */ }
+                  }
+                }
               }
             }
           }
+        }
+
+        if (isNewInvoice && !isDeleted && !isConversionCopy) {
 
           // Adjust cash drawer for cash payment on Master PC
           const pm = ((rawRow.payment_method as string) || ('' as string)).toUpperCase();
@@ -308,15 +354,6 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
               console.warn('[LocalHostServer] Could not update cash drawer for LAN invoice:', (cdErr as Error).message);
             }
           }
-        } else if (!isNewInvoice && isDeleted && Array.isArray(rawRow.items)) {
-          // Restore product stock if an invoice is deleted
-          for (const line of rawRow.items) {
-            if (line.product_id && Number(line.quantity) > 0) {
-              try {
-                lanUpsertSql.updateProducts2(db).run(Number(line.quantity), line.product_id);
-              } catch { /* ignore */ }
-            }
-          }
         }
 
         if (rawRow.scrap_invoice_number && Number(rawRow.scrap_deduction) > 0 && !isDeleted) {
@@ -330,7 +367,7 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
           if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';
         }
         upsertTableRows(db, 'purchase_bill_items', rawRow.items);
-        if (isNewPurchaseBill) {
+        if (isNewPurchaseBill && rawRow.stock_sync_mode !== 'PRODUCT_SNAPSHOT') {
           for (const line of rawRow.items) {
             if (line.product_id && Number(line.quantity) > 0) {
               try {
@@ -345,7 +382,7 @@ export function upsertTableRows(db: import('better-sqlite3').Database, tableName
           if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';
         }
         upsertTableRows(db, 'return_items', rawRow.items);
-        if (isNewReturn) {
+        if (isNewReturn && rawRow.stock_sync_mode !== 'PRODUCT_SNAPSHOT') {
           for (const line of rawRow.items) {
             if (line.product_id && Number(line.quantity) > 0) {
               try {
