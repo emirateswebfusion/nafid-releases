@@ -1,4 +1,4 @@
-﻿import { readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
@@ -75,7 +75,7 @@ it.each([80, 300, 1800])('waits for content readiness and prints one continuous 
   expect(print).not.toHaveBeenCalled();
   await listeners.get('print-ready-11')!(height);
   const pageHeightMicrons = Math.max(40000, Math.ceil(height * 25.4 / 96 + 3) * 1000);
-  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, pageHeightMicrons, undefined, false, true, true));
+  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, pageHeightMicrons, undefined, false, true, false));
 });
 
 it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without feeding blank paper', async height => {
