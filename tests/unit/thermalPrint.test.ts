@@ -75,7 +75,7 @@ it.each([80, 300, 1800])('waits for content readiness and prints one continuous 
   expect(print).not.toHaveBeenCalled();
   await listeners.get('print-ready-11')!(height);
   const pageHeightMicrons = Math.max(40000, Math.ceil(height * 25.4 / 96 + 3) * 1000);
-  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, pageHeightMicrons, undefined, false, true));
+  await vi.waitFor(() => expect(print).toHaveBeenCalledWith(expect.anything(), 'thermal', 58, pageHeightMicrons, undefined, false, true, true));
 });
 
 it.each([0, -1, NaN, Infinity, undefined])('rejects unmeasured height %s without feeding blank paper', async height => {
@@ -288,9 +288,9 @@ it('formats scrap and weight items with exactly 3 digits after the dot (e.g. 1.0
 
 it('always sets an explicit page size so the receipt prints as one continuous page', async () => {
   const physical = await buildReceiptHtml('Bill', 80, 'monospace', 0);
-  expect(physical).toMatch(/size:\s*80mm/);
+  expect(physical).toMatch(/size:\s*auto/);
   expect(physical).toContain('document.head.appendChild(pageStyle)');
-  expect(await buildReceiptHtml('Bill', 80)).toContain('size: 80mm');
+  expect(await buildReceiptHtml('Bill', 80)).toContain('size: auto');
 });
 it('clamps the calibration offset inside the page and keeps body width consistent', async () => {
   const positive = new JSDOM(await buildReceiptHtml('Bill', 80, 'monospace', 10));
@@ -324,6 +324,16 @@ it('submits an explicit full-receipt page size so the driver prints one continuo
   expect(options).not.toHaveProperty('usePrinterDefaultPageSize');
   expect(options.pageSize).toEqual({ width: 80000, height: 194000 });
 });
+
+it('uses the printer driver default page size without vertical centering when requested', async () => {
+  const print = vi.fn((_options, callback) => callback(true));
+  const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console });
+  await invoke({ isDestroyed: () => false, webContents: { print } }, 'thermal', 80, 194000, undefined, false, true, true);
+  const options = print.mock.calls[0][0];
+  expect(options).toMatchObject({ margins: { marginType: 'none' }, deviceName: 'thermal', usePrinterDefaultPageSize: true });
+  expect(options).not.toHaveProperty('pageSize');
+});
+
 
 it.each([58, 76, 80])('keeps the receipt body inside a %s mm page for both thermal and PDF output', async width => {
   const dom = new JSDOM(await buildReceiptHtml('Bill', width, 'monospace', 0));

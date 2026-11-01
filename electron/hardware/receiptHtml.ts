@@ -242,7 +242,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 <meta charset="utf-8">
 <style>
   @page {
-    size: ${widthMm}mm auto;
+    size: auto;
     margin: 0 !important;
   }
   * { box-sizing: border-box; }
@@ -271,8 +271,8 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
   pre, img, svg { max-width: 100%; }
   pre, img, svg, hr { break-inside: avoid; page-break-inside: avoid; }
   @media print {
-    html, body { height: 100% !important; min-height: 100% !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; top: 0 !important; }
-    body { padding: 0 10mm 0 0 !important; }
+    html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; top: 0 !important; }
+    body { padding: 0 10mm 0 0 !important; margin: 0 !important; }
     div, pre { overflow: visible !important; }
   }
 </style>
@@ -303,7 +303,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
       const height = document.body.scrollHeight;
       const pageHeightMm = Math.max(40, Math.ceil(height * 25.4 / 96 + 3));
       const pageStyle = document.createElement('style');
-      pageStyle.textContent = '@page { size: ${widthMm}mm auto; margin: 0 !important; }';
+      pageStyle.textContent = '@page { size: auto; margin: 0 !important; }';
       document.head.appendChild(pageStyle);
       if (window.electronAPI?.printReady) {
         window.electronAPI.printReady(height);

@@ -619,7 +619,8 @@ function executePrintWithFallback(
   heightMicrons?: number,
   pageSizeName?: string,
   landscape: boolean = false,
-  noRetry: boolean = false
+  noRetry: boolean = false,
+  usePrinterDefaultPageSize: boolean = false
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!printWindow || printWindow.isDestroyed()) {
@@ -636,7 +637,9 @@ function executePrintWithFallback(
     if (deviceName) {
       primaryOptions.deviceName = deviceName;
     }
-    if (pageSizeName) {
+    if (usePrinterDefaultPageSize) {
+      primaryOptions.usePrinterDefaultPageSize = true;
+    } else if (pageSizeName) {
       (primaryOptions as { pageSize?: string }).pageSize = pageSizeName;
     } else if (widthMm && heightMicrons) {
       primaryOptions.pageSize = { width: widthMm * 1000, height: heightMicrons };
@@ -645,11 +648,14 @@ function executePrintWithFallback(
     const runAttempt2 = (prevReason?: string) => {
       const fallbackOpts: Electron.WebContentsPrintOptions = { silent: true, margins: { marginType: 'none' }, landscape, printBackground: true };
       if (deviceName) fallbackOpts.deviceName = deviceName;
+      if (usePrinterDefaultPageSize) fallbackOpts.usePrinterDefaultPageSize = true;
       printWindow.webContents.print(fallbackOpts, (success2, failureReason2) => {
         if (success2) return resolve();
         if (printWindow.isDestroyed()) return reject(new Error(`Print attempt 2 failed: ${failureReason2}`));
         console.warn(`[Printer] Print attempt 2 failed (${failureReason2}). Retrying attempt 3 on System Default Printer...`);
-        printWindow.webContents.print({ silent: true, margins: { marginType: 'none' }, landscape, printBackground: true }, (success3, failureReason3) => {
+        const fallbackOpts3: Electron.WebContentsPrintOptions = { silent: true, margins: { marginType: 'none' }, landscape, printBackground: true };
+        if (usePrinterDefaultPageSize) fallbackOpts3.usePrinterDefaultPageSize = true;
+        printWindow.webContents.print(fallbackOpts3, (success3, failureReason3) => {
           if (success3) return resolve();
           const reason = failureReason3 || failureReason2 || prevReason || 'Spooler error';
           reject(new Error(`Could not print to printer "${deviceName || 'Default'}": ${reason}. Check printer power, USB cable, and paper.`));
@@ -736,10 +742,10 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
         if (!Number.isFinite(contentHeightPx) || Number(contentHeightPx) <= 0) {
           throw new Error('Receipt paper length could not be measured. Please retry printing the saved bill.');
         }
-        // One continuous page whose height matches the measured receipt: the driver prints the whole bill
-        // as a single form and cuts only once at the end. No driver default page size (no pagination/split).
+        // One continuous receipt flush to the top edge: usePrinterDefaultPageSize queries the driver's
+        // native roll-paper form without injecting vertical centering margins.
         const pageHeightMicrons = Math.max(40000, Math.ceil(Number(contentHeightPx) * 25.4 / 96 + 3) * 1000);
-        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true);
+        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons, undefined, false, true, true);
         clearTimeout(timer);
         setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 1500);
         resolve();
