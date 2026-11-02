@@ -192,7 +192,7 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                         className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono max-w-[200px]"
                       />
                       <p className="text-[10px] text-muted-foreground/80 leading-relaxed">
-                        Auto-calibrated when choosing your printer (Epson/TVS uses <span className="font-mono font-bold text-foreground">0mm</span>, Xprinter/POS-80 uses <span className="font-mono font-bold text-foreground">-3.5mm</span>). Saved in settings so printing stays instant without re-calculation.
+                        Adjust horizontal receipt alignment. Use <span className="font-mono font-bold text-foreground">+3.5mm</span> if the left border is clipped (e.g. XC-80), <span className="font-mono font-bold text-foreground">-3.5mm</span> to center printers with wide left gaps (e.g. Xprinter), or <span className="font-mono font-bold text-foreground">0mm</span> for flush models.
                       </p>
                     </div>
                   </div>

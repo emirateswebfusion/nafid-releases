@@ -691,11 +691,13 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     const receiptConfig = getPrinterConfig(tenantId, 'receipt');
     const rawOffset = receiptConfig?.leftMarginOffsetMm ?? printFmt?.leftMarginOffsetMm;
     const calcOffset = (name?: string | null) => {
-      if (!name) return 0;
-      const s = name.toLowerCase();
-      return (s.includes('xprinter') || s.includes('xp-') || s.includes('pos-80') || s.includes('rp80')) ? -3.5 : 0;
-    };
-    const fontKey = printFmt?.receiptFont || 'courier';
+        if (!name) return 0;
+        const s = name.toLowerCase();
+        if (s.includes('xc-80') || s.includes('xc80') || s.includes('xc-') || s.includes('xc ')) return 3.5;
+        if (s.includes('xprinter') || s.includes('xp-') || s.includes('rp80')) return -3.5;
+        return 0;
+      };
+      const fontKey = printFmt?.receiptFont || 'courier';
     const fontMap: Record<string, string> = {
       courier: 'Consolas, "Courier New", monospace',
       consolas: 'Consolas, monospace',
@@ -720,8 +722,8 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
     });
 
     const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
-    const numOffset = Number(rawOffset);
-    const leftMarginOffsetMm = (Number.isFinite(numOffset) && numOffset !== 0)
+    const numOffset = rawOffset !== undefined && rawOffset !== null && rawOffset !== '' ? Number(rawOffset) : NaN;
+    const leftMarginOffsetMm = Number.isFinite(numOffset)
       ? numOffset
       : calcOffset(resolved.actualNameUsed);
     console.log(`[Printer] Resolved receipt printer "${deviceName}" -> "${resolved.actualNameUsed}" (leftOffset: ${leftMarginOffsetMm}mm)`);

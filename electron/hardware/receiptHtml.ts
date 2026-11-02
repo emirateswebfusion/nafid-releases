@@ -226,7 +226,8 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     ? Math.max(-10, Math.min(leftMarginOffsetMm, widthMm / 4))
     : 0;
   const posOffset = Math.max(0, marginOffsetMm);
-  const rootMarginLeft = marginOffsetMm < 0 ? `${marginOffsetMm}mm` : '0';
+  const rootMarginLeft = `${marginOffsetMm}mm`;
+  const rootWidth = marginOffsetMm > 0 ? `calc(100% - ${marginOffsetMm}mm)` : '100%';
 
   const innerWidthMm = Math.max(30, (widthMm - posOffset) - (isBillStyle ? 4 : 2));
   const innerWidthPx = innerWidthMm * (96 / 25.4);
@@ -237,7 +238,7 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     : `${Math.min(11.5, maxFontPx)}px`;
 
   const contentBody = isBillStyle
-    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:${rootMarginLeft};padding:4px 3px;width:100%;max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
+    ? `<div id="receipt-root" style="border:2px solid black;margin-top:0 !important;margin-left:${rootMarginLeft};padding:4px 3px;width:${rootWidth};max-width:100%;box-sizing:border-box;background:#fff;display:block;overflow:hidden;">${rowsHtml}</div>`
     : `<div id="receipt-root" style="margin-top:0 !important;margin-left:${rootMarginLeft};">${rowsHtml}</div>`;
 
   return `<!DOCTYPE html>
@@ -323,10 +324,13 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
 export function getRecommendedLeftMarginOffset(printerName: string | undefined | null): number {
   if (!printerName) return 0;
   const lower = printerName.toLowerCase().trim();
+  if (lower.includes('xc-80') || lower.includes('xc80') || lower.includes('xc-') || lower.includes('xc ')) {
+    return 3.5;
+  }
   if (lower.includes('epson') || lower.includes('tvs') || lower.includes('bixolon') || lower.includes('posiflex') || lower.includes('citizen') || lower.includes('star')) {
     return 0;
   }
-  if (lower.includes('xprinter') || lower.includes('xp-') || lower.includes('xp ') || lower.includes('pos-80') || lower.includes('pos80') || lower.includes('rp80') || lower.includes('rp-80')) {
+  if (lower.includes('xprinter') || lower.includes('xp-') || lower.includes('xp ') || lower.includes('rp80') || lower.includes('rp-80')) {
     return -3.5;
   }
   return 0;

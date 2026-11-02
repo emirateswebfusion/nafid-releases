@@ -1,3 +1,11 @@
+# Nafid POS v2.2.28
+
+## What's New
+- **XC-80 & Xprinter Specific Thermal Profiling**: Auto-calibrates horizontal margin offset for XC-80 thermal printers (+3.5mm shift-right) preventing left border clipping and balancing wide right margins, while preserving centered layout for Xprinter (-3.5mm) and flush standard models (0mm).
+- **Settings Margin Override**: Explicit user margins configured in Settings (including 0mm) are strictly honored without being overridden by driver heuristics.
+
+**Download:** [Nafid-Setup-2.2.28.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.28/Nafid-Setup-2.2.28.exe)
+
 # Nafid POS v2.2.27
 
 ## What's New

@@ -88,10 +88,13 @@ export function formatPrinterError(rawErr: string | undefined | null): string {
 export function getRecommendedLeftMarginOffset(printerName: string | undefined | null): number {
   if (!printerName) return 0;
   const lower = printerName.toLowerCase().trim();
+  if (lower.includes('xc-80') || lower.includes('xc80') || lower.includes('xc-') || lower.includes('xc ')) {
+    return 3.5;
+  }
   if (lower.includes('epson') || lower.includes('tvs') || lower.includes('bixolon') || lower.includes('posiflex') || lower.includes('citizen') || lower.includes('star')) {
     return 0;
   }
-  if (lower.includes('xprinter') || lower.includes('xp-') || lower.includes('xp ') || lower.includes('pos-80') || lower.includes('pos80') || lower.includes('rp80') || lower.includes('rp-80')) {
+  if (lower.includes('xprinter') || lower.includes('xp-') || lower.includes('xp ') || lower.includes('rp80') || lower.includes('rp-80')) {
     return -3.5;
   }
   return 0;
