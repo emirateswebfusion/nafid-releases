@@ -1,3 +1,9 @@
+# Nafid POS v2.2.26
+
+Corrected build of v2.2.25, whose package was missing files. It includes all of the v2.2.25 changes.
+
+**Download:** [Nafid-Setup-2.2.26.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.26/Nafid-Setup-2.2.26.exe)
+
 # Nafid POS v2.2.25
 
 ## What's New
