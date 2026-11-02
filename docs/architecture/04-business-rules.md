@@ -66,6 +66,8 @@ and `electron/utils/` (ids, cashier settlement math).
   unallocated money clears it before any bill. A receipt referencing `OPENING-BALANCE` only reduces it, and any excess
   becomes unallocated. A payment naming a bill goes to that bill. An opening advance is unallocated money. Per-bill
   outstanding plus the remaining opening balance adds up to the balance.
+- Backfill repairs only a credit bill with no ledger rows at all. Retired rows mean another terminal cancelled the bill
+  and its copy has not arrived; posting them again brought cancelled bills back, in the cloud too.
 - A ledger failure while saving a bill or return now fails the save and rolls it back, so a document cannot exist
   without its rows. Backfill keeps going past one document that cannot be posted. Rows re-pointed by pull
   de-duplication go back to `PENDING`, so they upload.

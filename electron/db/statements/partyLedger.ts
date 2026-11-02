@@ -217,7 +217,8 @@ export const findInvoicesByReferenceNumber = (db: Db) => db.prepare(`
           SELECT 1 FROM party_ledger pl
           WHERE pl.tenant_id = i.tenant_id
             AND ${invoiceOwnedEntry('i.invoice_number')}
-            AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+            -- Retired rows count too: they mean another terminal cancelled the bill and its own copy has not arrived yet.
+            -- Posting them again here would bring a cancelled bill back onto the customer, and upload it.
         )
     `);
 

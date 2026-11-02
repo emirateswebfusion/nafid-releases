@@ -295,6 +295,28 @@ describe('a bill never exists without its ledger rows (D10)', () => {
   });
 });
 
+describe('a bill cancelled on another terminal (rehearsal finding)', () => {
+  it('its retired ledger row arriving first does not get posted again', () => {
+    newParty('A', 'Ravi', '9800000001', 1000);
+    bill('C1', 'Ravi', '9800000001', 400);
+    // The other terminal cancelled the bill: its retired ledger row is here, the bill itself has not arrived yet.
+    raw.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'SYNCED' WHERE reference_number = 'C1'").run();
+    resetBackfillThrottle();
+    backfillCreditInvoices(state.db);
+    expect(raw.prepare("SELECT is_deleted, sync_status FROM party_ledger WHERE reference_number = 'C1'").get()).toEqual({ is_deleted: 1, sync_status: 'SYNCED' });
+    expect(ledgerSum('A')).toBe(1000);
+  });
+
+  it('a credit bill with no ledger rows at all is still repaired', () => {
+    newParty('A', 'Ravi', '9800000001', 0);
+    bill('C2', 'Ravi', '9800000001', 400);
+    raw.prepare("DELETE FROM party_ledger WHERE reference_number = 'C2'").run();
+    resetBackfillThrottle();
+    backfillCreditInvoices(state.db);
+    expect(ledgerSum('A')).toBe(400);
+  });
+});
+
 describe('pull de-duplication (D9)', () => {
   it('ledger rows moved to the cloud copy of a party stay queued for upload', () => {
     newParty('LOCAL', 'Ravi', '9800000001', 0);
