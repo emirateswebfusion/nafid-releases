@@ -312,10 +312,7 @@ export function syncInvoiceCreditLedger(
       gstin: custGstin,
     });
 
-    if (!identityResult) {
-      console.error('[syncInvoiceCreditLedger] Failed to resolve customer/party identity');
-      return;
-    }
+    if (!identityResult) throw new Error('Could not resolve the customer account for this bill');
 
     const targetPartyId = identityResult.party_id;
 
@@ -379,7 +376,9 @@ export function syncInvoiceCreditLedger(
 
     recalcPartyBalances(db, targetPartyId);
   } catch (err) {
+    // Callers run inside the bill's transaction: failing rolls the bill back, so it cannot exist without its ledger rows.
     console.error(`[syncInvoiceCreditLedger] Failed for invoice ${invoice.invoice_number || invoice.invoice_id || '?'} (tenant ${invoice.tenant_id || 'global'}):`, err);
+    throw err;
   }
 }
 
@@ -442,10 +441,7 @@ export function syncReturnLedger(
       gstin: custGstin,
     });
 
-    if (!identityResult) {
-      console.error('[syncReturnLedger] Failed to resolve customer/party identity');
-      return;
-    }
+    if (!identityResult) throw new Error('Could not resolve the customer account for this return');
 
     const partyId = identityResult.party_id;
     const who = custName || custPhone || 'Customer';
@@ -480,6 +476,7 @@ export function syncReturnLedger(
     for (const id of parties) recalcPartyBalances(db, id);
   } catch (err) {
     console.error('[syncReturnLedger] Error:', err);
+    throw err;
   }
 }
 
@@ -502,7 +499,8 @@ export function backfillCreditInvoices(db: Database.Database) {
     if (unlinkedCreditInvoices.length > 0) {
       console.log(`[DB] Backfilling ${unlinkedCreditInvoices.length} credit invoices into party ledger...`);
       for (const inv of unlinkedCreditInvoices) {
-        syncInvoiceCreditLedger(db, inv);
+        // One bill that cannot be posted must not stop the repair of the others (already logged).
+        try { syncInvoiceCreditLedger(db, inv); } catch { /* retried on the next backfill */ }
       }
       console.log(`[DB] Credit invoices backfill completed.`);
     }
@@ -530,12 +528,14 @@ export function backfillCreditInvoices(db: Database.Database) {
             user_id: ret.user_id,
             created_at: ret.created_at,
           };
-          syncReturnLedger(db, { ...base, amount: Number(ret.grand_total) || 0 });
-          // A return credit already used on a bill: post that use too, or the credit would count twice.
-          const used = money(ret.adjusted_amount);
-          if ((ret.refund_method || '').toUpperCase() === 'ADJUST_BILL' && used > 0 && ret.adjusted_invoice_number) {
-            syncReturnLedger(db, { ...base, adjusted_invoice_number: ret.adjusted_invoice_number, amount: used });
-          }
+          try {
+            syncReturnLedger(db, { ...base, amount: Number(ret.grand_total) || 0 });
+            // A return credit already used on a bill: post that use too, or the credit would count twice.
+            const used = money(ret.adjusted_amount);
+            if ((ret.refund_method || '').toUpperCase() === 'ADJUST_BILL' && used > 0 && ret.adjusted_invoice_number) {
+              syncReturnLedger(db, { ...base, adjusted_invoice_number: ret.adjusted_invoice_number, amount: used });
+            }
+          } catch { /* already logged; retried on the next backfill */ }
         }
         console.log(`[DB] Returns backfill completed.`);
       }

@@ -69,7 +69,7 @@ export const selectParties2 = (db: Db) => db.prepare(`
     LIMIT 1
   `);
 export const updatePartyLedger = (db: Db) => db.prepare(`
-    UPDATE party_ledger SET party_id = ?, sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ?
+    UPDATE party_ledger SET party_id = ?, sync_status = 'PENDING' WHERE party_id = ? AND tenant_id = ?
   `);
 export const updateParties2 = (db: Db) => db.prepare(`
     UPDATE parties SET is_deleted = 1, sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ?

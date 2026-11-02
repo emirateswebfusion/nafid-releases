@@ -66,6 +66,9 @@ and `electron/utils/` (ids, cashier settlement math).
   unallocated money clears it before any bill. A receipt referencing `OPENING-BALANCE` only reduces it, and any excess
   becomes unallocated. A payment naming a bill goes to that bill. An opening advance is unallocated money. Per-bill
   outstanding plus the remaining opening balance adds up to the balance.
+- A ledger failure while saving a bill or return now fails the save and rolls it back, so a document cannot exist
+  without its rows. Backfill keeps going past one document that cannot be posted. Rows re-pointed by pull
+  de-duplication go back to `PENDING`, so they upload.
 - Ledger row ids of a bill use its invoice id, so bills sharing a number across terminals cannot overwrite each other.
   Rows under the older number-based ids are replaced on the bill's next save. Upgrade every terminal of a shop together.
 - Identity: the same name with a different phone is another person (POS `CustomerIdentityService`, server `pushParties`).

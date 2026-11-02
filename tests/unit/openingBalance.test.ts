@@ -28,6 +28,8 @@ import { importOpeningBalances, type OpeningImportInput } from '../../electron/s
 import { computeCustomerCreditStatusSync } from '../../electron/services/customerCreditService';
 import { backfillCreditInvoices, resetBackfillThrottle } from '../../electron/services/partyLedgerService';
 import { parseOpeningBalanceGrid } from '../../src/components/data-upload/openingBalanceFile';
+import { CustomerIdentityService } from '../../electron/db/customerIdentity';
+import * as partiesSyncSql from '../../electron/db/statements/sync/partiesSync';
 
 const AS_OF = '2026-10-31T18:29:59.000Z';
 let raw: DatabaseSync;
@@ -264,6 +266,43 @@ describe('two bills with one number (D6)', () => {
     await edit('inv-y', 'Anil', '9800000002', 320);
     expect(ledgerSum('B')).toBe(320);
     expect(ledgerSum('A')).toBe(700);
+  });
+});
+
+describe('a bill never exists without its ledger rows (D10)', () => {
+  it('a ledger failure at checkout rolls the whole bill back', () => {
+    newParty('A', 'Ravi', '9800000001', 0);
+    const spy = vi.spyOn(CustomerIdentityService, 'findOrCreateCustomerAndParty').mockReturnValue(null);
+    const res = checkout({ invoice_id: 'F1', user_id: 'u', tenant_id: 't', invoice_number: 'F1', invoice_type: 'ESTIMATE', subtotal: 500, tax_total: 0, discount_total: 0, grand_total: 500, customer_name: 'Ravi', customer_phone: '9800000001', items: lines(500), ...payFields(500, 'CREDIT') } as Parameters<typeof checkout>[0]);
+    spy.mockRestore();
+    expect(res.success).toBe(false);
+    expect(raw.prepare("SELECT COUNT(*) c FROM invoices WHERE invoice_id = 'F1'").get()).toEqual({ c: 0 });
+    expect(raw.prepare("SELECT current_stock s FROM products WHERE product_id = 'p'").get()).toEqual({ s: 100000 });
+  });
+
+  it('one bill that cannot be repaired does not stop the repair of the others', () => {
+    newParty('A', 'Ravi', '9800000001', 0);
+    bill('G1', 'Ravi', '9800000001', 100);
+    bill('G2', 'Ravi', '9800000001', 200);
+    raw.prepare("DELETE FROM party_ledger WHERE party_id = 'A'").run();
+    const real = CustomerIdentityService.findOrCreateCustomerAndParty;
+    let calls = 0;
+    const spy = vi.spyOn(CustomerIdentityService, 'findOrCreateCustomerAndParty').mockImplementation((...args) => (++calls === 1 ? null : real.apply(CustomerIdentityService, args)));
+    resetBackfillThrottle();
+    backfillCreditInvoices(state.db);
+    spy.mockRestore();
+    expect(raw.prepare("SELECT COUNT(*) c FROM party_ledger WHERE party_id = 'A' AND is_deleted = 0").get()).toEqual({ c: 1 });
+  });
+});
+
+describe('pull de-duplication (D9)', () => {
+  it('ledger rows moved to the cloud copy of a party stay queued for upload', () => {
+    newParty('LOCAL', 'Ravi', '9800000001', 0);
+    bill('H1', 'Ravi', '9800000001', 100);
+    raw.prepare("INSERT INTO parties (party_id, tenant_id, name, phone, party_type, is_deleted) VALUES ('CLOUD', 't', 'Ravi Cloud', '9800000002', 'CUSTOMER', 0)").run();
+    raw.prepare("UPDATE party_ledger SET sync_status = 'SYNCED' WHERE party_id = 'LOCAL'").run();
+    partiesSyncSql.updatePartyLedger(state.db).run('CLOUD', 'LOCAL', 't');
+    expect(raw.prepare("SELECT party_id, sync_status FROM party_ledger WHERE reference_number = 'H1'").get()).toEqual({ party_id: 'CLOUD', sync_status: 'PENDING' });
   });
 });
 
