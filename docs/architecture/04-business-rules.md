@@ -56,8 +56,27 @@ and `electron/utils/` (ids, cashier settlement math).
   credits and overpayments go to the oldest open bills. The per-bill outstanding adds up to the balance. Customer invoice details show this computed `outstanding_amount` (including zero), not the original checkout balance snapshot.
 - Editing a bill: the billing tab keeps the bill's own credit (`editingInvoiceContribution`) so the due, receipt
   balance and credit-limit check do not count the bill twice.
-- Receipts explicitly referencing `OPENING-BALANCE` settle prior receivables only. They change the party balance,
-  but are excluded from the pool allocated to newer invoices (mirrored by server `customerCredit.ts`).
+- Opening balance (`electron/services/partyOpeningBalance.ts`): one row per party, id `party_opening:<party_id>`,
+  reference `OPENING-BALANCE`, method `OPENING`, description `Opening Balance (…)`, status `PENDING`. It moves no cash
+  or payment account. Positive = the party owes the shop; a negative receivable is an advance. `db:importOpeningBalances`
+  (Data Upload → Opening Balances) sets existing parties from a file: name match only, never phone; all rows or none;
+  an unmatched or non-unique name or a different existing amount blocks the import; a repeat changes nothing.
+  `db:bulkImportParties` never changes an existing party's money and reports `ignored_balances`.
+- Allocation (mirrored by server `customerCredit.ts`): the opening balance is the customer's oldest debt, so
+  unallocated money clears it before any bill. A receipt referencing `OPENING-BALANCE` only reduces it, and any excess
+  becomes unallocated. A payment naming a bill goes to that bill. An opening advance is unallocated money. Per-bill
+  outstanding plus the remaining opening balance adds up to the balance.
+- Backfill repairs only a credit bill with no ledger rows at all. Retired rows mean another terminal cancelled the bill
+  and its copy has not arrived; posting them again brought cancelled bills back, in the cloud too.
+- A ledger failure while saving a bill or return now fails the save and rolls it back, so a document cannot exist
+  without its rows. Backfill keeps going past one document that cannot be posted. Rows re-pointed by pull
+  de-duplication go back to `PENDING`, so they upload.
+- Ledger row ids of a bill use its invoice id, so bills sharing a number across terminals cannot overwrite each other.
+  Rows under the older number-based ids are replaced on the bill's next save. Upgrade every terminal of a shop together.
+- Identity: the same name with a different phone is another person (POS `CustomerIdentityService`, server `pushParties`).
+  A missing phone on either side still matches by name.
+- A party with no ledger rows at all keeps its stored balance on screen, in both apps, because older shops may hold real
+  balances that way. New code always posts a row, so no new balance can arise without one.
 - Tests: `creditLedger.test.ts` (real SQLite and services, incl. a 40-customer / 600-operation randomised run),
   `tabStoreEditing.test.ts`.
 

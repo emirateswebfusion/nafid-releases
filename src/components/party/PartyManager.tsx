@@ -762,7 +762,7 @@ export function PartyManager({
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         defaultEntity={activeTab === 'SUPPLIER' ? 'suppliers' : activeTab === 'CUSTOMER' ? 'customers' : activeTab === 'STAFF' ? 'staff' : 'customers'}
-        allowedEntities={['customers', 'suppliers', 'staff']}
+        allowedEntities={['customers', 'suppliers', 'staff', 'opening_balances']}
         hideEntityTabs={false}
         onImportSuccess={(count, entity) => {
           loadParties();

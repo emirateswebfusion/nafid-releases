@@ -10,12 +10,17 @@ export const insertParty = (db: Db) => db.prepare(`
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
 
-export const insertPartyLedger = (db: Db) => db.prepare(`
-        INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, created_by, created_by_name, created_at, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, 'GST', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+/** Active parties an opening balance file can match. A party with no type counts as a customer. */
+export const listOpeningBalanceParties = (db: Db) => db.prepare(`
+        SELECT party_id, name FROM parties
+        WHERE tenant_id = ? AND COALESCE(party_type, 'CUSTOMER') = ? AND (is_deleted IS NULL OR is_deleted = 0)
       `);
 
-export const updatePartyLastTransactionDate = (db: Db) => db.prepare(`UPDATE parties SET last_transaction_date = CURRENT_TIMESTAMP WHERE party_id = ?`);
+/** Net of a party's active opening rows, older rows with other ids included. */
+export const sumOpeningEntries = (db: Db) => db.prepare(`
+        SELECT SUM(credit_amount - debit_amount) AS total FROM party_ledger
+        WHERE party_id = ? AND description LIKE 'Opening Balance%' AND (is_deleted IS NULL OR is_deleted = 0)
+      `);
 
 export const findPartiesPartyIdAndPhone = (db: Db) => db.prepare('SELECT party_id, phone, name FROM parties WHERE tenant_id = ? AND is_deleted = 0');
 
@@ -34,11 +39,6 @@ export const updatePartyByPartyId = (db: Db) => db.prepare(`
             party_type = COALESCE(?, party_type), custom_category = COALESCE(?, custom_category), notes = COALESCE(?, notes),
             is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE party_id = ?
-      `);
-
-export const insertPartyLedger2 = (db: Db) => db.prepare(`
-        INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, created_by, created_by_name, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'GST', ?, ?, 'PENDING', ?, ?)
       `);
 
 export const findPartiesByPartyId = (db: Db) => db.prepare('SELECT tenant_id, phone, name FROM parties WHERE party_id = ?');

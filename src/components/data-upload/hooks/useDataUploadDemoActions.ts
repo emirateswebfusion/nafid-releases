@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { SAMPLE_CUSTOMERS, SAMPLE_PRODUCTS, SAMPLE_STAFF, SAMPLE_SUPPLIERS } from '../dataUploadTypes';
+import { SAMPLE_CUSTOMERS, SAMPLE_OPENING_BALANCES, SAMPLE_PRODUCTS, SAMPLE_STAFF, SAMPLE_SUPPLIERS } from '../dataUploadTypes';
 import type { UploadEntityType } from '../dataUploadTypes';
 import type { DataUploadState } from './useDataUploadState';
 
@@ -39,6 +39,9 @@ export function useDataUploadDemoActions(ctx: UseDataUploadDemoActionsContext) {
     } else if (entityType === 'customers') {
       sampleData = SAMPLE_CUSTOMERS;
       filePrefix = 'customers_demo_template';
+    } else if (entityType === 'opening_balances') {
+      sampleData = SAMPLE_OPENING_BALANCES;
+      filePrefix = 'opening_balances_template';
     } else {
       sampleData = SAMPLE_STAFF;
       filePrefix = 'staff_demo_template';

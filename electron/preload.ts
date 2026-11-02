@@ -260,6 +260,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetParties: (tenant_id: string, includeDeleted?: boolean) => ipcRenderer.invoke('db:getParties', tenant_id, includeDeleted),
   dbAddParty: (party: unknown) => ipcRenderer.invoke('db:addParty', party),
   dbBulkImportParties: (parties: unknown[]) => ipcRenderer.invoke('db:bulkImportParties', parties),
+  dbImportOpeningBalances: (payload: unknown) => ipcRenderer.invoke('db:importOpeningBalances', payload),
   dbUpdateParty: (party: unknown) => ipcRenderer.invoke('db:updateParty', party),
   dbDeleteParty: (party_id: string) => ipcRenderer.invoke('db:deleteParty', party_id),
   dbRestoreParty: (party_id: string) => ipcRenderer.invoke('db:restoreParty', party_id),

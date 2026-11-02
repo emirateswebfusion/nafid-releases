@@ -210,7 +210,8 @@ export interface IElectronAPI {
   dbFindCustomers: (params: { tenant_id: string; name?: string; phone?: string }) => Promise<Rows.CustomersRow[]>;
   dbGetParties: (tenant_id: string, includeDeleted?: boolean) => Promise<Party[]>;
   dbAddParty: (party: unknown) => Promise<{ success: boolean; error?: string }>;
-  dbBulkImportParties: (parties: unknown[]) => Promise<{ success: boolean; error?: string }>;
+  dbBulkImportParties: (parties: unknown[]) => Promise<{ success: boolean; error?: string; ignored_balances?: number }>;
+  dbImportOpeningBalances: (payload: unknown) => Promise<import('./data/parties').OpeningImportResult>;
   dbUpdateParty: (party: unknown) => Promise<{ success: boolean; error?: string }>;
   dbDeleteParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
   dbRestoreParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;

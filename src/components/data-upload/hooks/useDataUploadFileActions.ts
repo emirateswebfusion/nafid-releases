@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { PARTY_HEADER_MAP, PRODUCT_HEADER_MAP, resolveDynamicTierName } from '../dataUploadTypes';
+import { parseOpeningBalanceGrid } from '../openingBalanceFile';
 import type { ParsedRow, UploadEntityType } from '../dataUploadTypes';
 import type { DataUploadState } from './useDataUploadState';
 
@@ -33,13 +34,15 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
     setFileName(file.name);
 
     const isCsv = file.name.endsWith('.csv') || file.type === 'text/csv';
+    const isOpening = entityType === 'opening_balances';
 
     if (isCsv) {
       Papa.parse(file, {
-        header: true,
+        header: !isOpening,
         skipEmptyLines: true,
         complete: (results) => {
-          processRawData(results.data as Array<Record<string, unknown>>);
+          if (isOpening) processOpeningGrid(results.data as unknown[][]);
+          else processRawData(results.data as Array<Record<string, unknown>>);
           setLoading(false);
         },
         error: (err) => {
@@ -55,6 +58,10 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
           const workbook = XLSX.read(buffer, { type: 'binary' });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
+          if (isOpening) {
+            processOpeningGrid(XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as unknown[][]);
+            return;
+          }
           const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
           processRawData(rawData as Array<Record<string, unknown>>);
         } catch (err) {
@@ -68,6 +75,27 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
         setLoading(false);
       };
       reader.readAsBinaryString(file);
+    }
+  };
+
+  const processOpeningGrid = (grid: unknown[][]) => {
+    const { rows, fileTotal, error } = parseOpeningBalanceGrid(grid);
+    if (error) {
+      setMessage({ type: 'error', text: error });
+      setParsedRows([]);
+      return;
+    }
+    setParsedRows(rows.map((row) => ({
+      id: uuidv4(),
+      data: { name: row.name, balance: row.amount, tax_rate_percent: 0, uom: '', hsn_sac_code: '' },
+      isValid: !row.error,
+      errors: row.error ? [row.error] : [],
+    })));
+    const sum = Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+    if (fileTotal !== null && Math.abs(fileTotal - sum) > 0.004) {
+      setMessage({ type: 'error', text: `The rows add up to ${sum}, but the file's Total row says ${fileTotal}. Correct the file before importing.` });
+    } else {
+      setMessage({ type: 'info', text: `${rows.length} balances, net total ${sum}${fileTotal !== null ? ', matching the file total' : ''}. Choose the as-of date, then import.` });
     }
   };
 

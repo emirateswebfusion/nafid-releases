@@ -11,8 +11,11 @@ export function useDataUploadState() {
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [showOrderGuide, setShowOrderGuide] = useState<boolean>(true);
   const [availableTiers, setAvailableTiers] = useState<Array<{ pricing_tier_id?: string; name: string }>>([]);
+  const [openingAsOf, setOpeningAsOf] = useState<string>('');
+  const [openingPartyType, setOpeningPartyType] = useState<'CUSTOMER' | 'SUPPLIER'>('CUSTOMER');
 
   return {
+    openingAsOf, setOpeningAsOf, openingPartyType, setOpeningPartyType,
     parsedRows, setParsedRows, fileName, setFileName, setLoading, importing, setImporting, dragActive, setDragActive,
     message, setMessage, showOrderGuide, setShowOrderGuide, availableTiers, setAvailableTiers,
   };

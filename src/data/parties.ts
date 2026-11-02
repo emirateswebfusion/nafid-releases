@@ -16,6 +16,17 @@ export interface Party extends Omit<PartiesRow, PartyFlag> {
   last_transaction_date: string | null;
 }
 
+/** Outcome of `db:importOpeningBalances`: one result per file row; nothing is written while any row is blocked. */
+export interface OpeningImportResult {
+  success: boolean;
+  error?: string;
+  applied?: boolean;
+  posted?: number;
+  blocked?: number;
+  total?: number;
+  results?: Array<{ name: string; amount: number; status: 'post' | 'unchanged' | 'skip' | 'unmatched' | 'ambiguous' | 'conflict' | 'invalid'; reason?: string; party_id?: string }>;
+}
+
 export async function listParties(tenantId: string, includeDeleted = false): Promise<Party[]> {
   return (await api().dbGetParties(tenantId, includeDeleted)) as Party[];
 }
@@ -25,6 +36,7 @@ export const partiesApi = bindBridge({
   getParties: 'dbGetParties',
   addParty: 'dbAddParty',
   bulkImportParties: 'dbBulkImportParties',
+  importOpeningBalances: 'dbImportOpeningBalances',
   updateParty: 'dbUpdateParty',
   deleteParty: 'dbDeleteParty',
   restoreParty: 'dbRestoreParty',

@@ -19,7 +19,7 @@ export interface UseDataUploadImportActionsContext {
 /** Imports the validated rows for the selected entity through the data APIs. */
 export function useDataUploadImportActions(ctx: UseDataUploadImportActionsContext) {
   const { du, entityType, onClose, onImportSuccess, tenantId, userId, userName } = ctx;
-  const { parsedRows, setImporting, setMessage } = du;
+  const { parsedRows, setImporting, setMessage, setParsedRows } = du;
 
   // ─── Execute Import ─────────────────────────────────────────────────────────
 
@@ -35,6 +35,42 @@ export function useDataUploadImportActions(ctx: UseDataUploadImportActionsContex
 
     try {
       const tid = tenantId || 'global';
+
+      if (entityType === 'opening_balances') {
+        if (!du.openingAsOf) {
+          setMessage({ type: 'error', text: 'Choose the as-of date of these balances first.' });
+          return;
+        }
+        if (parsedRows.some(r => !r.isValid)) {
+          setMessage({ type: 'error', text: 'Correct the marked rows in the file first. Nothing was imported.' });
+          return;
+        }
+        const res = await partiesApi.importOpeningBalances({
+          tenant_id: tid,
+          party_type: du.openingPartyType,
+          as_of: new Date(`${du.openingAsOf}T23:59:59`).toISOString(),
+          apply: true,
+          rows: validRows.map(r => ({ name: r.data.name, amount: r.data.balance })),
+          created_by: userId || null,
+          created_by_name: userName || null,
+        });
+        if (!res.success) {
+          setMessage({ type: 'error', text: res.error || 'Failed to import opening balances.' });
+        } else if (!res.applied) {
+          const byRow = res.results || [];
+          setParsedRows(validRows.map((r, i) => {
+            const result = byRow[i];
+            const failed = result && !['post', 'unchanged', 'skip'].includes(result.status);
+            return failed ? { ...r, isValid: false, errors: [result.reason || result.status] } : r;
+          }));
+          const first = byRow.filter(r => !['post', 'unchanged', 'skip'].includes(r.status)).slice(0, 3).map(r => `${r.name}: ${r.reason}`).join('; ');
+          setMessage({ type: 'error', text: `Nothing was imported. ${res.blocked} rows need attention. ${first}` });
+        } else {
+          setMessage({ type: 'success', text: `Posted ${res.posted} opening balances (${validRows.length - (res.posted || 0)} already in place). File total ${res.total}.` });
+          if (onImportSuccess) onImportSuccess(res.posted || 0, 'opening_balances');
+        }
+        return;
+      }
 
       if (entityType === 'products') {
         const payload = validRows.map(r => ({
@@ -142,9 +178,14 @@ export function useDataUploadImportActions(ctx: UseDataUploadImportActionsContex
         if (hasBridge('dbBulkImportParties')) {
           const res = await partiesApi.bulkImportParties(payload);
           if (res.success) {
-            setMessage({ type: 'success', text: `Successfully imported ${payload.length} ${entityType}!` });
+            const ignored = res.ignored_balances || 0;
+            if (ignored > 0) {
+              setMessage({ type: 'info', text: `Imported ${payload.length} ${entityType}. ${ignored} already existed, so their balances in this file were NOT applied. Use the Opening Balances tab for those.` });
+            } else {
+              setMessage({ type: 'success', text: `Successfully imported ${payload.length} ${entityType}!` });
+              setTimeout(() => { onClose(); }, 1200);
+            }
             if (onImportSuccess) onImportSuccess(payload.length, entityType);
-            setTimeout(() => { onClose(); }, 1200);
           } else {
             setMessage({ type: 'error', text: res.error || `Failed to import ${entityType}.` });
           }

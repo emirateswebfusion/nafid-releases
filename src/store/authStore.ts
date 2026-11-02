@@ -490,6 +490,14 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       const res = await authCloud.changePassword(token, oldPassword, newPassword);
       const data = await res.json();
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
+      // The server ended every older session of this user and sent this device a new token.
+      if (typeof data?.token === 'string') {
+        useAuthStore.setState({ token: data.token });
+        if (hasBridge('authGetToken') && hasBridge('authSaveToken')) {
+          const stored = await authApi.getToken();
+          if (stored) await authApi.saveToken({ ...stored, jwt_token: data.token });
+        }
+      }
       return { success: true };
     } catch {
       return { success: false, error: 'Cannot reach server.' };

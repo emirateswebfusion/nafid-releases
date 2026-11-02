@@ -2,6 +2,7 @@
 import { handle } from './common.js';
 import * as partiesService from '../services/partiesService.js';
 import * as customersService from '../services/customersService.js';
+import { importOpeningBalances } from '../services/partyOpeningBalance.js';
 
 export function registerPartyCustomerHandlers(): void {
   handle('db:getParties', partiesService.getParties);
@@ -9,6 +10,8 @@ export function registerPartyCustomerHandlers(): void {
   handle('db:addParty', partiesService.addParty, { safe: true });
 
   handle('db:bulkImportParties', partiesService.bulkImportParties, { safe: true });
+
+  handle('db:importOpeningBalances', importOpeningBalances, { safe: true });
 
   handle('db:updateParty', partiesService.updateParty, { safe: true });
 

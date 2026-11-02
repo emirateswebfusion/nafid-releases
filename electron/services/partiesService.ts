@@ -3,7 +3,7 @@ import { recordLedgerCashEntry } from './cashRegisterLedgerService.js';
 import { syncLedgerPaymentAccount } from './ledgerPaymentAccounts.js';
 import { getDb } from '../db/localDb.js';
 import { backfillCreditInvoices, reconcileAllPartyBalances, recalcPartyBalances } from './partyLedgerService.js';
-import { deterministicUUID } from '../utils/ids.js';
+import { postOpeningBalance } from './partyOpeningBalance.js';
 import { localTimestamp } from './storeTime.js';
 import * as partiesSql from '../db/statements/parties.js';
 /** parties use-cases for the main process (called by electron/ipc handlers). */
@@ -34,6 +34,12 @@ export function getParties(tenantId: string, includeDeleted: unknown = false) {
   }
 }
 
+/** Balance entered on a party: RECEIVABLE keeps its sign, PAYABLE flips it, so a negative receivable is an advance. */
+function signedOpeningAmount(balance: unknown, balanceType: string): number {
+  const amount = parseFloat(String(balance ?? 0)) || 0;
+  return balanceType === 'PAYABLE' ? -amount : amount;
+}
+
 /** IPC `db:addParty` */
 export function addParty(p: PartyInput) {
   try {
@@ -53,29 +59,17 @@ export function addParty(p: PartyInput) {
     const restrictOnCreditExpiry = p.restrict_on_credit_expiry !== undefined ? (p.restrict_on_credit_expiry ? 1 : 0) : 1;
     const whatsappAlertsEnabled = p.whatsapp_alerts_enabled !== undefined ? (p.whatsapp_alerts_enabled ? 1 : 0) : 1;
     const bt = p.balance_type || 'RECEIVABLE';
-    const initialBalance = bt === 'RECEIVABLE'
-      ? Math.abs((p.balance as number) || 0)
-      : -Math.abs((p.balance as number) || 0);
+    const initialBalance = signedOpeningAmount(p.balance, bt);
     const partyType = p.party_type || 'CUSTOMER';
     const customCategory = p.custom_category || null;
 
-    partiesSql.insertParty(db).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, partyType, customCategory, p.notes || null, p.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry, whatsappAlertsEnabled);
-
-    // Create opening balance ledger entry
-    if (p.balance && parseFloat(p.balance as unknown as string) > 0) {
-      const amount = Math.abs(parseFloat(p.balance as unknown as string));
-      const ledgerId = deterministicUUID(`party_opening:${p.party_id}`);
-      partiesSql.insertPartyLedger(db).run(
-        ledgerId, p.party_id, p.tenant_id,
-        `Opening Balance (${bt === 'RECEIVABLE' ? 'Receivable' : 'Payable'})`,
-        bt === 'RECEIVABLE' ? amount : 0,
-        bt === 'PAYABLE' ? amount : 0,
-        initialBalance,
-        p.created_by || null,
-        p.created_by_name || null
-      );
-      partiesSql.updatePartyLastTransactionDate(db).run(p.party_id);
-    }
+    db.transaction(() => {
+      partiesSql.insertParty(db).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, partyType, customCategory, p.notes || null, p.pricing_tier_id || null, creditLimit, creditPeriodEnabled, creditPeriodDays, creditPeriodBasis, restrictOnCreditExpiry, whatsappAlertsEnabled);
+      postOpeningBalance(db, {
+        party_id: p.party_id, tenant_id: p.tenant_id, party_type: partyType, signed_amount: initialBalance,
+        transaction_date: new Date().toISOString(), created_by: p.created_by, created_by_name: p.created_by_name,
+      });
+    })();
 
     return { success: true };
   } catch (error) {
@@ -88,11 +82,11 @@ export function addParty(p: PartyInput) {
 export function bulkImportParties(parties: PartyInput[]) {
   try {
     const db = getDb();
+    let ignoredBalances = 0;
     const transaction = db.transaction((partyList) => {
       const selectPhoneStmt = partiesSql.findPartiesPartyIdAndPhone(db);
       const insertStmt = partiesSql.insertParty2(db);
       const updateStmt = partiesSql.updatePartyByPartyId(db);
-      const insertLedgerStmt = partiesSql.insertPartyLedger2(db);
 
       const now = new Date();
       for (const p of partyList) {
@@ -129,11 +123,11 @@ export function bulkImportParties(parties: PartyInput[]) {
             p.notes || null,
             existing.party_id
           );
+          // This import never changes an existing party's money: the Opening Balances import does that.
+          if (parseFloat(String(p.balance ?? 0))) ignoredBalances++;
         } else {
           const bt = p.balance_type || (p.party_type === 'SUPPLIER' ? 'PAYABLE' : 'RECEIVABLE');
-          const initialBalance = bt === 'RECEIVABLE'
-            ? Math.abs((p.balance as number) || 0)
-            : -Math.abs((p.balance as number) || 0);
+          const initialBalance = signedOpeningAmount(p.balance, bt);
           const creditLimit = Math.max(0, Number(p.credit_limit) || 0);
           const partyType = p.party_type || 'SUPPLIER';
 
@@ -156,26 +150,15 @@ export function bulkImportParties(parties: PartyInput[]) {
             timestamp
           );
 
-          if (p.balance && parseFloat(p.balance as unknown as string) !== 0) {
-            const amount = Math.abs(parseFloat(p.balance as unknown as string));
-            const ledgerId = deterministicUUID(`party_opening:${p.party_id}`);
-            insertLedgerStmt.run(
-              ledgerId, p.party_id, p.tenant_id, timestamp,
-              `Opening Balance (${bt === 'RECEIVABLE' ? 'Receivable' : 'Payable'})`,
-              bt === 'RECEIVABLE' ? amount : 0,
-              bt === 'PAYABLE' ? amount : 0,
-              initialBalance,
-              p.created_by || null,
-              p.created_by_name || null,
-              timestamp,
-              timestamp
-            );
-          }
+          postOpeningBalance(db, {
+            party_id: p.party_id, tenant_id: p.tenant_id, party_type: partyType, signed_amount: initialBalance,
+            transaction_date: timestamp, created_by: p.created_by, created_by_name: p.created_by_name,
+          });
         }
       }
     });
     transaction(parties);
-    return { success: true };
+    return { success: true, ignored_balances: ignoredBalances };
   } catch (error) {
     console.error('[db:bulkImportParties]', error);
     return { success: false, error: (error as Error).message || 'Operation failed' };

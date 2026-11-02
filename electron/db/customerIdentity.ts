@@ -206,9 +206,11 @@ export class CustomerIdentityService {
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
               AND LOWER(TRIM(name)) = LOWER(TRIM(?))
+              -- A typed phone that differs from the party's means another person with the same name.
+              AND (? = 0 OR phone IS NULL OR TRIM(phone) = '')
             ORDER BY created_at ASC
             LIMIT 1
-          `).get(tenantId, cName);
+          `).get(tenantId, cName, phoneClean.length >= 7 ? 1 : 0);
         }
       }
 

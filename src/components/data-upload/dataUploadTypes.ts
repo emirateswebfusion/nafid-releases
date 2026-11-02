@@ -1,6 +1,6 @@
 /** Data upload modal: entity types, parsed row and column shapes, column specs, header maps and demo samples. */
 
-export type UploadEntityType = 'products' | 'suppliers' | 'customers' | 'staff';
+export type UploadEntityType = 'products' | 'suppliers' | 'customers' | 'staff' | 'opening_balances';
 
 export interface DataUploadModalProps {
   isOpen: boolean;
@@ -96,6 +96,16 @@ export const CUSTOMER_COLUMN_SPECS: ColumnSpec[] = [
   { name: 'Balance Type', required: false, example: 'RECEIVABLE' },
   { name: 'Credit Limit', required: false, example: '10000' },
   { name: 'Notes', required: false, example: 'Regular retail customer' },
+];
+
+export const OPENING_BALANCE_COLUMN_SPECS: ColumnSpec[] = [
+  { name: 'Account Name', required: true, example: 'Rahul Sharma' },
+  { name: 'Balance', required: true, example: '1200 (negative = advance)' },
+];
+
+export const SAMPLE_OPENING_BALANCES = [
+  { 'Account Name': 'Rahul Sharma', Balance: 1200 },
+  { 'Account Name': 'Priya Traders', Balance: -500 },
 ];
 
 export const STAFF_COLUMN_SPECS: ColumnSpec[] = [

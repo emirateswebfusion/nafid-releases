@@ -40,17 +40,23 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
   const checkoutPaid = new Map<string, number>();
   const laterPaid = new Map<string, number>();
   let pool = 0;
+  let openingDue = 0;
   for (const row of ledgerRows) {
     const ref = (row.reference_number || '').trim();
     const debit = Number(row.debit_amount) || 0;
     const credit = Number(row.credit_amount) || 0;
+    const isOpeningRow = /^Opening Balance/i.test(row.description || '');
     if (debit > 0) {
       const owner = checkoutRefOwner.get(ref);
       if (owner) checkoutPaid.set(owner, (checkoutPaid.get(owner) || 0) + debit);
       else if (billNumbers.has(ref)) laterPaid.set(ref, (laterPaid.get(ref) || 0) + debit);
-      else if (ref !== 'OPENING-BALANCE') pool += debit;
+      else if (ref === 'OPENING-BALANCE' && !isOpeningRow) openingDue -= debit;
+      else pool += debit; // includes an opening advance: it pays bills like any other unallocated money
     }
-    if (credit > 0 && (/-REFUND$/i.test(ref) || /-ADJ-/i.test(ref))) pool -= credit;
+    if (credit > 0) {
+      if (isOpeningRow || ref === 'OPENING-BALANCE') openingDue += credit;
+      else if (/-REFUND$/i.test(ref) || /-ADJ-/i.test(ref)) pool -= credit;
+    }
   }
   let unallocatedPool = Math.max(0, pool);
   const directPayment = (invNum: string, terms: ReturnType<typeof invoiceCreditTerms>) =>
@@ -59,6 +65,9 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
   for (const { inv, terms } of creditInvoices) {
     unallocatedPool += Math.max(0, directPayment((inv.invoice_number || '').trim(), terms) - terms.creditPortion);
   }
+  // The opening balance is the oldest debt: unallocated money clears it before any bill. A receipt marked
+  // OPENING-BALANCE beyond the debt is unallocated money too.
+  unallocatedPool = Math.max(0, unallocatedPool - openingDue);
 
   const billAllocations = new Map<string, { outstanding: number; dueDate: Date | null; isOverdue: boolean; overdueDays: number; remainingDays: number; status: string }>();
 
