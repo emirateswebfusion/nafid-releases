@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import type { SettingsForm } from '../settingsFormTypes';
+import { getRecommendedLeftMarginOffset } from '../../../utils/print/printFormatHelper';
 
 export interface HardwareSettingsTabProps {
   activeHardwareTab: string;
@@ -119,7 +120,10 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                     ) : (
                       <div className="col-span-2 space-y-2">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Select USB Printer</label>
-                        <Select value={receiptPrinter.deviceName} placeholder={osPrinters.length === 0 ? 'No printers found — click Refresh Printers' : '-- Select a printer --'} onChange={v => setReceiptPrinter({ ...receiptPrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} disabled={osPrinters.length === 0} />
+                        <Select value={receiptPrinter.deviceName} placeholder={osPrinters.length === 0 ? 'No printers found — click Refresh Printers' : '-- Select a printer --'} onChange={v => {
+                          const autoOffset = getRecommendedLeftMarginOffset(v);
+                          setReceiptPrinter({ ...receiptPrinter, deviceName: v, leftMarginOffsetMm: autoOffset });
+                        }} options={osPrinters.map(p => ({value:p.name,label:p.name}))} disabled={osPrinters.length === 0} />
                       </div>
                     )}
                     <div className="col-span-2 space-y-2">
@@ -168,10 +172,17 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                     <div className="col-span-2 space-y-2 pt-2 border-t border-border/60">
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider block">Left Margin Offset (mm)</label>
-                        <span className="text-[10px] text-muted-foreground/70 font-mono">Default: 0mm</span>
+                        <span className="text-[10px] text-muted-foreground/70 font-mono">
+                          {receiptPrinter.leftMarginOffsetMm === -3.5
+                            ? 'Auto: -3.5mm (Centered)'
+                            : (receiptPrinter.leftMarginOffsetMm === 0
+                              ? 'Auto: 0mm (Standard)'
+                              : `${receiptPrinter.leftMarginOffsetMm}mm`)}
+                        </span>
                       </div>
                       <Input
                         type="number"
+                        step="0.5"
                         value={receiptPrinter.leftMarginOffsetMm ?? 0}
                         onChange={(e) => {
                           const val = e.target.value === '' ? 0 : Number(e.target.value);
@@ -181,7 +192,7 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                         className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono max-w-[200px]"
                       />
                       <p className="text-[10px] text-muted-foreground/80 leading-relaxed">
-                        Fine-tune physical alignment for thermal roll print heads. Default is 0mm. Negative values (e.g. <span className="font-mono font-bold text-foreground">-5</span>) pull the print leftwards.
+                        Auto-calibrated when choosing your printer (Epson/TVS uses <span className="font-mono font-bold text-foreground">0mm</span>, Xprinter/POS-80 uses <span className="font-mono font-bold text-foreground">-3.5mm</span>). Saved in settings so printing stays instant without re-calculation.
                       </p>
                     </div>
                   </div>

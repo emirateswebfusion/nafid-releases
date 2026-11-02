@@ -69,6 +69,6 @@ After a sync pull the main process emits `onSyncDataUpdated`; screens subscribe 
 - Updates are published to a public release feed via `electron-builder` (`upload-release.js`).
 - NSIS builds generate `.exe.blockmap` differential files (`differentialPackage: true`, `oneClick: true`).
 - The main process updater (`electron/services/updaterService.ts`) downloads only changed byte blocks over HTTP Range requests (~2–5 MB for typical bug fixes/features instead of the full ~120 MB installer).
-- Updates apply silently on restart (`autoUpdater.quitAndInstall(true, true)`), without setup wizards or manual reinstallation.
+- Updates apply on restart with a progress banner and automatic relaunch (`autoUpdater.quitAndInstall(false, true)`), without setup wizards or manual reinstallation.
 - Install is guarded: it runs only when an update is downloaded, and a failed install is reported to the renderer (which re-checks/re-downloads) instead of force-closing the app.
 - Full architectural details: see `adr/0006-silent-differential-updates.md`.

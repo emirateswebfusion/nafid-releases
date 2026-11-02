@@ -1,3 +1,11 @@
+# Nafid POS v2.2.27
+
+## What's New
+- **Universal Thermal Receipt Auto-Alignment**: Automatic model-aware margin profiling eliminates left-edge clipping on flush thermal printers (e.g. Epson, TVS, Posiflex, Citizen) while keeping offset printers (e.g. Xprinter, POS-80) centered symmetrically.
+- **Zero Configuration**: Requires no manual driver reselection or configuration from shop owners—automatically detects printer characteristics and applies optimal margin calibration.
+
+**Download:** [Nafid-Setup-2.2.27.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.27/Nafid-Setup-2.2.27.exe)
+
 # Nafid POS v2.2.26
 
 Corrected build of v2.2.25, whose package was missing files. It includes all of the v2.2.25 changes.

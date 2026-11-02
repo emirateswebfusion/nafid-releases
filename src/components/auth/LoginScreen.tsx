@@ -112,7 +112,7 @@ export function LoginScreen() {
       {/* ── Right Auth Panel ────────────────────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background min-w-0">
         <div className={clsx('w-full', tab === 'register' ? 'max-w-lg' : 'max-w-sm')}>
-          <div className="flex lg:hidden items-center gap-2 mb-8"><img src="/logo.png" alt="" className="h-8 w-8 object-contain" /><span className="text-xl font-black">NAFID</span></div>
+          <div className="flex lg:hidden items-center gap-2 mb-8"><img src="./logo.png" alt="" className="h-8 w-8 object-contain" /><span className="text-xl font-black">NAFID</span></div>
           {tab === 'register' && <TrialRegistration onSignIn={() => switchTab('login')} />}
           {/* ── LOGIN ────────────────────────────────────────────────────── */}
           {tab === 'login' && (

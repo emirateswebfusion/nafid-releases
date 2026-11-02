@@ -186,14 +186,15 @@ ipcMain.handle('app:installUpdate', () => {
     return { success: false, error: 'No downloaded update is ready to install.' };
   }
 
-  log.info('[Updater] Triggering silent differential quitAndInstall...');
+  log.info('[Updater] Triggering quitAndInstall with progress banner...');
   let installError: Error | null = null;
   const captureInstallError = (err: Error) => { installError = err; };
   autoUpdater.once('error', captureInstallError);
   try {
-    // Run NSIS silently (/S) without showing wizard dialogs or asking user to reinstall.
-    // On success electron-updater quits the app itself and NSIS relaunches it (--force-run).
-    autoUpdater.quitAndInstall(true, true);
+    // Not silent: the one-click installer has no wizard, only a progress banner. With /S the screen stays
+    // empty for the 30-50s install, and an install failure exits unseen without relaunching the app.
+    // On success electron-updater quits the app itself and NSIS relaunches it.
+    autoUpdater.quitAndInstall(false, true);
   } catch (e) {
     installError = e instanceof Error ? e : new Error(String(e));
   } finally {

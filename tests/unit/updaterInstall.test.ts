@@ -79,14 +79,14 @@ it('does not quit the app when no update has been downloaded', () => {
   expect(fixture.appQuit).not.toHaveBeenCalled();
 });
 
-it('triggers the silent installer once an update is downloaded', () => {
+it('runs the installer with its progress banner and relaunch once an update is downloaded', () => {
   setupAutoUpdater();
   fixture.emit('update-downloaded', { version: '2.2.12' });
   registerUpdaterIpc();
 
   const result = fixture.handlers.get('app:installUpdate')?.();
 
-  expect(fixture.quitAndInstall).toHaveBeenCalledWith(true, true);
+  expect(fixture.quitAndInstall).toHaveBeenCalledWith(false, true);
   expect(result).toEqual({ success: true });
   expect(fixture.appExit).not.toHaveBeenCalled();
 });

@@ -16,7 +16,7 @@ Status: accepted
 2. **Differential download and silent restart (`electron/services/updaterService.ts`).**
    - Explicitly enabled differential downloading (`autoUpdater.disableDifferentialDownload = false`).
    - Routed updater diagnostics to `log` via `autoUpdater.logger = log`.
-   - Changed IPC handler to `autoUpdater.quitAndInstall(true, true)` (`isSilent = true`, `isForceRunAfter = true`). NSIS executes with `/S` in the background, updating changed files and relaunching the POS in ~2 seconds.
+   - Changed IPC handler to `autoUpdater.quitAndInstall(true, true)` (`isSilent = true`, `isForceRunAfter = true`). NSIS executes with `/S` in the background, updating changed files and relaunching the POS. **Superseded, see Amendment below.**
    - The handler only installs when an update is actually downloaded (`updaterState === 'downloaded'`). A synchronous install failure (e.g. missing installer filepath) is returned to the renderer as `{ success: false, error }` and moves the updater to `error`; the app never force-exits, so the UI can re-download instead of closing with nothing installed.
 3. **Compact, non-intrusive UI messaging (`UpdateBanner.tsx`, `SettingsManager.tsx`, `SystemPreferencesTab.tsx`, `DashboardHeader.tsx`).**
    - Title shortened from `"Update Ready to Install"` to `"Update Ready"`.
@@ -34,3 +34,8 @@ Status: accepted
 - Users no longer experience full reinstallations or wizard prompts; clicking `"Update →"` restarts the app into the new version.
 - When native Node modules or Electron runtimes change, full fallback download and silent binary replacement still happen safely without bricking or lock collisions.
 - Developers publish release notes only once (in the GitHub Release description); the client app discovers, parses, and styles them automatically without code edits or app recompilations.
+
+## Amendment (2026-11): installer progress banner on restart
+- Measured on packaged test builds, the `/S` install takes about 30-45 s from click to relaunch (not ~2 s) with nothing on screen, so it reads as "the app closed and did not restart". A failed `/S` install also exits unseen without relaunching.
+- The handler now calls `autoUpdater.quitAndInstall(false, true)`. With `oneClick: true` there is still no wizard and no prompt (the license page is skipped for `--updated`): the user sees the installer's progress banner, then the app relaunches.
+- Unsigned builds can still be refused by Windows Smart App Control, on relaunch as well as on a manual start (error 4551). Only code signing addresses that.

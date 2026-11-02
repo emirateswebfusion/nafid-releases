@@ -77,3 +77,22 @@ export function formatPrinterError(rawErr: string | undefined | null): string {
   if (cleaned.toLowerCase().startsWith('print')) return cleaned;
   return `Print Failed: ${cleaned}`;
 }
+
+
+/**
+ * Detects the recommended left margin offset (mm) based on thermal printer model/name.
+ * Standard flush-aligned printers (Epson, TVS, Bixolon, Posiflex, Citizen, Star) start at 0mm.
+ * Printers with physical or driver-level rightward offsets on 80mm rolls (Xprinter, POS-80, RP80)
+ * default to -3.5mm to balance roll margins symmetrically without cutting.
+ */
+export function getRecommendedLeftMarginOffset(printerName: string | undefined | null): number {
+  if (!printerName) return 0;
+  const lower = printerName.toLowerCase().trim();
+  if (lower.includes('epson') || lower.includes('tvs') || lower.includes('bixolon') || lower.includes('posiflex') || lower.includes('citizen') || lower.includes('star')) {
+    return 0;
+  }
+  if (lower.includes('xprinter') || lower.includes('xp-') || lower.includes('xp ') || lower.includes('pos-80') || lower.includes('pos80') || lower.includes('rp80') || lower.includes('rp-80')) {
+    return -3.5;
+  }
+  return 0;
+}

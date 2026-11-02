@@ -4,7 +4,7 @@ export function AuthBrandPanel() {
   return (
     <aside className="hidden lg:flex w-[45%] flex-col justify-between p-12 relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-primary/10 border-r border-border">
       <div className="flex items-center gap-3">
-        <img src="/logo.png" alt="" className="w-11 h-11 rounded-xl object-contain bg-primary/10 p-1" />
+        <img src="./logo.png" alt="" className="w-11 h-11 rounded-xl object-contain bg-primary/10 p-1" />
         <div><p className="text-3xl font-black tracking-tight">NAFID</p><p className="text-sm text-muted-foreground">The smarter way to sell</p></div>
       </div>
       <div className="space-y-7 py-10">

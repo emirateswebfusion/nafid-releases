@@ -60,7 +60,7 @@ export function SplashScreen() {
         }}
       >
         <img
-          src="/logo.png"
+          src="./logo.png"
           alt="Nafid Logo"
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />

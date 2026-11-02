@@ -17,6 +17,7 @@ import { appApi } from '../../data/app';
 import { hasBridge, isDesktopRuntime } from '../../data/client';
 import { bridgeEvents } from '../../data/events';
 import { printingApi } from '../../data/printing';
+import { getRecommendedLeftMarginOffset } from '../../utils/print/printFormatHelper';
 import { syncApi } from '../../data/sync';
 import { useSettingsLoader } from './hooks/useSettingsLoader';
 import { useSettingsSave } from './hooks/useSettingsSave';
@@ -142,8 +143,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         if (defPr && defPr.name) {
           setReceiptPrinter((prev: PrinterConfig) => {
             if (!prev?.deviceName) {
-              updateSnapshotField(s => ({ ...s, receiptPrinter: { ...(s.receiptPrinter as Record<string, unknown>), deviceName: defPr.name } }));
-              return { ...prev, deviceName: defPr.name };
+              const autoOffset = getRecommendedLeftMarginOffset(defPr.name);
+              updateSnapshotField(s => ({ ...s, receiptPrinter: { ...(s.receiptPrinter as Record<string, unknown>), deviceName: defPr.name, leftMarginOffsetMm: autoOffset } }));
+              return { ...prev, deviceName: defPr.name, leftMarginOffsetMm: prev?.leftMarginOffsetMm ?? autoOffset };
             }
             return prev;
           });
