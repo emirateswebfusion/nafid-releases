@@ -20,6 +20,16 @@ export const findInvoiceLedgerEntries = (db: Db) => db.prepare(`
         AND ${invoiceOwnedEntry('@inv')}
     `);
 
+/**
+ * Other bills that hold this number, or held it before a sync collision renamed them `<number>-C…`. Their ledger rows
+ * can carry the same reference, so the ids decide whose row is whose. Params: tenant, inv, id.
+ */
+export const findInvoicesSharingNumber = (db: Db) => db.prepare(`
+      SELECT invoice_id FROM invoices
+      WHERE tenant_id = @tenant AND invoice_id <> @id
+        AND (invoice_number = @inv OR SUBSTR(invoice_number, 1, LENGTH(@inv) + 2) = @inv || '-C')
+    `);
+
 /** Return-credit uses posted when a bill consumed an ADJUST_BILL return (reference `<return>-ADJ-<bill>`). */
 export const findReturnCreditUses = (db: Db, deleted: boolean) => db.prepare(`
       SELECT * FROM party_ledger
@@ -261,7 +271,7 @@ export const findOneCustomerByPhoneAndCustomerId = (db: Db) => db.prepare(`
   `);
 
 export const findPartyLedgerByPartyId5 = (db: Db) => db.prepare(`
-      SELECT ledger_id, credit_amount, debit_amount, reference_number, transaction_date
+      SELECT ledger_id, credit_amount, debit_amount, reference_number, description, transaction_date
       FROM party_ledger
       WHERE party_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
       ORDER BY transaction_date ASC, created_at ASC

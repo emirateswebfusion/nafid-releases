@@ -81,6 +81,18 @@ export function DataUploadHeader({
               👔 Staff
             </button>
           )}
+          {allowedEntities.includes('opening_balances') && (
+            <button
+              onClick={() => handleEntityChange('opening_balances')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                entityType === 'opening_balances'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              📒 Opening Balances
+            </button>
+          )}
         </div>
       )}
     </div>

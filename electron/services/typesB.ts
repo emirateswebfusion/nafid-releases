@@ -89,6 +89,7 @@ export interface LedgerRow {
     debit_amount: number;
     credit_amount: number;
     reference_number: string;
+    description?: string | null;
 }
 export interface InvoiceRow extends CreditInvoice {
     counts_in_revenue?: number;

@@ -61,6 +61,12 @@ export function DataUploadPreview({
                   <th className="py-2.5 px-3">Stock</th>
                   <th className="py-2.5 px-3">Tax %</th>
                 </>
+              ) : entityType === 'opening_balances' ? (
+                <>
+                  <th className="py-2.5 px-3">Account Name</th>
+                  <th className="py-2.5 px-3">Balance</th>
+                  <th className="py-2.5 px-3">Issue</th>
+                </>
               ) : entityType === 'staff' ? (
                 <>
                   <th className="py-2.5 px-3">Staff Name</th>
@@ -121,6 +127,12 @@ export function DataUploadPreview({
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{getCurrencyPrefix()}{row.data.purchase_price ?? 0}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.current_stock ?? 0} {row.data.uom}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.tax_rate_percent}%</td>
+                  </>
+                ) : entityType === 'opening_balances' ? (
+                  <>
+                    <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100">{row.data.name || '—'}</td>
+                    <td className="py-2 px-3 font-bold text-indigo-700 dark:text-indigo-400">{getCurrencyPrefix()}{row.data.balance ?? 0}</td>
+                    <td className="py-2 px-3 text-rose-700 dark:text-rose-300">{row.errors.join(', ')}</td>
                   </>
                 ) : entityType === 'staff' ? (
                   <>

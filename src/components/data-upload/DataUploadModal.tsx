@@ -12,7 +12,7 @@ import { DataUploadColumnGuide } from './views/DataUploadColumnGuide';
 import { DataUploadStepsGrid } from './views/DataUploadStepsGrid';
 import { DataUploadPreview } from './views/DataUploadPreview';
 import { DataUploadFooter } from './views/DataUploadFooter';
-import { CUSTOMER_COLUMN_SPECS, PRODUCT_COLUMN_SPECS, STAFF_COLUMN_SPECS, SUPPLIER_COLUMN_SPECS } from './dataUploadTypes';
+import { CUSTOMER_COLUMN_SPECS, OPENING_BALANCE_COLUMN_SPECS, PRODUCT_COLUMN_SPECS, STAFF_COLUMN_SPECS, SUPPLIER_COLUMN_SPECS } from './dataUploadTypes';
 import type { ColumnSpec, DataUploadModalProps, UploadEntityType } from './dataUploadTypes';
 
 export function DataUploadModal({ 
@@ -57,6 +57,7 @@ export function DataUploadModal({
       case 'suppliers': return SUPPLIER_COLUMN_SPECS;
       case 'customers': return CUSTOMER_COLUMN_SPECS;
       case 'staff': return STAFF_COLUMN_SPECS;
+      case 'opening_balances': return OPENING_BALANCE_COLUMN_SPECS;
     }
   };
 
@@ -100,6 +101,33 @@ export function DataUploadModal({
           onDownloadDemo={downloadDemoFile}
           setDragActive={setDragActive}
         />
+
+        {entityType === 'opening_balances' && (
+          <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
+            <label className="flex items-center gap-2">
+              Balances as of
+              <input
+                type="date"
+                aria-label="Opening balances as-of date"
+                value={du.openingAsOf}
+                onChange={e => du.setOpeningAsOf(e.target.value)}
+                className="border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900"
+              />
+            </label>
+            <label className="flex items-center gap-2">
+              Accounts
+              <select
+                aria-label="Opening balances account type"
+                value={du.openingPartyType}
+                onChange={e => du.setOpeningPartyType(e.target.value === 'SUPPLIER' ? 'SUPPLIER' : 'CUSTOMER')}
+                className="border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-900"
+              >
+                <option value="CUSTOMER">Customers</option>
+                <option value="SUPPLIER">Suppliers</option>
+              </select>
+            </label>
+          </div>
+        )}
 
         {/* ── STEP 4: PREVIEW TABLE & LIVE VALIDATION ── */}
         {parsedRows.length > 0 && (

@@ -90,6 +90,18 @@ function parseSplit(raw: CreditLedgerInvoice['split_details']): SplitDetails | n
 export const CHECKOUT_PAYMENT_SUFFIXES = ['PAY', 'CASH', 'UPI', 'CARD', 'BANK', 'CHEQUE'] as const;
 
 /**
+ * Ledger row ids of a bill come from its invoice id, not its number: two bills can share a number across terminals,
+ * and one must not overwrite the other's row. Rows posted earlier under number-based ids are retired by reference on
+ * the bill's next save.
+ */
+const billSaleLedgerId = (tenantId: string, billKey: string) => deterministicUUID(`credit_sale:${tenantId}:${billKey}`);
+const billPaymentLedgerId = (tenantId: string, billKey: string, suffix: string) => deterministicUUID(`credit_pay_${suffix.toLowerCase()}:${tenantId}:${billKey}`);
+const billLedgerIds = (tenantId: string, billKey: string) => [
+  billSaleLedgerId(tenantId, billKey),
+  ...CHECKOUT_PAYMENT_SUFFIXES.map((suffix) => billPaymentLedgerId(tenantId, billKey, suffix)),
+];
+
+/**
  * The credit rule of one bill: what was paid at checkout (each part, never more than the non-credit part of the
  * bill) and the credit portion the customer owes (bill total − paid). CREDIT: `received_amount` is paid in cash;
  * SPLIT: the cash/UPI/card/bank/cheque parts are paid and `credit` is owed; CASH: paid in full; anything else
@@ -179,8 +191,15 @@ export function syncInvoiceCreditLedger(
     const invoiceNumber = (invoice.invoice_number || '').trim();
     if (!invoiceNumber) return;
 
-    // Rows this bill posted earlier (this shop only, exact references).
-    const existingEntries = partyLedgerSql.findInvoiceLedgerEntries(db).all({ tenant: tenantId, inv: invoiceNumber }) as PartyLedgerRow[];
+    // Rows this bill posted earlier (this shop only, exact references), never the rows of another bill with this number.
+    const billKey = invoice.invoice_id || invoiceNumber;
+    const othersRows = new Set<string>();
+    if (invoice.invoice_id) {
+      const others = partyLedgerSql.findInvoicesSharingNumber(db).all({ tenant: tenantId, inv: invoiceNumber, id: invoice.invoice_id }) as Array<{ invoice_id: string }>;
+      for (const other of others) for (const id of billLedgerIds(tenantId, other.invoice_id)) othersRows.add(id);
+    }
+    const existingEntries = (partyLedgerSql.findInvoiceLedgerEntries(db).all({ tenant: tenantId, inv: invoiceNumber }) as PartyLedgerRow[])
+      .filter((row) => !othersRows.has(row.ledger_id));
 
     // ── 1. DELETION ─────────────────────────────────────────────────────────
     if (isDelete) {
@@ -328,7 +347,7 @@ export function syncInvoiceCreditLedger(
 
     // Sale entry (credit = the bill total)
     partyLedgerSql.upsertPartyLedger(db).run(
-      deterministicUUID(`credit_sale:${tenantId}:${invoiceNumber}`),
+      billSaleLedgerId(tenantId, billKey),
       targetPartyId,
       tenantId,
       txDate,
@@ -344,7 +363,7 @@ export function syncInvoiceCreditLedger(
     // Payment entries (debit = amount paid at checkout)
     for (const p of payments) {
       partyLedgerSql.upsertPartyLedger2(db).run(
-        deterministicUUID(`credit_pay_${p.suffix.toLowerCase()}:${tenantId}:${invoiceNumber}`),
+        billPaymentLedgerId(tenantId, billKey, p.suffix),
         targetPartyId,
         tenantId,
         txDate,
