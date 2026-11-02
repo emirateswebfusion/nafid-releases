@@ -1,3 +1,14 @@
+# Nafid POS v2.2.25
+
+## What's New
+- **Opening Balances import**: Set existing customers' balances from a file, all rows or none, with a clear list of rows that need attention.
+- **Reliable credit balances**: Opening balances now sync to every computer, and payments clear the oldest debt first.
+- **Cancelled bills stay cancelled**: A second computer can no longer bring a cancelled bill back onto a customer's balance.
+- **Safer customer matching**: The same name with a different phone stays a separate customer.
+- **Safer saving**: A bill or return is not saved if its ledger entry cannot be written.
+
+**Download:** [Nafid-Setup-2.2.25.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.25/Nafid-Setup-2.2.25.exe)
+
 # Nafid POS v2.2.24
 
 ## What's New
