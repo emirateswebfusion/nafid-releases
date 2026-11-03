@@ -139,3 +139,137 @@ export function localAuthenticateUser(email: string, password: string): {
     }
   };
 }
+
+
+export function hashStaffPin(pin: string, tenantId: string): string {
+  return crypto.createHash('sha256').update(`${pin}:${tenantId}`).digest('hex');
+}
+
+export function getTerminalConfig(): {
+  isConfigured: boolean;
+  tenant_id?: string;
+  shop_name?: string;
+} {
+  const db = getOpenDb();
+  if (!db) return { isConfigured: false };
+  try {
+    const activeSetting = localAuthSql.findActiveTenant(db).get() as { tenant_id?: string; shop_name?: string } | undefined;
+    if (activeSetting?.tenant_id) {
+      return {
+        isConfigured: true,
+        tenant_id: activeSetting.tenant_id,
+        shop_name: activeSetting.shop_name || 'My Shop',
+      };
+    }
+    const anyUser = localAuthSql.findAnyTenant(db).get() as { tenant_id?: string; shop_name?: string } | undefined;
+    if (anyUser?.tenant_id) {
+      return {
+        isConfigured: true,
+        tenant_id: anyUser.tenant_id,
+        shop_name: anyUser.shop_name || 'My Shop',
+      };
+    }
+    return { isConfigured: false };
+  } catch {
+    return { isConfigured: false };
+  }
+}
+
+export function localAuthenticatePin(payload: { pin: string; tenant_id?: string }): {
+  success: boolean;
+  error?: string;
+  user?: {
+    user_id: string;
+    tenant_id: string;
+    name: string;
+    email: string | null;
+    role: 'ADMIN' | 'STAFF';
+    permissions: string[];
+    shop_name?: string;
+  };
+} {
+  const db = getOpenDb();
+  if (!db) return { success: false, error: 'Local database unavailable' };
+
+  const { pin } = payload || {};
+  if (!pin || pin.trim().length !== 4) {
+    return { success: false, error: 'PIN must be exactly 4 digits' };
+  }
+
+  let tenantId = payload?.tenant_id?.trim();
+  let shopName = 'My Shop';
+
+  if (!tenantId) {
+    const config = getTerminalConfig();
+    if (!config.isConfigured || !config.tenant_id) {
+      return { success: false, error: 'Terminal not configured with any store. Please login with Email & Password first.' };
+    }
+    tenantId = config.tenant_id;
+    if (config.shop_name) shopName = config.shop_name;
+  } else {
+    try {
+      const snRow = localAuthSql.findSettingShopName(db).get(tenantId, tenantId) as { value?: string } | undefined;
+      if (snRow?.value) shopName = snRow.value;
+    } catch { /* ignore */ }
+  }
+
+  try {
+    const tenantStatusRow: SettingRow = localAuthSql.findOneSettingByKey(db).get(tenantId) as SettingRow;
+    if (tenantStatusRow?.value === 'TERMINATED' || tenantStatusRow?.value === 'SUSPENDED') {
+      return { success: false, error: 'This store subscription has been terminated or suspended by administration.' };
+    }
+  } catch { /* ignore */ }
+
+  const pinHash = hashStaffPin(pin.trim(), tenantId);
+  interface StaffPinRow {
+    staff_id: string;
+    staff_code: string;
+    name: string;
+    role_designation: string | null;
+    user_id: string | null;
+    status: string;
+    tenant_id: string;
+    user_email: string | null;
+    user_role: string | null;
+    user_permissions: string | null;
+    user_restricted_page: string | null;
+    user_login_enabled: number | null;
+  }
+
+  const staff = localAuthSql.findStaffByPinHash(db).get(tenantId, pinHash) as StaffPinRow | undefined;
+  if (!staff) {
+    return { success: false, error: 'Invalid PIN' };
+  }
+
+  if (staff.status !== 'ACTIVE') {
+    return { success: false, error: 'Staff account is inactive' };
+  }
+
+  if (staff.user_login_enabled === 0) {
+    return { success: false, error: 'System login is disabled for this account' };
+  }
+
+  const rawRole = (staff.user_role || staff.role_designation || '').toUpperCase();
+  const isAdmin = rawRole === 'ADMIN' || rawRole === 'OWNER' || rawRole === 'SUPER_ADMIN' || rawRole === 'ADMINISTRATOR';
+  const role: 'ADMIN' | 'STAFF' = isAdmin ? 'ADMIN' : 'STAFF';
+
+  const permissions = isAdmin
+    ? ['*']
+    : parsePermissionList(staff.user_permissions, staff.user_restricted_page);
+
+  const finalPermissions = permissions.length > 0 ? permissions : ['sales.view', 'sales.create', 'sales.reprint'];
+  const resolvedUserId = staff.user_id || staff.staff_id;
+
+  return {
+    success: true,
+    user: {
+      user_id: resolvedUserId,
+      tenant_id: tenantId,
+      name: staff.name,
+      email: staff.user_email || null,
+      role,
+      permissions: finalPermissions,
+      shop_name: shopName,
+    }
+  };
+}

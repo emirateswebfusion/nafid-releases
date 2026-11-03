@@ -22,3 +22,28 @@ export const insertUser = (db: Db) => db.prepare(`
 export const findUsers = (db: Db) => db.prepare(`SELECT user_id, tenant_id, name, email, role, password_hash, restricted_page, permissions, login_enabled FROM users WHERE LOWER(email) = LOWER(?)`);
 
 export const findOneSettingByKey = (db: Db) => db.prepare(`SELECT value FROM settings WHERE key = 'tenant_status' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`);
+
+export const findActiveTenant = (db: Db) => db.prepare(`
+  SELECT tenant_id, value as shop_name
+  FROM settings
+  WHERE key = 'shop_name' AND tenant_id != 'global' AND tenant_id IS NOT NULL AND TRIM(tenant_id) != ''
+  LIMIT 1
+`);
+
+export const findAnyTenant = (db: Db) => db.prepare(`
+  SELECT tenant_id, name as shop_name FROM users WHERE tenant_id IS NOT NULL AND TRIM(tenant_id) != '' LIMIT 1
+`);
+
+export const findStaffByPinHash = (db: Db) => db.prepare(`
+  SELECT s.staff_id, s.staff_code, s.name, s.role_designation, s.user_id, s.status, s.tenant_id,
+         u.email as user_email, u.role as user_role, u.permissions as user_permissions,
+         u.restricted_page as user_restricted_page, u.login_enabled as user_login_enabled
+  FROM staff s
+  LEFT JOIN users u ON (u.user_id = s.user_id OR LOWER(u.email) = LOWER(s.email)) AND u.tenant_id = s.tenant_id
+  WHERE s.tenant_id = ? AND s.biller_pin_hash = ? AND s.is_deleted = 0
+`);
+
+export const findSettingShopName = (db: Db) => db.prepare(`
+  SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'shop_name' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 2 END) ASC LIMIT 1
+`);
+

@@ -1,5 +1,6 @@
 import { User, Award, Phone, Mail, Calendar, UserCheck, UserX } from 'lucide-react';
 import clsx from 'clsx';
+import { useAuthStore } from '../../../store/authStore';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
 
 export interface StaffBasicTabProps {
@@ -11,6 +12,10 @@ export function StaffBasicTab({
   sm,
 }: StaffBasicTabProps) {
   const { formData, setFormData } = sm;
+  const currentUserId = useAuthStore(state => state.userId);
+  const isSelf = Boolean(currentUserId && (formData.user_id === currentUserId || formData.staff_id === currentUserId));
+  const isAdmin = (formData.role_designation || '').toUpperCase() === 'ADMIN' || (formData.user_role || '').toUpperCase() === 'ADMIN';
+  const cannotDeactivate = isSelf || isAdmin;
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
 
@@ -130,10 +135,18 @@ export function StaffBasicTab({
             </button>
             <button
               type="button"
-              onClick={() => setFormData({ ...formData, status: 'INACTIVE' })}
+              onClick={() => {
+                if (!cannotDeactivate) {
+                  setFormData({ ...formData, status: 'INACTIVE' });
+                }
+              }}
+              disabled={cannotDeactivate}
+              title={cannotDeactivate ? (isAdmin ? 'Admin accounts cannot be deactivated' : 'You cannot deactivate your own account') : undefined}
               className={clsx(
-                'flex-1 h-full text-[11px] font-extrabold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1',
-                formData.status === 'INACTIVE' ? 'bg-rose-500 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                'flex-1 h-full text-[11px] font-extrabold rounded-lg transition-all flex items-center justify-center gap-1',
+                cannotDeactivate
+                  ? 'opacity-40 cursor-not-allowed text-muted-foreground'
+                  : (formData.status === 'INACTIVE' ? 'bg-rose-500 text-white shadow-sm cursor-pointer' : 'text-muted-foreground hover:text-foreground cursor-pointer')
               )}
             >
               <UserX className="w-3 h-3" /> Inactive

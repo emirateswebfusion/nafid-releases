@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { useAuthStore } from '../../../store/authStore';
 import { UserX, UserCheck, Edit, Lock, User, DollarSign, CreditCard, BookOpen, Calendar } from 'lucide-react';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 import { formatCurrency } from '../../../utils/pricing/money';
@@ -21,6 +22,10 @@ export function StaffProfileHeader({
   featureFlags, handleSendWhatsAppSalary, handleToggleStatus, openEditStaff, selectedStaff, sm,
 }: StaffProfileHeaderProps) {
   const { activeTab, isSendingWhatsApp, setActiveTab } = sm;
+  const currentUserId = useAuthStore(state => state.userId);
+  const isSelf = Boolean(currentUserId && (selectedStaff.user_id === currentUserId || selectedStaff.staff_id === currentUserId));
+  const isAdmin = (selectedStaff.role_designation || '').toUpperCase() === 'ADMIN' || (selectedStaff.user_role || '').toUpperCase() === 'ADMIN';
+  const cannotDeactivate = selectedStaff.status === 'ACTIVE' && (isSelf || isAdmin);
   return (
     <div className="bg-card border-b border-border p-5 shrink-0">
       <div className="flex items-start justify-between gap-4">
@@ -51,11 +56,19 @@ export function StaffProfileHeader({
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleToggleStatus(selectedStaff)}
+            disabled={cannotDeactivate}
+            title={
+              cannotDeactivate
+                ? (isAdmin ? 'Admin accounts cannot be deactivated' : 'You cannot deactivate your own account')
+                : undefined
+            }
             className={clsx(
-              'px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5',
-              selectedStaff.status === 'ACTIVE'
-                ? 'border-rose-500/20 text-rose-500 hover:bg-rose-500/10'
-                : 'border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/10'
+              'px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5',
+              cannotDeactivate
+                ? 'opacity-40 cursor-not-allowed border-border/40 text-muted-foreground'
+                : (selectedStaff.status === 'ACTIVE'
+                    ? 'border-rose-500/20 text-rose-500 hover:bg-rose-500/10 cursor-pointer'
+                    : 'border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/10 cursor-pointer')
             )}
           >
             {selectedStaff.status === 'ACTIVE' ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import fs from 'node:fs';
-import { localSaveUser, localAuthenticateUser } from '../services/localAuthService.js';
+import { localSaveUser, localAuthenticateUser, localAuthenticatePin, getTerminalConfig } from '../services/localAuthService.js';
 import { setSyncActive } from '../sync/syncWorker.js';
 import * as syncService from '../services/syncService.js';
 import {
@@ -118,6 +118,40 @@ export function registerAuthHandlers(): void {
       return localAuthenticateUser(email, password);
     } catch (error) {
       return { success: false, error: (error as Error).message || 'Offline authentication failed' };
+    }
+  });
+
+  ipcMain.removeHandler('auth:loginWithPin');
+  ipcMain.handle('auth:loginWithPin', (_event, payload) => {
+    try {
+      const res = localAuthenticatePin(payload);
+      if (res.success && res.user) {
+        const session = {
+          tenant_id: res.user.tenant_id,
+          user_id: res.user.user_id,
+          role: res.user.role,
+          user_name: res.user.name,
+          shop_name: res.user.shop_name || '',
+          restricted_page: null,
+          permissions: res.user.permissions,
+        };
+        const encrypted = encrypt(JSON.stringify(session));
+        if (encrypted) {
+          fs.writeFileSync(getOfflineSessionPath(), encrypted);
+        }
+      }
+      return res;
+    } catch (error) {
+      return { success: false, error: (error as Error).message || 'PIN authentication failed' };
+    }
+  });
+
+  ipcMain.removeHandler('auth:getTerminalConfig');
+  ipcMain.handle('auth:getTerminalConfig', () => {
+    try {
+      return getTerminalConfig();
+    } catch {
+      return { isConfigured: false };
     }
   });
 

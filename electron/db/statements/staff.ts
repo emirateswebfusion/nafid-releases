@@ -42,7 +42,7 @@ export const findOneStaffLedgerByStaffId = (db: Db) => db.prepare(`
     LIMIT 1
   `);
 
-export const findStaffByStaffIdStaffIdAndStaffCode = (db: Db) => db.prepare('SELECT staff_id, staff_code, biller_pin_hash FROM staff WHERE staff_id = ? AND tenant_id = ?');
+export const findStaffByStaffIdStaffIdAndStaffCode = (db: Db) => db.prepare('SELECT staff_id, staff_code, role_designation, biller_pin_hash FROM staff WHERE staff_id = ? AND tenant_id = ?');
 
 export const findStaffByBillerPinHashAndStatus = (db: Db) => db.prepare(`SELECT staff_id FROM staff WHERE tenant_id = ? AND biller_pin_hash = ? AND staff_id != ? AND is_deleted = 0 AND status = 'ACTIVE'`);
 

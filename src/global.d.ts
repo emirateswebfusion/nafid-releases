@@ -12,7 +12,7 @@ import type { PurchaseBillItemWithProduct, PurchaseSearchProduct } from './data/
 import type { ScrapInvoiceByNumberResult, ScrapInvoiceListResult, ScrapTransactionWithCategory } from './data/scrap';
 import type { PricingTier } from './data/pricingTiers';
 import type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } from './data/recycleBin';
-import type { OfflineLoginResult } from './data/auth';
+import type { OfflineLoginResult, PinLoginResult, TerminalConfigResult } from './data/auth';
 import type { EffectiveCloudState } from './data/sync';
 import type { BulkPrintItem } from './data/printing';
 import type { CashDrawerResult } from './data/cashier';
@@ -121,6 +121,8 @@ export interface IElectronAPI {
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
   authSaveLocalUser: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   authLoginOffline: (payload: { email: string; password: string }) => Promise<OfflineLoginResult>;
+  authLoginWithPin: (payload: { pin: string; tenant_id?: string }) => Promise<PinLoginResult>;
+  authGetTerminalConfig: () => Promise<TerminalConfigResult>;
   authGetTrialAccess: (payload: { tenant_id: string }) => Promise<{ is_trial: boolean; allowed: boolean; error?: string; token?: string; expires_at?: number }>;
   authRefreshTrialSession: (payload: { expected_token: string; tenant_id: string; user_id: string; token: string; role: 'ADMIN' | 'STAFF'; permissions: string[]; user_name: string; restricted_page: string | null }) => Promise<{ success: boolean; error?: string }>;
   authBlockTrialAccess: (payload: { tenant_id: string }) => Promise<{ success: boolean; error?: string }>;

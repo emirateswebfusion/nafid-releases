@@ -8,13 +8,17 @@ import { hasBridge } from '../../data/client';
 import { bridgeEvents } from '../../data/events';
 import { AuthBrandPanel } from './AuthBrandPanel';
 import { TrialRegistration } from './TrialRegistration';
+import { QuickPinLogin } from './QuickPinLogin';
+import { authApi } from '../../data/auth';
 
-type Tab = 'login' | 'register' | 'forgot-password' | 'reset-password';
+type Tab = 'pin' | 'login' | 'register' | 'forgot-password' | 'reset-password';
 
 export function LoginScreen() {
   const login = useAuthStore(state => state.login);
 
   const [tab, setTab] = useState<Tab>('login');
+  const [shopName, setShopName] = useState('');
+  const [terminalConfigured, setTerminalConfigured] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -98,6 +102,18 @@ export function LoginScreen() {
     }
   }, []);
 
+  useEffect(() => {
+    if (hasBridge('authGetTerminalConfig')) {
+      authApi.getTerminalConfig().then((cfg) => {
+        if (cfg?.isConfigured) {
+          setTerminalConfigured(true);
+          if (cfg.shop_name) setShopName(cfg.shop_name);
+          setTab('pin');
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
   const switchTab = (t: Tab) => {
     setTab(t);
     clearMessages();
@@ -113,10 +129,27 @@ export function LoginScreen() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-background min-w-0">
         <div className={clsx('w-full', tab === 'register' ? 'max-w-lg' : 'max-w-sm')}>
           <div className="flex lg:hidden items-center gap-2 mb-8"><img src="./logo.png" alt="" className="h-8 w-8 object-contain" /><span className="text-xl font-black">NAFID</span></div>
+          {tab === 'pin' && (
+            <QuickPinLogin
+              shopName={shopName}
+              onSwitchToEmail={() => switchTab('login')}
+            />
+          )}
+
           {tab === 'register' && <TrialRegistration onSignIn={() => switchTab('login')} />}
           {/* ── LOGIN ────────────────────────────────────────────────────── */}
           {tab === 'login' && (
             <form onSubmit={handleLogin} className="space-y-5">
+              {terminalConfigured && (
+                <button
+                  type="button"
+                  onClick={() => switchTab('pin')}
+                  className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1 font-semibold group cursor-pointer mb-2"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                  Back to Quick PIN Sign In
+                </button>
+              )}
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
                 <p className="text-muted-foreground text-sm mt-1">Sign in to manage your shop with Nafid.</p>

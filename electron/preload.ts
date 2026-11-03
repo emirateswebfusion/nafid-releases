@@ -92,6 +92,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   authClearToken: () => ipcRenderer.invoke('auth:clearToken'),
   authSaveLocalUser: (payload: unknown) => ipcRenderer.invoke('auth:saveLocalUser', payload),
   authLoginOffline: (payload: unknown) => ipcRenderer.invoke('auth:loginOffline', payload),
+  authLoginWithPin: (payload: unknown) => ipcRenderer.invoke('auth:loginWithPin', payload),
+  authGetTerminalConfig: () => ipcRenderer.invoke('auth:getTerminalConfig'),
   authGetTrialAccess: (payload: { tenant_id: string }) => ipcRenderer.invoke('auth:getTrialAccess', payload),
   authRefreshTrialSession: (payload: unknown) => ipcRenderer.invoke('auth:refreshTrialSession', payload),
   authBlockTrialAccess: (payload: { tenant_id: string }) => ipcRenderer.invoke('auth:blockTrialAccess', payload),

@@ -215,6 +215,8 @@ Tests: `tests/unit/filingRevenue.test.ts`, `tests/unit/filingOnlySettings.ui.tes
 | Session state, role, permissions | `useAuthStore` (`role`, `permissions`, `isAuthenticated`) |
 | UI permission checks | `hasPermission(user, 'sales.create')` from `src/utils/security/permissions.ts`; `<PermissionGuard>` component |
 | Biller PIN (quick user switch) | `BillerPinModal` → `staffApi.verifyBillerPin` |
+| Quick PIN Login (terminal switch) | `QuickPinLogin` → `authApi.loginWithPin` (`localAuthenticatePin`, against staff `biller_pin_hash` scoped to `tenant_id`) |
+| Staff protection | `StaffProfileHeader`, `StaffBasicTab`, `staffService.saveStaff` (prevents self-deactivation and Admin account deactivation) |
 | Expired token | `bridgeEvents.onTokenExpired` / 401 in `fetchApi` → cloud sync paused + session-expired modal |
 
 Permission keys are the shared contract with the server (`requirePermission('sales.view')`). Admin/owner roles bypass

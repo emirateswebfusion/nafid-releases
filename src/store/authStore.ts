@@ -25,6 +25,7 @@ export interface AuthState {
 
   // Actions
   login: (email: string, password: string, apiBase?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithPin: (pin: string) => Promise<{ success: boolean; error?: string }>;
   setLastSyncTime: (time: number) => void;
   setCloudSyncPaused: (paused: boolean, reason?: string | null) => void;
   logout: () => Promise<void>;
@@ -410,6 +411,43 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         }
       }
       return { success: false, error: formatError(err, 'Cannot reach server. Check your network connection.') };
+    }
+  },
+
+  // ── Login with PIN ────────────────────────────────────────────────────────
+  loginWithPin: async (pin: string) => {
+    if (!isDesktopRuntime()) {
+      return { success: false, error: 'PIN login is only supported on the POS desktop app.' };
+    }
+    if (!hasBridge('authLoginWithPin')) {
+      return { success: false, error: 'PIN login is not supported in this version.' };
+    }
+    try {
+      const res = await authApi.loginWithPin({ pin });
+      if (!res.success) {
+        return { success: false, error: res.error || 'Invalid PIN' };
+      }
+      const u = res.user;
+      const roleVal = normalizeRole(u.role);
+      const permissions = roleVal === 'ADMIN' ? ['*'] : (u.permissions && u.permissions.length > 0 ? u.permissions : ['sales.create', 'sales.view', 'sales.reprint']);
+      useCartStore.getState().resetDomainConfirmation();
+      set({
+        isAuthenticated: true,
+        token: null,
+        tenantId: u.tenant_id,
+        userId: u.user_id,
+        role: roleVal,
+        permissions,
+        userName: u.name,
+        shopName: u.shop_name || 'My Shop',
+        restrictedPage: null,
+        isCloudSyncPaused: false,
+        cloudSyncReason: null,
+      });
+      useCartStore.getState().setRole(roleVal);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: formatError(err, 'PIN login failed') };
     }
   },
 

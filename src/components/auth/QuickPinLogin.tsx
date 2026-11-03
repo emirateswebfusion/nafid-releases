@@ -1,0 +1,228 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Store, Delete, RotateCcw, Loader2, Lock, ArrowRight } from 'lucide-react';
+import clsx from 'clsx';
+import { useAuthStore } from '../../store/authStore';
+
+interface QuickPinLoginProps {
+  shopName: string;
+  onSwitchToEmail: () => void;
+}
+
+export function QuickPinLogin({ shopName, onSwitchToEmail }: QuickPinLoginProps) {
+  const loginWithPin = useAuthStore(state => state.loginWithPin);
+  const [pin, setPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [shake, setShake] = useState(false);
+  const failedAttemptsRef = useRef(0);
+  const [lockoutTimer, setLockoutTimer] = useState(0);
+
+  useEffect(() => {
+    if (lockoutTimer <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutTimer(t => {
+        if (t <= 1) {
+          failedAttemptsRef.current = 0;
+          setError('');
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutTimer]);
+  const isSubmittingRef = useRef(false);
+
+  const handleSubmitPin = useCallback(async (pinToSubmit: string) => {
+    if (pinToSubmit.length !== 4 || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setLoading(true);
+    setError('');
+
+    const res = await loginWithPin(pinToSubmit);
+    if (!res.success) {
+      failedAttemptsRef.current += 1;
+      const count = failedAttemptsRef.current;
+      if (count >= 5) {
+        setLockoutTimer(30);
+        setError('Too many failed attempts. Locked for 30s.');
+      } else {
+        setError(res.error || `Invalid PIN (${5 - count} attempts remaining)`);
+      }
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      setPin('');
+    } else {
+      failedAttemptsRef.current = 0;
+    }
+    setLoading(false);
+    isSubmittingRef.current = false;
+  }, [loginWithPin]);
+
+  const handleDigit = useCallback((d: string) => {
+    if (loading || isSubmittingRef.current || lockoutTimer > 0) return;
+    setError('');
+    setPin(prev => {
+      if (prev.length >= 4) return prev;
+      const next = prev + d;
+      if (next.length === 4) {
+        setTimeout(() => handleSubmitPin(next), 50);
+      }
+      return next;
+    });
+  }, [loading, handleSubmitPin, lockoutTimer]);
+
+  const handleBackspace = useCallback(() => {
+    if (loading || isSubmittingRef.current || lockoutTimer > 0) return;
+    setError('');
+    setPin(prev => prev.slice(0, -1));
+  }, [loading, lockoutTimer]);
+
+  const handleClear = useCallback(() => {
+    if (loading || isSubmittingRef.current || lockoutTimer > 0) return;
+    setError('');
+    setPin('');
+  }, [loading, lockoutTimer]);
+
+  // Physical keyboard and barcode scanner handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if focus is in an input or textarea
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleDigit(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        handleClear();
+      } else if (e.key === 'Enter' && pin.length === 4) {
+        e.preventDefault();
+        handleSubmitPin(pin);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleDigit, handleBackspace, handleClear, handleSubmitPin, pin]);
+
+  return (
+    <div className="space-y-6 w-full max-w-sm mx-auto animate-in fade-in zoom-in-95 duration-200">
+      {/* Shop & Header */}
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-wide">
+          <Store className="w-3.5 h-3.5" />
+          <span>{shopName || 'POS Counter Terminal'}</span>
+        </div>
+        <h2 className="text-2xl font-black text-foreground tracking-tight">Quick PIN Sign In</h2>
+        <p className="text-xs text-muted-foreground">
+          Enter 4-digit PIN or scan staff badge
+        </p>
+      </div>
+
+      {/* PIN Dots Display */}
+      <div className="flex flex-col items-center justify-center space-y-3 py-2">
+        <div
+          className={clsx(
+            'flex items-center justify-center gap-4 transition-transform',
+            shake && 'animate-shake'
+          )}
+        >
+          {[0, 1, 2, 3].map(idx => {
+            const isFilled = pin.length > idx;
+            return (
+              <div
+                key={idx}
+                className={clsx(
+                  'w-4 h-4 rounded-full border-2 transition-all duration-200 flex items-center justify-center',
+                  isFilled
+                    ? 'border-primary bg-primary scale-110 shadow-sm shadow-primary/30'
+                    : 'border-muted-foreground/30 bg-muted/40'
+                )}
+              />
+            );
+          })}
+        </div>
+
+        {/* Error message */}
+        <div className="h-5 flex items-center justify-center">
+          {loading ? (
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Verifying credentials...</span>
+            </div>
+          ) : error ? (
+            <p className="text-xs font-bold text-destructive animate-in fade-in duration-150">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Numeric Keypad (3x4 Grid) */}
+      <div className="grid grid-cols-3 gap-2.5 max-w-[280px] mx-auto select-none">
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
+          <button
+            key={num}
+            type="button"
+            onClick={() => handleDigit(num)}
+            disabled={loading}
+            className="h-14 rounded-2xl bg-card border border-border/80 hover:bg-primary/10 hover:border-primary/40 active:scale-95 text-foreground text-xl font-black transition-all duration-150 shadow-xs flex items-center justify-center cursor-pointer disabled:opacity-50"
+          >
+            {num}
+          </button>
+        ))}
+
+        {/* Clear Button */}
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={loading || pin.length === 0}
+          className="h-14 rounded-2xl bg-card border border-border/80 hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive active:scale-95 text-muted-foreground text-xs font-black transition-all duration-150 shadow-xs flex flex-col items-center justify-center gap-0.5 cursor-pointer disabled:opacity-30"
+          title="Clear PIN"
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span className="text-[10px]">C</span>
+        </button>
+
+        {/* Zero */}
+        <button
+          type="button"
+          onClick={() => handleDigit('0')}
+          disabled={loading}
+          className="h-14 rounded-2xl bg-card border border-border/80 hover:bg-primary/10 hover:border-primary/40 active:scale-95 text-foreground text-xl font-black transition-all duration-150 shadow-xs flex items-center justify-center cursor-pointer disabled:opacity-50"
+        >
+          0
+        </button>
+
+        {/* Backspace Button */}
+        <button
+          type="button"
+          onClick={handleBackspace}
+          disabled={loading || pin.length === 0}
+          className="h-14 rounded-2xl bg-card border border-border/80 hover:bg-primary/10 hover:border-primary/40 active:scale-95 text-muted-foreground hover:text-foreground text-xs font-black transition-all duration-150 shadow-xs flex flex-col items-center justify-center gap-0.5 cursor-pointer disabled:opacity-30"
+          title="Backspace"
+        >
+          <Delete className="w-4 h-4" />
+          <span className="text-[10px]">⌫</span>
+        </button>
+      </div>
+
+      {/* Switch to Email / Password Login */}
+      <div className="pt-2 text-center border-t border-border/60">
+        <button
+          type="button"
+          onClick={onSwitchToEmail}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors py-1 px-3 rounded-lg hover:bg-muted/50 cursor-pointer"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span>Sign in with Email & Password (Admin)</span>
+          <ArrowRight className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+}

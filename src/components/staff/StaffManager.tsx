@@ -254,6 +254,17 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       setStatusMessage({ text: 'Staff Name is mandatory', type: 'error' });
       return;
     }
+    const currentUserId = useAuthStore.getState().userId;
+    const isSelf = Boolean(currentUserId && (formData.user_id === currentUserId || formData.staff_id === currentUserId));
+    const isAdmin = (formData.role_designation || '').toUpperCase() === 'ADMIN' || (formData.user_role || '').toUpperCase() === 'ADMIN';
+    if (formData.status === 'INACTIVE' && (isAdmin || isSelf)) {
+      setStatusMessage({
+        text: isAdmin ? 'Admin accounts cannot be deactivated' : 'You cannot deactivate your own account',
+        type: 'error'
+      });
+      return;
+    }
+
     if (formData.showSystemAccountSection) {
       const email = formData.email.trim();
       if (!email) {
@@ -418,6 +429,20 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   };
 
   const handleToggleStatus = async (staffMember: StaffMember) => {
+    const currentUserId = useAuthStore.getState().userId;
+    const isSelf = Boolean(currentUserId && (staffMember.user_id === currentUserId || staffMember.staff_id === currentUserId));
+    const isAdmin = (staffMember.role_designation || '').toUpperCase() === 'ADMIN' || (staffMember.user_role || '').toUpperCase() === 'ADMIN';
+
+    if (staffMember.status === 'ACTIVE') {
+      if (isAdmin) {
+        setStatusMessage({ text: 'Admin accounts cannot be deactivated', type: 'error' });
+        return;
+      }
+      if (isSelf) {
+        setStatusMessage({ text: 'You cannot deactivate your own account', type: 'error' });
+        return;
+      }
+    }
     const newStatus = staffMember.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
     try {
       if (hasBridge('dbSaveStaff')) {

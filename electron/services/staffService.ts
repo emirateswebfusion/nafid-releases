@@ -87,6 +87,12 @@ export function saveStaff(params: {
   if (!name) throw new Error('Staff name is required');
 
   const existing = staffSql.findStaffByStaffIdStaffIdAndStaffCode(db).get(staffId, tenantId) as StaffRow;
+  if (existing && params.status === 'INACTIVE') {
+    const roleDesig = (existing.role_designation || '').toUpperCase();
+    if (roleDesig === 'ADMIN' || roleDesig === 'OWNER') {
+      throw new Error('Admin accounts cannot be deactivated');
+    }
+  }
 
   let staffCode = existing?.staff_code;
   if (!staffCode) {
