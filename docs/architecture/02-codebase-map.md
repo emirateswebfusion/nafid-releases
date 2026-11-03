@@ -113,6 +113,7 @@ electron/
     syncWorker.ts    public API + scheduler: init, fast bill pull, urgent triggers, page context, initial sync
     syncCycle.ts     one cycle: cloud status, lightweight / delta pulls, the push → pull sequence
     syncTransport.ts endpoints + connectivity, fetch with LAN→cloud fallback, pushBatch + outbox, cursors, pullPaginated
+    einvoiceSync.ts  cloud-only UAE e-invoicing step after each cycle (process request + status mirror pull)
     syncConfig.ts / cloudAccess.ts / syncProgress.ts / syncState.ts   limits + stored login / access rules / progress / shared state
     entities/        per-table push + pull: catalog, salesDocs, parties, cash, stockDocs, settings
     localHostServer.ts (LAN server) + lanUpsert.ts (LAN row merge)

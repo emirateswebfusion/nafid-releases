@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, FileCheck2, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../../store/authStore';
+import { hasPermission } from '../../../utils/security/permissions';
 import { einvoiceApi, type BuyerEinvoiceProfile } from '../../../data/einvoice';
 import { buyerProfileIssues, compactProfile, EMIRATE_OPTIONS, LEGAL_ID_TYPES, parseBuyerProfile } from '../../../utils/einvoice/einvoice';
 import { Input } from '../../ui/Input';
@@ -14,7 +15,8 @@ const field = 'text-[10px] font-bold text-muted-foreground/80 uppercase tracking
  * Saved as the synced `customers.einvoice_profile`; invoices to customers marked as a business are e-invoiced.
  */
 export function CustomerEinvoicePanel({ customerId, customerGstin }: { customerId: string; customerGstin?: string | null }) {
-  const { tenantId } = useAuthStore();
+  const { tenantId, role, permissions } = useAuthStore();
+  const canEdit = hasPermission({ role, permissions }, 'customers.edit');
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<BuyerEinvoiceProfile>({});
   const [loaded, setLoaded] = useState(false);
@@ -62,7 +64,7 @@ export function CustomerEinvoicePanel({ customerId, customerGstin }: { customerI
         <ChevronDown className={clsx('w-4 h-4 ml-auto transition-transform', open && 'rotate-180')} />
       </button>
       {open && loaded && (
-        <fieldset disabled={saving} className="px-4 pb-4 space-y-3 border-t border-border/60 pt-3">
+        <fieldset disabled={saving || !canEdit} className="px-4 pb-4 space-y-3 border-t border-border/60 pt-3">
           <label className="flex items-center gap-2 text-xs font-bold">
             <input type="checkbox" checked={!!profile.isBusiness} onChange={e => set('isBusiness', e.target.checked)} />
             This customer is a business or government buyer (sales are e-invoiced)

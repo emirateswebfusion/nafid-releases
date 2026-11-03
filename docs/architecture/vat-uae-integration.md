@@ -149,3 +149,11 @@ Following the NAFID architecture rules:
 - **VAT Report Aggregator & Lifecycle:** `tests/unit/vatReportService.test.ts` (Boxes 1–14 math, simplified vs full classification, draft/approve/ack lifecycle).
 - **JSON Serializer:** `tests/unit/vat201JsonSerializer.test.ts` (Structure and formatting integrity).
 - **Dashboard Dual-Country Integration:** `tests/unit/vatDashboardCard.test.ts` (UAE vs India card switching).
+
+---
+
+## 9. Electronic invoicing (Peppol PINT AE)
+
+From 1 July 2027 (shops below AED 50M; appoint an Accredited Service Provider by 31 March 2027), sales to business and government buyers must also be issued as e-invoices. Nafid builds and transmits them on the server after sync; terminals mirror the status.
+
+Design, rules, field map and implementation: [uae-einvoicing-design.md](uae-einvoicing-design.md).

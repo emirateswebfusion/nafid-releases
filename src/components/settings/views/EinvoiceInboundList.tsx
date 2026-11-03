@@ -3,9 +3,13 @@ import { Inbox, Loader2, RotateCcw } from 'lucide-react';
 import { einvoiceCloud, type EinvoiceInboundItem } from '../../../data/cloud/einvoiceCloud';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { SettingsCard } from './SettingsControls';
+import { useAuthStore } from '../../../store/authStore';
+import { hasPermission } from '../../../utils/security/permissions';
 
 /** Supplier e-invoices received through the shop's ASP. The owner enters each one as a purchase bill, then marks it. */
 export function EinvoiceInboundList() {
+  const { role, permissions } = useAuthStore();
+  const canRecord = hasPermission({ role, permissions }, 'purchases.create');
   const [items, setItems] = useState<EinvoiceInboundItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -46,7 +50,7 @@ export function EinvoiceInboundList() {
               </button>
               <span className="font-mono font-bold">{formatCurrency(Number(item.payable_amount) || 0)}</span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted">{item.status}</span>
-              {item.status === 'NEW'
+              {!canRecord ? null : item.status === 'NEW'
                 ? <>
                   <button type="button" onClick={() => void mark(item, 'RECORDED')} className="text-[11px] font-bold text-primary cursor-pointer">Mark recorded</button>
                   <button type="button" onClick={() => void mark(item, 'IGNORED')} className="text-[11px] text-muted-foreground cursor-pointer">Ignore</button>

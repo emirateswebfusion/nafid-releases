@@ -1,21 +1,16 @@
 import { bindBridge } from './client';
+import type { CustomersRow, EinvoiceDocumentsRow } from './dbRows';
 
 /** Renderer-side API for UAE e-invoicing (Peppol PINT AE). Statuses are mirrored from the server by the sync worker. */
 
 export type EinvoiceStatus = 'NOT_REQUIRED' | 'QUEUED' | 'VALIDATION_FAILED' | 'SUBMITTED' | 'ACCEPTED' | 'REJECTED' | 'REPORTED' | 'FAILED';
 
-/** A row of the local `einvoice_documents` mirror (`errors` is a JSON array of `{ rule, message }`). */
-export interface EinvoiceStatusRow {
-  document_id: string;
+/** `db:getEinvoiceStatuses` row of the local `einvoice_documents` mirror (`errors` is a JSON array of `{ rule, message }`). */
+export type EinvoiceStatusRow = Pick<EinvoiceDocumentsRow, 'document_id' | 'document_number' | 'buyer_endpoint' | 'fta_reference' | 'errors' | 'updated_at'> & {
   document_kind: 'INVOICE' | 'CREDIT_NOTE';
-  document_number: string;
   document_type: 'TAX' | 'COMMERCIAL' | null;
   status: EinvoiceStatus;
-  buyer_endpoint: string | null;
-  fta_reference: string | null;
-  errors: string;
-  updated_at: string;
-}
+};
 
 /** `customers.einvoice_profile` JSON: the buyer identity a PINT AE invoice needs. */
 export interface BuyerEinvoiceProfile {
@@ -33,14 +28,8 @@ export interface BuyerEinvoiceProfile {
   countryCode?: string;
 }
 
-export interface CustomerEinvoiceRow {
-  customer_id: string;
-  name: string;
-  phone: string | null;
-  address: string | null;
-  gstin: string | null;
-  einvoice_profile: string | null;
-}
+/** `db:getCustomerEinvoiceProfile` row. */
+export type CustomerEinvoiceRow = Pick<CustomersRow, 'customer_id' | 'name' | 'phone' | 'address' | 'gstin' | 'einvoice_profile'>;
 
 export const einvoiceApi = bindBridge({
   getStatuses: 'dbGetEinvoiceStatuses',
