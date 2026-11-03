@@ -384,7 +384,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',
       'reservedInvoiceNumber', 'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
-      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
+      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B', 'restaurantOrderId'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
@@ -405,7 +405,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',
       'reservedInvoiceNumber', 'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
-      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
+      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B', 'restaurantOrderId'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))

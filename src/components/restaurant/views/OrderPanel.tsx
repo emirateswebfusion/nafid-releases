@@ -32,7 +32,8 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder }:
   const [picking, setPicking] = useState<Product | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const lines = data.active.lines.filter(l => l.order_id === order.order_id);
-  const kots = data.active.kots.filter(k => k.order_id === order.order_id);
+  // A split bill's items keep the parent order's kitchen tickets, so tickets are looked up across open orders.
+  const kots = data.active.kots;
   const table: DiningTable | undefined = data.setup.tables.find(t => t.table_id === order.table_id);
   const siblings = data.active.orders.filter(o => o.order_id !== order.order_id && o.table_id && o.table_id === order.table_id);
   const locked = order.status === 'BILLING';

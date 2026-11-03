@@ -306,4 +306,13 @@ Built as designed, with these specifics:
 - **Guest check** (pro-forma) prints on the receipt printer with totals from the checkout line rule; it says "This is
   not a tax invoice".
 - **Arabic item names on KOT**: not in v1 (ESC/POS text is ASCII); the Arabic print work is a separate track.
+- **Bill remarks:** billing retitles tabs with the reserved invoice number, so the table / token ("Table T1 · POS1-3")
+  goes into the bill description and is saved as the invoice notes.
+- **App test (3 Nov 2026, on a copy of a shop database, UAE / VAT-inclusive, cloud and LAN cut off):** flag on,
+  tables / stations / add-ons / service charge set up, dine-in with add-on and note, routing to two stations, print
+  failure kept as "Not printed", part void with VOID ticket, kitchen display to Ready (floor badge), move, merge,
+  split, billing claim and reopen, settlement through checkout (VAT-010, VAT-011; report totals match), Talabat
+  delivery, guest check failure message, cancel. It found one defect, fixed with a UI test
+  (`restaurantBilling.ui.test.tsx`): `tabStore.updateActiveTab` filters fields by an allow-list and dropped
+  `restaurantOrderId`, so checkout saved the invoice but left the order open.
 - **Not done here:** live delivery-app APIs (§13), and a check on real kitchen printers / two real terminals.

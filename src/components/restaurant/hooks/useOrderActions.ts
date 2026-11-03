@@ -112,7 +112,8 @@ export function useOrderActions(ctx: ActionContext) {
     const items = await cartFor(order, lines);
     if (items.length === 0) { setMessage({ tone: 'warn', text: 'Nothing on the order yet' }); return false; }
     const text = guestCheckText({ shopName: ctx.shopName, title: titleOf(order), items, taxLabel: isUaeStore() ? 'VAT' : 'Tax' });
-    return report(await printingApi.printReceipt(tenantId, text), 'Guest check printed');
+    const printed = await printingApi.printReceipt(tenantId, text);
+    return report(printed.success ? printed : { success: false, error: `Guest check not printed: ${printed.error || 'printer error'}` }, 'Guest check printed');
   }), [run, cartFor, titleOf, report, tenantId, ctx.shopName]);
 
   /** Claims the order (LAN primary when reachable) and opens it in Billing. */

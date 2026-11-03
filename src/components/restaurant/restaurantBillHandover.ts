@@ -70,6 +70,8 @@ export function useRestaurantBillHandover(ctx: RestaurantBillHandoverContext): v
         customerName: data.customerName ?? '',
         customerPhone: data.customerPhone ?? '',
         customerAddress: data.customerAddress ?? '',
+        // The tab title shows the invoice number, so the table / token goes into the bill remarks.
+        description: data.title,
       });
       c.syncActiveSnapshot();
     };
