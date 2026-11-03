@@ -13,6 +13,8 @@ import { isAdminRole } from '../../../utils/security/permissions';
 import { useAuthStore } from '../../../store/authStore';
 import { Skeleton } from '../../ui/Skeleton';
 import { InvoiceRow } from './InvoiceRow';
+import { useEinvoiceStatuses } from '../hooks/useEinvoiceStatuses';
+import { isUaeStore } from '../../../utils/localization/storeProfile';
 import type { InvoiceProductRow } from '../../../utils/pricing/salesHistoryTax';
 import type { SalesInvoiceRow, UpiSourceOption } from '../salesTypes';
 
@@ -76,6 +78,9 @@ export function SalesBillsView({
 }: SalesBillsViewProps) {
   // Bills the list shows (filing-only included); revenue cards keep using summary.totalInvoices.
   const listedTotal = summary.listedInvoices ?? summary.totalInvoices;
+  // UAE only: Peppol e-invoice status per listed bill (mirrored from the cloud).
+  const showEinvoice = isUaeStore();
+  const einvoiceStatuses = useEinvoiceStatuses(invoices);
   return (
     <div className="flex flex-col flex-1 overflow-hidden w-full">
 
@@ -627,6 +632,7 @@ export function SalesBillsView({
               <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date &amp; Time</th>
               <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</th>
               <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</th>
+              {showEinvoice && <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">E-invoice</th>}
               <th className="px-3 py-2.5" />
             </tr>
           </thead>
@@ -634,7 +640,7 @@ export function SalesBillsView({
             {groupedInvoices.map((group) => (
               <Fragment key={group.date}>
                 <tr className="sticky top-9 z-[5] bg-muted">
-                  <td colSpan={7} className="px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
+                  <td colSpan={showEinvoice ? 8 : 7} className="px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
                     {group.date}
                   </td>
                 </tr>
@@ -677,13 +683,15 @@ export function SalesBillsView({
                       });
                     }}
                     upiSources={upiSources}
+                    showEinvoice={showEinvoice}
+                    einvoice={einvoiceStatuses[inv.invoice_id]}
                   />
                 ))}
               </Fragment>
             ))}
             {hasMore && (
               <tr ref={sentinelRef}>
-                <td colSpan={7} className="py-5 text-center">
+                <td colSpan={showEinvoice ? 8 : 7} className="py-5 text-center">
                   <button
                     type="button"
                     onClick={() => loadInvoices(false)}

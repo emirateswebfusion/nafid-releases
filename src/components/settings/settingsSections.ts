@@ -1,7 +1,8 @@
 import {
   Settings, Printer, Wifi, EyeOff, Palette, Store, Package, Monitor, Shield, FileText, Power, BookOpen, Layers,
-  AlertOctagon, LayoutGrid, Landmark, Hash, Receipt, Wallet, Users, Tags, KeyRound, RefreshCw, ShoppingCart,
+  AlertOctagon, LayoutGrid, Landmark, Hash, Receipt, Wallet, Users, Tags, KeyRound, RefreshCw, ShoppingCart, FileCheck2,
 } from 'lucide-react';
+import type { StoreCountry } from '../../utils/localization/storeProfile';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 
 export interface SettingsSection {
@@ -13,6 +14,8 @@ export interface SettingsSection {
   /** Extra words the sidebar search matches (the label and description always match). */
   keywords?: string;
   ownerOnly?: boolean;
+  /** Shown only for shops in these countries (default: all). */
+  countries?: StoreCountry[];
 }
 
 export interface SettingsGroup {
@@ -36,6 +39,9 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { id: 'numbering', label: 'Invoice Numbering', icon: Hash, ownerOnly: true,
         description: 'Terminal code, invoice starting number, B2B / B2C series, and scrap, quotation, return and purchase bill counters.',
         keywords: 'invoice counter prefix terminal series b2b b2c scrap quotation return purchase number' },
+      { id: 'uae_einvoice', label: 'UAE E-Invoicing', icon: FileCheck2, ownerOnly: true, countries: ['AE'],
+        description: 'Peppol PINT AE e-invoices for business and government buyers: seller identity, service provider, sending status and received supplier invoices.',
+        keywords: 'einvoice e-invoice peppol pint asp fta trn tin trade licence inbound supplier' },
       { id: 'filing_only', label: 'Revenue & Filing-only', icon: FileText, ownerOnly: true,
         description: 'Choose which new bills count as revenue and set up filing-only bills.',
         keywords: 'revenue filing b2b b2c exclude stock' },

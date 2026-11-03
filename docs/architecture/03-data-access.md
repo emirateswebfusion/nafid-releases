@@ -169,3 +169,12 @@ and cloud/LAN settings payloads. Legacy pulls allow both keys. No columns or inv
 UAE VAT remains `tax_total` / `tax_amount`, with Indian component fields zero. Older clients are not UAE
 aware: all terminals of a UAE shop must run a UAE-capable version. Server contract coverage:
 `nafid-server/tests/storeProfileSync.test.ts`; POS pull coverage: `storeProfileSync.test.ts`.
+
+### UAE e-invoicing (migration 017, 3 Nov 2026)
+
+`einvoice_documents` is a read-only mirror of the server-owned statuses. `electron/sync/einvoiceSync.ts` fills it after each cloud cycle: `POST /api/einvoice/process`, then `GET /api/sync/einvoice-documents`. It is cloud-only, so it stays outside `sync/entities/` (the LAN table rules cover entities only).
+
+`customers.einvoice_profile` (JSON) is synced in both directions. A pull with no profile keeps the local one. The outbox trigger for `customers` is rebuilt by 017.
+
+IPC channels: `db:getEinvoiceStatuses`, `db:getEinvoiceSummary`, `db:getCustomerEinvoiceProfile`, `db:saveCustomerEinvoiceProfile` (`src/data/einvoice.ts`). Cloud configuration goes through `src/data/cloud/einvoiceCloud.ts`. Design: `uae-einvoicing-design.md`.
+

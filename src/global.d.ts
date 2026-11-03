@@ -74,6 +74,10 @@ export interface IElectronAPI {
   dbGetLocalVatFilings: () => Promise<import('../electron/services/vatFilingService').LocalVatFilingRow[] | { error: string }>;
   dbUpsertLocalVatFiling: (payload: { id?: string; period: string; return_type?: string; status: string; filing_mode: string; net_output_vat: number; recoverable_input_vat: number; net_vat_payable: number; net_vat_status: string; summary_payload?: string; notes?: string; approved_by?: string; approved_at?: string }) => Promise<{ success: boolean; id?: string } | { error: string }>;
   dbRecordLocalVatManualAck: (payload: { id?: string; period: string; return_type?: string; filing_mode?: string; acknowledgement_number: string; filing_date: string; net_output_vat: number; recoverable_input_vat: number; net_vat_payable: number; net_vat_status: string; notes?: string; approved_by?: string; approved_at?: string }) => Promise<{ success: boolean; id?: string } | { error: string }>;
+  dbGetEinvoiceStatuses: (payload: { tenant_id: string; document_ids: string[] }) => Promise<import('./data/einvoice').EinvoiceStatusRow[]>;
+  dbGetEinvoiceSummary: (payload: { tenant_id: string }) => Promise<{ status: string; count: number }[]>;
+  dbGetCustomerEinvoiceProfile: (payload: { tenant_id: string; customer_id: string }) => Promise<import('./data/einvoice').CustomerEinvoiceRow | null>;
+  dbSaveCustomerEinvoiceProfile: (payload: { tenant_id: string; customer_id: string; profile: unknown }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<InvoiceItem[]>;
   dbUpdateInvoice: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: unknown }) => Promise<{ success: boolean; error?: string }>;
