@@ -119,6 +119,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getA4Html: () => ipcRenderer.invoke('hardware:getA4Html'),
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
   printReady: (contentHeightPx?: number) => ipcRenderer.invoke('hardware:printReady', contentHeightPx),
+  cardTerminalGetStatus: () => ipcRenderer.invoke('cardTerminal:getStatus'),
+  cardTerminalSale: (payload: { tenant_id: string; invoice_id: string; amount: number; currency?: string }) => ipcRenderer.invoke('cardTerminal:sale', payload),
+  cardTerminalVoid: (payload: { ecr_ref: string }) => ipcRenderer.invoke('cardTerminal:void', payload),
+  cardTerminalRefund: (payload: { tenant_id: string; invoice_id?: string | null; amount: number; original_ecr_ref?: string | null; currency?: string }) => ipcRenderer.invoke('cardTerminal:refund', payload),
+  cardTerminalCancel: () => ipcRenderer.invoke('cardTerminal:cancel'),
+  cardTerminalResolve: (payload: { ecr_ref: string; outcome: 'APPROVED' | 'DECLINED'; auth_code?: string }) => ipcRenderer.invoke('cardTerminal:resolve', payload),
+  cardTerminalTest: () => ipcRenderer.invoke('cardTerminal:test'),
+  cardTerminalBillSplitDetails: (payload: { invoice_id: string }) => ipcRenderer.invoke('cardTerminal:billSplitDetails', payload),
+  cardTerminalListPorts: () => ipcRenderer.invoke('cardTerminal:listPorts'),
+  cardTerminalListTransactions: (payload: { tenant_id: string; limit?: number }) => ipcRenderer.invoke('cardTerminal:listTransactions', payload),
+  cardTerminalListUnresolved: (payload: { tenant_id: string }) => ipcRenderer.invoke('cardTerminal:listUnresolved', payload),
   printA4Html: (tenant_id: string, htmlContent: string) => ipcRenderer.invoke('hardware:printA4Html', { tenant_id, htmlContent }),
   exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string, pdfOptions?: { displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => ipcRenderer.invoke('hardware:exportA4Pdf', { tenant_id, htmlContent, defaultFilename, ...(pdfOptions || {}) }),
 
@@ -164,6 +175,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('hardware:barcode', listener);
     return () => {
       ipcRenderer.removeListener('hardware:barcode', listener);
+    };
+  },
+  onCardTerminalStatus: (callback: (status: { ecr_ref: string; message: string }) => void) => {
+    const listener = (_event: unknown, status: { ecr_ref: string; message: string }) => callback(status);
+    ipcRenderer.on('cardTerminal:status', listener);
+    return () => {
+      ipcRenderer.removeListener('cardTerminal:status', listener);
     };
   },
   onScaleWeight: (callback: (weight: number) => void) => {

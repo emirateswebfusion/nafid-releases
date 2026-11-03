@@ -1,10 +1,11 @@
 import React from 'react';
-import { Printer, Globe, Usb, FileText, Scale, RefreshCw } from 'lucide-react';
+import { Printer, Globe, Usb, FileText, Scale, RefreshCw, CreditCard } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import type { SettingsForm } from '../settingsFormTypes';
 import { getRecommendedLeftMarginOffset } from '../../../utils/print/printFormatHelper';
+import { CardTerminalSettings } from './CardTerminalSettings';
 
 export interface HardwareSettingsTabProps {
   activeHardwareTab: string;
@@ -50,6 +51,7 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                 { id: 'barcode', label: 'Barcode Printer', icon: Printer },
                 { id: 'a4', label: 'A4 & A5 Printer', icon: FileText },
                 { id: 'scale', label: 'Weighing Scale', icon: Scale },
+                { id: 'card', label: 'Card Terminal', icon: CreditCard },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isTabActive = activeHardwareTab === tab.id;
@@ -286,6 +288,8 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                   </div>
                 </div>
               )}
+
+              {activeHardwareTab === 'card' && <CardTerminalSettings />}
             </div>
           </div>
   );

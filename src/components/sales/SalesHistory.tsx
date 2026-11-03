@@ -45,6 +45,7 @@ import { SalesAnalyticsView } from './views/SalesAnalyticsView';
 import { SalesBillsView } from './views/SalesBillsView';
 import { useLinkedInvoiceView } from './hooks/useLinkedInvoiceView';
 import { useCollectPayment } from './hooks/useCollectPayment';
+import { offerCardTerminalVoid } from '../billing/checkout/cardTerminalStep';
 
 /* ════════════════════════════════════════════
    MAIN COMPONENT
@@ -461,6 +462,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
         loadInvoices(true);
         showToast('Invoice moved to Recycle Bin (can be restored anytime)', 'success');
+        await offerCardTerminalVoid(selectedInvoice.split_details);
       } else {
         showToast('Delete failed: ' + (result.error || 'Unknown error'), 'error');
       }
