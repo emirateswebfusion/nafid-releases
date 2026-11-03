@@ -182,6 +182,29 @@ Copies are excluded from pending settlement to prevent collecting the same sale 
 balances are not rewritten; active sessions use the corrected query on reconciliation.
 When editing an invoice's bill date (invoiceEditService.ts), if the document is a converted GST copy or a source Bill of Supply, both linked documents (converted_from_invoice_id / converted_to_invoice_id) and their line items have their created_at synchronized and marked PENDING for cloud sync. Startup migrations must never overwrite converted invoice dates back to source dates.
 Tests: osConversionRevenue.test.ts (real in-memory SQLite), osConversionService.test.ts, and convertedInvoiceDateEdit.test.ts.
+
+### Paper stock and conversion quantities (`electron/services/paperStockAllocation.ts`)
+
+- **Balance & Adjustments** (`paperStockBalanceSql` in `electron/db/statements/products.ts`): paper purchase lines
+  (`skip_stock_update = 1`) with manual adjustments (`domain_attributes.paper_adjustment`), else the manual `domain_attributes.paper_stock`,
+  less `qty_from_paper_stock` of active GST lines, never below zero.
+  - The Inventory table renders direct `+` and `-` increment/decrement buttons for Paper Stock calling `dbAdjustStock` with `paperDelta`.
+  - When paper stock is 0, the `-` button is disabled (clamped to 0) while the `+` button remains active so incoming shipments can be added with a single click.
+  - Zero-stock persistence: When paper stock drops to 0, paper identity, Paper MRP (`paper_mrp`), and purchase pricing (`gst_purchase_price` / `paper_purchase_price`) are strictly preserved in `domain_attributes` and form state (`useInventoryFormOpen`, `useInventorySave`); they are never wiped on form open or edit.
+- **Partial Conversion & Paper Pricing**:
+  - Available stock determines conversion quantity: When available paper stock is less than the sold quantity (e.g. Sold 70, Paper Stock 50), the system performs **partial conversion** (50 converted, 20 skipped) rather than blocking the whole bill.
+  - Skipped quantity (`qty_short`, `skipped: true`) is recorded in the conversion history and previewed in the GST Conversion Dialog cards (`ConversionPaperLines`).
+  - Converted quantities adopt the configured Paper Selling Price (Paper MRP) for tax calculation and legal invoice generation, ensuring converted GST tax documents reflect realistic, compliant values.
+  - Complete block only occurs when 0 units across all items in a bill are convertible.
+- The conversion dialog displays itemized cards showing Product Name, Available Paper Stock, Conversion Qty, Skipped Qty, Paper Selling Price, Conversion Total, and GST calculation.
+- Direct GST sales beyond real purchases, and older copies that exceeded paper stock, reduce the Inventory balance and
+  later coverage alike.
+- Stock Report Est Qty is Bill-of-Supply quantity not carried to a GST copy (matched by `source_item_id`).
+- Existing GST copies are never rewritten: an overdrawn product shows 0 until a copy is deleted or more paper arrives.
+- Startup must keep paper prices of a product with paper purchase lines, even when flagged `REAL`
+  (`localDb.ts` cleanup, `migrationsRepairs.ts`). Deleted copies return their paper stock.
+- Tests: `tests/unit/paperStockConversion.test.ts`, `tests/unit/inventoryPaperSettings.ui.test.tsx`.
+
 Filing-only billing (`bill_purpose = 'FILING_ONLY'`) captures its revenue and stock decisions at checkout:
 - `filing_only_mode.countInRevenue`: controls whether new filing-only bills count in store revenue (`counts_in_revenue = 1`). When turned off, filing-only bills are strictly excluded from Dashboard Sales Today and Cash Drawer reconciliation, while Sales History allows accountant review under B2C/B2B (when enabled) and under Tax Filing (`TAX_FILING`).
 - `filing_only_mode.showB2bInSalesCategory` and `showB2cInSalesCategory`: control whether filing-only bills appear in the respective B2B/B2C category views or only under the dedicated `Filing-only` filter (`FILING_ONLY`).

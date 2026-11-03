@@ -39,7 +39,7 @@ const inv = await scrapApi.getScrapInvoiceByNumber({ tenant_id, scrap_invoice_nu
 | Module | Domain |
 |---|---|
 | `app.ts` | version, updater, network info, `logError()` (safe outside desktop) |
-| `auth.ts` | token and offline-session persistence |
+| `auth.ts` | token, offline-session persistence, Quick PIN login and terminal configuration |
 | `settings.ts` | key/value settings + typed helpers (`getSetting`, `getStringSetting`, `setSetting`, …) |
 | `products.ts`, `grades.ts`, `pricingTiers.ts`, `combos.ts` | catalog, stock, print queue, grades, tier prices, combos |
 | `invoices.ts` | checkout, invoices, numbering, held bills, BOS→GST conversion |
