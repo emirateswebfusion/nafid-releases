@@ -35,6 +35,10 @@ export function ServiceChargeSetup({ tenantId, value, onChanged, onError }: Serv
           <input className="w-20 rounded-lg border border-border bg-background px-2 py-1 text-sm" value={form.percent}
             onChange={e => setForm({ ...form, percent: Math.min(100, Number(e.target.value.replace(/[^\d.]/g, '')) || 0) })} />
         </label>
+        <label className="text-xs font-bold">{isUaeStore() ? 'VAT' : 'GST'} %<br />
+          <input className="w-16 rounded-lg border border-border bg-background px-2 py-1 text-sm" value={form.taxRate}
+            onChange={e => setForm({ ...form, taxRate: Math.min(100, Number(e.target.value.replace(/[^\d.]/g, '')) || 0) })} />
+        </label>
         <label className="text-xs font-bold">Bill line text<br />
           <input className="w-56 rounded-lg border border-border bg-background px-2 py-1 text-sm" value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} />
         </label>
@@ -49,8 +53,8 @@ export function ServiceChargeSetup({ tenantId, value, onChanged, onError }: Serv
       </div>
       <p className="text-xs text-muted-foreground">
         {isUaeStore()
-          ? 'In the UAE a service charge is part of the price of the supply, so VAT 5% is charged on it. It is added as a separate bill line, on the same price basis as your menu prices.'
-          : 'The charge is added as a separate service line on the bill.'}
+          ? 'In the UAE a service charge is part of the price of the supply, so VAT is charged on it. It is added automatically as a separate bill line, on the same price basis as your menu prices. The same tax rate applies to the delivery fee.'
+          : 'India: under the Central Consumer Protection Authority guidelines (July 2022) a service charge may not be added by default. The order screen shows a "guest agreed" tick; the charge is added only when it is ticked, with GST at the rate above. The same GST rate applies to the delivery fee.'}
       </p>
       <Button onClick={() => void save()}>Save</Button>
     </div>

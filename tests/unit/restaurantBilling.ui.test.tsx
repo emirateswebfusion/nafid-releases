@@ -40,7 +40,7 @@ const lines = [
     moved_from_line_id: null, created_by: null, created_at: '' },
 ];
 const items = orderToCartItems({ order_type: 'DINE_IN', delivery_fee: 0 }, lines, {
-  products: {}, serviceCharge: { ...DEFAULT_SERVICE_CHARGE, enabled: true, percent: 10 }, serviceTaxRate: 0,
+  products: {}, serviceCharge: { ...DEFAULT_SERVICE_CHARGE, enabled: true, percent: 10, taxRate: 0 },
 });
 
 beforeEach(() => {

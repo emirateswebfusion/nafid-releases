@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../ui/Button';
 import { restaurantApi, parseTextList, type Modifier, type ModifierGroup } from '../../../data/restaurant';
-import { isUaeStore } from '../../../utils/localization/storeProfile';
 
 interface ModifiersSetupProps {
   tenantId: string;
@@ -23,7 +22,8 @@ interface Draft {
 }
 
 const input = 'rounded-lg border border-border bg-background px-2 py-1 text-sm';
-const defaultTax = () => (isUaeStore() ? '5' : '0');
+/** Restaurant food is 5% GST in India (no input credit) and 5% VAT in the UAE; change it per choice if needed. */
+const defaultTax = () => '5';
 const blank = (): Draft => ({ name: '', min_select: 0, max_select: 1, categories: [], choices: [{ name: '', price: '0', tax_rate: defaultTax() }] });
 
 /** Add-on groups ("Spice level", "Extras") for categories, with their choices and prices (same basis as menu prices). */

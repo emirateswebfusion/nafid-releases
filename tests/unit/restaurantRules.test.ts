@@ -1,7 +1,7 @@
 /** Restaurant mode pure rules: KOT routing / text, order-time price, service charge, add-ons, order → cart, guest check. */
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildKotText, routeToStations, stationForCategory, type KotStation } from '../../electron/services/restaurantKot';
-import { groupsForProduct, menuUnitPrice, modifierChoiceError, orderToCartItems, orderValue, parseServiceChargeSetting,
+import { deliveryChannels, groupsForProduct, menuUnitPrice, serviceChargeMode, modifierChoiceError, orderToCartItems, orderValue, parseServiceChargeSetting,
   serviceChargeAmount, DEFAULT_SERVICE_CHARGE } from '../../src/components/restaurant/restaurantRules';
 import { guestCheckTotals } from '../../src/components/restaurant/guestCheck';
 import { buildCheckoutLines } from '../../src/utils/pricing/checkoutLines';
@@ -81,10 +81,9 @@ describe('order → billing cart', () => {
   const ctx = (percent = 10, enabled = true) => ({
     products: { p1: { product_id: 'p1', name: 'Chicken shawarma', purchase_price: 4, billing_type: 'PIECE', uom: 'pcs', hsn_sac_code: null, tax_rate_percent: 5, sku_barcode: null } },
     serviceCharge: { ...DEFAULT_SERVICE_CHARGE, enabled, percent },
-    serviceTaxRate: 5,
   });
 
-  it('sums a product into one line at the quantity-weighted price, priced add-ons and charges as service lines', () => {
+  it('sums a product into one line at the quantity-weighted price; add-ons and charges are taxed lines without stock', () => {
     const lines = [
       line({ quantity: 2, unit_price: 10, modifiers: JSON.stringify([{ modifier_id: 'cheese', name: 'Extra cheese', price: 2, tax_rate: 5 }, { modifier_id: 'nog', name: 'No garlic', price: 0, tax_rate: 0 }]) }),
       line({ quantity: 1, unit_price: 11 }),
@@ -96,9 +95,10 @@ describe('order → billing cart', () => {
     expect(cart.map(i => [i.product_id, i.name, Number(i.quantity), Number(i.base_price.toFixed(4)), Boolean(i.isServiceItem)])).toEqual([
       ['p1', 'Chicken shawarma', 3, 10.3333, false],
       ['p9', 'Tea', 1, 3, false],
-      ['rst-mod-cheese', '+ Extra cheese × 2', 1, 4, true],
-      ['rst-service-charge', 'Service charge 10%', 1, 3.8, true],
+      ['rst-mod-cheese', '+ Extra cheese', 2, 2, false],
+      ['rst-service-charge', 'Service charge 10%', 1, 3.8, false],
     ]);
+    expect(cart.slice(2).map(i => i.tax_rate_percent)).toEqual([5, 5]);
     const p1 = cart[0];
     expect(Number(p1.quantity) * p1.base_price).toBeCloseTo(31, 10);
   });
@@ -114,6 +114,31 @@ describe('order → billing cart', () => {
     const lines = buildCheckoutLines(cart, { invoiceType: 'GST', supplyType: 'INTRA', bosTaxRatePercent: 0, bosTaxInclusive: false, pcsSnapshot: {}, newId: () => 'x' });
     expect(lines.map(l => [l.name, l.total, l.tax_amount])).toEqual([['Chicken shawarma', 40, 2], ['Service charge 10%', 4, 0.2]]);
     expect(guestCheckTotals(cart)).toEqual({ net: 44, tax: 2.2, total: 46.2 });
+  });
+
+  it('India: GST (CGST + SGST) applies to add-ons, the service charge and the delivery fee, not only to food', () => {
+    setStoreCountry('IN');
+    const lines = [line({ quantity: 2, unit_price: 100, tax_rate: 5, modifiers: JSON.stringify([{ modifier_id: 'cheese', name: 'Extra cheese', price: 20, tax_rate: 5 }]) })];
+    const cart = orderToCartItems({ order_type: 'DINE_IN', delivery_fee: 30 }, lines, ctx());
+    const out = buildCheckoutLines(cart, { invoiceType: 'GST', supplyType: 'INTRA', bosTaxRatePercent: 0, bosTaxInclusive: false, pcsSnapshot: {}, newId: () => 'x' });
+    const r2 = (n: number) => Math.round(n * 100) / 100; // the line rule keeps tax_amount unrounded; CGST / SGST are rounded
+    expect(out.map(l => [l.name, l.quantity, l.total, r2(l.tax_amount), l.cgst_amount, l.sgst_amount])).toEqual([
+      ['Chicken shawarma', 2, 200, 10, 5, 5],
+      ['+ Extra cheese', 2, 40, 2, 1, 1],
+      ['Service charge 10%', 1, 24, 1.2, 0.6, 0.6],
+      ['Delivery fee', 1, 30, 1.5, 0.75, 0.75],
+    ]);
+    expect(guestCheckTotals(cart)).toEqual({ net: 294, tax: 14.7, total: 308.7 });
+  });
+
+  it('India asks the guest before a service charge; the UAE adds it; app lists follow the country', () => {
+    expect(serviceChargeMode(false)).toBe('ask');
+    expect(serviceChargeMode(true)).toBe('automatic');
+    const lines = [line({ quantity: 1, unit_price: 100 })];
+    expect(orderToCartItems({ order_type: 'DINE_IN', delivery_fee: 0 }, lines, { ...ctx(), applyServiceCharge: false }).map(i => i.product_id)).toEqual(['p1']);
+    expect(deliveryChannels(false)).toEqual(['OWN', 'SWIGGY', 'ZOMATO', 'OTHER']);
+    expect(deliveryChannels(true)).toContain('TALABAT');
+    expect(parseServiceChargeSetting({ enabled: true }).taxRate).toBe(5);
   });
 
   it('UAE, VAT-exclusive prices: VAT is added on top of items and the service charge', () => {

@@ -4,7 +4,8 @@ export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
 export type OrderStatus = 'OPEN' | 'BILLING' | 'SETTLED' | 'CANCELLED';
 export type KdsStatus = 'NEW' | 'PREPARING' | 'READY' | 'SERVED';
 export const ORDER_TYPES: readonly OrderType[] = ['DINE_IN', 'TAKEAWAY', 'DELIVERY'];
-export const DELIVERY_CHANNELS = ['OWN', 'TALABAT', 'DELIVEROO', 'NOON', 'CAREEM', 'OTHER'] as const;
+/** Accepted channels (UAE and India apps); the order screen offers the ones of the shop's country. */
+export const DELIVERY_CHANNELS = ['OWN', 'TALABAT', 'DELIVEROO', 'NOON', 'CAREEM', 'SWIGGY', 'ZOMATO', 'OTHER'] as const;
 export const KDS_STATUSES: readonly KdsStatus[] = ['NEW', 'PREPARING', 'READY', 'SERVED'];
 
 export interface DiningTableRow {

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Modal } from '../../ui/Modal';
 import { Button } from '../../ui/Button';
-import { DELIVERY_CHANNELS, type OrderType, type RestaurantOrder } from '../../../data/restaurant';
+import type { OrderType, RestaurantOrder } from '../../../data/restaurant';
+import { isUaeStore } from '../../../utils/localization/storeProfile';
+import { deliveryChannels } from '../restaurantRules';
 import type { StaffListItem } from '../../../data/staff';
 
 interface OrderDetailsDialogProps {
@@ -56,7 +58,7 @@ export function OrderDetailsDialog({ title, orderType, order, staff, onCancel, o
           <>
             <label className="text-xs font-bold">Order from
               <select className={field} value={channel} onChange={e => setChannel(e.target.value)}>
-                {DELIVERY_CHANNELS.map(c => <option key={c} value={c}>{c === 'OWN' ? 'Own delivery' : c.charAt(0) + c.slice(1).toLowerCase()}</option>)}
+                {deliveryChannels(isUaeStore()).map(c => <option key={c} value={c}>{c === 'OWN' ? 'Own delivery' : c.charAt(0) + c.slice(1).toLowerCase()}</option>)}
               </select>
             </label>
             {channel !== 'OWN' ? (

@@ -316,3 +316,19 @@ Built as designed, with these specifics:
   (`restaurantBilling.ui.test.tsx`): `tabStore.updateActiveTab` filters fields by an allow-list and dropped
   `restaurantOrderId`, so checkout saved the invoice but left the order open.
 - **Not done here:** live delivery-app APIs (§13), and a check on real kitchen printers / two real terminals.
+
+## 15. India (3 Nov 2026)
+
+Restaurant mode is not country-specific (same flag). India-specific behaviour, from a review after the UAE build:
+
+- **GST on everything billed.** Add-ons, the service charge and the delivery fee were service lines, and service lines
+  carry no tax for India shops (`checkoutLines` taxes them only in the UAE), so they were billed without GST. They are
+  now ordinary taxed lines without a product row (no stock), so checkout applies CGST / SGST / IGST (or UAE VAT) like
+  food. Add-on choices default to 5%; the service charge setting has its own rate (default 5%), also used for the
+  delivery fee. Bill-of-Supply invoices stay untaxed as before.
+- **Service charge is opt-in per bill in India.** The Central Consumer Protection Authority guidelines of 4 July 2022
+  bar adding a service charge by default; the order screen shows "Add service charge (guest agreed)", unticked.
+  UAE: added automatically (`restaurantRules.serviceChargeMode`).
+- **Delivery apps by country:** India offers Swiggy / Zomato, the UAE Talabat / Deliveroo / Noon / Careem; both have
+  Own delivery and Other (`restaurantRules.deliveryChannels`; the main process accepts all).
+- Not app-tested on an India shop; covered by `restaurantRules.test.ts` (CGST / SGST amounts per line).

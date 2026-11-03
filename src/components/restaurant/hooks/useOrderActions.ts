@@ -92,13 +92,13 @@ export function useOrderActions(ctx: ActionContext) {
 
   const reprint = useCallback((kotId: string) => run(async () => { await printTickets([kotId], true); return true; }), [run, printTickets]);
 
-  const cartFor = useCallback(async (order: RestaurantOrder, lines: OrderLine[]) => {
+  const cartFor = useCallback(async (order: RestaurantOrder, lines: OrderLine[], applyServiceCharge: boolean) => {
     const ids = [...new Set(lines.map(l => l.product_id))];
     const products = ids.length ? await getProductsByIds({ tenant_id: tenantId, product_ids: ids }) : [];
     return orderToCartItems(order, lines, {
       products: Object.fromEntries(products.map(p => [p.product_id, p])),
       serviceCharge: data.serviceCharge,
-      serviceTaxRate: isUaeStore() ? 5 : 0,
+      applyServiceCharge,
     });
   }, [tenantId, data.serviceCharge]);
 
@@ -108,17 +108,17 @@ export function useOrderActions(ctx: ActionContext) {
       : `${order.order_type === 'DELIVERY' ? 'Delivery' : 'Takeaway'} ${order.order_no}`;
   }, [data.setup.tables]);
 
-  const printGuestCheck = useCallback((order: RestaurantOrder, lines: OrderLine[]) => run(async () => {
-    const items = await cartFor(order, lines);
+  const printGuestCheck = useCallback((order: RestaurantOrder, lines: OrderLine[], applyServiceCharge = true) => run(async () => {
+    const items = await cartFor(order, lines, applyServiceCharge);
     if (items.length === 0) { setMessage({ tone: 'warn', text: 'Nothing on the order yet' }); return false; }
-    const text = guestCheckText({ shopName: ctx.shopName, title: titleOf(order), items, taxLabel: isUaeStore() ? 'VAT' : 'Tax' });
+    const text = guestCheckText({ shopName: ctx.shopName, title: titleOf(order), items, taxLabel: isUaeStore() ? 'VAT' : 'GST' });
     const printed = await printingApi.printReceipt(tenantId, text);
     return report(printed.success ? printed : { success: false, error: `Guest check not printed: ${printed.error || 'printer error'}` }, 'Guest check printed');
   }), [run, cartFor, titleOf, report, tenantId, ctx.shopName]);
 
   /** Claims the order (LAN primary when reachable) and opens it in Billing. */
-  const billOrder = useCallback((order: RestaurantOrder, lines: OrderLine[]) => run(async () => {
-    const items = await cartFor(order, lines);
+  const billOrder = useCallback((order: RestaurantOrder, lines: OrderLine[], applyServiceCharge = true) => run(async () => {
+    const items = await cartFor(order, lines, applyServiceCharge);
     if (items.length === 0) { setMessage({ tone: 'warn', text: 'Send items before billing' }); return false; }
     const claim = await restaurantApi.claimForBilling({ order_id: order.order_id });
     if (!claim.success) { setMessage({ tone: 'error', text: claim.error }); return false; }

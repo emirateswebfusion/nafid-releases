@@ -39,10 +39,12 @@ export interface ServiceChargeSetting {
   percent: number;
   orderTypes: OrderType[];
   label: string;
+  /** GST / VAT rate of the service charge and delivery fee lines (restaurant supply: 5% in both countries). */
+  taxRate: number;
 }
 
 export const SERVICE_CHARGE_SETTING_KEY = 'restaurant_service_charge';
-export const DEFAULT_SERVICE_CHARGE: ServiceChargeSetting = { enabled: false, percent: 10, orderTypes: ['DINE_IN'], label: 'Service charge' };
+export const DEFAULT_SERVICE_CHARGE: ServiceChargeSetting = { enabled: false, percent: 10, orderTypes: ['DINE_IN'], label: 'Service charge', taxRate: 5 };
 
 export function parseServiceChargeSetting(value: unknown): ServiceChargeSetting {
   let v = value;
@@ -50,6 +52,7 @@ export function parseServiceChargeSetting(value: unknown): ServiceChargeSetting 
   if (!v || typeof v !== 'object') return { ...DEFAULT_SERVICE_CHARGE };
   const o = v as Record<string, unknown>;
   const percent = Number(o.percent);
+  const taxRate = Number(o.taxRate);
   const types = Array.isArray(o.orderTypes)
     ? o.orderTypes.filter((t): t is OrderType => t === 'DINE_IN' || t === 'TAKEAWAY' || t === 'DELIVERY')
     : DEFAULT_SERVICE_CHARGE.orderTypes;
@@ -58,7 +61,22 @@ export function parseServiceChargeSetting(value: unknown): ServiceChargeSetting 
     percent: Number.isFinite(percent) && percent >= 0 && percent <= 100 ? percent : DEFAULT_SERVICE_CHARGE.percent,
     orderTypes: types,
     label: typeof o.label === 'string' && o.label.trim() ? o.label.trim() : DEFAULT_SERVICE_CHARGE.label,
+    taxRate: Number.isFinite(taxRate) && taxRate >= 0 && taxRate <= 100 ? taxRate : DEFAULT_SERVICE_CHARGE.taxRate,
   };
+}
+
+/**
+ * How the service charge reaches a bill. UAE: added automatically (part of the price, VAT applies). India: the
+ * Central Consumer Protection Authority guidelines (4 July 2022) bar adding it by default, so the cashier adds it only
+ * when the guest agrees ("ask").
+ */
+export function serviceChargeMode(isUae: boolean): 'automatic' | 'ask' {
+  return isUae ? 'automatic' : 'ask';
+}
+
+/** Delivery apps offered for a shop's country; `OWN` (own riders) and `OTHER` everywhere. */
+export function deliveryChannels(isUae: boolean): string[] {
+  return isUae ? ['OWN', 'TALABAT', 'DELIVEROO', 'NOON', 'CAREEM', 'OTHER'] : ['OWN', 'SWIGGY', 'ZOMATO', 'OTHER'];
 }
 
 /** Service charge on `base` (items + priced add-ons, same price basis as the menu), 0 when it does not apply. */
@@ -93,15 +111,17 @@ export function orderValue(lines: OrderLine[]): number {
 export interface OrderToCartContext {
   products: Record<string, Pick<Product, 'product_id' | 'name' | 'purchase_price' | 'billing_type' | 'uom' | 'hsn_sac_code' | 'tax_rate_percent' | 'sku_barcode'>>;
   serviceCharge: ServiceChargeSetting;
-  /** VAT / tax rate of service charge and delivery fee lines (UAE: 5% standard rate). */
-  serviceTaxRate: number;
+  /** False when the shop asks the guest first (India) and the guest declined; default true. */
+  applyServiceCharge?: boolean;
 }
 
 /**
  * Billing cart lines for an order. The cart keeps one line per product id, so: items of one product become one line
- * with the summed quantity at the quantity-weighted order-time price (the money is exact); priced add-ons become
- * service lines per add-on (`+ Extra cheese × 3`); then the service charge and the delivery fee. Free add-ons and
- * notes are kitchen information only.
+ * with the summed quantity at the quantity-weighted order-time price (the money is exact); priced add-ons become one
+ * line per add-on (`+ Extra cheese`, quantity = items it was added to); then the service charge and the delivery fee.
+ * Add-on and charge lines are ordinary taxed lines without a product row (like billing-only items, no stock), so
+ * checkout applies GST (CGST/SGST/IGST) or UAE VAT to them exactly as to food. Free add-ons and notes are kitchen
+ * information only.
  */
 export function orderToCartItems(order: Pick<RestaurantOrder, 'order_type' | 'delivery_fee'>, lines: OrderLine[], ctx: OrderToCartContext): CartItem[] {
   const active = lines.filter(l => l.status === 'ACTIVE');
@@ -138,16 +158,16 @@ export function orderToCartItems(order: Pick<RestaurantOrder, 'order_type' | 'de
       sku_barcode: p?.sku_barcode ?? null,
     });
   }
-  const service = (id: string, name: string, amount: number, taxRate: number): CartItem => ({
-    product_id: id, name, base_price: round2(amount), purchase_price: 0, tax_rate_percent: taxRate, quantity: 1,
-    isServiceItem: true, pricing_mode: 'FIXED',
+  const charge = (id: string, name: string, quantity: number, unitPrice: number, taxRate: number): CartItem => ({
+    product_id: id, name, base_price: unitPrice, purchase_price: 0, tax_rate_percent: taxRate, quantity,
+    billing_type: 'PIECE', uom: 'Nos', pricing_mode: 'FIXED', hsn_sac_code: null,
   });
   for (const [modifierId, addOn] of addOns) {
     const qty = Math.round(addOn.quantity * 1000) / 1000;
-    cart.push(service(`rst-mod-${modifierId}`, `+ ${addOn.name} × ${qty}`, addOn.value, addOn.taxRate));
+    cart.push(charge(`rst-mod-${modifierId}`, `+ ${addOn.name}`, qty, qty > 0 ? addOn.value / qty : 0, addOn.taxRate));
   }
-  const charge = serviceChargeAmount(orderValue(active), ctx.serviceCharge, order.order_type);
-  if (charge > 0) cart.push(service('rst-service-charge', `${ctx.serviceCharge.label} ${ctx.serviceCharge.percent}%`, charge, ctx.serviceTaxRate));
-  if (order.delivery_fee > 0) cart.push(service('rst-delivery-fee', 'Delivery fee', order.delivery_fee, ctx.serviceTaxRate));
+  const sc = ctx.applyServiceCharge === false ? 0 : serviceChargeAmount(orderValue(active), ctx.serviceCharge, order.order_type);
+  if (sc > 0) cart.push(charge('rst-service-charge', `${ctx.serviceCharge.label} ${ctx.serviceCharge.percent}%`, 1, sc, ctx.serviceCharge.taxRate));
+  if (order.delivery_fee > 0) cart.push(charge('rst-delivery-fee', 'Delivery fee', 1, round2(order.delivery_fee), ctx.serviceCharge.taxRate));
   return cart;
 }

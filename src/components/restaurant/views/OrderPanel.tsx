@@ -5,7 +5,8 @@ import { Button } from '../../ui/Button';
 import type { Product } from '../../../data/products';
 import type { DiningTable, RestaurantOrder } from '../../../data/restaurant';
 import { formatCurrency } from '../../../utils/pricing/money';
-import { groupsForProduct, menuUnitPrice, orderValue } from '../restaurantRules';
+import { groupsForProduct, menuUnitPrice, orderValue, serviceChargeAmount, serviceChargeMode } from '../restaurantRules';
+import { isUaeStore } from '../../../utils/localization/storeProfile';
 import type { RestaurantData } from '../hooks/useRestaurantData';
 import type { OrderActions } from '../hooks/useOrderActions';
 import { MenuGrid } from './MenuGrid';
@@ -31,12 +32,15 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder }:
   const [drafts, setDrafts] = useState<DraftLine[]>([]);
   const [picking, setPicking] = useState<Product | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
+  // India: the service charge is added only when the guest agrees (restaurantRules.serviceChargeMode).
+  const [guestAgreed, setGuestAgreed] = useState(false);
   const lines = data.active.lines.filter(l => l.order_id === order.order_id);
   // A split bill's items keep the parent order's kitchen tickets, so tickets are looked up across open orders.
   const kots = data.active.kots;
   const table: DiningTable | undefined = data.setup.tables.find(t => t.table_id === order.table_id);
   const siblings = data.active.orders.filter(o => o.order_id !== order.order_id && o.table_id && o.table_id === order.table_id);
   const locked = order.status === 'BILLING';
+  const applyServiceCharge = serviceChargeMode(isUaeStore()) === 'automatic' || guestAgreed;
   const draftValue = drafts.reduce((s, d) => s + d.quantity * (d.unit_price + d.modifiers.reduce((m, x) => m + x.price, 0)), 0);
 
   const addDraft = (product: Product, choice: { quantity: number; modifiers: DraftLine['modifiers']; note: string | null; seat: number | null }) => {
@@ -104,14 +108,20 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder }:
               <ChefHat className="mr-2 h-4 w-4" />Send to kitchen ({drafts.reduce((s, d) => s + d.quantity, 0)})
             </Button>
           )}
+          {!locked && serviceChargeMode(isUaeStore()) === 'ask' && serviceChargeAmount(orderValue(lines), data.serviceCharge, order.order_type) > 0 && (
+            <label className="flex items-center gap-2 text-xs font-bold">
+              <input type="checkbox" checked={guestAgreed} onChange={e => setGuestAgreed(e.target.checked)} />
+              Add {data.serviceCharge.label.toLowerCase()} {data.serviceCharge.percent}% (guest agreed)
+            </label>
+          )}
           {locked ? (
             <Button className="w-full" variant="outline" onClick={() => void actions.releaseClaim(order)}><Undo2 className="mr-2 h-4 w-4" />Reopen order</Button>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" disabled={actions.working} onClick={() => void actions.printGuestCheck(order, lines)}><ScrollText className="mr-1 h-4 w-4" />Guest check</Button>
+                <Button variant="outline" disabled={actions.working} onClick={() => void actions.printGuestCheck(order, lines, applyServiceCharge)}><ScrollText className="mr-1 h-4 w-4" />Guest check</Button>
                 <Button disabled={actions.working || drafts.length > 0} title={drafts.length > 0 ? 'Send or remove unsent items first' : undefined}
-                  onClick={() => void actions.billOrder(order, lines)}><Receipt className="mr-1 h-4 w-4" />Bill</Button>
+                  onClick={() => void actions.billOrder(order, lines, applyServiceCharge)}><Receipt className="mr-1 h-4 w-4" />Bill</Button>
               </div>
               <div className="grid grid-cols-4 gap-2">
                 <Button size="sm" variant="outline" disabled={!can('restaurant.void')} onClick={() => setDialog('void')} title="Void items"><Ban className="h-4 w-4" /></Button>

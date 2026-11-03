@@ -5,8 +5,6 @@ import { bindBridge } from './client';
 export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
 export type OrderStatus = 'OPEN' | 'BILLING' | 'SETTLED' | 'CANCELLED';
 export type KdsStatus = 'NEW' | 'PREPARING' | 'READY' | 'SERVED';
-export const DELIVERY_CHANNELS = ['OWN', 'TALABAT', 'DELIVEROO', 'NOON', 'CAREEM', 'OTHER'] as const;
-export type DeliveryChannel = (typeof DELIVERY_CHANNELS)[number];
 
 export interface DiningTable {
   table_id: string; tenant_id: string; label: string; area: string | null; seats: number; sort_order: number;
