@@ -1,3 +1,10 @@
+# Nafid POS v2.2.33
+
+## What's New
+- **No customers missing after installing on a new computer**: when the cloud held an old deleted copy of a customer, a new computer hid the live customer. Deleted copies are now ignored, so every active customer and balance appears.
+
+**Download:** [Nafid-Setup-2.2.33.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.33/Nafid-Setup-2.2.33.exe)
+
 # Nafid POS v2.2.32
 
 ## What's New

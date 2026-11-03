@@ -172,7 +172,9 @@ export async function pullParties(token: string, tenantId: string): Promise<bool
             const phoneVal = hasPhone ? (p.phone as string).trim() : null;
             const tId = p.tenant_id || tenantId;
 
-            if (isCustomer) {
+            // Only a live incoming customer may replace a local twin: a deleted copy in the cloud must never delete a
+            // live customer or take over its ledger rows.
+            if (isCustomer && !parseIsDeleted(p.is_deleted)) {
               const dupParty: Record<string, unknown> = (findCustomerPartyDuplicate.get(tId, p.party_id, p.name, phoneVal, phoneVal) as Record<string, unknown>);
               if (dupParty) {
                 // Reassign any local ledger entries to incoming canonical party_id and soft delete duplicate
