@@ -81,6 +81,8 @@ export interface Tab {
   selectedUpiSourceId?: string;
   selectedUpiName?: string;
   isB2B?: boolean;
+  /** Restaurant order this bill pays (restaurant mode); checkout closes the order in the same transaction. */
+  restaurantOrderId?: string;
 }
 
 interface TabState {

@@ -11,6 +11,7 @@ const { initDb, getDb } = await load('electron/db/localDb.ts');
 const { runMigrations } = await load('electron/db/migrations/runner.ts');
 const { MIGRATIONS } = await load('electron/db/migrations/index.ts');
 const { SYNCED_TABLES } = await load('electron/db/migrations/002-sync-outbox.ts');
+const { RESTAURANT_SYNCED_TABLES } = await load('electron/db/migrations/015-restaurant.ts');
 const { withSyncApplyGuard, countPendingOps, listPendingOps, clearSyncApplyGuard } = await load('electron/db/statements/outbox.ts');
 const { m003SyncOutboxTriggers } = await load('electron/db/migrations/003-sync-outbox-triggers.ts');
 
@@ -29,7 +30,7 @@ check('returns indexes exist', (db.prepare("SELECT name FROM sqlite_master WHERE
   ['idx_return_items_invoice_item_id', 'idx_return_items_return_id', 'idx_returns_invoice_id']);
 check('sync_outbox table exists', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_outbox'").get() as { name: string } | undefined)?.name, 'sync_outbox');
 check('sync_outbox pending index exists', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_sync_outbox_pending'").get() as { name: string } | undefined)?.name, 'idx_sync_outbox_pending');
-for (const table of SYNCED_TABLES as readonly string[]) {
+for (const table of [...SYNCED_TABLES, ...RESTAURANT_SYNCED_TABLES] as readonly string[]) {
   const columns = db.prepare('PRAGMA table_info(' + table + ')').all() as { name: string }[];
   const names = new Set(columns.map((column) => column.name));
   check(table + ' has row_version', names.has('row_version'), true);
@@ -41,6 +42,10 @@ for (const table of SYNCED_TABLES as readonly string[]) {
     `sync_outbox_${table}_update`,
   ]);
 }
+
+check('restaurant forward-only triggers exist', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name IN ('restaurant_orders_final_status', 'restaurant_order_lines_void_final', 'kot_tickets_kds_forward') ORDER BY name").all() as { name: string }[]).map((r) => r.name),
+  ['kot_tickets_kds_forward', 'restaurant_order_lines_void_final', 'restaurant_orders_final_status']);
+check('restaurant counters are not synced', (db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'sync_outbox_restaurant_counters_%'").get() as { n: number }).n, 0);
 
 const origin = (db.prepare("SELECT value FROM sync_meta WHERE key = 'origin'").get() as { value: string } | undefined)?.value;
 check('origin is a lowercase eight-character hex terminal id', /^[0-9a-f]{8}$/.test(origin || ''), true);

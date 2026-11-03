@@ -171,6 +171,8 @@ export interface InvoiceItem extends Record<string, unknown> {
 }
 export interface CheckoutPayload extends InvoiceRow {
     items: InvoiceItem[];
+    /** Restaurant order settled by this bill (restaurant mode only). */
+    restaurant_order_id?: string | null;
     scrap_items?: Array<{
         transaction_id: string;
         scrap_category_id: string;

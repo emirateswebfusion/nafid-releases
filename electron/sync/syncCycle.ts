@@ -16,6 +16,7 @@ import { getTotalPendingRecords, notifyCycleComplete, notifyOnlineStatus, notify
 import { clearAuthAndNotify, cursorKey, fetchWithFallback, getMeta, getSyncEndpoints, replaySince, setMeta } from './syncTransport.js';
 import * as syncCycleSql from '../db/statements/sync/syncCycle.js';
 import { withSyncApplyGuard } from '../db/statements/outbox.js';
+import { syncRestaurant } from './entities/restaurantSync.js';
 
 /** One sync cycle: cloud status check, lightweight pending-bill pull, unified delta pull and the full push / pull sequence. */
 export async function checkCloudStatus(token: string, tenantId: string, sinceTimestamp: string | null): Promise<{ success: boolean; hasChanges: boolean; maxUpdatedAt?: string | null }> {
@@ -349,6 +350,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
         if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.5, sender, undefined, totalRecords); await syncWarranties(jwt_token, tenant_id);
+        if (await syncRestaurant(jwt_token, tenant_id)) notifyRenderer('restaurant-sync');
         if (activeRoute === 'CLOUD') await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then((r) => r.response), () => { syncState.isSyncActive = false; });
         if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         // Pre-check if cloud has any new changes before running pull requests

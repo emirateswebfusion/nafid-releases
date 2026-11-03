@@ -529,6 +529,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       } else {
         result = await invoicesApi.checkout({
           bill_purpose: useCartStore.getState().isFilingOnly ? 'FILING_ONLY' : 'SALE',
+          restaurant_order_id: activeTab?.restaurantOrderId || null,
           invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset',
           biller_staff_id: useCartStore.getState().billerStaffId || null,
           sales_staff_id: useCartStore.getState().salesStaffId || null,
@@ -581,6 +582,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         return;
       }
 
+      if (activeTab?.restaurantOrderId) useTabStore.getState().updateActiveTab({ restaurantOrderId: undefined }); // order closed
       // Ensure receipt printing and activeTab title use the exact confirmed invoice_number returned by DB/checkout
       const confirmedInvoiceNumber = (result && result.invoice_number) ? result.invoice_number : invoice_number;
       invoice_number = confirmedInvoiceNumber;

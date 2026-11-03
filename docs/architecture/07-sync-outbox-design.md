@@ -167,3 +167,13 @@ Code and automated tests for these are merged; they still need a check in a real
    yet exercised with two real terminals. When a second terminal is paired, check that bills, payments, customers,
    products, cash drawer and settings made on the secondary still reach the primary, and that staff accounts edited
    on the primary still appear on the secondary (pull). A push to staff tables must answer 403.
+
+## 7.7 Tables added after migration 002
+
+`SYNCED_TABLES` stays frozen with migration 002 (its tables must exist when it runs). Later synced tables are listed by
+their own migration and joined in `electron/db/migrations/syncedTables.ts` (`ALL_SYNCED_TABLES`), which the outbox
+engine uses for enqueueing and applying. First: the seven restaurant tables of migration 015 (`RESTAURANT_SYNCED_TABLES`).
+Their legacy push / pull is `electron/sync/entities/restaurantSync.ts`, run only when `feature_flags.restaurant_mode`
+is on, so retail sync requests are unchanged (`sync-run.mts`, `lan-run.mts` and the IPC harness compared HEAD vs
+candidate on 3 Nov 2026: identical apart from per-run random ids). Migration 015 also adds `BEFORE UPDATE ... RAISE(IGNORE)`
+triggers so no writer (local, LAN ingest, cloud pull) can take an order, line or kitchen status back.
