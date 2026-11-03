@@ -36,74 +36,96 @@ Goods once sold are exchangeable within 7 days.</div><footer><p>Thank you / <spa
 
 Goods once sold are exchangeable within 7 days.</div><footer><p>Thank you</p></footer></body></html>",
   "b2b-trn/thermal/58/arabic": "Al Noor Hardware LLC
-Address / العنوان: Musaffah
-M-10, Abu Dhabi
-TRN / رقم التسجيل الضريبي:
-100000000000003
-Tel / الهاتف: +971 2 555 0101
-TAX INVOICE / فاتورة ضريبية
-No. / الرقم: INV-0042
-Date / التاريخ: 15/10/2026,
-02:45:00 PM
-Customer / العميل: Gulf Builders
-LLC
-Address / العنوان: Mussafah, Abu
+Address: Musaffah M-10, Abu
 Dhabi
-TRN / رقم التسجيل الضريبي:
-100123456700003
+                         العنوان
+TRN: 100000000000003
+             رقم التسجيل الضريبي
+Tel: +971 2 555 0101
+                          الهاتف
+TAX INVOICE
+                   فاتورة ضريبية
+No.: INV-0042
+                           الرقم
+Date: 15/10/2026, 02:45:00 PM
+                         التاريخ
+Customer: Gulf Builders LLC
+                          العميل
+Address: Mussafah, Abu Dhabi
+                         العنوان
+TRN: 100123456700003
+             رقم التسجيل الضريبي
 --------------------------------
 All amounts in AED; rates
-exclude VAT / المبالغ بالدرهم؛
-الأسعار غير شاملة الضريبة
+exclude VAT
+    المبالغ بالدرهم؛ الأسعار غير
+                   شاملة الضريبة
 Drill 13mm
 1 x AED 200.00 = AED 200.00
 Wall plugs (box)
 3 x AED 12.50 = AED 37.50
 --------------------------------
-Subtotal / المجموع الفرعي: AED
-237.50
-VAT 5% / ضريبة القيمة المضافة
-5%: AED 11.88
-TOTAL incl. VAT / الإجمالي شامل
-الضريبة: AED 249.38
-Received / المبلغ المستلم: AED
-250.00
-Payment / الدفع: CARD / بطاقة
-Biller / المحاسب: Cashier 1
+Subtotal: AED 237.50
+                  المجموع الفرعي
+VAT 5%: AED 11.88
+         ضريبة القيمة المضافة 5%
+TOTAL incl. VAT: AED 249.38
+           الإجمالي شامل الضريبة
+Received: AED 250.00
+                  المبلغ المستلم
+Payment: CARD
+                    الدفع: بطاقة
+Biller: Cashier 1
+                         المحاسب
 Goods once sold are exchangeable
 within 7 days.
-Thank you / شكراً لكم
+Thank you
+                       شكراً لكم
 ",
   "b2b-trn/thermal/80/arabic": "Al Noor Hardware LLC
-Address / العنوان: Musaffah M-10, Abu
-Dhabi
-TRN / رقم التسجيل الضريبي: 100000000000003
-Tel / الهاتف: +971 2 555 0101
-TAX INVOICE / فاتورة ضريبية
-No. / الرقم: INV-0042
-Date / التاريخ: 15/10/2026, 02:45:00 PM
-Customer / العميل: Gulf Builders LLC
-Address / العنوان: Mussafah, Abu Dhabi
-TRN / رقم التسجيل الضريبي: 100123456700003
+Address: Musaffah M-10, Abu Dhabi
+                                   العنوان
+TRN: 100000000000003
+                       رقم التسجيل الضريبي
+Tel: +971 2 555 0101
+                                    الهاتف
+TAX INVOICE
+                             فاتورة ضريبية
+No.: INV-0042
+                                     الرقم
+Date: 15/10/2026, 02:45:00 PM
+                                   التاريخ
+Customer: Gulf Builders LLC
+                                    العميل
+Address: Mussafah, Abu Dhabi
+                                   العنوان
+TRN: 100123456700003
+                       رقم التسجيل الضريبي
 ------------------------------------------
-All amounts in AED; rates exclude VAT /
-المبالغ بالدرهم؛ الأسعار غير شاملة الضريبة
+All amounts in AED; rates exclude VAT
+        المبالغ بالدرهم؛ الأسعار غير شاملة
+                                   الضريبة
 Drill 13mm
 1 x AED 200.00 = AED 200.00
 Wall plugs (box)
 3 x AED 12.50 = AED 37.50
 ------------------------------------------
-Subtotal / المجموع الفرعي: AED 237.50
-VAT 5% / ضريبة القيمة المضافة 5%: AED
-11.88
-TOTAL incl. VAT / الإجمالي شامل الضريبة:
-AED 249.38
-Received / المبلغ المستلم: AED 250.00
-Payment / الدفع: CARD / بطاقة
-Biller / المحاسب: Cashier 1
+Subtotal: AED 237.50
+                            المجموع الفرعي
+VAT 5%: AED 11.88
+                   ضريبة القيمة المضافة 5%
+TOTAL incl. VAT: AED 249.38
+                     الإجمالي شامل الضريبة
+Received: AED 250.00
+                            المبلغ المستلم
+Payment: CARD
+                              الدفع: بطاقة
+Biller: Cashier 1
+                                   المحاسب
 Goods once sold are exchangeable within 7
 days.
-Thank you / شكراً لكم
+Thank you
+                                 شكراً لكم
 ",
   "b2b-trn/thermal/80/default": "Al Noor Hardware LLC
 Address: Musaffah M-10, Abu Dhabi
@@ -202,67 +224,88 @@ Goods once sold are exchangeable within 7 days.</div><footer><p>Thank you / <spa
 
 Goods once sold are exchangeable within 7 days.</div><footer><p>Thank you</p></footer></body></html>",
   "b2c-trn/thermal/58/arabic": "Al Noor Hardware LLC
-Address / العنوان: Musaffah
-M-10, Abu Dhabi
-TRN / رقم التسجيل الضريبي:
-100000000000003
-Tel / الهاتف: +971 2 555 0101
-TAX INVOICE / فاتورة ضريبية
-No. / الرقم: INV-0042
-Date / التاريخ: 15/10/2026,
-02:45:00 PM
-Customer / العميل: Walk-in
+Address: Musaffah M-10, Abu
+Dhabi
+                         العنوان
+TRN: 100000000000003
+             رقم التسجيل الضريبي
+Tel: +971 2 555 0101
+                          الهاتف
+TAX INVOICE
+                   فاتورة ضريبية
+No.: INV-0042
+                           الرقم
+Date: 15/10/2026, 02:45:00 PM
+                         التاريخ
+Customer: Walk-in
+                          العميل
 --------------------------------
 All amounts in AED; rates
-exclude VAT / المبالغ بالدرهم؛
-الأسعار غير شاملة الضريبة
+exclude VAT
+    المبالغ بالدرهم؛ الأسعار غير
+                   شاملة الضريبة
 Drill 13mm
 1 x AED 200.00 = AED 200.00
 Wall plugs (box)
 3 x AED 12.50 = AED 37.50
 --------------------------------
-Subtotal / المجموع الفرعي: AED
-237.50
-VAT 5% / ضريبة القيمة المضافة
-5%: AED 11.88
-TOTAL incl. VAT / الإجمالي شامل
-الضريبة: AED 249.38
-Received / المبلغ المستلم: AED
-250.00
-Payment / الدفع: CASH / نقداً
-Biller / المحاسب: Cashier 1
+Subtotal: AED 237.50
+                  المجموع الفرعي
+VAT 5%: AED 11.88
+         ضريبة القيمة المضافة 5%
+TOTAL incl. VAT: AED 249.38
+           الإجمالي شامل الضريبة
+Received: AED 250.00
+                  المبلغ المستلم
+Payment: CASH
+                    الدفع: نقداً
+Biller: Cashier 1
+                         المحاسب
 Goods once sold are exchangeable
 within 7 days.
-Thank you / شكراً لكم
+Thank you
+                       شكراً لكم
 ",
   "b2c-trn/thermal/80/arabic": "Al Noor Hardware LLC
-Address / العنوان: Musaffah M-10, Abu
-Dhabi
-TRN / رقم التسجيل الضريبي: 100000000000003
-Tel / الهاتف: +971 2 555 0101
-TAX INVOICE / فاتورة ضريبية
-No. / الرقم: INV-0042
-Date / التاريخ: 15/10/2026, 02:45:00 PM
-Customer / العميل: Walk-in
+Address: Musaffah M-10, Abu Dhabi
+                                   العنوان
+TRN: 100000000000003
+                       رقم التسجيل الضريبي
+Tel: +971 2 555 0101
+                                    الهاتف
+TAX INVOICE
+                             فاتورة ضريبية
+No.: INV-0042
+                                     الرقم
+Date: 15/10/2026, 02:45:00 PM
+                                   التاريخ
+Customer: Walk-in
+                                    العميل
 ------------------------------------------
-All amounts in AED; rates exclude VAT /
-المبالغ بالدرهم؛ الأسعار غير شاملة الضريبة
+All amounts in AED; rates exclude VAT
+        المبالغ بالدرهم؛ الأسعار غير شاملة
+                                   الضريبة
 Drill 13mm
 1 x AED 200.00 = AED 200.00
 Wall plugs (box)
 3 x AED 12.50 = AED 37.50
 ------------------------------------------
-Subtotal / المجموع الفرعي: AED 237.50
-VAT 5% / ضريبة القيمة المضافة 5%: AED
-11.88
-TOTAL incl. VAT / الإجمالي شامل الضريبة:
-AED 249.38
-Received / المبلغ المستلم: AED 250.00
-Payment / الدفع: CASH / نقداً
-Biller / المحاسب: Cashier 1
+Subtotal: AED 237.50
+                            المجموع الفرعي
+VAT 5%: AED 11.88
+                   ضريبة القيمة المضافة 5%
+TOTAL incl. VAT: AED 249.38
+                     الإجمالي شامل الضريبة
+Received: AED 250.00
+                            المبلغ المستلم
+Payment: CASH
+                              الدفع: نقداً
+Biller: Cashier 1
+                                   المحاسب
 Goods once sold are exchangeable within 7
 days.
-Thank you / شكراً لكم
+Thank you
+                                 شكراً لكم
 ",
   "b2c-trn/thermal/80/default": "Al Noor Hardware LLC
 Address: Musaffah M-10, Abu Dhabi
@@ -359,65 +402,84 @@ Goods once sold are exchangeable within 7 days.</div><footer><p>Thank you / <spa
 
 Goods once sold are exchangeable within 7 days.</div><footer><p>Thank you</p>Copy / Reprint</footer></body></html>",
   "credit-note/thermal/58/arabic": "Al Noor Hardware LLC
-Address / العنوان: Musaffah
-M-10, Abu Dhabi
-TRN / رقم التسجيل الضريبي:
-100000000000003
-Tel / الهاتف: +971 2 555 0101
-TAX CREDIT NOTE / إشعار دائن
-ضريبي
-No. / الرقم: CN-0007
-Date / التاريخ: 15/10/2026,
-02:45:00 PM
+Address: Musaffah M-10, Abu
+Dhabi
+                         العنوان
+TRN: 100000000000003
+             رقم التسجيل الضريبي
+Tel: +971 2 555 0101
+                          الهاتف
+TAX CREDIT NOTE
+                إشعار دائن ضريبي
+No.: CN-0007
+                           الرقم
+Date: 15/10/2026, 02:45:00 PM
+                         التاريخ
 --------------------------------
 All amounts in AED; rates
-exclude VAT / المبالغ بالدرهم؛
-الأسعار غير شاملة الضريبة
+exclude VAT
+    المبالغ بالدرهم؛ الأسعار غير
+                   شاملة الضريبة
 Drill 13mm
 1 x AED 200.00 = AED 200.00
 Wall plugs (box)
 3 x AED 12.50 = AED 37.50
 --------------------------------
-Subtotal / المجموع الفرعي: AED
-237.50
-VAT 5% / ضريبة القيمة المضافة
-5%: AED 11.88
-TOTAL incl. VAT / الإجمالي شامل
-الضريبة: AED 249.38
-Payment / الدفع: CASH / نقداً
-Biller / المحاسب: Cashier 1
+Subtotal: AED 237.50
+                  المجموع الفرعي
+VAT 5%: AED 11.88
+         ضريبة القيمة المضافة 5%
+TOTAL incl. VAT: AED 249.38
+           الإجمالي شامل الضريبة
+Payment: CASH
+                    الدفع: نقداً
+Biller: Cashier 1
+                         المحاسب
 Goods once sold are exchangeable
 within 7 days.
-Thank you / شكراً لكم
-Copy / Reprint / نسخة
+Thank you
+                       شكراً لكم
+Copy / Reprint
+                            نسخة
 ",
   "credit-note/thermal/80/arabic": "Al Noor Hardware LLC
-Address / العنوان: Musaffah M-10, Abu
-Dhabi
-TRN / رقم التسجيل الضريبي: 100000000000003
-Tel / الهاتف: +971 2 555 0101
-TAX CREDIT NOTE / إشعار دائن ضريبي
-No. / الرقم: CN-0007
-Date / التاريخ: 15/10/2026, 02:45:00 PM
+Address: Musaffah M-10, Abu Dhabi
+                                   العنوان
+TRN: 100000000000003
+                       رقم التسجيل الضريبي
+Tel: +971 2 555 0101
+                                    الهاتف
+TAX CREDIT NOTE
+                          إشعار دائن ضريبي
+No.: CN-0007
+                                     الرقم
+Date: 15/10/2026, 02:45:00 PM
+                                   التاريخ
 ------------------------------------------
-All amounts in AED; rates exclude VAT /
-المبالغ بالدرهم؛ الأسعار غير شاملة الضريبة
+All amounts in AED; rates exclude VAT
+        المبالغ بالدرهم؛ الأسعار غير شاملة
+                                   الضريبة
 Drill 13mm
 1 x AED 200.00 = AED 200.00
 Wall plugs (box)
 3 x AED 12.50 = AED 37.50
 ------------------------------------------
-Subtotal / المجموع الفرعي: AED 237.50
-VAT 5% / ضريبة القيمة المضافة 5%: AED
-11.88
-TOTAL incl. VAT / الإجمالي شامل الضريبة:
-AED 249.38
-Payment / الدفع: CASH / نقداً
-Biller / المحاسب: Cashier 1
+Subtotal: AED 237.50
+                            المجموع الفرعي
+VAT 5%: AED 11.88
+                   ضريبة القيمة المضافة 5%
+TOTAL incl. VAT: AED 249.38
+                     الإجمالي شامل الضريبة
+Payment: CASH
+                              الدفع: نقداً
+Biller: Cashier 1
+                                   المحاسب
 Goods once sold are exchangeable within 7
 days.
-Thank you / شكراً لكم
-Copy / Reprint / نسخة
+Thank you
+                                 شكراً لكم
+Copy / Reprint
+                                      نسخة
 ",
   "credit-note/thermal/80/default": "Al Noor Hardware LLC
 Address: Musaffah M-10, Abu Dhabi
@@ -509,58 +571,76 @@ Goods once sold are exchangeable within 7 days.</div><footer><p>Thank you / <spa
 
 Goods once sold are exchangeable within 7 days.</div><footer><p>Thank you</p></footer></body></html>",
   "no-trn/thermal/58/arabic": "Al Noor Hardware LLC
-Address / العنوان: Musaffah
-M-10, Abu Dhabi
-Tel / الهاتف: +971 2 555 0101
-INVOICE / فاتورة
-No. / الرقم: INV-0042
-Date / التاريخ: 15/10/2026,
-02:45:00 PM
+Address: Musaffah M-10, Abu
+Dhabi
+                         العنوان
+Tel: +971 2 555 0101
+                          الهاتف
+INVOICE
+                          فاتورة
+No.: INV-0042
+                           الرقم
+Date: 15/10/2026, 02:45:00 PM
+                         التاريخ
 --------------------------------
 All amounts in AED; rates
-exclude VAT / المبالغ بالدرهم؛
-الأسعار غير شاملة الضريبة
+exclude VAT
+    المبالغ بالدرهم؛ الأسعار غير
+                   شاملة الضريبة
 Drill 13mm
 1 x AED 200.00 = AED 200.00
 Wall plugs (box)
 3 x AED 12.50 = AED 37.50
 --------------------------------
-Subtotal / المجموع الفرعي: AED
-237.50
-TOTAL incl. VAT / الإجمالي شامل
-الضريبة: AED 237.50
-Received / المبلغ المستلم: AED
-237.50
-Payment / الدفع: CASH / نقداً
-Biller / المحاسب: Cashier 1
+Subtotal: AED 237.50
+                  المجموع الفرعي
+TOTAL incl. VAT: AED 237.50
+           الإجمالي شامل الضريبة
+Received: AED 237.50
+                  المبلغ المستلم
+Payment: CASH
+                    الدفع: نقداً
+Biller: Cashier 1
+                         المحاسب
 Goods once sold are exchangeable
 within 7 days.
-Thank you / شكراً لكم
+Thank you
+                       شكراً لكم
 ",
   "no-trn/thermal/80/arabic": "Al Noor Hardware LLC
-Address / العنوان: Musaffah M-10, Abu
-Dhabi
-Tel / الهاتف: +971 2 555 0101
-INVOICE / فاتورة
-No. / الرقم: INV-0042
-Date / التاريخ: 15/10/2026, 02:45:00 PM
+Address: Musaffah M-10, Abu Dhabi
+                                   العنوان
+Tel: +971 2 555 0101
+                                    الهاتف
+INVOICE
+                                    فاتورة
+No.: INV-0042
+                                     الرقم
+Date: 15/10/2026, 02:45:00 PM
+                                   التاريخ
 ------------------------------------------
-All amounts in AED; rates exclude VAT /
-المبالغ بالدرهم؛ الأسعار غير شاملة الضريبة
+All amounts in AED; rates exclude VAT
+        المبالغ بالدرهم؛ الأسعار غير شاملة
+                                   الضريبة
 Drill 13mm
 1 x AED 200.00 = AED 200.00
 Wall plugs (box)
 3 x AED 12.50 = AED 37.50
 ------------------------------------------
-Subtotal / المجموع الفرعي: AED 237.50
-TOTAL incl. VAT / الإجمالي شامل الضريبة:
-AED 237.50
-Received / المبلغ المستلم: AED 237.50
-Payment / الدفع: CASH / نقداً
-Biller / المحاسب: Cashier 1
+Subtotal: AED 237.50
+                            المجموع الفرعي
+TOTAL incl. VAT: AED 237.50
+                     الإجمالي شامل الضريبة
+Received: AED 237.50
+                            المبلغ المستلم
+Payment: CASH
+                              الدفع: نقداً
+Biller: Cashier 1
+                                   المحاسب
 Goods once sold are exchangeable within 7
 days.
-Thank you / شكراً لكم
+Thank you
+                                 شكراً لكم
 ",
   "no-trn/thermal/80/default": "Al Noor Hardware LLC
 Address: Musaffah M-10, Abu Dhabi

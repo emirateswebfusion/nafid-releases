@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { generateReceiptText, type ReceiptData } from '../../src/utils/print/receiptGenerator';
 import { JSDOM } from 'jsdom';
 import { buildReceiptHtml } from '../../electron/hardware/receiptHtml';
+import { sanitizeForEscPos } from '../../electron/hardware/escPos';
+import { generateUaeReceipt } from '../../src/utils/print/uaeInvoice';
+import { setUaeArabicPrint } from '../../src/utils/print/uaeLabels';
+import { setStoreCountry } from '../../src/utils/localization/storeProfile';
 
 const source = readFileSync('electron/hardware/printer.ts', 'utf8');
 function compile(name: string) {
@@ -347,4 +351,33 @@ it.each(['A4', undefined])('preserves explicit A4 and label paper sizes (%s)', a
   const invoke = runInNewContext(`${compile('executePrintWithFallback')}\nexecutePrintWithFallback`, { console });
   await invoke({ isDestroyed: () => false, webContents: { print } }, 'other', 50, 25000, page);
   expect(print.mock.calls[0][0].pageSize).toEqual(page || { width: 50000, height: 25000 });
+});
+
+describe('UAE Arabic on thermal receipts', () => {
+  const bill = { shopName: 'Al Noor', shopGstin: '100000000000003', invoiceNumber: 'INV-1', invoiceType: 'GST', date: '2026-10-15T09:15:00Z',
+    items: [{ name: 'Drill', quantity: 1, unit_price: 100, total: 100, tax_rate_percent: 5 }], subtotal: 100, tax: 5, discount: 0, grandTotal: 105, paymentMethod: 'CASH' };
+  const receipt = (thermal: boolean, width: number) => {
+    setStoreCountry('AE'); setUaeArabicPrint({ documents: true, thermal });
+    try { return generateUaeReceipt(bill, width); } finally { setUaeArabicPrint(undefined); setStoreCountry('IN'); }
+  };
+
+  it.each([32, 42])('prints exactly the English receipt on network ESC/POS printers (%s columns)', width => {
+    const arabic = receipt(true, width);
+    expect(arabic).toContain('\u0641\u0627\u062a\u0648\u0631\u0629 \u0636\u0631\u064a\u0628\u064a\u0629');
+    expect(Math.max(...arabic.trimEnd().split('\n').map(line => line.length))).toBeLessThanOrEqual(width);
+    const english = receipt(false, width);
+    expect(sanitizeForEscPos(arabic)).toBe(english);
+    expect(english).toContain('VAT 5%: AED 5.00');
+    expect(english).toContain('TOTAL incl. VAT: AED 105.00');
+  });
+
+  it('keeps the ? fallback for Arabic product names', () => {
+    expect(sanitizeForEscPos('\u062d\u0644\u064a\u0628\n1 x AED 5.00 = AED 5.00\n')).toBe('????\n1 x AED 5.00 = AED 5.00\n');
+  });
+
+  it('passes Arabic through to the USB/driver receipt page', async () => {
+    const html = await buildReceiptHtml(receipt(true, 42), 80);
+    expect(html).toContain('<meta charset="utf-8">');
+    expect(html).toContain('\u0641\u0627\u062a\u0648\u0631\u0629 \u0636\u0631\u064a\u0628\u064a\u0629</pre>');
+  });
 });

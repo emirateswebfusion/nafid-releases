@@ -149,6 +149,9 @@ Following the NAFID architecture rules:
 - **VAT Report Aggregator & Lifecycle:** `tests/unit/vatReportService.test.ts` (Boxes 1–14 math, simplified vs full classification, draft/approve/ack lifecycle).
 - **JSON Serializer:** `tests/unit/vat201JsonSerializer.test.ts` (Structure and formatting integrity).
 - **Dashboard Dual-Country Integration:** `tests/unit/vatDashboardCard.test.ts` (UAE vs India card switching).
+- **Bilingual documents and titles:** `tests/unit/printGenerators.characterization.test.ts` (UAE snapshots: B2B with
+  TRN, B2C with TRN, no TRN, credit note), `tests/unit/thermalPrint.test.ts` (ESC/POS output equals the English
+  receipt), `tests/unit/uaeArabicPrintSetting.ui.test.tsx` (setting defaults and save flow).
 
 ---
 
@@ -174,15 +177,18 @@ quotations (and their preview iframe), thermal receipts and the WhatsApp bill te
 Arabic half as `<span class="ar" dir="rtl" lang="ar">` with an Arabic-capable font stack (`UAE_ARABIC_CSS`).
 
 **Setting `uae_arabic_print`** (`{ documents, thermal }`, default `{ true, false }`; Settings → Bill Content, UAE only,
-saved straight away through `src/data/settings.ts`; loaded by `useStoreProfile`). The key is not in the settings pull
-allowlist, so it stays per terminal.
+saved with the settings Save button through `src/data/settings.ts` (`UaeArabicPrintSetting` follows the
+`settings:section-dirty` / `settings:request-save` pattern of the cash register options); loaded by `useStoreProfile`).
+The key is pushed with the other settings (the server's `/api/sync/settings` stores any key) but is not in the POS pull
+allowlist, so it stays per terminal: thermal capability is a property of each terminal's printer.
 
 **Thermal findings (code review, not proven on hardware).**
 - USB / driver printers (`hardware:printReceipt` → `printReceiptUSB`) render the receipt text as HTML in Chromium and
   print a raster through the Windows driver, so Arabic glyphs are shaped and printed like any other text (Consolas has
   no Arabic; Chromium falls back to Segoe UI / Tahoma). The row-fitting script shrinks the font if a line overflows.
 - Network ESC/POS printers (`config.type === 'network'`) receive ASCII bytes; generic printers have no Arabic code page
-  or shaping. `sanitizeForEscPos` now drops the Arabic half (`Subtotal / المجموع الفرعي: …` → `Subtotal: …`) instead
-  of printing `????`.
-- On 58 mm paper the bilingual lines wrap heavily. Arabic on thermal therefore stays off until a shop's printer has
-  been test-printed.
+  or shaping. Thermal receipts therefore print each Arabic label on its own right-aligned, space-indented line under
+  the English line, and `sanitizeForEscPos` drops those lines: a network printer prints exactly the English-only
+  receipt (`thermalPrint.test.ts`). Other Arabic text, such as Arabic product names, still prints as `?`.
+- Bilingual thermal receipts are about twice as long. Arabic on thermal therefore stays off until a shop's printer has
+  been test-printed. A4 and WhatsApp put the pair on one line (`EN / AR`).

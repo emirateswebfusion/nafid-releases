@@ -3,9 +3,7 @@ import type { ReceiptData } from './receipt/receiptCore';
 import { formatBillDateTime } from './receipt/receiptCore';
 import { receiptCreditTotals } from '../pricing/receiptCredits';
 import { formatCurrency } from '../pricing/money';
-import { UAE_ARABIC_CSS, UAE_LABELS as L, bilingualHtml, bilingualText, getUaeArabicPrint, uaeDocumentTitle, uaeNumberLabel, uaePaymentMethod, uaeVatLabel, type BilingualLabel } from './uaeLabels';
-
-const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]!));
+import { UAE_ARABIC_CSS, UAE_LABELS as L, bilingualHtml, escapeHtml as escape, getUaeArabicPrint, uaeDocumentTitle, uaeNumberLabel, uaePaymentMethod, uaeVatLabel, type BilingualLabel } from './uaeLabels';
 const amount = (value: unknown) => formatCurrency(value);
 const isPurchase = (data: InvoiceData | ReceiptData) => data.invoiceType === 'PURCHASE';
 
@@ -33,41 +31,52 @@ export function generateUaeInvoiceHtml(data: InvoiceData): string {
 
 /**
  * Thermal output keeps AED totals legible on both 58 mm and 80 mm paper. Arabic follows the thermal setting
- * (off by default): USB/driver printers render it through Chromium; network ESC/POS printers drop it in
- * `sanitizeForEscPos` and keep the English half.
+ * (off by default). Each Arabic label prints on its own right-aligned line under the English one, so the English
+ * lines are exactly the English-only receipt: USB/driver printers render the Arabic through Chromium, and network
+ * ESC/POS printers drop the Arabic lines in `sanitizeForEscPos`.
  */
 export function generateUaeReceipt(data: ReceiptData, width = 42): string {
   const arabic = getUaeArabicPrint().thermal;
-  const text = (pair: BilingualLabel) => bilingualText(pair, arabic);
   const credits = receiptCreditTotals(data);
   const lines: string[] = [];
-  const wrap = (value: string) => {
+  const wrap = (value: string, limit = width) => {
     for (const paragraph of value.split('\n')) {
       let remainder = paragraph;
-      while (remainder.length > width) {
+      while (remainder.length > limit) {
         // Break at the last space so a word (and an Arabic word's joined letters) is never split.
-        const space = remainder.lastIndexOf(' ', width);
-        const cut = space > 0 ? space : width;
+        const space = remainder.lastIndexOf(' ', limit);
+        const cut = space > 0 ? space : limit;
         lines.push(remainder.slice(0, cut));
         remainder = remainder.slice(space > 0 ? cut + 1 : cut);
       }
       lines.push(remainder);
     }
   };
-  const detail = (pair: BilingualLabel, value: unknown) => { if (value != null && value !== '') wrap(`${text(pair)}: ${String(value)}`); };
+  // Right-aligned and always indented by at least one space: `sanitizeForEscPos` recognises Arabic label lines by it.
+  const arabicLine = (text: string) => {
+    if (!arabic || !text) return;
+    const start = lines.length;
+    wrap(text, width - 1);
+    for (let i = start; i < lines.length; i++) lines[i] = lines[i].padStart(width);
+  };
+  const heading = (pair: BilingualLabel) => { wrap(pair.en); arabicLine(pair.ar); };
+  const detail = (pair: BilingualLabel, value: unknown, arabicValue = '') => {
+    if (value == null || value === '') return;
+    wrap(`${pair.en}: ${String(value)}`); arabicLine(arabicValue ? `${pair.ar}: ${arabicValue}` : pair.ar);
+  };
   const money = (pair: BilingualLabel, value: number | undefined) => { if (value != null && value !== 0) detail(pair, amount(value)); };
   const payment = uaePaymentMethod(data.paymentMethod);
   wrap(data.shopName); detail(L.address, data.shopAddress); detail(L.trn, data.shopGstin); detail(L.tel, data.shopPhone);
-  wrap(text(uaeDocumentTitle(data))); detail(L.no, data.invoiceNumber); detail(L.date, formatBillDateTime(data.date));
+  heading(uaeDocumentTitle(data)); detail(L.no, data.invoiceNumber); detail(L.date, formatBillDateTime(data.date));
   detail(isPurchase(data) ? L.supplier : L.customer, data.customerName); detail(L.address, data.customerAddress); detail(L.trn, data.customerGstin);
-  lines.push('-'.repeat(width)); wrap(text(L.amountsNote));
+  lines.push('-'.repeat(width)); heading(L.amountsNote);
   for (const item of data.items) { wrap(item.name); wrap(`${item.quantity} x ${amount(item.unit_price)} = ${amount(item.total)}`); }
   lines.push('-'.repeat(width)); money(L.subtotal, data.subtotal); money(L.discount, -data.discount); money(uaeVatLabel(data.items), data.tax);
   money(L.scrapCredit, -(data.scrapDeduction || 0)); money(L.returnCredit, -(data.returnDeduction || 0)); money(L.pointsDiscount, -(data.pointsRedeemedDiscount || 0));
   detail(L.totalInclVatShort, amount(credits.payable)); money(L.refund, credits.refund); money(L.received, data.receivedAmount); money(L.balance, data.customerBalance ?? data.balanceAmount);
-  if (payment) detail(L.payment, text(payment)); detail(L.dueDate, data.dueDate); detail(L.biller, data.billerName);
+  if (payment) detail(L.payment, payment.en, payment.ar); detail(L.dueDate, data.dueDate); detail(L.biller, data.billerName);
   if (data.billSettings?.instructions) wrap(data.billSettings.instructions);
-  if (!isPurchase(data)) wrap(text(L.thankYou));
-  if (data.isReprint) wrap(text(L.reprint));
+  if (!isPurchase(data)) heading(L.thankYou);
+  if (data.isReprint) heading(L.reprint);
   return lines.join('\n') + '\n';
 }

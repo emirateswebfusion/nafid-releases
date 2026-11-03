@@ -126,7 +126,8 @@ export function bilingualText(label: BilingualLabel, arabic: boolean): string {
   return arabic && label.ar ? `${label.en} / ${label.ar}` : label.en;
 }
 
-const escapeHtml = (value: string) => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]!));
+/** HTML escaping for UAE documents (labels and customer-entered values alike). */
+export const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]!));
 
 /** HTML pair; the Arabic half is an isolated right-to-left block so bidi never reorders the English. */
 export function bilingualHtml(label: BilingualLabel, arabic: boolean, separator: ' / ' | '<br>' = ' / '): string {

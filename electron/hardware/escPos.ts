@@ -14,17 +14,18 @@ export const ESC_DRAWER_KICK = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // O
 
 export const ESC_POS_HEADER = Buffer.concat([ESC_INIT, ESC_FONT_A, ESC_DEFAULT_LINE_SPACING]);
 
-// Arabic script blocks. Raw ESC/POS text goes out as ASCII and generic printers have no Arabic shaping,
-// so UAE bilingual labels ("Subtotal / المجموع الفرعي: …") keep their English half here.
-const ARABIC = '\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF';
-const ARABIC_HALF = new RegExp(`[ \\t]*/[ \\t]*[${ARABIC}][${ARABIC} \\t0-9%.()/]*?(?=[ \\t]*(?::|$))`, 'gm');
-const ARABIC_CHARS = new RegExp(`[${ARABIC}]+`, 'g');
+// Raw ESC/POS text goes out as ASCII and generic printers have no Arabic shaping. UAE receipts print each Arabic
+// label on its own right-aligned (space-indented) line under the English one; those lines are dropped here so the
+// receipt reads exactly like the English-only one. Other Arabic text (e.g. product names) keeps the `?` fallback.
+const ARABIC = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/;
+const ARABIC_ALL = new RegExp(ARABIC.source, 'g');
+const isArabicLabelLine = (line: string) => line.startsWith(' ') && ARABIC.test(line) && !/[A-Za-z]/.test(line.replace(ARABIC_ALL, ''));
 
 // For ESC/POS network printers: strip non-ASCII chars that would print as garbage
 export function sanitizeForEscPos(text: string): string {
   const withoutQrMarkers = text.replace(/\[\[QR:[^\]]+\]\]\s*/g, '');
   const withoutProminent = withoutQrMarkers.replace(/\[\[PROMINENT:([^\]]+)\]\]/g, '$1');
-  const withoutArabic = withoutProminent.replace(ARABIC_HALF, '').replace(ARABIC_CHARS, '');
+  const withoutArabic = withoutProminent.split('\n').filter(line => !isArabicLabelLine(line)).join('\n');
   return withoutArabic.replace(/[\u{0080}-\u{FFFF}]/gu, (ch) => {
     if (ch === '₹') return 'Rs ';
     if (ch === '\u2588') return '#';  // █ full block
