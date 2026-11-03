@@ -12,7 +12,7 @@ and update every caller in the same change.
 | Checkout payload lines, CGST/SGST/IGST split, Bill-of-Supply tax, receipt lines, quotation lines, supply type | `src/utils/pricing/checkoutLines.ts` | `tests/unit/checkoutLines.test.ts` |
 | Return source discounts, fractional quantities, stored invoice tax, rounded line/header totals | `src/utils/pricing/returnPricing.ts` (reuses `resolveLinePrice`; invoice rates already include line discounts) | `tests/unit/returnPricing.test.ts`, `returnSelection.test.ts`, `billingScreen.ui.test.tsx` |
 | Live cart totals (subtotal, tax, scrap, discounts) | `src/store/cartStore.ts` (`useCartTotals`, uses `resolveLinePrice`) | via `linePricing` tests |
-| Money formatting (₹/en-IN or AED/en-AE from the store profile, sign) | `src/utils/pricing/money.ts` (`formatCurrency`, `formatAmount`); main process: `electron/services/storeCountryService.ts` (`formatStoreMoney`, `storeMoneyProfile`) | `tests/unit/money.test.ts`, `storeProfile.test.ts` |
+| Money formatting (₹/en-IN or AED/en-AE from the store profile, sign) | `src/utils/pricing/money.ts` (`formatCurrency`, `formatAmount`); main process: `electron/services/storeCountryService.ts` (`formatStoreMoney`, `storeMoneyProfile`) | `tests/unit/money.test.ts`, `storeProfile.test.ts`, `storeMoneyText.test.ts` |
 | Document numbers: offsets (including digit-only values with an empty prefix), digit matching | `src/utils/pricing/invoiceNumberHelper.ts` | `tests/unit/invoiceNumberHelper.test.ts`, `deductionLookup.test.ts` |
 | Tab number previews (peek + skip numbers other tabs show; series; per-type retitle rules) | `src/components/billing/numberReservation.ts` | `tests/unit/numberReservation.test.ts` (characterization) |
 | Scrap/return credits that can be deducted from a bill | `src/components/billing/deductionLookup.ts` | `tests/unit/deductionLookup.test.ts` |
@@ -297,7 +297,10 @@ No screen in a UAE shop shows ₹, INR, en-IN grouping or Indian sample data. Am
 legacy ₹ label strings go through `localizeCurrencyText` (`Rate (₹)` → `Rate (AED)`, `₹15` → `AED 15`); currency
 codes in labels use `getStoreProfile().currency`; preview/template barcodes use `getSampleBarcode()` (GS1 890 / 629);
 money icons use `components/ui/CurrencyIcon`. Main-process text (checkout errors, ledger and loyalty descriptions,
-WhatsApp closing) uses `formatStoreMoney` / `storeMoneyProfile` with the tenant's `store_country`. GST report
+WhatsApp closing) uses `formatStoreMoney` / `storeMoneyProfile` with the tenant's `store_country`; stored ledger and
+loyalty descriptions keep their ungrouped India text (`Total ₹1500.00`) and only take the prefix from the profile.
+The main process cannot import `src/` (`tsconfig.electron.json` rootDir), so these two helpers mirror the profile
+values; change both together. GST report
 screens and `gstReportService` remain India-only (UAE opens the VAT report).
 
 `src/utils/pricing/vat.ts` owns inclusive extraction and two-decimal line VAT rounding. Zero product rates
