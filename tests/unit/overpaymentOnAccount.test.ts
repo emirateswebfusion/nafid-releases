@@ -108,6 +108,20 @@ describe('paying more than the bill', () => {
     expect(getCashAmountFromInvoice(saved)).toBe(7390);
   });
 
+  it('a customer over the credit limit can still pay more than a bill (bill 7469)', () => {
+    opening(16130);
+    raw.prepare('UPDATE parties SET credit_limit = 16000 WHERE name = ?').run(CHOTUS.name);
+    bill('7469', 3960, 4000, 40);
+    expect(party().balance).toBe(16090);
+    // A bill that adds credit is still refused.
+    const res = checkout({
+      invoice_id: 'MORE', user_id: 'u', tenant_id: SHOP, invoice_number: 'MORE', invoice_type: 'ESTIMATE', subtotal: 500, tax_total: 0, discount_total: 0, grand_total: 500,
+      customer_name: CHOTUS.name, customer_phone: CHOTUS.phone, items: lines(500), payment_method: 'CREDIT', received_amount: 0, balance_amount: 500, split_details: null,
+    } as Parameters<typeof checkout>[0]);
+    expect(res.success).toBe(false);
+    expect(party().balance).toBe(16090);
+  });
+
   it('a marker can never exceed the money actually received', () => {
     bill('X', 1000, 1050, 500);
     expect(party().balance).toBe(-50);

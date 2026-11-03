@@ -93,7 +93,11 @@ export function checkout(payload: CheckoutPayload) {
     } else if (invoice.split_details && typeof invoice.split_details === 'object') {
       splitObj = invoice.split_details;
     }
-    const isCreditBilling = paymentMethodUpper === 'CREDIT' || (paymentMethodUpper === 'SPLIT' && Number(splitObj?.credit) > 0);
+    // Only a bill that adds to what the customer owes is a credit purchase; one paid in full (or overpaid) never is.
+    const billCredit = paymentMethodUpper === 'CREDIT'
+      ? Math.max(0, Number(invoice.grand_total) - (Number(invoice.received_amount) || 0))
+      : paymentMethodUpper === 'SPLIT' ? Math.max(0, Number(splitObj?.credit) || 0) : 0;
+    const isCreditBilling = billCredit > 0;
 
     if (isCreditBilling) {
       const custPhone = (invoice.customer_phone || '').trim();
@@ -115,9 +119,6 @@ export function checkout(payload: CheckoutPayload) {
       if (matchedParty && Number(matchedParty.credit_limit) > 0) {
         const creditLimit = Number(matchedParty.credit_limit);
         const curBal = Math.max(0, Number(matchedParty.balance) || 0);
-        const billCredit = paymentMethodUpper === 'CREDIT'
-          ? Math.max(0, Number(invoice.grand_total) - (Number(invoice.received_amount) || 0))
-          : Math.max(0, Number(splitObj?.credit) || 0);
         const projected = curBal + billCredit;
         if (projected > creditLimit) {
           const excess = projected - creditLimit;

@@ -1,3 +1,10 @@
+# Nafid POS v2.2.32
+
+## What's New
+- **Payments are never blocked by the credit limit**: a customer who is already over their credit limit can still pay for a bill in full, or pay more than it. Only a bill that adds to what the customer owes is checked against the limit and overdue rules.
+
+**Download:** [Nafid-Setup-2.2.32.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.32/Nafid-Setup-2.2.32.exe)
+
 # Nafid POS v2.2.31
 
 ## What's New
