@@ -3,6 +3,7 @@ import { recalcStaffLedgerBalances } from './staffService.js';
 import { CustomerIdentityService } from '../db/customerIdentity.js';
 import { deterministicUUID } from '../utils/ids.js';
 import { localTimestamp } from './storeTime.js';
+import { getStoreCountrySetting, storeMoneyProfile } from './storeCountryService.js';
 import * as partyLedgerSql from '../db/statements/partyLedger.js';
 import type Database from 'better-sqlite3';
 import type { Db } from '../db/statements/types.js';
@@ -258,7 +259,8 @@ export function syncInvoiceCreditLedger(
       const nowTimestamp = localTimestamp();
 
       if (creditDue > 0) {
-        const desc = `Staff Purchase - Bill #${invoiceNumber} (Total ₹${invoiceGrandTotal.toFixed(2)})`;
+        const cur = storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix;
+        const desc = `Staff Purchase - Bill #${invoiceNumber} (Total ${cur}${invoiceGrandTotal.toFixed(2)})`;
         const existingStaffTx = partyLedgerSql.findOneStaffTransactionByReferenceNumberAndType(db).get(invoiceNumber) as StaffTransactionRow | undefined;
 
         if (existingStaffTx) {
@@ -336,11 +338,12 @@ export function syncInvoiceCreditLedger(
     const balanceType: 'GST' | 'ESTIMATE' = (invoice.invoice_type === 'ESTIMATE') ? 'ESTIMATE' : 'GST';
     const txDate = invoice.created_at || localTimestamp();
 
-    const breakdownParts = payments.map(p => `${p.type === 'Cash' && isPureCredit ? 'Paid' : p.type} ₹${p.amount}`);
-    if (isCredit) breakdownParts.push(`Credit ₹${creditPortion}`);
+    const cur = storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix;
+    const breakdownParts = payments.map(p => `${p.type === 'Cash' && isPureCredit ? 'Paid' : p.type} ${cur}${p.amount}`);
+    if (isCredit) breakdownParts.push(`Credit ${cur}${creditPortion}`);
     const breakdownText = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : '';
     const salePrefix = isCredit ? 'Credit Sale' : 'Cash Sale';
-    const saleDescription = `${salePrefix} ${invoiceNumber} - Total ₹${invoiceGrandTotal.toFixed(2)}${breakdownText} - ${custName || 'Customer'}`;
+    const saleDescription = `${salePrefix} ${invoiceNumber} - Total ${cur}${invoiceGrandTotal.toFixed(2)}${breakdownText} - ${custName || 'Customer'}`;
 
     // Sale entry (credit = the bill total)
     partyLedgerSql.upsertPartyLedger(db).run(

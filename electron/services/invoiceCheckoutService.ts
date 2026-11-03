@@ -7,6 +7,7 @@ import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDra
 import { normalizePaymentSplit, syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
 import { checkCustomerOverdueSync } from './customerCreditService.js';
 import { getGuaranteedNextInvoiceNumber } from './invoiceNumberService.js';
+import { formatStoreMoney, getStoreCountrySetting, storeMoneyProfile } from './storeCountryService.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { localTimestamp, localDate } from './storeTime.js';
 import crypto from 'node:crypto';
@@ -121,7 +122,8 @@ export function checkout(payload: CheckoutPayload) {
         const projected = curBal + billCredit;
         if (projected > creditLimit) {
           const excess = projected - creditLimit;
-          throw new Error(`Credit limit of ₹${creditLimit.toLocaleString('en-IN')} exceeded for ${matchedParty.name || 'Customer'}! Current balance: ₹${curBal.toLocaleString('en-IN')}, Bill credit: ₹${billCredit.toLocaleString('en-IN')}. Exceeds limit by ₹${excess.toLocaleString('en-IN')}.`);
+          const { prefix: cur, locale } = storeMoneyProfile(getStoreCountrySetting(db, tenantId));
+          throw new Error(`Credit limit of ${cur}${creditLimit.toLocaleString(locale)} exceeded for ${matchedParty.name || 'Customer'}! Current balance: ${cur}${curBal.toLocaleString(locale)}, Bill credit: ${cur}${billCredit.toLocaleString(locale)}. Exceeds limit by ${cur}${excess.toLocaleString(locale)}.`);
         }
       }
 
@@ -129,9 +131,9 @@ export function checkout(payload: CheckoutPayload) {
       // Restricts only credit purchases if configured to restrict when overdue bills exist
       const overdueStatus = checkCustomerOverdueSync(db, tenantId, invoice.customer_id, custPhone, custName);
       if (overdueStatus.creditPeriodEnabled && overdueStatus.restrictOnExpiry && overdueStatus.isOverdue) {
-        const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtMoney = (n: number) => formatStoreMoney(n, getStoreCountrySetting(db, tenantId));
         throw new Error(
-          `Credit purchase blocked: ${overdueStatus.customerName} has ${overdueStatus.overdueCount} overdue credit bill(s) totaling ₹${fmtN(overdueStatus.overdueAmount)} (oldest overdue by ${overdueStatus.oldestOverdueDays} days). Credit period has expired. Please settle pending dues before making new credit purchases.`
+          `Credit purchase blocked: ${overdueStatus.customerName} has ${overdueStatus.overdueCount} overdue credit bill(s) totaling ${fmtMoney(overdueStatus.overdueAmount)} (oldest overdue by ${overdueStatus.oldestOverdueDays} days). Credit period has expired. Please settle pending dues before making new credit purchases.`
         );
       }
     }
@@ -248,7 +250,7 @@ export function checkout(payload: CheckoutPayload) {
           rTxId, tenantId, customerId, invoice.invoice_id,
           ptsRedeemed, runningPoints, afterRedeem,
           finalInvoiceNumber,
-          `Redeemed ${ptsRedeemed} points for ₹${ptsRedeemedDiscount.toFixed(2)} discount on invoice ${finalInvoiceNumber}`,
+          `Redeemed ${ptsRedeemed} points for ${storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix}${ptsRedeemedDiscount.toFixed(2)} discount on invoice ${finalInvoiceNumber}`,
           invoice.user_id || 'system',
           nowTimestamp, nowTimestamp
         );

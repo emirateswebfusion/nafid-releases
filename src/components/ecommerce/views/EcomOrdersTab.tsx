@@ -1,5 +1,7 @@
 import { Search, RefreshCw, ShoppingCart } from 'lucide-react';
 import clsx from 'clsx';
+import { getStoreProfile } from '../../../utils/localization/storeProfile';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { EcommerceOrder } from '../../../services/fusionCartService';
 import type { EcommerceState } from '../hooks/useEcommerceState';
 
@@ -66,7 +68,7 @@ export function EcomOrdersTab({
                 <th className="px-3 py-2">Order Date</th>
                 <th className="px-3 py-2">Customer Destination</th>
                 <th className="px-3 py-2 text-center">Items</th>
-                <th className="px-3 py-2 text-right">Total (INR)</th>
+                <th className="px-3 py-2 text-right">Total ({getStoreProfile().currency})</th>
                 <th className="px-3 py-2 text-center">Payment Status</th>
                 <th className="px-3 py-2 text-center">Fulfillment</th>
                 <th className="px-3 py-2 text-right">Action</th>
@@ -115,7 +117,7 @@ export function EcomOrdersTab({
                     </td>
 
                     <td className="px-3 py-2 text-right font-mono font-black text-foreground">
-                      INR {Number(order.total || order.amount).toFixed(2)}
+                      {formatCurrency(order.total || order.amount)}
                     </td>
 
                     <td className="px-3 py-2 text-center">
