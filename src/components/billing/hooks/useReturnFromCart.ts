@@ -16,7 +16,7 @@ import type { CartItem } from '../../../store/cartStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { Tab } from '../../../store/tabStore';
 import type { Invoice } from '../../../data/invoices';
-import { offerCardTerminalRefund } from '../checkout/cardTerminalStep';
+import { offerCardTerminalRefund } from '../../app/cardTerminalStep';
 
 export interface UseReturnFromCartContext {
   activeTabId: string;

@@ -45,7 +45,7 @@ import { SalesAnalyticsView } from './views/SalesAnalyticsView';
 import { SalesBillsView } from './views/SalesBillsView';
 import { useLinkedInvoiceView } from './hooks/useLinkedInvoiceView';
 import { useCollectPayment } from './hooks/useCollectPayment';
-import { offerCardTerminalVoid } from '../billing/checkout/cardTerminalStep';
+import { offerCardTerminalVoid } from '../app/cardTerminalStep';
 
 /* ════════════════════════════════════════════
    MAIN COMPONENT

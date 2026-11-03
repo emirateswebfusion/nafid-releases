@@ -27,7 +27,7 @@ import { returnsApi } from '../../../data/returns';
 import { sendConfiguredBill } from '../../../data/whatsappSharing';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
 import { listParties } from '../../../data/parties';
-import { cardAmountOf, runCardTerminalStep, settleCardTerminalStep } from './cardTerminalStep';
+import { cardAmountOf, runCardTerminalStep, settleCardTerminalStep } from '../../app/cardTerminalStep';
 
 export interface CheckoutContext {
   items: CartItem[];

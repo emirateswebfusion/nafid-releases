@@ -76,7 +76,8 @@ terminal, the acquirer contact for certification, and the merchant id / terminal
 electron/hardware/cardTerminal/
   types.ts            PaymentTerminal interface, request/result types, error codes
   registry.ts         createTerminal(config) → adapter by provider id
-  transport.ts        SerialTransport / TcpTransport (framing, timeouts, close) over serialport / net
+  transport.ts        link check (open/close the COM port or TCP socket) and COM port listing; an acquirer
+                      adapter adds its own framing / LRC on top of serialport / net
   adapters/mock.ts    deterministic mock: approve / decline / timeout / slow by amount (tests + demo)
   adapters/<provider>.ts   first real acquirer, from its ECR spec
 electron/services/cardTerminalService.ts   use-cases: sale, cancel, void, refund, inquiry, test, journal, recovery
@@ -155,25 +156,30 @@ terminal only *proves* the card part; the amounts posted are the same as today.
 ### 3.5 Renderer
 
 ```text
-src/data/cardTerminal.ts                cardTerminalApi = bindBridge({ sale: 'cardTerminalSale', … }); events onCardTerminalStatus
-src/store/cardTerminalStore.ts          request state for the modal (idle / waiting / result), promise resolve
-src/components/billing/checkout/cardTerminalStep.ts   pure-ish step: decide, run, map result → split_details.card_terminal
-src/components/billing/views/CardTerminalModal.tsx    "Present card on terminal · AED 105.00 · [Cancel]" + result
-src/components/settings/tabs/CardTerminalSettings.tsx  panel inside HardwareSettingsTab
+src/data/cardTerminal.ts                 cardTerminalApi = bindBridge({ sale: 'cardTerminalSale', … }); bridgeEvents.onCardTerminalStatus
+src/store/cardTerminalStore.ts           the dialog prompt + the promise the step awaits for the cashier's choice
+src/components/app/cardTerminalStep.ts   app-wide flows (checkout charge, void on failed save / delete, refund on
+                                         return); used by billing checkout, billing returns and Sales History
+src/components/app/CardTerminalDialog.tsx  "Card payment · amount · status · [Cancel on terminal]" + result choices;
+                                         mounted once in App.tsx
+src/components/settings/tabs/CardTerminalSettings.tsx  "Card Terminal" sub-tab of HardwareSettingsTab
 ```
 
-Checkout hook-in (≈ 6 lines in `checkoutHandler.ts`, after validation and before `invoicesApi.checkout`):
+Checkout hook-in (7 lines in `checkoutHandler.ts`, after validation and before `invoicesApi.checkout` / `updateInvoice`):
 
 ```ts
-const card = await runCardTerminalStep({ invoiceId: invoice_id, paymentMethod: effectiveFinalPaymentMethod,
-  cardAmount: effectiveFinalPaymentMethod === 'CARD' ? effectiveGrandTotal : Number(splitDetails.card) || 0 });
-if (card.abort) { setHardwareError(card.message); return; }
-// …split_details: { …, ...(card.details ? { card_terminal: card.details } : {}) }
+const cardStep = await runCardTerminalStep({ tenantId, invoiceId: invoice_id, isEditing,
+  skip: isQuotationMode || isReturnMode || isFilingOnly, paymentMethod, cardAmount: cardAmountOf(…) });
+if (!cardStep.ok) { setHardwareError(cardStep.message); return; }
+if (cardStep.details) Object.assign(splitDetailsForSave, { card_terminal: cardStep.details });
+…
+await settleCardTerminalStep(result.success);   // after the save; also settleCardTerminalStep(false) in the catch
 ```
 
-`runCardTerminalStep` returns `{ details: null }` immediately when the setting is off, the amount is 0, the bill is a
-quotation / return / save-only, or it is an edit of a bill that already has an approved `card_terminal` with the same
-amount (no second charge on edit).
+`runCardTerminalStep` returns `{ ok: true, details: null }` without contacting the machine when the setting is off, the
+card part is 0, or the bill is a quotation, return or filing-only copy. **Save** (without printing) is a sale and is
+charged like Print. An edit keeps the bill's earlier `card_terminal` when the card amount is unchanged (no second
+charge).
 
 ### 3.6 Flows
 
@@ -202,8 +208,8 @@ amount (no second charge on edit).
 - Delete of a same-day bill paid through the terminal → offer **void** on the terminal (before the terminal's batch
   settlement). Return refunded by CARD → offer **refund** of the return amount linked to the original `ecr_ref`.
 - Both are offered, never forced: the existing ledger/return rules run regardless, and the cashier may decline
-  (e.g. the refund was done on the terminal directly). Scope: v1 implements void-on-failed-save and the mock refund;
-  return/delete wiring follows once the first real adapter is certified.
+  (e.g. the refund was done on the terminal directly). Built: void on a failed save, void offer after a Sales History
+  delete (`offerCardTerminalVoid`), refund offer after a return refunded by CARD (`offerCardTerminalRefund`).
 
 ### 3.7 Settings (Hardware tab, device-local)
 
@@ -212,21 +218,21 @@ Key `card_terminal_config`, added to `LOCAL_DEVICE_SETTING_KEYS` (never synced; 
 | Field | Default |
 |---|---|
 | `enabled` | `false` |
-| `provider` | `MOCK` (only in dev builds) / first real provider |
+| `provider` | `MOCK` (training terminal, every build; nothing is charged) / an installed acquirer adapter |
 | `connection` | `{ type: 'SERIAL', path: 'COM3', baudRate: 9600 }` or `{ type: 'TCP', host, port }` |
 | `timeoutSeconds` | 120 |
 | `allowManualFallback` | `true` |
-| `merchantRef` / adapter keys | only if the spec needs them; stored through `safeStorage`, never echoed back to the renderer |
+| `merchantRef` / adapter keys | not built; add only if an acquirer spec needs them, stored through `safeStorage`, never echoed back to the renderer |
 
-UI: enable toggle, provider, connection (COM port list via `serialport.list()`), timeout, manual fallback, **Test
-connection** (ping) and **Test sale AED 1.00** (mock or test terminal), plus the last 20 journal rows and the
-unresolved list. Permission: hardware settings already require settings access; the void/refund actions use the
+UI: enable toggle, provider, connection (COM port list via `serialport.list()`), timeout, manual fallback, **Save** and
+**Save and test connection** (link check + adapter ping), plus the last 20 journal rows and the unresolved list. Permission: hardware settings already require settings access; the void/refund actions use the
 existing delete/return permissions.
 
 ### 3.8 Recovery
 
-On start and when the modal opens, rows still `SENT` / `UNKNOWN` are listed in the settings panel and in a small banner
-on the billing screen ("1 card payment needs checking"). The cashier resolves each by inquiry or by the slip.
+Rows still `SENT` / `UNKNOWN` (a crash or a timeout the inquiry could not settle) are listed under Hardware → Card
+Terminal, where the cashier records each from the slip (Approved + auth code / Not charged). Not built yet: a banner on
+the billing screen pointing to them.
 
 ### 3.9 Tests
 

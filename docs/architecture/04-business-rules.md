@@ -80,7 +80,7 @@ and `electron/utils/` (ids, cashier settlement math).
 - Tests: `creditLedger.test.ts` (real SQLite and services, incl. a 40-customer / 600-operation randomised run),
   `tabStoreEditing.test.ts`.
 
-### Card terminal payments (`electron/services/cardTerminalService.ts`, `src/components/billing/checkout/cardTerminalStep.ts`)
+### Card terminal payments (`electron/services/cardTerminalService.ts`, `src/components/app/cardTerminalStep.ts`)
 
 - Off by default, per PC (`card_terminal_config`, device-local). When on, the card part of a CARD / SPLIT bill is sent
   to the machine before the bill is saved; the approved result is stored as `split_details.card_terminal` (last 4 card

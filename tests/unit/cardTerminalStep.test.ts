@@ -21,7 +21,7 @@ vi.mock('../../src/data/cardTerminal', () => ({
   },
 }));
 import { useCardTerminalStore } from '../../src/store/cardTerminalStore';
-import { cardAmountOf, readBillCardDetails, runCardTerminalStep, settleCardTerminalStep } from '../../src/components/billing/checkout/cardTerminalStep';
+import { cardAmountOf, readBillCardDetails, runCardTerminalStep, settleCardTerminalStep } from '../../src/components/app/cardTerminalStep';
 
 function payment(outcome: CardTerminalPayment['outcome'], extra: Partial<CardTerminalPayment> = {}): CardTerminalPayment {
   return { outcome, ecr_ref: 'R1', amount: 50, provider: 'MOCK', auth_code: '000123', rrn: 'RRN', terminal_id: 'T1', masked_pan: '****0010', scheme: 'VISA', message: outcome === 'APPROVED' ? 'Approved' : 'Do not honour', ...extra };

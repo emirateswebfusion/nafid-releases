@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 /**
- * The card machine dialog. The payment step (`components/billing/checkout/cardTerminalStep.ts`) shows a prompt and
+ * The card machine dialog. The payment step (`components/app/cardTerminalStep.ts`) shows a prompt and
  * awaits the cashier's choice; `CardTerminalDialog` renders the prompt and answers it.
  */
 export interface CardTerminalAction {

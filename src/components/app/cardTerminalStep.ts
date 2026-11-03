@@ -1,6 +1,6 @@
-import { cardTerminalApi, hasCardTerminal, type CardTerminalBillDetails, type CardTerminalPayment } from '../../../data/cardTerminal';
-import { useCardTerminalStore, type CardTerminalPrompt } from '../../../store/cardTerminalStore';
-import { getStoreProfile } from '../../../utils/localization/storeProfile';
+import { cardTerminalApi, hasCardTerminal, type CardTerminalBillDetails, type CardTerminalPayment } from '../../data/cardTerminal';
+import { useCardTerminalStore, type CardTerminalPrompt } from '../../store/cardTerminalStore';
+import { getStoreProfile } from '../../utils/localization/storeProfile';
 
 /**
  * Card machine steps around bill documents (design: docs/architecture/card-terminal-design.md). Every function is a
