@@ -332,3 +332,29 @@ Restaurant mode is not country-specific (same flag). India-specific behaviour, f
 - **Delivery apps by country:** India offers Swiggy / Zomato, the UAE Talabat / Deliveroo / Noon / Careem; both have
   Own delivery and Other (`restaurantRules.deliveryChannels`; the main process accepts all).
 - Not app-tested on an India shop; covered by `restaurantRules.test.ts` (CGST / SGST amounts per line).
+
+## 16. Screen design (3 Nov 2026, redesign)
+
+- **Entry points:** owner dashboard card **Restaurant** (shown only with the flag; placed right after Billing when the
+  shop's saved card order predates it) and the **Tables** button in the billing header. "Bill & take payment" always
+  switches to Billing (`open-billing-page`), whichever way the screen was opened.
+- **Layout** (`RestaurantPage.tsx`, `views/RestaurantChrome.tsx`): left navigation rail with count badges (open dine-in
+  orders, takeaway / delivery orders, tickets in the kitchen), a top bar with live figures (tables free, open orders,
+  ready to serve, running value) and quick Takeaway / Delivery buttons, floating status messages.
+- **Floor:** area tabs, legend with counts, tiles coloured by state (free dashed, occupied blue, billing amber, food
+  ready green with a pulsing badge, "Unsent" when items were added but not sent); time seated turns amber after 45 min
+  and red after 90.
+- **Order screen:** menu with a category rail, large tiles (price, add-on marker, count already on the order), ticket
+  grouped by kitchen ticket with kitchen status chips, totals (items, service charge, delivery fee, total, tax note),
+  one primary action (Send to kitchen / Bill & take payment) and labelled secondary actions (Guest check, Void, Split,
+  Move or Merge, Cancel). Split bills of one table appear as Bill 1 / Bill 2 tabs.
+- **Unsent items** live in `src/store/restaurantDraftStore.ts` for the app session, so leaving the order, switching
+  screens or opening Billing does not drop them.
+- **Takeaway & Delivery:** two-column board; cards show token, delivery-app badge in the app's colour, customer, address,
+  value and kitchen progress (in the kitchen / ready for pickup).
+- **Kitchen display:** dark high-contrast columns New / Preparing / Ready, large item text, one-tap action per ticket,
+  ticket border amber after 10 min and red after 20, full-screen toggle for a kitchen screen.
+- **Setup** has a side menu (Tables, Kitchen & printers, Add-ons, Service charge); **Reports** show summary tiles
+  (sales, bills, guests, per guest, voided), quick ranges and bars per order type / app and waiter.
+- Checked in the app on a data copy in dark and light themes (floor, order screen, board, kitchen display, setup,
+  reports, dashboard card, bill hand-over).

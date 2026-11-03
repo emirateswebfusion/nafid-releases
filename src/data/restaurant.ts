@@ -72,6 +72,9 @@ export interface NewOrderLine {
   modifiers: OrderModifier[]; note: string | null; seat: number | null;
 }
 
+/** An item on the order screen that is not sent to the kitchen yet (`key` identifies it on screen). */
+export interface DraftLine extends NewOrderLine { key: string }
+
 export const restaurantApi = bindBridge({
   getSetup: 'restaurantGetSetup',
   saveTable: 'restaurantSaveTable',

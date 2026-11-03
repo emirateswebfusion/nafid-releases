@@ -1,7 +1,7 @@
 import type { CartItem } from '../../store/cartStore';
 import type { Product } from '../../data/products';
 import { listRate, resolveLinePrice } from '../../utils/pricing/linePricing';
-import { lineModifiers, type ModifierGroup, type Modifier, type OrderLine, type OrderType, type RestaurantOrder,
+import { lineModifiers, type ActiveOrders, type ModifierGroup, type Modifier, type OrderLine, type OrderType, type RestaurantOrder,
   parseTextList } from '../../data/restaurant';
 
 /**
@@ -9,6 +9,17 @@ import { lineModifiers, type ModifierGroup, type Modifier, type OrderLine, type 
  * add-on choice limits and the mapping of an order to billing cart lines. Money and VAT stay with checkout: these
  * lines go through the normal cart, so `cartStore` / `checkoutLines` compute tax exactly as for any sale.
  */
+
+export type TableState = 'free' | 'occupied' | 'billing' | 'ready';
+
+/** State of a table from its open orders: ready food wins (the waiter must act), then billing, then occupied. */
+export function tableState(tableId: string, active: Pick<ActiveOrders, 'orders' | 'kots'>): { state: TableState; orders: RestaurantOrder[] } {
+  const orders = active.orders.filter(o => o.table_id === tableId);
+  if (orders.length === 0) return { state: 'free', orders };
+  const ready = active.kots.some(k => k.kind === 'NEW' && k.kds_status === 'READY' && orders.some(o => o.order_id === k.order_id));
+  if (ready) return { state: 'ready', orders };
+  return { state: orders.some(o => o.status === 'BILLING') ? 'billing' : 'occupied', orders };
+}
 
 /** Whole minutes since an ISO instant (0 for a bad value), for order and ticket ages. */
 export function minutesSince(iso: string): number {

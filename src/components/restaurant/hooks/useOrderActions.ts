@@ -128,6 +128,8 @@ export function useOrderActions(ctx: ActionContext) {
       waiterUserId: order.waiter_user_id, waiterName: order.waiter_name,
     });
     ctx.onClose();
+    // Opened from the owner dashboard the screen underneath is not Billing: switch to it.
+    window.dispatchEvent(new CustomEvent('open-billing-page'));
     return true;
   }), [run, cartFor, titleOf, ctx]);
 
