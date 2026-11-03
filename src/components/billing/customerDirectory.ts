@@ -32,7 +32,10 @@ export interface CustomerSuggestion {
 }
 
 /** A party (or customer) matched by name/phone, with the matching customer's id and loyalty points. */
-export type MatchedParty = Partial<Omit<Party, keyof DirectoryRow>> & DirectoryRow;
+export type MatchedParty = Partial<Omit<Party, keyof DirectoryRow>> & DirectoryRow & {
+  /** The match is the shop's only billing account with this name, so it identifies the customer without a phone. */
+  only_account_with_name?: boolean;
+};
 
 export interface DirectoryLists {
   parties: DirectoryRow[];
@@ -188,8 +191,14 @@ export function findMatchingParty(
       if (cleanPhone && cp && cp !== cleanPhone) return false;
       return (cleanPhone && cp && cp === cleanPhone) || (cleanName && cn && cn === cleanName && (!cleanPhone || !cp));
     });
+    const sameName = (n: unknown) => {
+      const a = String(n || '').trim().toLowerCase();
+      return Boolean(cleanName) && (a === cleanName || a.replace(/^[.\s]+/, '') === cleanName.replace(/^[.\s]+/, ''));
+    };
+    const accounts = (lists.parties || []).filter((p) => p && isAllowedInBilling(p.party_type, isStaffEnabled) && sameName(p.name));
     return {
       ...match,
+      only_account_with_name: accounts.length === 1 && accounts[0] === match,
       customer_id: match.customer_id || cust?.customer_id,
       current_points_balance: match.current_points_balance ?? (cust ? Number(cust.current_points_balance) || 0 : undefined),
     };

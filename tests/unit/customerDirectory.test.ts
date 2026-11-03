@@ -91,4 +91,11 @@ describe('findMatchingParty', () => {
   it('falls back to customers when no party matches', () => {
     expect(findMatchingParty(lists, 'ansi')).toMatchObject({ customer_id: 'c2' });
   });
+  it('marks the only account with a name, so a credit bill can name it without a phone', () => {
+    expect(findMatchingParty(lists, 'Anas Traders')?.only_account_with_name).toBe(true);
+    expect(findMatchingParty(lists, 'Baby')?.only_account_with_name).toBe(true);
+    expect(findMatchingParty(lists, 'ansi')?.only_account_with_name).toBe(false);
+    const twins = { ...lists, parties: [...lists.parties, { party_id: 'p5', name: 'Anas Traders', phone: '9000000099', balance: 0, party_type: 'CUSTOMER' }] };
+    expect(findMatchingParty(twins, 'Anas Traders')?.only_account_with_name).toBe(false);
+  });
 });

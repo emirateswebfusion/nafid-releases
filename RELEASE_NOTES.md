@@ -1,3 +1,10 @@
+# Nafid POS v2.2.31
+
+## What's New
+- **Credit bills for existing customers without a phone**: a credit bill no longer needs a phone number when the customer is an existing account whose name is unique in the shop. A new customer, or a name shared by two accounts, still needs a phone.
+
+**Download:** [Nafid-Setup-2.2.31.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.31/Nafid-Setup-2.2.31.exe)
+
 # Nafid POS v2.2.30
 
 ## What's New

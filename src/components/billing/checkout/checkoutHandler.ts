@@ -214,7 +214,9 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       }
 
       if (paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)) {
-        if (!(customerName || '').trim() || !(customerPhone || '').trim()) {
+        // An existing account with a unique name is the customer even without a phone (many shops' ledgers have none).
+        const knownAccount = !(customerPhone || '').trim() && Boolean(findMatchingParty((customerName || '').trim(), '')?.only_account_with_name);
+        if (!(customerName || '').trim() || (!(customerPhone || '').trim() && !knownAccount)) {
           setHardwareError('Please enter Customer Name and Phone Number for Credit');
           return;
         }
