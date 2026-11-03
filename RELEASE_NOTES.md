@@ -1,3 +1,11 @@
+# Nafid POS v2.2.34
+
+## What's New
+- **Bill and ledger dates follow the shop's time zone**: the bill date picker and the ledger date-and-time box now use the time zone set in Settings, not the computer's clock, so a bill keeps the shop's date and time on any computer.
+- **Faster uploads after installing on a new computer**: a customer is uploaded again only when their balance changes, so new bills and payments reach the cloud quickly.
+
+**Download:** [Nafid-Setup-2.2.34.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.34/Nafid-Setup-2.2.34.exe)
+
 # Nafid POS v2.2.33
 
 ## What's New

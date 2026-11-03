@@ -99,7 +99,19 @@ export const findPartyLedgerByPartyId4 = (db: Db) => db.prepare(`SELECT COALESCE
 
 export const findOnePartyLedgerByPartyId = (db: Db) => db.prepare(`SELECT transaction_date FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date DESC LIMIT 1`);
 
-export const updatePartyByPartyId = (db: Db) => db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`);
+/**
+ * Stores a party's recalculated balances. Only a real change marks the party for upload: recalculating every party at
+ * startup must not queue all of them ahead of the ledger rows. Params: balance, gst, estimate, last date, party id.
+ */
+export const updatePartyByPartyId = (db: Db) => ({
+  run: (balance: number, gst: number, estimate: number, lastDate: string | null | undefined, partyId: string) => {
+    lastDate = lastDate ?? null;
+    db.prepare(`UPDATE parties SET balance = ?1, gst_balance = ?2, estimate_balance = ?3, last_transaction_date = ?4, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE party_id = ?5 AND (ROUND(COALESCE(balance, 0), 2) <> ?1 OR ROUND(COALESCE(gst_balance, 0), 2) <> ?2 OR ROUND(COALESCE(estimate_balance, 0), 2) <> ?3)`)
+      .run(balance, gst, estimate, lastDate, partyId);
+    db.prepare(`UPDATE parties SET last_transaction_date = ?1 WHERE party_id = ?2 AND last_transaction_date IS NOT ?1`).run(lastDate, partyId);
+  },
+});
 
 export const updatePartyLedgerRunningBalanceAlt = (db: Db) => db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`);
 

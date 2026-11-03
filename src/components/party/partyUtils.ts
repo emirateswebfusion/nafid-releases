@@ -1,5 +1,5 @@
 import { getStoreLocale } from '../../utils/localization/storeProfile';
-import { getStoreTimezone } from '../../utils/time/timezoneHelper';
+import { getStoreTimezone, toStoreWallClock } from '../../utils/time/timezoneHelper';
 import { parseUTCDate } from '../../utils/print/receiptGenerator';
 
 export const formatDate = (d: string) => {
@@ -10,11 +10,12 @@ export const formatDate = (d: string) => {
 
 export { formatDateTime } from '../../utils/time/dateDisplay';
 
+/** A stored instant as a datetime-local value on the shop's wall clock (store timezone, not the PC's). */
 export const toLocalInputValue = (iso: string): string => {
   const d = parseUTCDate(iso);
   if (isNaN(d.getTime())) return iso.slice(0, 16);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const w = toStoreWallClock(d);
+  return `${w.date}T${w.time}`;
 };
 
 export const nameToHue = (name: string) => {

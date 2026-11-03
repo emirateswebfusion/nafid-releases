@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SUPPORTED_TIMEZONES,
+  addCalendarDays,
   getStoreBusinessDate,
+  storeWallClockToUtcIso,
+  toStoreWallClock,
   getStoreTimezone,
   setStoreTimezone,
 } from '../../src/utils/time/timezoneHelper';
@@ -120,5 +123,33 @@ describe('parseUTCDate', () => {
     const after = Date.now();
     expect(d.getTime()).toBeGreaterThanOrEqual(before);
     expect(d.getTime()).toBeLessThanOrEqual(after);
+  });
+});
+
+describe('shop wall clock for date and time inputs', () => {
+  it('bill 7488: 02/11 23:30 typed for an India shop is 18:00 UTC, whatever zone the PC is in', () => {
+    expect(storeWallClockToUtcIso('2026-11-02', '23:30', 'Asia/Kolkata')).toBe('2026-11-02T18:00:00.000Z');
+    expect(storeWallClockToUtcIso('2026-11-02', '23:30', 'Asia/Dubai')).toBe('2026-11-02T19:30:00.000Z');
+    expect(storeWallClockToUtcIso('2026-11-02', '00:13', 'Asia/Kolkata')).toBe('2026-11-01T18:43:00.000Z');
+  });
+  it('shows a stored instant on the shop clock, also SQLite UTC text without a zone', () => {
+    expect(toStoreWallClock('2026-11-01T20:13:00.000Z', 'Asia/Kolkata')).toEqual({ date: '2026-11-02', time: '01:43' });
+    expect(toStoreWallClock('2026-11-02 18:00:00', 'Asia/Kolkata')).toEqual({ date: '2026-11-02', time: '23:30' });
+    expect(toStoreWallClock('2026-11-02T18:00:00.000Z', 'Asia/Dubai')).toEqual({ date: '2026-11-02', time: '22:00' });
+  });
+  it('round-trips every quarter hour of a day, including daylight-saving days', () => {
+    for (const [tz, day] of [['Asia/Kolkata', '2026-11-02'], ['Europe/London', '2026-03-29'], ['America/New_York', '2026-11-01']] as const) {
+      for (let q = 0; q < 96; q++) {
+        const time = `${String(Math.floor(q / 4)).padStart(2, '0')}:${String((q % 4) * 15).padStart(2, '0')}`;
+        const back = toStoreWallClock(storeWallClockToUtcIso(day, time, tz), tz);
+        // A time skipped by a daylight-saving jump moves forward; every other time comes back unchanged.
+        if (back.date === day && back.time !== time) expect(back.time > time).toBe(true);
+        else expect(back).toEqual({ date: day, time });
+      }
+    }
+  });
+  it('steps calendar days across months and years', () => {
+    expect(addCalendarDays('2026-11-01', -1)).toBe('2026-10-31');
+    expect(addCalendarDays('2026-12-31', 1)).toBe('2027-01-01');
   });
 });
