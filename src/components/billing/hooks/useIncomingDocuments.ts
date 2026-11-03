@@ -254,6 +254,8 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             discount_percent,
             discount_flat,
             offer_price,
+            // A saved line keeps the rate it was billed at: the tab's pricing tier must not reprice it on load.
+            is_tier_overridden: true,
             catalog_discount_percent,
             catalog_discount_flat,
             catalog_offer_price,

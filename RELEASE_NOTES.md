@@ -1,3 +1,10 @@
+# Nafid POS v2.2.30
+
+## What's New
+- **Editing a bill keeps its prices**: reopening a saved bill for editing no longer recalculates its lines from the customer's price tier (for example WHOLESALE). Each line keeps the rate it was billed at; items added during the edit still get the tier price.
+
+**Download:** [Nafid-Setup-2.2.30.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.30/Nafid-Setup-2.2.30.exe)
+
 # Nafid POS v2.2.29
 
 ## What's New
