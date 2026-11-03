@@ -1,5 +1,6 @@
 import { getStoreCountrySetting } from '../services/storeCountryService.js';
 import { getRegisterCashEntries, isFrozenDrawer } from '../services/cashDrawerSession.js';
+import { getCashAmountFromInvoice } from '../services/cashDrawerService.js';
 import type { CashDrawerRow } from '../services/typesA.js';
 import * as shopClosingReportSql from '../db/statements/shopClosingReport.js';
 import { toEpochMs } from '../utils/timestamps.js';
@@ -214,8 +215,9 @@ export function buildShopClosingSummaryData(
             paymentBreakdown.credit += (gTotal - recAmt);
             creditSalesAmount += (gTotal - recAmt);
           } else if (recAmt >= gTotal && gTotal > 0) {
-            paymentBreakdown.cash += gTotal;
-            invCashPortion = gTotal;
+            const cashTaken = getCashAmountFromInvoice({ ...inv, payment_method: 'CREDIT', grand_total: gTotal, return_deduction: 0, scrap_deduction: 0 }) || gTotal;
+            paymentBreakdown.cash += cashTaken;
+            invCashPortion = cashTaken;
           } else {
             paymentBreakdown.credit += gTotal;
             creditSalesAmount += gTotal;

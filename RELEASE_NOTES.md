@@ -1,3 +1,10 @@
+# Nafid POS v2.2.29
+
+## What's New
+- **Paying more than the bill**: when a customer with a balance (or on a Credit bill) pays more than the bill, the bill amount stays the same, the customer ledger shows the full amount received, and the extra reduces the due or becomes an advance used by the next bill. The cash drawer counts all of it. A walk-in still gets change.
+
+**Download:** [Nafid-Setup-2.2.29.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.29/Nafid-Setup-2.2.29.exe)
+
 # Nafid POS v2.2.28
 
 ## What's New

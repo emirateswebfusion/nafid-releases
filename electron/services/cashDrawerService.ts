@@ -79,7 +79,9 @@ export function getCashAmountFromInvoice(inv: InvoiceCashFields | null | undefin
         }
         if (sd && typeof sd === 'object') {
           const cashSplit = Math.max(0, Number((sd as SplitDetails).cash) || 0);
-          if (cashSplit > 0) return Math.min(cashSplit, netPayable);
+          // Cash kept on the customer's account is in the drawer too.
+          const onAccount = pm === 'CREDIT' ? Math.max(0, Number((sd as SplitDetails).on_account) || 0) : 0;
+          if (cashSplit > 0) return Math.min(cashSplit, netPayable) + onAccount;
         }
       } catch { /* ignore */ }
     }

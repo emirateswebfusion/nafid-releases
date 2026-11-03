@@ -138,7 +138,19 @@ export function invoiceCreditTerms(invoice: Pick<CreditLedgerInvoice, 'grand_tot
     payments.push({ type: 'Cash', amount: total, suffix: 'PAY', method: 'CASH' });
   }
   const paid = money(payments.reduce((s, p) => s + p.amount, 0));
-  return { method, total, isSplit, isPureCredit, isCredit, payments, paid: isCredit ? paid : 0, creditPortion: isCredit ? money(total - paid) : 0 };
+  // Cash beyond the bill that the cashier kept on the customer's account: the one -PAY row records all the money
+  // received, `paid` and the credit portion stay about the bill. Without the marker the excess was change given back.
+  const onAccount = isPureCredit ? invoiceOnAccount(invoice.received_amount, total, splitObj) : 0;
+  if (onAccount > 0) {
+    if (payments[0]) payments[0].amount = money(payments[0].amount + onAccount);
+    else payments.push({ type: 'Cash', amount: onAccount, suffix: 'PAY', method: 'CASH' });
+  }
+  return { method, total, isSplit, isPureCredit, isCredit, payments, onAccount, paid: isCredit ? paid : 0, creditPortion: isCredit ? money(total - paid) : 0 };
+}
+
+/** The `on_account` part of a credit bill: never more than what was actually received beyond the total. */
+function invoiceOnAccount(received: unknown, total: number, split: SplitDetails | null | undefined) {
+  return Math.min(Math.max(0, money(split?.on_account)), Math.max(0, money(money(received) - total)));
 }
 
 /**
@@ -151,7 +163,7 @@ export function invoiceCreditTerms(invoice: Pick<CreditLedgerInvoice, 'grand_tot
  */
 export function normalizePaymentSplit(invoice: Pick<CreditLedgerInvoice, 'grand_total' | 'payment_method' | 'received_amount' | 'split_details'>): SplitDetails {
   const raw = parseSplit(invoice.split_details) || {};
-  const keep = Object.fromEntries(Object.entries(raw).filter(([k]) => !['cash', 'upi', 'card', 'bank_transfer', 'bank', 'cheque', 'credit'].includes(k)));
+  const keep = Object.fromEntries(Object.entries(raw).filter(([k]) => !['cash', 'upi', 'card', 'bank_transfer', 'bank', 'cheque', 'credit', 'on_account'].includes(k)));
   const out: SplitDetails = { ...keep, cash: 0, upi: 0, card: 0, bank_transfer: 0, cheque: 0, credit: 0 };
   const terms = invoiceCreditTerms(invoice);
   const total = terms.total;
@@ -167,6 +179,7 @@ export function normalizePaymentSplit(invoice: Pick<CreditLedgerInvoice, 'grand_
       const cash = Math.min(total, received);
       out.cash = cash;
       out.credit = money(total - cash);
+      if (terms.onAccount > 0) out.on_account = terms.onAccount;
       break;
     }
     case 'SPLIT': {

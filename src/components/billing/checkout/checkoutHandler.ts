@@ -8,6 +8,7 @@ import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { Tab } from '../../../store/tabStore';
 import type { PaymentMethod } from '../BillingConstants';
 import { runScrapCheckout } from './scrapCheckout';
+import { onAccountExcess } from './overpayment';
 import { useCartStore } from '../../../store/cartStore';
 import { useAuthStore } from '../../../store/authStore';
 import { v4 as uuidv4 } from 'uuid';
@@ -241,7 +242,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
 
       const effectiveGrandTotal = displayGrandTotal;
 
-      const effectiveFinalPaymentMethod = paymentMethod === 'SPLIT' ? 'SPLIT' : paymentMethod;
+      let effectiveFinalPaymentMethod = paymentMethod === 'SPLIT' ? 'SPLIT' : paymentMethod;
       const isPaymentPending = effectiveFinalPaymentMethod === 'PENDING';
       const defaultFullPaid = ['CASH', 'UPI', 'CARD', 'CHEQUE'].includes(effectiveFinalPaymentMethod) ? effectiveGrandTotal : 0;
       const effectiveReceivedAmount = isPaymentPending ? 0 : (effectiveFinalPaymentMethod === 'SPLIT' ? splitTotal : ((receivedAmount && receivedAmount > 0) ? receivedAmount : defaultFullPaid));
@@ -320,6 +321,9 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         ? (Number(activeTab?.editingInvoiceContribution) || 0)
         : 0;
       const partyOldBalance = matchedParty ? (Number(matchedParty.balance) || 0) - editingContribution : 0;
+      // Paid more than the bill and kept on account: a Credit bill, so the customer's ledger shows the sale and all the money.
+      const onAccount = onAccountExcess({ paymentMethod: effectiveFinalPaymentMethod, grandTotal: effectiveGrandTotal, received: effectiveReceivedAmount, hasParty: Boolean(matchedParty), isStaff: isStaffParty, partyOldBalance });
+      if (onAccount > 0) effectiveFinalPaymentMethod = 'CREDIT';
       const splitCreditAmount = Number(splitDetails?.credit) || 0;
       const isSplitCreditBill = effectiveFinalPaymentMethod === 'SPLIT' && splitCreditAmount > 0;
       const splitNonCreditPaid = (Number(splitDetails?.cash) || 0)
@@ -327,7 +331,9 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         + (Number(splitDetails?.upi) || 0)
         + (Number(splitDetails?.cheque) || 0)
         + (Number(splitDetails?.bank_transfer) || 0);
-      const newPartyContribution = effectiveFinalPaymentMethod === 'CREDIT'
+      const newPartyContribution = onAccount > 0
+        ? -onAccount
+        : effectiveFinalPaymentMethod === 'CREDIT'
         ? Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0))
         : isSplitCreditBill
         ? Math.max(0, effectiveGrandTotal - splitNonCreditPaid)
@@ -343,11 +349,13 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         splitDetailsForSave.bank_transfer = 0;
         if (effectiveFinalPaymentMethod !== 'CREDIT') splitDetailsForSave.credit = 0;
       }
+      delete splitDetailsForSave.on_account;
+      if (onAccount > 0) splitDetailsForSave.on_account = onAccount;
 
       // ── Credit Limit & Credit Period Enforcement ──────────────────────────────
       // Determine how much of THIS bill is on credit
       let billCreditAmount = 0;
-      if (effectiveFinalPaymentMethod === 'CREDIT') {
+      if (effectiveFinalPaymentMethod === 'CREDIT' && onAccount <= 0) {
         billCreditAmount = Math.max(0, effectiveGrandTotal);
       } else if (effectiveFinalPaymentMethod === 'SPLIT') {
         billCreditAmount = Math.max(0, Number(splitDetails.credit) || 0);

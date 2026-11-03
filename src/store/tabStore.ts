@@ -13,6 +13,8 @@ export interface SplitDetails {
   credit?: number;
   cheque?: number;
   bank_transfer?: number;
+  /** Cash beyond the bill kept on the customer's account (see checkout/overpayment.ts). */
+  on_account?: number;
 }
 
 export interface TabSnapshot {

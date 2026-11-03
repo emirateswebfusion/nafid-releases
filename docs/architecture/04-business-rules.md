@@ -47,6 +47,13 @@ and `electron/utils/` (ids, cashier settlement math).
   pays the other parts (capped at the non-credit part); other methods owe nothing. The billing screen saves a Credit
   bill with amounts in the Cash / Card / UPI / Cheque tiles as SPLIT (each part kept); a split with a credit part must
   add up to the bill total. Change Payment with cash below the total is saved as CREDIT with that amount paid.
+- Paying more than the bill (`src/components/billing/checkout/overpayment.ts`): when the billing screen shows the new
+  due or advance (a customer with a balance, or a Credit bill), the excess stays on the customer's account. The bill is
+  saved as CREDIT with `received_amount` = all the money and `split_details.on_account` = the excess; its total is
+  unchanged, its one `<bill>-PAY` row records all the money, the drawer counts all of it, and allocation treats the
+  excess as unallocated money. Anyone else sees change, and the excess is not recorded. A bill without the marker never
+  posts an excess. Cash Settlement has no received-amount field, so an excess there goes through Ledger > Got Cash.
+  Upgrade every terminal of a shop together: an older terminal re-saving such a bill would drop the excess.
 - Returns (`syncReturnLedger`): CREDIT / STORE_CREDIT / ADJUST_BILL post a debit (`<return>`); a money refund (CASH,
   UPI, CARD, BANK_TRANSFER, CHEQUE) also posts the refund as a credit (`<return>-REFUND`), so the balance does not
   change; a return credit used on a bill posts a credit (`<return>-ADJ-<bill>`), released when that bill is deleted

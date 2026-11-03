@@ -43,7 +43,7 @@ const CASH_SALES_SELECT = `
                 THEN MIN(
                   CAST(json_extract(split_details, '$.cash') AS REAL),
                   MAX(0, COALESCE(grand_total, 0))
-                )
+                ) + COALESCE(CAST(json_extract(split_details, '$.on_account') AS REAL), 0)
                 WHEN UPPER(payment_method) = 'CREDIT' AND received_amount > 0
                 THEN MIN(
                   received_amount,
