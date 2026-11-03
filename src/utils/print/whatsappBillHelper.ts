@@ -1,5 +1,6 @@
 import { getStoreLocale } from '../localization/storeProfile';
-import { getCurrencyPrefix } from '../localization/storeProfile';
+import { getCurrencyPrefix, isUaeStore } from '../localization/storeProfile';
+import { UAE_LABELS as L, bilingualText, getUaeArabicPrint, uaeDocumentTitle, uaePaymentMethod, type BilingualLabel } from './uaeLabels';
 import { formatPurchaseLedgerMessage } from './whatsappSharing';
 import { withNafidFooter } from './messageFooter';
 
@@ -24,13 +25,21 @@ export interface WhatsAppBillDetails {
   creditPeriodDays?: number;
   oldBalance?: number;
   customerBalance?: number;
+  /** UAE title (Tax Invoice / Tax Credit Note); ignored in India mode. */
+  invoiceType?: string;
+  isB2B?: boolean;
+  shopTrn?: string;
+  tax?: number;
 }
 
 export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
   const shop = data.shopName || 'STORE';
   const inv = data.invoiceNumber;
   const date = data.date;
-  const cust = data.customerName ? `\n👤 *Customer:* ${data.customerName}` : '';
+  // UAE bills carry the Arabic label beside the English one when the documents setting is on; India is unchanged.
+  const uae = isUaeStore();
+  const t = (pair: BilingualLabel) => uae ? bilingualText(pair, getUaeArabicPrint().documents) : pair.en;
+  const cust = data.customerName ? `\n👤 *${t(L.customer)}:* ${data.customerName}` : '';
   const total = Number(data.grandTotal || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const received = Number(data.receivedAmount || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const balance = Number(data.balanceAmount || 0);
@@ -38,7 +47,7 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
   // Items breakdown (up to first 8 items for a clean preview, followed by ... if more)
   let itemsText = '';
   if (data.items && data.items.length > 0) {
-    itemsText += '\n\n📦 *Bill Items:*';
+    itemsText += `\n\n📦 *${t(L.billItems)}:*`;
     const previewItems = data.items.slice(0, 8);
     previewItems.forEach((item, idx) => {
       const itemTotal = Number(item.total || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 });
@@ -50,17 +59,17 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
   }
 
   // Credit / Payment Details
-  let paymentText = `\n\n💳 *Payment Mode:* ${data.paymentMethod || 'CASH'}`;
-  paymentText += `\n💵 *Total Amount:* ${getCurrencyPrefix()}${total}`;
+  let paymentText = `\n\n💳 *${t(L.paymentMode)}:* ${t(uaePaymentMethod(data.paymentMethod || 'CASH')!)}`;
+  paymentText += `\n💵 *${t(L.totalAmount)}:* ${getCurrencyPrefix()}${total}`;
   if (data.receivedAmount !== undefined) {
-    paymentText += `\n✅ *Paid Amount:* ${getCurrencyPrefix()}${received}`;
+    paymentText += `\n✅ *${t(L.paidAmount)}:* ${getCurrencyPrefix()}${received}`;
   }
 
   if (balance > 0) {
     const balFormatted = balance.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    paymentText += `\n⚠️ *Due Balance:* ${getCurrencyPrefix()}${balFormatted}`;
+    paymentText += `\n⚠️ *${t(L.dueBalance)}:* ${getCurrencyPrefix()}${balFormatted}`;
     if (data.dueDate) {
-      paymentText += `\n📅 *Credit Period Due Date:* *${data.dueDate}*`;
+      paymentText += `\n📅 *${t(L.creditDueDate)}:* *${data.dueDate}*`;
       if (data.creditPeriodDays) {
         paymentText += ` (${data.creditPeriodDays} Days)`;
       }
@@ -69,12 +78,12 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
 
   if (data.customerBalance && data.customerBalance > 0) {
     const totalOutstanding = Number(data.customerBalance).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 });
-    paymentText += `\n📊 *Total Outstanding Ledger Due:* ${getCurrencyPrefix()}${totalOutstanding}`;
+    paymentText += `\n📊 *${t(L.totalOutstanding)}:* ${getCurrencyPrefix()}${totalOutstanding}`;
   }
 
-  const footer = `\n\n🙏 *Thank you for your business!*\n📄 Detailed PDF invoice is attached below.`;
+  const footer = `\n\n🙏 *${t(L.thankYouBusiness)}*\n📄 ${t(L.pdfAttached)}`;
 
-  return withNafidFooter(`🧾 *INVOICE: ${inv}*\n🏢 *${shop}*\n📅 *Date:* ${date}${cust}${itemsText}${paymentText}${footer}`);
+  return withNafidFooter(`🧾 *${uae ? t(uaeDocumentTitle({ ...data, shopGstin: data.shopTrn })) : 'INVOICE'}: ${inv}*\n🏢 *${shop}*\n📅 *${t(L.date)}:* ${date}${cust}${itemsText}${paymentText}${footer}`);
 }
 
 export interface WhatsAppStatementDetails {

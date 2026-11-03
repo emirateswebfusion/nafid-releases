@@ -149,3 +149,40 @@ Following the NAFID architecture rules:
 - **VAT Report Aggregator & Lifecycle:** `tests/unit/vatReportService.test.ts` (Boxes 1–14 math, simplified vs full classification, draft/approve/ack lifecycle).
 - **JSON Serializer:** `tests/unit/vat201JsonSerializer.test.ts` (Structure and formatting integrity).
 - **Dashboard Dual-Country Integration:** `tests/unit/vatDashboardCard.test.ts` (UAE vs India card switching).
+
+---
+
+## 9. Printed documents: titles and Arabic
+
+**Titles** (`uaeDocumentTitle` in `src/utils/print/uaeLabels.ts`). Cabinet Decision No. 52 of 2017 requires the words
+"Tax Invoice" on both the full tax invoice (Art. 59(1)) and the simplified tax invoice (Art. 59(2): recipient not
+registered, or supply up to AED 10,000), and "Tax Credit Note" on credit notes (Art. 60). "Invoice" alone does not
+satisfy this. Only a registrant (a shop with a TRN) can issue either. So, in UAE mode:
+
+| Document | Shop has TRN | No TRN |
+|---|---|---|
+| VAT sale (`GST`, B2B, or VAT charged), B2B or B2C | `TAX INVOICE / فاتورة ضريبية` | `INVOICE / فاتورة` |
+| Zero-VAT bill of supply | `INVOICE / فاتورة` | `INVOICE / فاتورة` |
+| Return / credit note | `TAX CREDIT NOTE / إشعار دائن ضريبي` | `CREDIT NOTE / إشعار دائن` |
+
+Verify the article numbering against the FTA's current consolidated text (the regulation was amended in 2024/2025).
+Arabic is not legally required on the invoice (English records are accepted; the FTA may ask for a translation); it is
+printed because customers expect it.
+
+**Labels.** Every English/Arabic label pair lives in `UAE_LABELS` (`uaeLabels.ts`); A4/half-A4/PDF, purchase bills,
+quotations (and their preview iframe), thermal receipts and the WhatsApp bill text all read it. HTML pairs render the
+Arabic half as `<span class="ar" dir="rtl" lang="ar">` with an Arabic-capable font stack (`UAE_ARABIC_CSS`).
+
+**Setting `uae_arabic_print`** (`{ documents, thermal }`, default `{ true, false }`; Settings → Bill Content, UAE only,
+saved straight away through `src/data/settings.ts`; loaded by `useStoreProfile`). The key is not in the settings pull
+allowlist, so it stays per terminal.
+
+**Thermal findings (code review, not proven on hardware).**
+- USB / driver printers (`hardware:printReceipt` → `printReceiptUSB`) render the receipt text as HTML in Chromium and
+  print a raster through the Windows driver, so Arabic glyphs are shaped and printed like any other text (Consolas has
+  no Arabic; Chromium falls back to Segoe UI / Tahoma). The row-fitting script shrinks the font if a line overflows.
+- Network ESC/POS printers (`config.type === 'network'`) receive ASCII bytes; generic printers have no Arabic code page
+  or shaping. `sanitizeForEscPos` now drops the Arabic half (`Subtotal / المجموع الفرعي: …` → `Subtotal: …`) instead
+  of printing `????`.
+- On 58 mm paper the bilingual lines wrap heavily. Arabic on thermal therefore stays off until a shop's printer has
+  been test-printed.
