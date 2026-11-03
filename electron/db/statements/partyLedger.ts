@@ -106,10 +106,11 @@ export const findOnePartyLedgerByPartyId = (db: Db) => db.prepare(`SELECT transa
 export const updatePartyByPartyId = (db: Db) => ({
   run: (balance: number, gst: number, estimate: number, lastDate: string | null | undefined, partyId: string) => {
     lastDate = lastDate ?? null;
-    db.prepare(`UPDATE parties SET balance = ?1, gst_balance = ?2, estimate_balance = ?3, last_transaction_date = ?4, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-      WHERE party_id = ?5 AND (ROUND(COALESCE(balance, 0), 2) <> ?1 OR ROUND(COALESCE(gst_balance, 0), 2) <> ?2 OR ROUND(COALESCE(estimate_balance, 0), 2) <> ?3)`)
-      .run(balance, gst, estimate, lastDate, partyId);
-    db.prepare(`UPDATE parties SET last_transaction_date = ?1 WHERE party_id = ?2 AND last_transaction_date IS NOT ?1`).run(lastDate, partyId);
+    // Plain `?` only: better-sqlite3 (the app) rejects re-used numbered parameters that node:sqlite (tests) accepts.
+    db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE party_id = ? AND (ROUND(COALESCE(balance, 0), 2) <> ? OR ROUND(COALESCE(gst_balance, 0), 2) <> ? OR ROUND(COALESCE(estimate_balance, 0), 2) <> ?)`)
+      .run(balance, gst, estimate, lastDate, partyId, balance, gst, estimate);
+    db.prepare(`UPDATE parties SET last_transaction_date = ? WHERE party_id = ? AND last_transaction_date IS NOT ?`).run(lastDate, partyId, lastDate);
   },
 });
 
