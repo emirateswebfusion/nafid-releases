@@ -3,16 +3,16 @@ import { salesHistoryDb } from './fixtures/salesHistoryDb';
 import { m015DedupeScrapCashTransactions } from '../../electron/db/migrations/015-dedupe-scrap-cash-transactions';
 
 describe('m015DedupeScrapCashTransactions migration', () => {
-  it('cleans up duplicate per-item SCRAP_PURCHASE cash transactions while preserving consolidated Scrap Purchase', () => {
+  it('cleans up duplicate per-item SCRAP_PURCHASE cash transactions while preserving consolidated Scrap Purchase and reconciles drawer', () => {
     const { db } = salesHistoryDb();
 
-    // Setup an open cash drawer
+    // Setup an open cash drawer with initial balances
     db.exec(`
       INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, status, opening_balance, cash_sales, cash_in, cash_out, current_cash, expected_closing)
-      VALUES ('d1', 't1', '2026-11-04', 'OPEN', 1000, 0, 0, 1097.4, -97.4, -97.4);
+      VALUES ('d1', 't1', '2026-11-04', 'OPEN', 1000, 0, 0, 1197.4, -197.4, -197.4);
     `);
 
-    // Simulate the bug: 1 consolidated Scrap Purchase + 2 per-item SCRAP_PURCHASE for M8-SCR-001
+    // Simulate the bug: 1 consolidated Scrap Purchase + 2 per-item SCRAP_PURCHASE for M8-SCR-001 + 1 standalone
     db.exec(`
       INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by)
       VALUES ('tx-consolidated', 't1', 'd1', 'CASH_OUT', 550, 'Scrap Purchase', 'Scrap purchase M8-SCR-001', 'Haroon');
@@ -44,5 +44,18 @@ describe('m015DedupeScrapCashTransactions migration', () => {
     });
     expect(remaining.find(r => r.transaction_id === 'tx-item-1')).toBeUndefined();
     expect(remaining.find(r => r.transaction_id === 'tx-item-2')).toBeUndefined();
+
+    // Check that the cash_drawer row itself was immediately reconciled
+    const drawer = db.prepare('SELECT cash_out, current_cash, expected_closing FROM cash_drawer WHERE drawer_id = ?').get('d1') as {
+      cash_out: number;
+      current_cash: number;
+      expected_closing: number;
+    };
+
+    // cash_out should now be 550 + 100 = 650 (instead of 1197.4)
+    expect(drawer.cash_out).toBe(650);
+    // current_cash should now be 1000 - 650 = 350 (instead of -197.4)
+    expect(drawer.current_cash).toBe(350);
+    expect(drawer.expected_closing).toBe(350);
   });
 });
