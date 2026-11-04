@@ -200,3 +200,12 @@ export const deleteCashTransactionsByScrapInvoiceNumber = (db: Db) => db.prepare
 `);
 
 export const findCashDrawerByDrawerId = (db: Db) => db.prepare('SELECT * FROM cash_drawer WHERE drawer_id = ?');
+
+export const purgeDuplicateScrapCashTransactions = (db: Db) => db.prepare(`
+  DELETE FROM cash_transactions
+  WHERE category = 'SCRAP_PURCHASE'
+    AND (entered_by = 'system' OR entered_by IS NULL OR entered_by = '')
+    AND notes LIKE 'Scrap purchase %'
+    AND notes != 'Scrap purchase'
+    AND (tenant_id = ? OR tenant_id IN ('global', 'unset') OR tenant_id IS NULL)
+`);

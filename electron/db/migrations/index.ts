@@ -16,6 +16,7 @@ import { m012GstReturnsAndCreditNotes } from './012-gst-returns-and-credit-notes
 import { m013GstPhase2aLocalFilings } from './013-gst-phase2a-local-filings.js';
 import { m014VatLocalFilings } from './014-vat-local-filings.js';
 import { m015DedupeScrapCashTransactions } from './015-dedupe-scrap-cash-transactions.js';
+import { m016PurgeDuplicateScrapCashTransactions } from './016-purge-duplicate-scrap-cash-transactions.js';
 
 /**
  * Every versioned migration, in order. To change the schema or fix data: add `NNN-short-name.ts` exporting a
@@ -38,6 +39,7 @@ export const MIGRATIONS: readonly Migration[] = [
   m013GstPhase2aLocalFilings,
   m014VatLocalFilings,
   m015DedupeScrapCashTransactions,
+  m016PurgeDuplicateScrapCashTransactions,
 ];
 
 /** Startup step after the baseline schema: apply pending migrations, then remove a sync apply guard row left by a

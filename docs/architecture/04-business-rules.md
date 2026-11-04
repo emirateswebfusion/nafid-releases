@@ -106,7 +106,8 @@ and `electron/utils/` (ids, cashier settlement math).
   +30 min / +1 h, `cash_drawer_auto_close_snooze`), closes after 5 minutes without an answer or when the app has been
   idle for 10 minutes; the main process closes drawers still open 15 minutes past the due time
   (`autoCloseOverdueDrawers`). An auto close counts the expected cash (no short / excess).
-- Tests: `tests/characterization/drawer-session.mts`.
+- Tests: `tests/characterization/drawer-session.mts`, `tests/unit/scrapCashReconciliation.test.ts`.
+- Scrap purchases: a single consolidated cash-out row is written for a cash scrap purchase (`Scrap Purchase`). Legacy per-item system-generated cash entries are filtered at runtime in `getRegisterCashEntries` and permanently cleaned up via migrations (015, 016) and `purgeDuplicateScrapCashTransactions` so scrap purchase cash is never deducted twice from the drawer.
 
 ### Sales History totals and scope
 
