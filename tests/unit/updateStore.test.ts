@@ -32,22 +32,24 @@ beforeEach(() => {
     isDownloading: false,
     downloadProgress: null,
     initialized: false,
+    installError: null,
+    isInstalling: false,
   });
   fixture.checkForUpdates.mockResolvedValue({ success: true, updateInfo: null });
 });
 
 describe('update store install handling', () => {
-  it('keeps the app open and re-checks when no installer was launched', async () => {
+  it('reports an install failure without starting a download loop', async () => {
     useUpdateStore.setState({ updateReady: true, updateInfo: { version: '2.2.8' } });
     fixture.installUpdate.mockResolvedValue({ success: false, error: 'No downloaded update is ready to install.' });
 
     useUpdateStore.getState().installUpdate();
     await flush();
 
-    expect(fixture.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(fixture.checkForUpdates).not.toHaveBeenCalled();
     expect(useUpdateStore.getState().updateReady).toBe(false);
     expect(useUpdateStore.getState().isDownloading).toBe(false);
-    expect(useUpdateStore.getState().updateInfo).toBeNull();
+    expect(useUpdateStore.getState().installError).toContain('No downloaded update');
   });
 
   it('does not re-check after a successful install trigger', async () => {
@@ -87,4 +89,14 @@ describe('update store install handling', () => {
     expect(useUpdateStore.getState().isDownloading).toBe(false);
     expect(useUpdateStore.getState().downloadProgress).toBeNull();
   });
+});
+
+it('preserves a verified installer after a launch failure and guards repeated clicks', async () => {
+  useUpdateStore.setState({ updateReady: true });
+  fixture.installUpdate.mockResolvedValue({ success: false, error: 'Windows could not start the installer', installerReady: true });
+  useUpdateStore.getState().installUpdate(); useUpdateStore.getState().installUpdate();
+  await flush();
+  expect(fixture.installUpdate).toHaveBeenCalledOnce();
+  expect(fixture.checkForUpdates).not.toHaveBeenCalled();
+  expect(useUpdateStore.getState()).toMatchObject({ updateReady: true, isInstalling: false, installError: 'Windows could not start the installer' });
 });

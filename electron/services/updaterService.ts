@@ -1,10 +1,15 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import { autoUpdater, type UpdateDownloadedEvent } from 'electron-updater';
 import log from 'electron-log/main';
 import { getMainWindow } from './windowRegistry.js';
+import { platform } from 'node:process';
+import { launchWindowsUpdate, type DownloadedWindowsInstaller } from './windowsUpdateInstaller.js';
 
 type UpdaterState = 'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error';
 let updaterState: UpdaterState = 'idle';
+let downloadedInstaller: DownloadedWindowsInstaller | null = null;
+let installInProgress = false;
+let downloadedInfo: UpdateDownloadedEvent | null = null;
 let lastCheckTime = 0;
 let isUpdateCheckInProgress = false;
 let updateCheckTimer: NodeJS.Timeout | null = null;
@@ -24,11 +29,13 @@ function setUpdaterState(newState: UpdaterState) {
   }
 }
 
+function downloadedUpdateReady(): boolean { return updaterState === 'downloaded'; }
+
 function canCheckForUpdates(): boolean {
   const now = Date.now();
   if (isUpdateCheckInProgress) return false;
   if (now - lastCheckTime < MIN_CHECK_INTERVAL_MS) return false;
-  if (updaterState === 'checking' || updaterState === 'downloading') return false;
+  if (updaterState === 'checking' || updaterState === 'downloading' || updaterState === 'downloaded' || installInProgress) return false;
   return true;
 }
 
@@ -40,7 +47,8 @@ export function setupAutoUpdater(): void {
   autoUpdater.disableDifferentialDownload = false;
   // Disable auto-download initially - we'll control it via state machine
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+  // Windows must confirm installer creation before the POS exits, including normal app shutdown.
+  autoUpdater.autoInstallOnAppQuit = platform !== 'win32';
 
   async function performUpdateCheck(_notify: boolean = false): Promise<void> {
     if (!canCheckForUpdates()) {
@@ -139,6 +147,8 @@ export function setupAutoUpdater(): void {
 
   autoUpdater.on('update-downloaded', (info) => {
     log.info('[Updater] Update downloaded and ready to install:', info?.version);
+    downloadedInfo = info;
+    downloadedInstaller = { file: info.downloadedFile, sha512: info.files.find(file => /\.exe$/i.test(file.url))?.sha512 || info.sha512 || '' };
     setUpdaterState('downloaded');
   });
 
@@ -180,10 +190,27 @@ export function setupAutoUpdater(): void {
 }
 
 export function registerUpdaterIpc(): void {
-ipcMain.handle('app:installUpdate', () => {
+ipcMain.handle('app:installUpdate', async () => {
   if (updaterState !== 'downloaded') {
     log.warn(`[Updater] Install requested without a downloaded update (state: ${updaterState})`);
     return { success: false, error: 'No downloaded update is ready to install.' };
+  }
+
+  if (installInProgress) return { success: false, error: 'The update installer is already starting.', installerReady: true };
+  if (platform === 'win32') {
+    if (!downloadedInstaller) return { success: false, error: 'No verified update installer is ready. Check for updates again.', installerReady: false };
+    installInProgress = true;
+    const result = await launchWindowsUpdate(downloadedInstaller);
+    if (!result.success) {
+      installInProgress = false;
+      log.error('[Updater] Installer launch failed:', result.error);
+      setUpdaterState(result.installerReady ? 'downloaded' : 'error');
+      return result;
+    }
+    log.info('[Updater] Windows accepted the installer; quitting for update.');
+    // Guard duplicate clicks until the process exits.
+    setImmediate(() => app.quit());
+    return result;
   }
 
   log.info('[Updater] Triggering quitAndInstall with progress banner...');
@@ -231,6 +258,7 @@ ipcMain.handle('app:downloadUpdate', async () => {
 });
 
 ipcMain.handle('app:checkForUpdates', async () => {
+  if (downloadedUpdateReady()) { setUpdaterState('downloaded'); return { success: true, updateInfo: downloadedInfo ? { version: downloadedInfo.version, releaseDate: downloadedInfo.releaseDate, releaseNotes: downloadedInfo.releaseNotes } : null }; }
   try {
     // For manual checks, bypass the state machine throttling but still prevent concurrent checks
     if (isUpdateCheckInProgress) {

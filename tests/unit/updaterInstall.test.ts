@@ -1,113 +1,75 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 type Listener = (...args: unknown[]) => void;
-
-const fixture = vi.hoisted(() => {
-  const listeners = new Map<string, Set<Listener>>();
-  const bucket = (event: string) => {
-    let set = listeners.get(event);
-    if (!set) {
-      set = new Set<Listener>();
-      listeners.set(event, set);
-    }
-    return set;
-  };
-  return {
-    handlers: new Map<string, (...args: unknown[]) => unknown>(),
-    listeners,
-    bucket,
-    emit: (event: string, ...args: unknown[]) => {
-      for (const listener of [...bucket(event)]) listener(...args);
-    },
-    quitAndInstall: vi.fn(),
-    appExit: vi.fn(),
-    appQuit: vi.fn(),
-    appOn: vi.fn(),
-    getMainWindow: vi.fn(() => null),
-  };
-});
-
+const fixture = vi.hoisted(() => ({
+  handlers: new Map<string, (...args: unknown[]) => unknown>(),
+  listeners: new Map<string, Set<Listener>>(),
+  launch: vi.fn(), quitAndInstall: vi.fn(), appQuit: vi.fn(), check: vi.fn(), platform: 'win32',
+}));
+const bucket = (event: string) => {
+  let set = fixture.listeners.get(event);
+  if (!set) { set = new Set(); fixture.listeners.set(event, set); }
+  return set;
+};
+vi.mock('node:process', () => ({ get platform() { return fixture.platform; } }));
 vi.mock('electron', () => ({
-  app: { on: fixture.appOn, exit: fixture.appExit, quit: fixture.appQuit },
-  BrowserWindow: { getAllWindows: () => [] },
-  ipcMain: {
-    handle: (channel: string, handler: (...args: unknown[]) => unknown) => fixture.handlers.set(channel, handler),
-  },
+  app: { on: vi.fn(), quit: fixture.appQuit }, BrowserWindow: { getAllWindows: () => [] },
+  ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => fixture.handlers.set(channel, handler) },
 }));
+vi.mock('electron-updater', () => ({ autoUpdater: {
+  quitAndInstall: fixture.quitAndInstall, checkForUpdatesAndNotify: fixture.check, downloadUpdate: vi.fn(),
+  on: (event: string, listener: Listener) => bucket(event).add(listener),
+  once: (event: string, listener: Listener) => bucket(event).add(listener),
+  removeListener: (event: string, listener: Listener) => bucket(event).delete(listener),
+} }));
+vi.mock('electron-log/main', () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
+vi.mock('../../electron/services/windowRegistry.js', () => ({ getMainWindow: () => null }));
+vi.mock('../../electron/services/windowsUpdateInstaller.js', () => ({ launchWindowsUpdate: fixture.launch }));
 
-vi.mock('electron-updater', () => ({
-  autoUpdater: {
-    quitAndInstall: fixture.quitAndInstall,
-    checkForUpdatesAndNotify: vi.fn(),
-    downloadUpdate: vi.fn(),
-    on: (event: string, listener: Listener) => fixture.bucket(event).add(listener),
-    once: (event: string, listener: Listener) => fixture.bucket(event).add(listener),
-    removeListener: (event: string, listener: Listener) => fixture.bucket(event).delete(listener),
-  },
-}));
-
-vi.mock('electron-log/main', () => ({
-  default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}));
-
-vi.mock('../../electron/services/windowRegistry.js', () => ({ getMainWindow: fixture.getMainWindow }));
-
-import { registerUpdaterIpc, setupAutoUpdater } from '../../electron/services/updaterService';
-
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.clearAllMocks();
-  fixture.quitAndInstall.mockReset();
-  fixture.handlers.clear();
-  fixture.listeners.clear();
+const emit = (event: string, info: unknown) => { for (const fn of bucket(event)) fn(info); };
+const downloaded = () => emit('update-downloaded', { version: '2.2.41', downloadedFile: 'C:/cache/update.exe', files: [{ url: 'update.exe', sha512: 'checksum' }] });
+const install = () => fixture.handlers.get('app:installUpdate')?.();
+beforeEach(async () => {
+  vi.resetModules(); vi.useFakeTimers(); vi.resetAllMocks(); fixture.handlers.clear(); fixture.listeners.clear(); fixture.platform = 'win32';
+  const service = await import('../../electron/services/updaterService');
+  service.setupAutoUpdater(); service.registerUpdaterIpc();
 });
+afterEach(() => vi.useRealTimers());
 
-afterEach(() => {
-  vi.useRealTimers();
+it('does not quit or launch without a downloaded installer', async () => {
+  expect(await install()).toEqual({ success: false, error: expect.any(String) });
+  expect(fixture.launch).not.toHaveBeenCalled(); expect(fixture.appQuit).not.toHaveBeenCalled();
 });
-
-it('does not quit the app when no update has been downloaded', () => {
-  registerUpdaterIpc();
-  const install = fixture.handlers.get('app:installUpdate');
-  expect(install).toBeTypeOf('function');
-
-  const result = install?.();
-
-  expect(result).toEqual({ success: false, error: expect.any(String) });
-  expect(fixture.quitAndInstall).not.toHaveBeenCalled();
-  expect(fixture.appExit).not.toHaveBeenCalled();
+it('waits for Windows to accept the installer before quitting', async () => {
+  downloaded(); let accept: (value: { success: true }) => void = () => {};
+  fixture.launch.mockImplementation(() => new Promise(resolve => { accept = resolve; }));
+  const pending = install();
   expect(fixture.appQuit).not.toHaveBeenCalled();
+  expect(fixture.launch).toHaveBeenCalledWith({ file: 'C:/cache/update.exe', sha512: 'checksum' });
+  accept({ success: true }); expect(await pending).toEqual({ success: true });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(fixture.appQuit).toHaveBeenCalledOnce(); expect(fixture.quitAndInstall).not.toHaveBeenCalled();
 });
-
-it('runs the installer with its progress banner and relaunch once an update is downloaded', () => {
-  setupAutoUpdater();
-  fixture.emit('update-downloaded', { version: '2.2.12' });
-  registerUpdaterIpc();
-
-  const result = fixture.handlers.get('app:installUpdate')?.();
-
-  expect(fixture.quitAndInstall).toHaveBeenCalledWith(false, true);
-  expect(result).toEqual({ success: true });
-  expect(fixture.appExit).not.toHaveBeenCalled();
+it('keeps POS open after delayed spawn failure and retries the same verified download', async () => {
+  downloaded();
+  fixture.launch.mockImplementation(async () => { await Promise.resolve(); return { success: false, error: 'spawn UNKNOWN', installerReady: true }; });
+  expect(await install()).toMatchObject({ success: false, installerReady: true });
+  await vi.advanceTimersByTimeAsync(0); expect(fixture.appQuit).not.toHaveBeenCalled();
+  expect(await install()).toMatchObject({ success: false, installerReady: true });
+  expect(fixture.launch).toHaveBeenCalledTimes(2);
 });
-
-it('keeps the app open and reports the error when the installer cannot start', () => {
-  setupAutoUpdater();
-  fixture.emit('update-downloaded', { version: '2.2.12' });
-  fixture.quitAndInstall.mockImplementation(() => {
-    fixture.emit('error', new Error("No update filepath provided, can't quit and install"));
-  });
-  registerUpdaterIpc();
-
-  const install = fixture.handlers.get('app:installUpdate');
-  const result = install?.();
-
-  expect(result).toEqual({ success: false, error: expect.stringContaining('No update filepath') });
-  expect(fixture.appExit).not.toHaveBeenCalled();
-  expect(fixture.appQuit).not.toHaveBeenCalled();
-
-  // The failed installer is unusable: a second click must not reach quitAndInstall again.
-  const second = install?.();
-  expect(second).toEqual({ success: false, error: expect.stringContaining('No downloaded update') });
-  expect(fixture.quitAndInstall).toHaveBeenCalledTimes(1);
+it('prevents duplicate installer processes from concurrent clicks', async () => {
+  downloaded(); fixture.launch.mockReturnValue(new Promise(() => {}));
+  void install(); expect(await install()).toMatchObject({ success: false, error: expect.stringContaining('already starting') });
+  expect(fixture.launch).toHaveBeenCalledOnce();
+});
+it('keeps a downloaded update ready during rechecks and disables unverified install on app quit', async () => {
+  downloaded(); expect(await fixture.handlers.get('app:checkForUpdates')?.()).toMatchObject({ success: true, updateInfo: { version: '2.2.41' } });
+  expect(fixture.check).not.toHaveBeenCalled();
+  const { autoUpdater } = await import('electron-updater'); expect(autoUpdater.autoInstallOnAppQuit).toBe(false);
+});
+it('retains the native updater on non-Windows platforms', async () => {
+  fixture.platform = 'darwin'; downloaded();
+  expect(await install()).toEqual({ success: true }); expect(fixture.quitAndInstall).toHaveBeenCalledWith(false, true);
+  expect(fixture.launch).not.toHaveBeenCalled();
 });

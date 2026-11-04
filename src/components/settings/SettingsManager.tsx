@@ -261,21 +261,18 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   });
 
   const handleInstallUpdate = async () => {
-    setUpdateStatus('Restarting to update...');
+    setUpdateStatus('Starting installer...');
     try {
       const res = await appApi.installUpdate();
       if (!res || res.success) return;
-      setUpdateReady(false);
+      setUpdateReady(res.installerReady === true);
       setIsDownloading(false);
       setDownloadProgress(null);
-      setUpdateStatus('Update not ready — re-downloading...');
-      const check = await appApi.checkForUpdates();
-      setLastChecked(new Date());
-      if (!check.success) setUpdateStatus(check.error || 'Update check failed');
-      else if (!check.updateInfo) setUpdateStatus('Up to date');
+      setUpdateStatus(res.installerReady === true ? 'Installation failed — retry' : 'Download failed');
+      setMessage({ type: 'error', text: res.error || 'Could not start the installer. Please retry.' });
     } catch {
       setIsDownloading(false);
-      setUpdateStatus('Download failed');
+      setUpdateStatus('Installation failed — retry');
     }
   };
 

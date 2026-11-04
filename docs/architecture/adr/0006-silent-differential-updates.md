@@ -39,3 +39,17 @@ Status: accepted
 - Measured on packaged test builds, the `/S` install takes about 30-45 s from click to relaunch (not ~2 s) with nothing on screen, so it reads as "the app closed and did not restart". A failed `/S` install also exits unseen without relaunching.
 - The handler now calls `autoUpdater.quitAndInstall(false, true)`. With `oneClick: true` there is still no wizard and no prompt (the license page is skipped for `--updated`): the user sees the installer's progress banner, then the app relaunches.
 - Unsigned builds can still be refused by Windows Smart App Control, on relaunch as well as on a manual start (error 4551). Only code signing addresses that.
+
+## Amendment (4 November 2026): await Windows installer creation
+
+`electron-updater` 6.8 returns success from NSIS `doInstall` before its asynchronous process launch resolves.
+A delayed `spawn UNKNOWN` can therefore arrive after `quitAndInstall` has scheduled app shutdown.
+Windows uses `windowsUpdateInstaller.ts` to recheck the downloaded EXE's SHA-512 against updater metadata,
+then waits for the child process `spawn` event before quitting. The installer retains its progress UI and
+`--updated --force-run` relaunch flags. Automatic install on ordinary Windows exit is disabled so that
+closing the POS cannot repeat a failed installer launch. Other platforms retain the native updater path.
+Launch failures keep the app open, report an actionable error and preserve a verified installer for retry;
+missing/corrupt downloads require a fresh check. Concurrent install clicks are guarded. No OS policy is bypassed.
+Already-installed older updater code cannot be repaired remotely before it installs a newer release. Shops
+whose Windows policy rejects an unsigned installer need an accepted signed release; a new app version alone
+cannot override that policy. Recovery instructions must accompany the release for affected older terminals.

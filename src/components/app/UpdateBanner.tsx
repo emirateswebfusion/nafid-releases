@@ -9,7 +9,7 @@ interface UpdateBannerProps {
 }
 
 export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
-  const { updateInfo, updateReady, installUpdate, init } = useUpdateStore();
+  const { updateInfo, updateReady, installUpdate, init, installError, isInstalling } = useUpdateStore();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -27,8 +27,8 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
     init();
   }, [init]);
 
-  if (!updateInfo && !updateReady) return null;
-  if (dismissed) return null;
+  if (!updateInfo && !updateReady && !installError) return null;
+  if (dismissed && !installError) return null;
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -73,6 +73,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
                 {getReleaseNotesSummary(updateInfo.releaseNotes)}
               </p>
             )}
+            {installError && <p role="alert" className="text-xs text-destructive mt-1 whitespace-normal">{installError}</p>}
             {updateReady && (
               <p className="text-[10px] text-emerald-600/70 mt-0.5">
                 Restart to update
@@ -83,11 +84,11 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
         <div className="flex items-center gap-2 shrink-0">
           {updateReady ? (
             <button
-              onClick={handleInstall}
+              onClick={handleInstall} disabled={isInstalling}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all active:scale-95 cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
-              Update →
+              {isInstalling ? 'Starting installer...' : installError ? 'Retry installation' : 'Update →'}
             </button>
           ) : (
             <button
