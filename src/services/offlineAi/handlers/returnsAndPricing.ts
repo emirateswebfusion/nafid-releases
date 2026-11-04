@@ -3,7 +3,7 @@ import { settingsApi } from '../../../data/settings';
 import { hasBridge } from '../../../data/client';
 import { returnsApi } from '../../../data/returns';
 import { resolveDateRange } from '../dates';
-import { formatINR } from '../format';
+import { formatMoney } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
 import type { AiQueryContext } from '../queryContext';
@@ -27,10 +27,10 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
       const md = isMal
         ? `### 🔄 സെയിൽസ് റിട്ടേൺസ് സംഗ്രഹം — ${range.label}\n\n` +
           `* **ആകെ റിട്ടേൺ ബില്ലുകൾ:** **${filtered.length} എണ്ണം**\n` +
-          `* **തിരിച്ചുനൽകിയ ആകെ തുക:** **${formatINR(total)}**\n`
+          `* **തിരിച്ചുനൽകിയ ആകെ തുക:** **${formatMoney(total)}**\n`
         : `### 🔄 Sales Returns & Refunds Summary — ${range.label}\n\n` +
           `* **Total Returns Count:** **${filtered.length} records**\n` +
-          `* **Total Refunded Amount:** **${formatINR(total)}**\n`;
+          `* **Total Refunded Amount:** **${formatMoney(total)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -71,7 +71,7 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
           ? `| ഉൽപ്പന്നം | തിരിച്ചെടുത്ത അളവ് | ആകെ റീഫണ്ട് |\n| :--- | :---: | :---: |\n`
           : `| Product | Quantity Returned | Total Refund Value |\n| :--- | :---: | :---: |\n`;
         sortedItems.forEach(it => {
-          md += `| **${it.name}** | ${it.quantity} | **${formatINR(it.total)}** |\n`;
+          md += `| **${it.name}** | ${it.quantity} | **${formatMoney(it.total)}** |\n`;
         });
       } else {
         md += isMal
@@ -100,7 +100,7 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
         : `### 💳 Refunds by Payment Method — ${range.label}\n\n| Refund Method | Total Refunded |\n| :--- | :---: |\n`;
 
       Object.keys(byMethod).forEach(k => {
-        md += `| **${k}** | **${formatINR(byMethod[k])}** |\n`;
+        md += `| **${k}** | **${formatMoney(byMethod[k])}** |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -150,15 +150,15 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
       const p = matched[0];
       const md = isMal
         ? `### 🏷️ വില വിവരങ്ങൾ: **${p.name}**\n\n` +
-          `* **റീട്ടെയിൽ വില (MRP / Base Price):** **${formatINR(p.base_price)}**\n` +
-          `* **പർച്ചേസ് വില:** ${formatINR(p.purchase_price)}\n` +
-          `* **ഓഫർ വില:** ${formatINR(p.offer_price || p.base_price)}\n` +
+          `* **റീട്ടെയിൽ വില (MRP / Base Price):** **${formatMoney(p.base_price)}**\n` +
+          `* **പർച്ചേസ് വില:** ${formatMoney(p.purchase_price)}\n` +
+          `* **ഓഫർ വില:** ${formatMoney(p.offer_price || p.base_price)}\n` +
           `* **ടാക്സ് റേറ്റ് (GST):** ${p.tax_rate_percent || 0}%\n` +
           (parsed.params.includeBarcode ? `* **ബാർകോഡ്:** ${p.sku_barcode || 'ലഭ്യമല്ല'}\n` : '')
         : `### 🏷️ Pricing Details: **${p.name}**\n\n` +
-          `* **Retail Selling Price (Base Price):** **${formatINR(p.base_price)}**\n` +
-          `* **Purchase Price (Cost):** ${formatINR(p.purchase_price)}\n` +
-          `* **Offer / Wholesale Price:** ${formatINR(p.offer_price || p.base_price)}\n` +
+          `* **Retail Selling Price (Base Price):** **${formatMoney(p.base_price)}**\n` +
+          `* **Purchase Price (Cost):** ${formatMoney(p.purchase_price)}\n` +
+          `* **Offer / Wholesale Price:** ${formatMoney(p.offer_price || p.base_price)}\n` +
           `* **GST Tax Rate:** ${p.tax_rate_percent || 0}%\n` +
           (parsed.params.includeBarcode ? `* **Barcode / SKU:** ${p.sku_barcode || 'None'}\n` : '');
 
@@ -178,11 +178,11 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
       const md = isMal
         ? `### 🔍 ബാർകോഡ് ഉൽപ്പന്നം: **${p.name}**\n\n` +
           `* **ബാർകോഡ്:** ${p.sku_barcode || '—'}\n` +
-          `* **വില:** **${formatINR(p.base_price)}**\n` +
+          `* **വില:** **${formatMoney(p.base_price)}**\n` +
           `* **സ്റ്റോക്ക്:** ${p.current_stock || 0} ${p.uom || 'units'}\n`
         : `### 🔍 Barcode Lookup Result: **${p.name}**\n\n` +
           `* **Barcode / SKU:** ${p.sku_barcode || '—'}\n` +
-          `* **Unit Price:** **${formatINR(p.base_price)}**\n` +
+          `* **Unit Price:** **${formatMoney(p.base_price)}**\n` +
           `* **Current Stock:** ${p.current_stock || 0} ${p.uom || 'units'}\n`;
 
       return { content: md, intent: parsed.intent };

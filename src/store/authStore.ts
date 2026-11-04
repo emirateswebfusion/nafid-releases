@@ -560,6 +560,8 @@ registerCloudAuth({
     return token;
   },
   onUnauthorized: () => {
+    // Concurrent requests can all reject the same session; notify once until the next login.
+    if (useAuthStore.getState().isCloudSyncPaused) return;
     useAuthStore.getState().setCloudSyncPaused(true, 'Token expired — Cloud Sync paused. Re-login to resume cloud sync.');
     if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('open-session-expired-modal'));
   },

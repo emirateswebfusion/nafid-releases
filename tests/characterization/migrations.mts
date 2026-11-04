@@ -11,6 +11,7 @@ const { initDb, getDb } = await load('electron/db/localDb.ts');
 const { runMigrations } = await load('electron/db/migrations/runner.ts');
 const { MIGRATIONS } = await load('electron/db/migrations/index.ts');
 const { SYNCED_TABLES } = await load('electron/db/migrations/002-sync-outbox.ts');
+const { RESTAURANT_SYNCED_TABLES } = await load('electron/db/migrations/016-restaurant.ts');
 const { withSyncApplyGuard, countPendingOps, listPendingOps, clearSyncApplyGuard } = await load('electron/db/statements/outbox.ts');
 const { m003SyncOutboxTriggers } = await load('electron/db/migrations/003-sync-outbox-triggers.ts');
 
@@ -27,9 +28,21 @@ check('all released migrations applied on a fresh database', recorded(), MIGRATI
 check('user_version = latest', db.pragma('user_version', { simple: true }), latest);
 check('returns indexes exist', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_return%' ORDER BY name").all() as { name: string }[]).map((r) => r.name),
   ['idx_return_items_invoice_item_id', 'idx_return_items_return_id', 'idx_returns_invoice_id']);
+check('historical credit notes accept no original invoice (021)', (db.prepare('PRAGMA table_info(returns)').all() as { name: string; notnull: number }[]).find(c => c.name === 'invoice_id')?.notnull, 0);
 check('sync_outbox table exists', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_outbox'").get() as { name: string } | undefined)?.name, 'sync_outbox');
+check('einvoice_documents mirror table exists (017)', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'einvoice_documents'").get() as { name: string } | undefined)?.name, 'einvoice_documents');
+check('customers.einvoice_profile exists (017)', (db.prepare('PRAGMA table_info(customers)').all() as { name: string }[]).some((c) => c.name === 'einvoice_profile'), true);
+{
+  db.prepare("INSERT INTO customers (customer_id, tenant_id, name, phone) VALUES ('einv-cust', 't-einv', 'Buyer LLC', '0500000001')").run();
+  db.prepare("UPDATE customers SET einvoice_profile = ? WHERE customer_id = 'einv-cust'").run(JSON.stringify({ isBusiness: true, trn: '100987654300003' }));
+  const ops = db.prepare("SELECT payload FROM sync_outbox WHERE entity = 'customers' AND entity_id = 'einv-cust' ORDER BY row_version").all() as { payload: string }[];
+  check('customer e-invoice profile edit is carried by an outbox op (017 rebuilt triggers)', ops.length === 2 && JSON.parse(ops[1].payload).einvoice_profile.includes('100987654300003'), true);
+  db.prepare("DELETE FROM sync_outbox WHERE entity = 'customers' AND entity_id = 'einv-cust'").run();
+  db.prepare("DELETE FROM customers WHERE customer_id = 'einv-cust'").run();
+  db.prepare("DELETE FROM sync_outbox WHERE entity = 'customers' AND entity_id = 'einv-cust'").run();
+}
 check('sync_outbox pending index exists', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_sync_outbox_pending'").get() as { name: string } | undefined)?.name, 'idx_sync_outbox_pending');
-for (const table of SYNCED_TABLES as readonly string[]) {
+for (const table of [...SYNCED_TABLES, ...RESTAURANT_SYNCED_TABLES] as readonly string[]) {
   const columns = db.prepare('PRAGMA table_info(' + table + ')').all() as { name: string }[];
   const names = new Set(columns.map((column) => column.name));
   check(table + ' has row_version', names.has('row_version'), true);
@@ -42,6 +55,10 @@ for (const table of SYNCED_TABLES as readonly string[]) {
   ]);
 }
 
+check('restaurant forward-only triggers exist', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name IN ('restaurant_orders_final_status', 'restaurant_order_lines_void_final', 'kot_tickets_kds_forward') ORDER BY name").all() as { name: string }[]).map((r) => r.name),
+  ['kot_tickets_kds_forward', 'restaurant_order_lines_void_final', 'restaurant_orders_final_status']);
+check('restaurant counters are not synced', (db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'sync_outbox_restaurant_counters_%'").get() as { n: number }).n, 0);
+
 const origin = (db.prepare("SELECT value FROM sync_meta WHERE key = 'origin'").get() as { value: string } | undefined)?.value;
 check('origin is a lowercase eight-character hex terminal id', /^[0-9a-f]{8}$/.test(origin || ''), true);
 
@@ -52,30 +69,32 @@ const productOps = () => db.prepare(`SELECT op, entity, entity_id, row_version, 
   FROM sync_outbox WHERE entity = 'products' AND entity_id = ? ORDER BY row_version`).all(productId) as {
   op: string; entity: string; entity_id: string; row_version: number; payload: string | null; origin: string;
 }[];
-check('product insert records one op', productOps().length, 1);
+check('product insert records initial and stock-opening bootstrap ops', productOps().length, 2);
+check('stock opening bootstrap is recorded in the second op', productOps()[1] && JSON.parse(productOps()[1].payload || '{}').stock_opening, 0);
 check('product insert op identity and version', productOps()[0] && [productOps()[0].op, productOps()[0].entity, productOps()[0].entity_id, productOps()[0].row_version],
   ['UPSERT', 'products', productId, 0]);
 check('product insert op origin and payload', productOps()[0] && [productOps()[0].origin, JSON.parse(productOps()[0].payload || '{}').origin], [origin, origin]);
 check('product insert stores terminal origin on row', (db.prepare('SELECT origin FROM products WHERE product_id = ?').get(productId) as { origin: string }).origin, origin);
 
 db.prepare('UPDATE products SET name = ? WHERE product_id = ?').run('Updated outbox test', productId);
-check('product business update records one op and increments version', productOps().map((row) => [row.op, row.row_version]), [['UPSERT', 0], ['UPSERT', 1]]);
+check('product business update records one op and increments version', productOps().map((row) => [row.op, row.row_version]), [['UPSERT', 0], ['UPSERT', 1], ['UPSERT', 2]]);
 check('business update stores terminal origin on row', (db.prepare('SELECT origin FROM products WHERE product_id = ?').get(productId) as { origin: string }).origin, origin);
 
 db.prepare("UPDATE products SET sync_status = 'PENDING' WHERE product_id = ?").run(productId);
-check('sync_status-only update records no op', productOps().length, 2);
+check('sync_status-only update records no op', productOps().length, 3);
 db.prepare('UPDATE products SET name = ?, base_price = base_price WHERE product_id = ?').run('Updated outbox test', productId);
-check('same-value business update records no op (balance recalculations)', productOps().length, 2);
+check('same-value business update records no op (balance recalculations)', productOps().length, 3);
 db.prepare("UPDATE products SET updated_at = '2026-10-26T00:00:00.000Z' WHERE product_id = ?").run(productId);
-check('updated_at-only update records no op', productOps().length, 2);
+check('updated_at-only update records no op', productOps().length, 3);
 
 db.prepare('DELETE FROM products WHERE product_id = ?').run(productId);
 check('product delete records a versioned tombstone', productOps().map((row) => [row.op, row.entity_id, row.row_version, row.payload]), [
   ['UPSERT', productId, 0, productOps()[0].payload],
   ['UPSERT', productId, 1, productOps()[1].payload],
-  ['DELETE', productId, 2, null],
+  ['UPSERT', productId, 2, productOps()[2].payload],
+  ['DELETE', productId, 3, null],
 ]);
-check('pending outbox helpers count and limit rows', [countPendingOps(db), listPendingOps(db, 2).length], [3, 2]);
+check('pending outbox helpers count and limit rows', [countPendingOps(db), listPendingOps(db, 2).length], [4, 2]);
 
 const beforeGuardedWrite = countPendingOps(db);
 const guardedProductId = 'migration-outbox-guarded-product';

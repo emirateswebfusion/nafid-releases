@@ -6,6 +6,8 @@ import { LAN_KEY_HEADER, ensureLanPairingKey, isValidLanKey } from '../services/
 import { getTableMeta, upsertTableRows } from './lanUpsert.js';
 import { LAN_PULL_TABLES, LAN_PUSH_TABLES } from './lanTables.js';
 import * as localHostServerSql from '../db/statements/sync/localHostServer.js';
+import { claimLocal } from '../services/restaurantOrderService.js';
+import { LAN_CLAIM_PATH } from '../services/restaurantClaim.js';
 
 function toNormalizedUtc(str: string | null | undefined): string | null {
   if (!str) return null;
@@ -288,6 +290,11 @@ export function startLocalHostServer(port: number = 3888) {
         const { statement: pendingStmt, params: qParams } = localHostServerSql.pendingBillsQuery(db, rawSince ? toNormalizedUtc(rawSince) : null, lastId);
         const rows = pendingStmt.all(...qParams);
         return sendJson(res, 200, { success: true, count: rows.length, bills: rows });
+      }
+
+      // Restaurant billing claim: the primary decides which terminal bills an order (restaurant-mode-design §10).
+      if (pathname === LAN_CLAIM_PATH && req.method === 'POST') {
+        return sendJson(res, 200, claimLocal(await parseJsonBody(req)));
       }
 
       // ── Generic & Explicit Sync Endpoints for LAN ────────────────────────

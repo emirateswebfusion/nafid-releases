@@ -1,5 +1,6 @@
 import React from 'react';
 import { FilingOnlySettings } from '../FilingOnlySettings';
+import { UaeEinvoiceSettings } from '../UaeEinvoiceSettings';
 import { EmergencyPurgeSettings } from '../EmergencyPurgeSettings';
 import { StaffDataMaskingSettings } from '../StaffDataMaskingSettings';
 import { DesignSettings } from '../../design-settings/DesignSettings';
@@ -89,6 +90,8 @@ export function SettingsSectionContent({
       );
     case 'filing_only':
       return <FilingOnlySettings tenantId={tenantId} />;
+    case 'uae_einvoice':
+      return <UaeEinvoiceSettings tenantId={tenantId} />;
     case 'store':
       return (
         <StoreSettingsTab

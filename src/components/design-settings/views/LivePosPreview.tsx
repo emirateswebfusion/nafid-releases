@@ -1,4 +1,5 @@
-import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getSampleBarcode, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { Eye, CreditCard, Tag, Barcode } from 'lucide-react';
 import { getForegroundForColor } from '../../../store/themeStore';
 import type { ColorPreset, SurfaceThemePreset, FontPreset } from '../../../store/themeStore';
@@ -25,7 +26,7 @@ export function LivePosPreview({
           </span>
           <div>
             <h2 className="text-sm font-black text-foreground uppercase tracking-wider">Live POS Component Simulation</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Real-time simulation of POS buttons, badges, inputs, and INR currency typography</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Real-time simulation of POS buttons, badges, inputs, and currency typography</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
@@ -104,7 +105,7 @@ export function LivePosPreview({
               <input
                 type="text"
                 placeholder="Scan barcode or type item..."
-                defaultValue="8901030382910"
+                defaultValue={getSampleBarcode()}
                 className="w-full h-10 px-3.5 rounded-xl text-xs font-medium bg-card border border-border text-foreground transition-all duration-200 outline-none"
                 style={{
                   borderColor: primaryColor,
@@ -120,16 +121,16 @@ export function LivePosPreview({
         </div>
       </div>
 
-      {/* Live Typographic Sample Strip (INR Currency) */}
+      {/* Live Typographic Sample Strip (shop currency) */}
       <div className="p-4 sm:p-5 rounded-2xl bg-muted/30 border border-border/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Typography & Currency Render ({activeFontPreset.name})</span>
           <p className="text-base sm:text-lg font-bold text-foreground leading-snug">
-            Nafid Retail Point-of-Sale System • Daily Revenue INR 14,892.50
+            Nafid Retail Point-of-Sale System • Daily Revenue {formatCurrency(14892.5)}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <span className="text-2xl font-black font-mono text-primary tabular-nums">INR 1,489.50</span>
+          <span className="text-2xl font-black font-mono text-primary tabular-nums">{formatCurrency(1489.5)}</span>
           <p className="text-[10px] text-muted-foreground">Tabular numeric currency alignment</p>
         </div>
       </div>

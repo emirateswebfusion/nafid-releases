@@ -22,7 +22,8 @@ it('shows the same net-rate AED/TRN/VAT document for preview and export, includi
     previewHasDiscounts={false} previewHasHsn={false} />);
   const iframe = screen.getByTitle('UAE quotation preview') as HTMLIFrameElement;
   const doc = new DOMParser().parseFromString(iframe.srcdoc, 'text/html');
-  expect(doc.body.textContent).toContain('TRN: 100000000000003');
+  expect(doc.body.textContent).toContain('QUOTATION / عرض سعر');
+  expect(doc.body.textContent).toContain('TRN / رقم التسجيل الضريبي: 100000000000003');
   expect(doc.body.textContent).toContain('AED 105.00');
   expect(doc.body.textContent).not.toMatch(/GSTIN|CGST|SGST|IGST|Rupees/);
   const row = Array.from(doc.querySelectorAll('tbody tr')).find(tr => tr.textContent?.includes('Test product'))!;

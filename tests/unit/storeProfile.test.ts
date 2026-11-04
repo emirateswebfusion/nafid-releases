@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { getStoreProfile, isValidTaxRegistration, normalizeStoreCountry, setStoreCountry, setStoreVatInclusive } from '../../src/utils/localization/storeProfile';
+import { getSampleBarcode, getStoreProfile, isValidTaxRegistration, localizeCurrencyText, normalizeStoreCountry, setStoreCountry, setStoreVatInclusive } from '../../src/utils/localization/storeProfile';
 import { formatAmount, formatCurrency } from '../../src/utils/pricing/money';
 import { calculateVat } from '../../src/utils/pricing/vat';
 import { buildCheckoutLines, buildQuotationLines, buildReceiptLines, resolveSupplyType } from '../../src/utils/pricing/checkoutLines';
@@ -55,5 +55,18 @@ describe('UAE VAT', () => {
     const receipt = generateReceiptText(data, 5.8);
     expect(receipt).toContain('VAT: AED 5.00'); expect(receipt).not.toMatch(/CGST|SGST|IGST|₹/);
     expect(Math.max(...receipt.trimEnd().split('\n').map(line => line.length))).toBeLessThanOrEqual(32);
+  });
+});
+
+describe('localizeCurrencyText', () => {
+  const samples = ['Rate (₹)', '₹15 off', '₹ 35,00,000', 'Discount ₹', '+₹', ' (₹'];
+  it('leaves Indian strings unchanged', () => {
+    expect(samples.map(localizeCurrencyText)).toEqual(samples);
+    expect(getSampleBarcode()).toBe('8901234567890');
+  });
+  it('uses AED without stray spaces in a UAE shop', () => {
+    setStoreCountry('AE');
+    expect(samples.map(localizeCurrencyText)).toEqual(['Rate (AED)', 'AED 15 off', 'AED 35,00,000', 'Discount AED ', '+AED ', ' (AED ']);
+    expect(getSampleBarcode()).toBe('6291234567894');
   });
 });

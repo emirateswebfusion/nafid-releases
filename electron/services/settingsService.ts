@@ -18,6 +18,7 @@ const LOCAL_DEVICE_SETTING_KEYS = [
   'receipt_printer_config',
   'a4_printer_config',
   'scale_config',
+  'card_terminal_config',
   'printer_config',
   'network_sync_config',
   'sync_engine',

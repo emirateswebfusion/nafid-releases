@@ -14,6 +14,9 @@ Read it before writing code. If the code and these documents disagree, fix one o
 | — | [Decision records](adr/) | why the architecture is the way it is (0001 bridge repositories, 0002 one rule one module, 0003 ratchets, 0004 main-process layering, 0005 LAN pairing, 0006 silent updates) |
 | — | [GST Phase 2A Integration](gst-phase2a-integration.md) | India GST multi-mode integration architecture (Managed GSP, Shop GSP, Offline) |
 | — | [UAE VAT 201 & FTA Audit](vat-uae-integration.md) | UAE Form VAT 201 return, FTA Audit File (FAF), and filing lifecycle |
+| — | [Card terminal (ECR)](card-terminal-design.md) | sending card amounts to the bank card machine: UAE acquirer research, `PaymentTerminal` interface, journal, flows, how to add an acquirer |
+| — | [UAE e-invoicing (PINT AE)](uae-einvoicing-design.md) | Peppol PINT AE e-invoices built and sent by the server after sync; read-only status mirror on terminals; ASP adapters |
+| — | [Restaurant mode](restaurant-mode-design.md) | tables, kitchen stations, add-ons, orders and KOT, kitchen display, settlement through checkout, India and UAE rules |
 
 Related:
 

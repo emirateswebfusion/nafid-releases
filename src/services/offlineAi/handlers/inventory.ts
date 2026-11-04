@@ -1,4 +1,4 @@
-import { formatINR, formatQty } from '../format';
+import { formatMoney, formatQty } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
 import type { AiQueryContext } from '../queryContext';
@@ -23,7 +23,7 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
           `| Product Name | Barcode / Code | Category | Unit Price |\n| :--- | :---: | :--- | :---: |\n`;
 
       outOfStock.slice(0, 15).forEach((p: AiRow) => {
-        md += `| **${p.name}** | ${p.sku_barcode || p.item_code || '—'} | ${p.category || 'General'} | ${formatINR(p.base_price)} |\n`;
+        md += `| **${p.name}** | ${p.sku_barcode || p.item_code || '—'} | ${p.category || 'General'} | ${formatMoney(p.base_price)} |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -67,12 +67,12 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
 
       const md = isMal
         ? `### 📦 ആകെ ഇൻവെന്ററി മൂല്യം (Total Inventory Valuation)\n\n` +
-          `* **പർച്ചേസ് കോസ്റ്റ് അടിസ്ഥാനത്തിൽ (Cost Valuation):** **${formatINR(costVal)}**\n` +
-          `* **റീട്ടെയിൽ വിൽപ്പന വില അടിസ്ഥാനത്തിൽ (Retail Value):** **${formatINR(retailVal)}**\n` +
+          `* **പർച്ചേസ് കോസ്റ്റ് അടിസ്ഥാനത്തിൽ (Cost Valuation):** **${formatMoney(costVal)}**\n` +
+          `* **റീട്ടെയിൽ വിൽപ്പന വില അടിസ്ഥാനത്തിൽ (Retail Value):** **${formatMoney(retailVal)}**\n` +
           `* **സ്റ്റോക്കിലുള്ള ഉൽപ്പന്നങ്ങളുടെ എണ്ണം:** **${inStockItems} ഇനങ്ങൾ** (ആകെ ${inStockUnits} എണ്ണം)\n`
         : `### 📦 Total Inventory Valuation Report\n\n` +
-          `* **Total Cost Valuation (Purchase Price):** **${formatINR(costVal)}**\n` +
-          `* **Total Retail Valuation (Selling Price):** **${formatINR(retailVal)}**\n` +
+          `* **Total Cost Valuation (Purchase Price):** **${formatMoney(costVal)}**\n` +
+          `* **Total Retail Valuation (Selling Price):** **${formatMoney(retailVal)}**\n` +
           `* **Active In-Stock Items:** **${inStockItems} products** (Total ${inStockUnits} units)\n`;
 
       return { content: md, intent: parsed.intent };
@@ -93,11 +93,11 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
       const md = isMal
         ? `### 🔍 ഉൽപ്പന്ന സ്റ്റോക്ക് വിവരം: **${p.name}**\n\n` +
           `* **നിലവിലെ സ്റ്റോക്ക്:** **${p.current_stock || 0} ${p.uom || 'units'}**\n` +
-          `* **റീട്ടെയിൽ വില:** ${formatINR(p.base_price)}\n` +
+          `* **റീട്ടെയിൽ വില:** ${formatMoney(p.base_price)}\n` +
           `* **റീ-ഓർഡർ ലെവൽ:** ${p.reorder_level || 0}\n`
         : `### 🔍 Product Stock Status: **${p.name}**\n\n` +
           `* **Current Stock Level:** **${p.current_stock || 0} ${p.uom || 'units'}**\n` +
-          `* **Selling Price:** ${formatINR(p.base_price)}\n` +
+          `* **Selling Price:** ${formatMoney(p.base_price)}\n` +
           `* **Reorder Level:** ${p.reorder_level || 0}\n`;
 
       return { content: md, intent: parsed.intent };
@@ -192,7 +192,7 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
         negativeMargin.slice(0, 15).forEach((p: AiRow) => {
           const pp = Number(p.purchase_price) || 0;
           const sp = Number(p.selling_price) || 0;
-          md += `| **${p.name}** | ${formatINR(pp)} | ${formatINR(sp)} | -${formatINR(pp - sp)} |\n`;
+          md += `| **${p.name}** | ${formatMoney(pp)} | ${formatMoney(sp)} | -${formatMoney(pp - sp)} |\n`;
         });
       }
 
@@ -241,7 +241,7 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
       if (addedToday.length > 0) {
         md += `\n| Product Name | Price | Stock |\n| :--- | :---: | :---: |\n`;
         addedToday.slice(0, 15).forEach((p: AiRow) => {
-          md += `| **${p.name}** | ${formatINR(p.selling_price)} | ${formatQty(p.stock_quantity)} |\n`;
+          md += `| **${p.name}** | ${formatMoney(p.selling_price)} | ${formatQty(p.stock_quantity)} |\n`;
         });
       }
 

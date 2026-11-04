@@ -8,6 +8,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_BILL_SETTINGS, generateReceiptText, type ReceiptData } from '../../src/utils/print/receiptGenerator';
 import { generateInvoiceHtml, generatePurchaseBillHtml, type InvoiceData } from '../../src/utils/print/invoiceHtmlGenerator';
 import { generateQuotationHtml, type QuotationPrintData } from '../../src/utils/print/quotationHtmlGenerator';
+import { formatWhatsAppBillMessage } from '../../src/utils/print/whatsappBillHelper';
+import { setUaeArabicPrint } from '../../src/utils/print/uaeLabels';
+import { setStoreCountry } from '../../src/utils/localization/storeProfile';
 
 const gstItems = [
   { name: 'Steel Rod 12mm TMT Fe500 Premium Quality Long Name', quantity: 2, unit_price: 590, total: 1180, originalRate: 650, discountLabel: '9% off', brand: 'Tata', hsn_code: '7214', tax_rate_percent: 18, gst_percent: 18, cgst_rate: 9, sgst_rate: 9, cgst_amount: 90, sgst_amount: 90, unit: 'Pcs' },
@@ -109,5 +112,72 @@ describe('print generators (characterization)', () => {
       quotationGst: generateQuotationHtml(quotation(true)),
       quotationPlain: generateQuotationHtml(quotation(false)),
     }).toMatchSnapshot();
+  });
+});
+
+const uaeShop = { shopName: 'Al Noor Hardware LLC', shopAddress: 'Musaffah M-10, Abu Dhabi', shopPhone: '+971 2 555 0101', shopEmail: 'sales@alnoor.example' };
+const uaeItems = [
+  { name: 'Drill 13mm', quantity: 1, unit_price: 200, total: 200, tax_rate_percent: 5, unit: 'Pcs' },
+  { name: 'Wall plugs (box)', quantity: 3, unit_price: 12.5, total: 37.5, tax_rate_percent: 5 },
+];
+const uaeBill: ReceiptData = {
+  ...uaeShop, shopGstin: '100000000000003', invoiceNumber: 'INV-0042', date: '2026-10-15T09:15:00Z', billerName: 'Cashier 1', items: uaeItems,
+  subtotal: 237.5, tax: 11.88, discount: 0, grandTotal: 249.38, receivedAmount: 250, balanceAmount: 0, paymentMethod: 'CASH', invoiceType: 'GST',
+  billSettings: { ...DEFAULT_BILL_SETTINGS, instructions: 'Goods once sold are exchangeable within 7 days.' },
+};
+const UAE_CASES: Record<string, ReceiptData> = {
+  'b2b-trn': { ...uaeBill, isB2B: true, customerName: 'Gulf Builders LLC', customerAddress: 'Mussafah, Abu Dhabi', customerGstin: '100123456700003', paymentMethod: 'CARD' },
+  'b2c-trn': { ...uaeBill, customerName: 'Walk-in' },
+  'no-trn': { ...uaeBill, shopGstin: undefined, invoiceType: 'BILL_OF_SUPPLY', tax: 0, subtotal: 237.5, grandTotal: 237.5, receivedAmount: 237.5 },
+  'credit-note': { ...uaeBill, invoiceType: 'RETURN', invoiceNumber: 'CN-0007', paymentMethod: 'CASH', receivedAmount: undefined, isReprint: true },
+};
+
+describe('UAE print generators (bilingual)', () => {
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T10:30:00Z'));
+    setStoreCountry('AE');
+  });
+  afterAll(() => { setStoreCountry('IN'); setUaeArabicPrint(undefined); vi.useRealTimers(); });
+
+  it('renders A4, thermal and WhatsApp bills for B2B, B2C, no-TRN and credit notes', () => {
+    const out: Record<string, string> = {};
+    for (const [name, bill] of Object.entries(UAE_CASES)) {
+      setUaeArabicPrint({ documents: true, thermal: true });
+      out[`${name}/a4/arabic`] = generateInvoiceHtml(asInvoice(bill), 'boxed');
+      out[`${name}/thermal/80/arabic`] = generateReceiptText(bill, 8);
+      out[`${name}/thermal/58/arabic`] = generateReceiptText(bill, 5.8);
+      out[`${name}/whatsapp/arabic`] = formatWhatsAppBillMessage({ ...bill, invoiceNumber: bill.invoiceNumber, shopTrn: bill.shopGstin, date: '15/10/2026' });
+      setUaeArabicPrint(undefined);
+      out[`${name}/a4/default`] = generateInvoiceHtml(asInvoice(bill), 'half-a4');
+      out[`${name}/thermal/80/default`] = generateReceiptText(bill, 8);
+      setUaeArabicPrint({ documents: false, thermal: false });
+      out[`${name}/a4/english`] = generateInvoiceHtml(asInvoice(bill), 'standard');
+      out[`${name}/whatsapp/english`] = formatWhatsAppBillMessage({ ...bill, shopTrn: bill.shopGstin, date: '15/10/2026' });
+    }
+    expect(out).toMatchSnapshot();
+  });
+
+  it('titles documents by the FTA rule', () => {
+    setUaeArabicPrint(undefined);
+    const title = (bill: ReceiptData) => generateReceiptText(bill, 8).split('\n').find(line => /INVOICE|CREDIT NOTE/.test(line));
+    expect(title(UAE_CASES['b2b-trn'])).toBe('TAX INVOICE');
+    expect(title(UAE_CASES['b2c-trn'])).toBe('TAX INVOICE');
+    expect(title(UAE_CASES['no-trn'])).toBe('INVOICE');
+    expect(title(UAE_CASES['credit-note'])).toBe('TAX CREDIT NOTE');
+    expect(title({ ...UAE_CASES['credit-note'], shopGstin: undefined })).toBe('CREDIT NOTE');
+    expect(generateInvoiceHtml(asInvoice(UAE_CASES['b2c-trn']))).toContain('<h1>TAX INVOICE / <span class="ar" dir="rtl" lang="ar">فاتورة ضريبية</span></h1>');
+    expect(generateInvoiceHtml(asInvoice(UAE_CASES['no-trn']))).toContain('<h1>INVOICE / <span class="ar" dir="rtl" lang="ar">فاتورة</span></h1>');
+    expect(generateInvoiceHtml(asInvoice(UAE_CASES['credit-note']))).toContain('TAX CREDIT NOTE / <span class="ar" dir="rtl" lang="ar">إشعار دائن ضريبي</span>');
+  });
+
+  it('keeps Arabic thermal lines inside the paper width', () => {
+    setUaeArabicPrint({ documents: true, thermal: true });
+    for (const bill of Object.values(UAE_CASES)) {
+      for (const [width, chars] of [[5.8, 32], [8, 42]] as const) {
+        const lines = generateReceiptText(bill, width).trimEnd().split('\n');
+        expect(Math.max(...lines.map(line => line.length))).toBeLessThanOrEqual(chars);
+      }
+    }
   });
 });

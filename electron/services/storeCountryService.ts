@@ -9,6 +9,19 @@ export function getStoreCountrySetting(db: Pick<Database, 'prepare'>, tenantId: 
   return country === 'AE' ? 'AE' : 'IN';
 }
 
+/** Main-process money text, mirroring the renderer's src/utils/pricing/money.ts profile (prefix, locale). */
+export function storeMoneyProfile(country: 'IN' | 'AE'): { prefix: string; locale: string } {
+  return country === 'AE' ? { prefix: 'AED ', locale: 'en-AE' } : { prefix: '₹', locale: 'en-IN' };
+}
+
+/** `1234.5` → `₹1,234.50` (India) or `AED 1,234.50` (UAE); the sign goes before the prefix. */
+export function formatStoreMoney(amount: number | null | undefined, country: 'IN' | 'AE'): string {
+  const num = Number(amount) || 0;
+  const { prefix, locale } = storeMoneyProfile(country);
+  const abs = Math.abs(num).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${num < 0 ? '-' : ''}${prefix}${abs}`;
+}
+
 /** A currency change must never reinterpret prices, balances or historical documents. */
 export function saveStoreCountry(db: Db, tenantId: string, value: unknown) {
   if (value !== 'IN' && value !== 'AE') return { success: false, error: 'Choose India or United Arab Emirates.' };

@@ -12,7 +12,7 @@ and update every caller in the same change.
 | Checkout payload lines, CGST/SGST/IGST split, Bill-of-Supply tax, receipt lines, quotation lines, supply type | `src/utils/pricing/checkoutLines.ts` | `tests/unit/checkoutLines.test.ts` |
 | Return source discounts, fractional quantities, stored invoice tax, rounded line/header totals | `src/utils/pricing/returnPricing.ts` (reuses `resolveLinePrice`; invoice rates already include line discounts) | `tests/unit/returnPricing.test.ts`, `returnSelection.test.ts`, `billingScreen.ui.test.tsx` |
 | Live cart totals (subtotal, tax, scrap, discounts) | `src/store/cartStore.ts` (`useCartTotals`, uses `resolveLinePrice`) | via `linePricing` tests |
-| Money formatting (₹, en-IN grouping, sign) | `src/utils/pricing/money.ts` (`formatCurrency`, `formatAmount`) | `tests/unit/money.test.ts` |
+| Money formatting (₹/en-IN or AED/en-AE from the store profile, sign) | `src/utils/pricing/money.ts` (`formatCurrency`, `formatAmount`); main process: `electron/services/storeCountryService.ts` (`formatStoreMoney`, `storeMoneyProfile`) | `tests/unit/money.test.ts`, `storeProfile.test.ts`, `storeMoneyText.test.ts` |
 | Document numbers: offsets (including digit-only values with an empty prefix), digit matching | `src/utils/pricing/invoiceNumberHelper.ts` | `tests/unit/invoiceNumberHelper.test.ts`, `deductionLookup.test.ts` |
 | Tab number previews (peek + skip numbers other tabs show; series; per-type retitle rules) | `src/components/billing/numberReservation.ts` | `tests/unit/numberReservation.test.ts` (characterization) |
 | Scrap/return credits that can be deducted from a bill | `src/components/billing/deductionLookup.ts` | `tests/unit/deductionLookup.test.ts` |
@@ -25,7 +25,10 @@ and update every caller in the same change.
 | Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
 | Tax calculations (GST split CGST/SGST/IGST & UAE VAT 5% inclusive/exclusive) | `src/utils/pricing/taxEngine.ts`, `electron/utils/gstEngine.ts` | `tests/unit/taxEngine.test.ts` |
 | UAE TRN validation (15 digits, prefix 100) & Emirate normalization | `src/utils/pricing/trnValidator.ts`, `electron/utils/trnValidator.ts` | `tests/unit/trnValidator.test.ts` |
+| UAE e-invoicing on the terminal: seller setting keys, buyer profile checks, status labels (the PINT AE document is built on the server, `nafid-server/src/services/einvoice/`) | `src/utils/einvoice/einvoice.ts`, `electron/services/einvoiceService.ts` (profile sanitizing) | `tests/unit/uaeEinvoice.test.ts` |
 | UAE Form VAT 201 Return, FTA Audit File (FAF), and filing lifecycle | `electron/services/vatReportService.ts`, `vatFilingService.ts`, `src/utils/export/ftaAuditFileExporter.ts` | `tests/unit/vatReportService.test.ts`, `vat201JsonSerializer.test.ts`, `vatDashboardCard.test.ts` |
+| Restaurant mode: order-time menu price, service charge (UAE: standard-rated, VAT on top of / inside it like any line), add-on limits, order → billing cart lines, guest check totals | `src/components/restaurant/restaurantRules.ts`, `guestCheck.ts` (reuse `linePricing`, `checkoutLines`) | `tests/unit/restaurantRules.test.ts` |
+| Restaurant mode: KOT station routing and ticket text; orders, voids, merge / split, billing claim, settlement inside checkout; forward-only statuses | `electron/services/restaurantKot.ts`, `restaurantOrderService.ts`, migration `016-restaurant.ts` triggers | `tests/unit/restaurantOrders.test.ts`, `restaurantRules.test.ts` |
 | Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts`, `receiptCore.ts`, `styles/boxed.ts` | `tests/unit/thermalPrint.test.ts`, `printGenerators.characterization.test.ts` |
 
 Sales History date filters and dashboard sales use invoice creation instants in the store timezone. The shared `electron/db/statements/invoiceDates.ts` predicate parses legacy UTC space-separated timestamps and ISO timestamps numerically; later settlement does not move a sale to another date. Tests: `invoiceDateFilters.test.ts`.
@@ -87,6 +90,15 @@ and `electron/utils/` (ids, cashier settlement math).
   balances that way. New code always posts a row, so no new balance can arise without one.
 - Tests: `creditLedger.test.ts` (real SQLite and services, incl. a 40-customer / 600-operation randomised run),
   `tabStoreEditing.test.ts`.
+
+### Card terminal payments (`electron/services/cardTerminalService.ts`, `src/components/app/cardTerminalStep.ts`)
+
+- Off by default, per PC (`card_terminal_config`, device-local). When on, the card part of a CARD / SPLIT bill is sent
+  to the machine before the bill is saved; the approved result is stored as `split_details.card_terminal` (last 4 card
+  digits only). Ledger rows and amounts do not change.
+- Every request is journaled in `card_terminal_transactions` before it is sent. A missing answer is resolved by an
+  inquiry or by the cashier from the slip, never by sending the payment again. A save that fails after a charge voids it.
+- Design and flows: `card-terminal-design.md`. Tests: `cardTerminalService.test.ts`, `cardTerminalStep.test.ts`.
 
 ### Cash drawer sessions (`electron/services/cashDrawerSession.ts`)
 
@@ -327,6 +339,16 @@ backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test
 UAE price-basis changes after trading starts; neither operation converts balances. SQL remains in
 `electron/db/statements/settings.ts`. Existing India behavior and persisted invoice kinds remain compatible.
 
+No screen in a UAE shop shows ₹, INR, en-IN grouping or Indian sample data. Amounts go through `money.ts`;
+legacy ₹ label strings go through `localizeCurrencyText` (`Rate (₹)` → `Rate (AED)`, `₹15` → `AED 15`); currency
+codes in labels use `getStoreProfile().currency`; preview/template barcodes use `getSampleBarcode()` (GS1 890 / 629);
+money icons use `components/ui/CurrencyIcon`. Main-process text (checkout errors, ledger and loyalty descriptions,
+WhatsApp closing) uses `formatStoreMoney` / `storeMoneyProfile` with the tenant's `store_country`; stored ledger and
+loyalty descriptions keep their ungrouped India text (`Total ₹1500.00`) and only take the prefix from the profile.
+The main process cannot import `src/` (`tsconfig.electron.json` rootDir), so these two helpers mirror the profile
+values; change both together. GST report
+screens and `gstReportService` remain India-only (UAE opens the VAT report).
+
 `src/utils/pricing/vat.ts` owns inclusive extraction and two-decimal line VAT rounding. Zero product rates
 remain zero; new UAE product forms start at 5%. Checkout, receipt and quotation line builders use the same
 basis. UAE VAT is stored in existing `tax_amount` / `tax_total`; CGST/SGST/IGST fields stay zero, including
@@ -377,6 +399,12 @@ UAE ERP display reuses `buildCheckoutLines`; UAE cashier items reuse `InvoiceIte
 without an Indian tax split. UI coverage: `uaeWording.ui.test.tsx`.
 
 
+### UAE document titles and Arabic labels
+
+One module: `src/utils/print/uaeLabels.ts`. `uaeDocumentTitle` decides Tax Invoice / Invoice / Tax Credit Note
+(FTA rule, see `vat-uae-integration.md` §9); `UAE_LABELS` holds every English/Arabic label pair; `getUaeArabicPrint()`
+reads the `uae_arabic_print` setting. India printing never calls it. Tests: `printGenerators.characterization.test.ts`
+(UAE section), `thermalPrint.test.ts` (network printers print the English-only receipt), `uaeArabicPrintSetting.ui.test.tsx`.
 ### Staff Monthly Pay Statement (`src/utils/pricing/staffPayStatement.ts`)
 
 - `buildPayStatement(staffId, year, month, entries, baseSalary, joiningDate)`: Computes the precise monthly payroll breakdown (opening balance carried forward from prior months, earned salary based on calendar days and joining date, extra additions, cash advances, store purchases/credits on staff account, deductions, net paid, and closing balance).
@@ -419,4 +447,4 @@ Ledger date and GST/Estimate filters use `calculateLedgerStatement` for opening,
 
 ### Historical credit notes
 
-Returns > Record credit note uses `returns/creditNote.ts` and canonical returnPricing for original printed rates/tax; no fabricated sale is created. Migration 017 allows nullable original invoice ids while preserving returns/items/indexes/outbox triggers. `returnsService.createReturn` accepts an optional original return date and uses it consistently for return_date, created_at and ledger transaction date. Existing dates/fields are sent through the existing sync contract; server already accepts a null invoice. Financial amounts are validated before writes. Regression: historicalReturnMigration, historicalCreditNote and creditLedger tests.
+Returns > Record credit note uses `returns/creditNote.ts` and canonical returnPricing for original printed rates/tax; no fabricated sale is created. Historical migration 017 (replayed idempotently by compatibility migration 021, with UAE e-invoicing schema ensured by 022) allows nullable original invoice ids while preserving returns/items/indexes/outbox triggers. `returnsService.createReturn` accepts an optional original return date and uses it consistently for return_date, created_at and ledger transaction date. Existing dates/fields are sent through the existing sync contract; server already accepts a null invoice. Financial amounts are validated before writes. Regression: historicalReturnMigration, historicalCreditNote and creditLedger tests.
