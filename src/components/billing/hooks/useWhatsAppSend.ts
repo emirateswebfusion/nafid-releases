@@ -36,6 +36,9 @@ export interface UseWhatsAppSendContext {
   subtotal: number;
   tenantId: string | null;
   totalTax: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
 }
 
 /**
@@ -43,7 +46,7 @@ export interface UseWhatsAppSendContext {
  * hands it to the WhatsApp channel. Saves nothing.
  */
 export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
-  const { activeTab, customerAddress, customerGstin, customerName, customerPhone, discount, displayGrandTotal, invoiceType, items, paymentMethod, receivedAmount, setHardwareError, setInfoToast, setIsSendingWhatsApp, shopAddress, shopGstin, shopName, shopNameState, shopPhone, subtotal, tenantId, totalTax } = ctx;
+  const { activeTab, customerAddress, customerGstin, customerName, customerPhone, discount, displayGrandTotal, invoiceType, items, paymentMethod, receivedAmount, setHardwareError, setInfoToast, setIsSendingWhatsApp, shopAddress, shopGstin, shopName, shopNameState, shopPhone, subtotal, tenantId, totalTax, cgst, sgst, igst } = ctx;
   const handleWhatsAppSendActiveBill = async () => {
     if (items.length === 0) {
       setHardwareError('No items in the active bill to send');
@@ -124,6 +127,12 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
           unit_price: Number(i.unit_price) || 0,
           total: Number(i.total) || 0
         })),
+        subtotal,
+        tax: totalTax,
+        cgst,
+        sgst,
+        igst,
+        discount,
         grandTotal: displayGrandTotal,
         receivedAmount: paymentMethod === 'CASH' ? Number(receivedAmount || displayGrandTotal) : displayGrandTotal,
         balanceAmount: paymentMethod === 'CREDIT' ? displayGrandTotal : 0,

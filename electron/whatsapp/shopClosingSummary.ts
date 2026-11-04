@@ -157,15 +157,12 @@ export function buildShopClosingSummaryData(
         const gTotal = Math.max(0, Number(inv.grand_total) || 0);
         const tax = Math.max(0, Number(inv.tax_total) || 0);
         const disc = Math.max(0, Number(inv.discount_total || 0) + Number(inv.points_redeemed_discount || 0));
-        const sub = Math.max(0, Number(inv.subtotal) || 0);
         const refundPaid = Math.max(0, Number(inv.actual_refund_paid) || 0);
-        const scrapDed = Math.max(0, Number(inv.scrap_deduction) || 0);
-        const returnDed = Math.max(0, Number(inv.return_deduction) || 0);
 
         netSales += gTotal;
         totalTax += tax;
         totalDiscount += disc;
-        grossSales += (disc > 0 || scrapDed > 0 || returnDed > 0 ? (gTotal + disc + scrapDed + returnDed) : (sub > 0 && Math.abs((sub + tax) - gTotal) > 0.01 ? (sub + tax) : gTotal));
+        grossSales += (gTotal + disc);
         refundsPaidAmount += refundPaid;
 
         const pm = ((inv.payment_method as string) || ('CASH' as string)).toUpperCase();

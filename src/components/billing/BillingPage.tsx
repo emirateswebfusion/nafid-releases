@@ -551,7 +551,7 @@ export function BillingPage() {
   const { handleWhatsAppSendActiveBill } = useWhatsAppSend({
     activeTab, customerAddress, customerGstin, customerName, customerPhone, discount, displayGrandTotal,
     invoiceType, items, paymentMethod, receivedAmount, setHardwareError, setInfoToast, setIsSendingWhatsApp,
-    shopAddress, shopGstin, shopName, shopNameState, shopPhone, subtotal, tenantId, totalTax,
+    shopAddress, shopGstin, shopName, shopNameState, shopPhone, subtotal, tenantId, totalTax, cgst, sgst, igst,
   });
 
   const { loadHeldBills, handleHoldBill, handleRecallHeldBill, handleReleaseHeldBill } = useHeldBills({

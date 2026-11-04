@@ -236,13 +236,13 @@ export function generateWhatsAppClosingMessage(
       lines.push(`• Total Invoices: *${data.totalInvoices}*`);
     }
     if (checklist.sales) {
-      lines.push(`• Net Sales: *${formatCurrency(data.netSales)}*`);
-      if (checklist.grossSales !== false && data.grossSales > 0 && data.totalDiscount > 0) {
+      if (checklist.grossSales !== false && (data.grossSales > data.netSales || data.totalDiscount > 0)) {
         lines.push(`• Gross Sales: ${formatCurrency(data.grossSales)}`);
       }
       if (checklist.totalDiscount !== false && data.totalDiscount > 0) {
         lines.push(`• Total Discount: -${formatCurrency(data.totalDiscount)}`);
       }
+      lines.push(`• Net Sales: *${formatCurrency(data.netSales)}*`);
       if (checklist.taxCollected !== false && data.totalTax > 0) {
         lines.push(`• Tax Collected: ${formatCurrency(data.totalTax)}`);
       }

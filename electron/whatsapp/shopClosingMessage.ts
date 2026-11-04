@@ -61,13 +61,13 @@ export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof impo
       lines.push(`• Total Invoices: *${summaryData.totalInvoices}*`);
     }
     if (checklist.sales) {
-      lines.push(`• Net Sales: *${formatCurrency((summaryData.netSales as number | null | undefined))}*`);
-      if (checklist.grossSales !== false && summaryData.grossSales > 0 && summaryData.totalDiscount > 0) {
+      if (checklist.grossSales !== false && (summaryData.grossSales > summaryData.netSales || summaryData.totalDiscount > 0)) {
         lines.push(`• Gross Sales: ${formatCurrency((summaryData.grossSales as number | null | undefined))}`);
       }
       if (checklist.totalDiscount !== false && summaryData.totalDiscount > 0) {
         lines.push(`• Total Discount: -${formatCurrency((summaryData.totalDiscount as number | null | undefined))}`);
       }
+      lines.push(`• Net Sales: *${formatCurrency((summaryData.netSales as number | null | undefined))}*`);
       if (checklist.taxCollected !== false && summaryData.totalTax > 0) {
         lines.push(`• Tax Collected: ${formatCurrency((summaryData.totalTax as number | null | undefined))}`);
       }

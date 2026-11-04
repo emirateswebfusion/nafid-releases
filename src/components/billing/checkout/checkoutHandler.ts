@@ -717,6 +717,12 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
               unit_price: Number(i.unit_price) || 0,
               total: Number(i.total) || 0
             })),
+            subtotal: receiptData.subtotal,
+            tax: receiptData.tax,
+            cgst: receiptData.cgst,
+            sgst: receiptData.sgst,
+            igst: receiptData.igst,
+            discount: receiptData.discount,
             grandTotal: effectiveGrandTotal,
             receivedAmount: effectiveReceivedAmount,
             balanceAmount: tracksPartyBalance ? partyNewBalance : effectiveBalanceAmount,

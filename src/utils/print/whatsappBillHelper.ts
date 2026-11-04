@@ -1,5 +1,4 @@
-import { getStoreLocale } from '../localization/storeProfile';
-import { getCurrencyPrefix } from '../localization/storeProfile';
+import { getStoreLocale, getCurrencyPrefix, getStoreProfile } from '../localization/storeProfile';
 import { formatPurchaseLedgerMessage } from './whatsappSharing';
 import { withNafidFooter } from './messageFooter';
 
@@ -16,6 +15,12 @@ export interface WhatsAppBillDetails {
     unit_price: number;
     total: number;
   }>;
+  subtotal?: number;
+  tax?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  discount?: number;
   grandTotal: number;
   receivedAmount?: number;
   balanceAmount?: number;
@@ -51,6 +56,32 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
 
   // Credit / Payment Details
   let paymentText = `\n\n💳 *Payment Mode:* ${data.paymentMethod || 'CASH'}`;
+
+  if (data.tax !== undefined && data.tax > 0) {
+    if (data.subtotal !== undefined) {
+      const subtotalFmt = Number(data.subtotal || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      paymentText += `\n📋 *Subtotal:* ${getCurrencyPrefix()}${subtotalFmt}`;
+    }
+    if (data.cgst && data.sgst && (data.cgst > 0 || data.sgst > 0)) {
+      const cgstFmt = Number(data.cgst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const sgstFmt = Number(data.sgst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      paymentText += `\n🏛️ *CGST:* ${getCurrencyPrefix()}${cgstFmt}`;
+      paymentText += `\n🏛️ *SGST:* ${getCurrencyPrefix()}${sgstFmt}`;
+    } else if (data.igst && data.igst > 0) {
+      const igstFmt = Number(data.igst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      paymentText += `\n🏛️ *IGST:* ${getCurrencyPrefix()}${igstFmt}`;
+    } else {
+      const taxLabel = getStoreProfile().taxName || 'Tax';
+      const taxFmt = Number(data.tax || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      paymentText += `\n🏛️ *${taxLabel}:* ${getCurrencyPrefix()}${taxFmt}`;
+    }
+  }
+
+  if (data.discount !== undefined && data.discount > 0) {
+    const discFmt = Number(data.discount || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    paymentText += `\n🏷️ *Discount:* -${getCurrencyPrefix()}${discFmt}`;
+  }
+
   paymentText += `\n💵 *Total Amount:* ${getCurrencyPrefix()}${total}`;
   if (data.receivedAmount !== undefined) {
     paymentText += `\n✅ *Paid Amount:* ${getCurrencyPrefix()}${received}`;

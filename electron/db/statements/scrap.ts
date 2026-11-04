@@ -183,3 +183,20 @@ export function getScrapTransactionsStatement(db: Db, args: { tenant_id: string;
   query += ' ORDER BY st.created_at DESC LIMIT 500';
   return { statement: db.prepare(query), params };
 }
+
+
+export const findCashTransactionsByScrapInvoiceNumber = (db: Db) => db.prepare(`
+  SELECT drawer_id FROM cash_transactions
+  WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+    AND (category = 'Scrap Purchase' OR category = 'SCRAP_PURCHASE')
+    AND notes LIKE ?
+`);
+
+export const deleteCashTransactionsByScrapInvoiceNumber = (db: Db) => db.prepare(`
+  DELETE FROM cash_transactions
+  WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+    AND (category = 'Scrap Purchase' OR category = 'SCRAP_PURCHASE')
+    AND notes LIKE ?
+`);
+
+export const findCashDrawerByDrawerId = (db: Db) => db.prepare('SELECT * FROM cash_drawer WHERE drawer_id = ?');

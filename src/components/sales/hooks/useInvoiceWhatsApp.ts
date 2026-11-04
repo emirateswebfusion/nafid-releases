@@ -137,6 +137,12 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
           unit_price: Number(i.unit_price) || 0,
           total: Number(i.total) || 0
         })),
+        subtotal: Number(selectedInvoice.subtotal) || 0,
+        tax: Number(selectedInvoice.tax_total) || 0,
+        cgst: Number(cgst) || 0,
+        sgst: Number(sgst) || 0,
+        igst: Number(igst) || 0,
+        discount: Number(selectedInvoice.discount_total) || 0,
         grandTotal: baseGrandTotal,
         receivedAmount: selectedInvoice.received_amount != null ? Number(selectedInvoice.received_amount) : undefined,
         balanceAmount: Number(selectedInvoice.balance_amount) || 0,

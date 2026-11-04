@@ -1,7 +1,7 @@
 import { localizeTaxText } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
-import React from 'react';
-import { Tag, ChevronDown, Layers } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Tag, ChevronDown, Layers, Plus, Check, X, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { InventoryFormViewProps } from '../InventoryFormView';
 
@@ -13,13 +13,45 @@ export interface PricingSectionProps {
   handleInputChange: InventoryFormViewProps['handleInputChange'];
   setTierPrices: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   tierPrices: Record<string, string>;
+  onAddPricingTier?: (name: string) => Promise<{ success: boolean; pricing_tier_id?: string; error?: string }>;
 }
 
 /** Product form section 2: pricing for the real product and, when enabled, the paper product. */
 export function PricingSection({
   activePricingTiers, enableRealPaperStock, formData, handleDomainAttrChange, handleInputChange, setTierPrices,
-  tierPrices,
+  tierPrices, onAddPricingTier,
 }: PricingSectionProps) {
+  const [isAddingTier, setIsAddingTier] = useState(false);
+  const [newTierName, setNewTierName] = useState('');
+  const [isSavingTier, setIsSavingTier] = useState(false);
+  const [newTierError, setNewTierError] = useState('');
+  const newTierInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isAddingTier && newTierInputRef.current) {
+      newTierInputRef.current.focus();
+    }
+  }, [isAddingTier]);
+
+  const handleSaveTier = async () => {
+    const trimmed = newTierName.trim();
+    if (!trimmed || !onAddPricingTier) return;
+    setIsSavingTier(true);
+    setNewTierError('');
+    try {
+      const res = await onAddPricingTier(trimmed);
+      if (res.success) {
+        setNewTierName('');
+        setIsAddingTier(false);
+      } else {
+        setNewTierError(res.error || 'Failed to add tier');
+      }
+    } catch (err) {
+      setNewTierError((err as Error).message || 'Failed to add tier');
+    } finally {
+      setIsSavingTier(false);
+    }
+  };
   return (
     <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300 space-y-5">
       <div className="flex items-center gap-2 pb-2 border-b border-border">
@@ -207,15 +239,69 @@ export function PricingSection({
           </div>
         )}
       </div>
-      {activePricingTiers.length > 0 && (
-        <div className="mt-5 pt-4 border-t border-border">
-          <div className="flex items-center gap-2 mb-3">
+      <div className="mt-5 pt-4 border-t border-border space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
               <Layers className="w-4 h-4" />
             </div>
             <span className="text-xs font-black text-violet-500 uppercase tracking-wider">Tier Prices</span>
             <span className="text-[10px] text-muted-foreground font-normal normal-case">(blank = use MRP)</span>
           </div>
+          {onAddPricingTier && !isAddingTier && (
+            <button
+              type="button"
+              onClick={() => { setIsAddingTier(true); setNewTierError(''); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 border border-violet-500/20 transition-all cursor-pointer active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Tier</span>
+            </button>
+          )}
+        </div>
+
+        {isAddingTier && (
+          <div className="bg-violet-500/5 border border-violet-500/25 rounded-2xl p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                ref={newTierInputRef}
+                type="text"
+                value={newTierName}
+                onChange={e => { setNewTierName(e.target.value); setNewTierError(''); }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); handleSaveTier(); }
+                  if (e.key === 'Escape') { setIsAddingTier(false); setNewTierName(''); }
+                }}
+                placeholder="Tier Name (e.g. Wholesale, VIP, Retail Tier B)..."
+                disabled={isSavingTier}
+                className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-xs font-medium text-foreground focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleSaveTier}
+                disabled={!newTierName.trim() || isSavingTier}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white transition-all disabled:opacity-50 cursor-pointer shrink-0"
+              >
+                {isSavingTier ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                <span>Save</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setIsAddingTier(false); setNewTierName(''); }}
+                disabled={isSavingTier}
+                className="p-2 text-muted-foreground hover:text-foreground rounded-xl transition-all hover:bg-muted cursor-pointer shrink-0"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {newTierError && (
+              <p className="text-[11px] text-destructive font-medium">{newTierError}</p>
+            )}
+          </div>
+        )}
+
+        {activePricingTiers.length > 0 ? (
           <div className="flex gap-4 flex-wrap">
             {activePricingTiers.map(tier => (
               <div key={tier.pricing_tier_id} className="flex-1 min-w-[140px]">
@@ -236,8 +322,12 @@ export function PricingSection({
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : !isAddingTier && (
+          <p className="text-xs text-muted-foreground/80 italic py-1">
+            No custom pricing tiers configured. Click &quot;Add Tier&quot; above to create Wholesale, VIP, or other custom price levels.
+          </p>
+        )}
+      </div>
     </section>
   );
 }

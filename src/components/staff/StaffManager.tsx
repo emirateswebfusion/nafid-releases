@@ -6,6 +6,8 @@ import { DataUploadModal } from '../data-upload/DataUploadModal';
 import { RedCrossButton } from '../ui/RedCrossButton';
 import { FloatToast } from '../ui/FloatToast';
 import { formatWhatsAppStaffSalaryMessage } from '../../utils/print/whatsappBillHelper';
+import { formatCurrency } from '../../utils/pricing/money';
+import { totalPayableToStaff } from '../../utils/pricing/staffPayStatement';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { useFeatureFlagsStore } from '../../config/featureFlags';
 import { authApi } from '../../data/auth';
@@ -250,7 +252,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   };
 
   const handleSaveStaff = async () => {
-    if (!tenantId || !formData.name.trim()) {
+    const nameToSave = formData.name.trim() || selectedStaff?.name?.trim() || '';
+    if (!tenantId || !nameToSave) {
       setStatusMessage({ text: 'Staff Name is mandatory', type: 'error' });
       return;
     }
@@ -460,20 +463,26 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const handleUpdateMonthlySalary = async () => {
+  const handleSaveBillerPin = async (pin: string) => {
     if (!selectedStaff || !tenantId) return;
+    const trimmed = pin.trim();
+    if (trimmed !== '' && trimmed.length !== 4) {
+      setStatusMessage({ text: 'PIN must be exactly 4 digits', type: 'error' });
+      return;
+    }
     setSaving(true);
     const payload = {
       staff_id: selectedStaff.staff_id,
       tenant_id: tenantId,
       name: selectedStaff.name,
-      phone: selectedStaff.phone,
-      email: selectedStaff.email,
-      role_designation: selectedStaff.role_designation,
+      phone: selectedStaff.phone || undefined,
+      email: selectedStaff.user_email || selectedStaff.email || undefined,
+      role_designation: selectedStaff.role_designation || undefined,
       user_id: selectedStaff.user_id || undefined,
-      joining_date: selectedStaff.joining_date,
+      joining_date: selectedStaff.joining_date || undefined,
       monthly_salary: Number(selectedStaff.monthly_salary) || 0,
       status: selectedStaff.status,
+      biller_pin: trimmed,
     };
     try {
       if (hasBridge('dbSaveStaff')) {
@@ -481,12 +490,16 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       } else {
         const response = await staffCloud.saveStaff(token, payload);
         const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result?.error || 'Failed to update monthly salary');
+        if (!response.ok) throw new Error(result?.error || 'Failed to update PIN');
       }
-      setStatusMessage({ text: `Monthly salary updated for ${selectedStaff.name}`, type: 'success' });
+      setStatusMessage({
+        text: trimmed ? `4-Digit PIN saved for ${selectedStaff.name}` : `PIN removed for ${selectedStaff.name}`,
+        type: 'success'
+      });
+      setFormData(current => ({ ...current, biller_pin: '' }));
       await fetchStaff();
     } catch (err) {
-      setStatusMessage({ text: (err as Error).message || 'Failed to update monthly salary', type: 'error' });
+      setStatusMessage({ text: (err as Error).message || 'Failed to update PIN', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -545,33 +558,48 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       setStatusMessage({ text: 'Failed to save attendance', type: 'error' });
     }
   };
+  const activeCount = staffList.filter(s => s.status === 'ACTIVE').length;
+  const totalPayable = totalPayableToStaff(staffList.map(s => s.current_balance));
+  const summary = [
+    { label: 'Staff', value: String(staffList.length) },
+    { label: 'Active', value: String(activeCount) },
+    { label: 'Payable', value: formatCurrency(totalPayable) },
+  ];
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       {/* ═══ HEADER ═══ */}
-      <header className="shrink-0 border-b border-border bg-card px-6 py-4 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-inner">
+      <header className="shrink-0 border-b border-border/70 bg-card/95 backdrop-blur-sm px-6 h-[68px] flex items-center">
+        <div className="flex w-full items-center justify-between gap-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 text-white flex items-center justify-center shadow-[0_6px_16px_-6px_rgba(37,99,235,0.6)] shrink-0">
               <Users className="w-5 h-5" />
             </div>
-            <div>
-              <h1 className="text-lg font-extrabold text-foreground tracking-tight">Staff Administration & Employee Hub</h1>
-              <p className="text-xs text-muted-foreground">Manage employees, salaries, advances, ledger statements & billing accountability</p>
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold text-foreground tracking-tight truncate">Staff Administration & Employee Hub</h1>
+              <p className="text-xs text-muted-foreground truncate">Employees, salaries, advances and ledger</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="hidden lg:flex items-center rounded-xl border border-border/70 bg-muted/30 divide-x divide-border/70">
+            {summary.map(item => (
+              <div key={item.label} className="px-4 py-1.5 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
+                <p className="text-sm font-semibold text-foreground tabular-nums">{item.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
-              size="sm"
               onClick={() => setShowUploadModal(true)}
-              className="gap-2 cursor-pointer font-bold border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+              className="gap-2"
             >
-              <Upload className="w-4 h-4" /> Upload (CSV/Excel)
+              <Upload className="w-4 h-4" /><span>Import</span>
             </Button>
             <Button
               variant="default"
-              size="sm"
               onClick={() => {
                 setFormData({
                   staff_id: '',
@@ -596,48 +624,51 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                 setModalTab('basic');
                 setShowAddModal(true);
               }}
-              className="gap-2 cursor-pointer font-bold"
+              className="gap-2"
             >
-              <UserPlus className="w-4 h-4" /> Add Staff Member
+              <UserPlus className="w-4 h-4" /><span>Add Staff</span>
             </Button>
+            <div className="w-px h-6 bg-border/80 mx-1" />
             <RedCrossButton onClick={onClose} title="Close" />
           </div>
         </div>
       </header>
 
       {/* ═══ MAIN LAYOUT ═══ */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex gap-4 p-4 overflow-hidden">
         {/* ── LEFT PANEL: STAFF DIRECTORY ── */}
         <StaffList
           sm={sm}
         />
 
-        {/* ── RIGHT PANEL: STAFF PROFILE & MODULE TABS ── */}
-        <div className="flex-1 flex flex-col bg-background overflow-hidden">
+        {/* ── RIGHT PANEL: STAFF PROFILE & SECTION TABS ── */}
+        <main className="flex-1 min-w-0 overflow-y-auto">
           {selectedStaff ? (
-            <>
-              {/* Staff Profile Overview Header */}
+            <div className="max-w-6xl mx-auto space-y-4 pb-4">
               <StaffProfileHeader
                 featureFlags={featureFlags} handleSendWhatsAppSalary={handleSendWhatsAppSalary}
                 handleToggleStatus={handleToggleStatus} openEditStaff={openEditStaff} selectedStaff={selectedStaff}
                 sm={sm}
               />
-
-              {/* Module Content */}
               <StaffDetailPanel
                 featureFlags={featureFlags} handleMarkAttendance={handleMarkAttendance}
-                handleSaveStaff={handleSaveStaff} handleUpdateMonthlySalary={handleUpdateMonthlySalary}
+                handleSaveBillerPin={handleSaveBillerPin}
+                openEditStaff={openEditStaff}
                 selectedStaff={selectedStaff} sm={sm}
               />
-            </>
+            </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
-              <Users className="w-12 h-12 text-muted-foreground/30 mb-3" />
-              <p className="text-sm font-bold">Select a staff member from the directory</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Or click "Add Staff Member" to create a new employee record.</p>
+            <div className="h-full flex flex-col items-center justify-center p-12 select-none rounded-2xl border border-dashed border-border/80">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4">
+                <Users className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-semibold text-foreground">Select an employee</h3>
+              <p className="text-[13px] text-muted-foreground mt-1 max-w-sm text-center leading-relaxed">
+                Pick someone from the team directory to see their salary, ledger, PIN and attendance.
+              </p>
             </div>
           )}
-        </div>
+        </main>
       </div>
 
       {/* ═══ MODAL: ADD / EDIT STAFF MEMBER ═══ */}
