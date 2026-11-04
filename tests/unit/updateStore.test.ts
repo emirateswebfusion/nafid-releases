@@ -61,6 +61,7 @@ describe('update store install handling', () => {
 
     expect(fixture.checkForUpdates).not.toHaveBeenCalled();
     expect(useUpdateStore.getState().updateReady).toBe(true);
+    expect(useUpdateStore.getState().isInstalling).toBe(true);
   });
 
   it('does not leave a downloading spinner when the recovery check fails', async () => {

@@ -1,3 +1,14 @@
+# Nafid POS v2.2.41
+
+## Update installation and progress
+
+- Restart to Update shows a preparation screen while the installer starts, then a visible installation progress window. Nafid reopens after installation.
+- Windows installer launch failures keep Nafid open, preserve a verified download and offer Retry installation instead of repeatedly downloading the same update.
+- Repeated clicks cannot launch multiple installers. The downloaded file is checked before it runs.
+- Repeated cloud authorization failures show one login prompt; delayed failures from an older login do not interrupt the new session.
+
+Shops stuck on an older updater may need to run this installer once manually. Windows application-control restrictions still apply to unsigned builds; this release does not bypass them. Keep the shop data folder when recovering an installation.
+
 ## v2.2.40
 
 - Record historical credit notes with their document number, actual date, original item rates and tax when the old invoice is outside NAFID. Account credit and cash refunds remain separate.

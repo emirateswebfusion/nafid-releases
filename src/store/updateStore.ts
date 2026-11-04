@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { appApi, type UpdateInfoPayload } from '../data/app';
+import { appApi, type UpdateInfoPayload, type AppInstallUpdateResult } from '../data/app';
 import { bridgeEvents } from '../data/events';
 import { isDesktopRuntime } from '../data/client';
 
@@ -12,7 +12,7 @@ export interface UpdateState {
   installError: string | null;
   isInstalling: boolean;
   init: () => void;
-  installUpdate: () => void;
+  installUpdate: () => Promise<AppInstallUpdateResult | undefined>;
   checkForUpdates: () => Promise<void>;
 }
 
@@ -71,15 +71,20 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     appApi.checkForUpdates().catch(() => {});
   },
 
-  installUpdate: () => {
+  installUpdate: async () => {
     if (get().isInstalling) return;
     set({ isInstalling: true, installError: null });
-    void appApi.installUpdate().then((res) => {
-      if (!res || res.success) return;
-      set({ updateReady: res.installerReady === true, isDownloading: false, downloadProgress: null, installError: res.error });
-    }).catch(() => {
-      set({ isDownloading: false, installError: 'Could not start the update. Nafid is still open. Please retry.' });
-    }).finally(() => set({ isInstalling: false }));
+    try {
+      const result = await appApi.installUpdate();
+      if (result?.success) return result; // Keep progress visible until the app exits.
+      set({ updateReady: result?.installerReady === true, isInstalling: false, isDownloading: false, downloadProgress: null,
+        installError: result?.error || 'Could not start the installer. Please retry.' });
+      return result;
+    } catch {
+      const error = 'Could not start the update. Nafid is still open. Please retry.';
+      set({ isInstalling: false, isDownloading: false, installError: error });
+      return { success: false, error };
+    }
   },
 
   checkForUpdates: async () => {

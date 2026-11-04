@@ -3,6 +3,7 @@ import { X, RotateCcw, Download, Bell } from 'lucide-react';
 import clsx from 'clsx';
 import { getReleaseNotesSummary } from '../settings/releaseNotesUtils';
 import { useUpdateStore } from '../../store/updateStore';
+import { UpdateInstallProgress } from './UpdateInstallProgress';
 
 interface UpdateBannerProps {
   onOpenSettings: () => void;
@@ -27,8 +28,8 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
     init();
   }, [init]);
 
-  if (!updateInfo && !updateReady && !installError) return null;
-  if (dismissed && !installError) return null;
+  if (!updateInfo && !updateReady && !installError && !isInstalling) return null;
+  if (dismissed && !installError && !isInstalling) return null;
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -41,6 +42,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
 
   return (
     <div className="relative z-40 mx-2 mt-2 mb-0 animate-in slide-in-from-top-2 fade-in duration-300">
+      {isInstalling && <UpdateInstallProgress version={updateInfo?.version} />}
       <div className={clsx(
         'flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border shadow-sm backdrop-blur-md',
         updateReady

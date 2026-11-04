@@ -53,3 +53,7 @@ missing/corrupt downloads require a fresh check. Concurrent install clicks are g
 Already-installed older updater code cannot be repaired remotely before it installs a newer release. Shops
 whose Windows policy rejects an unsigned installer need an accepted signed release; a new app version alone
 cannot override that policy. Recovery instructions must accompany the release for affected older terminals.
+
+## Release 2.2.41: installation visibility
+
+All update actions, including Settings, use the shared store action. `UpdateInstallProgress` displays an indeterminate preparation screen while the Windows installer is being verified/started, including when the announcement banner was dismissed. On success it stays visible until exit; the non-silent NSIS installer shows its own progress and relaunches Nafid. Failures dismiss preparation and retain the retry/error state. No fabricated installation percentage is shown.
