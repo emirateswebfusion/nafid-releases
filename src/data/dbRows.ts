@@ -135,7 +135,6 @@ export interface CustomersRow {
   updated_at: string | null;
   row_version: number;
   origin: string | null;
-  einvoice_profile: string | null;
 }
 
 /** Row of `ecommerce_product_mappings`. */
@@ -184,43 +183,6 @@ export interface EcommerceSyncLogsRow {
   created_at: string | null;
 }
 
-/** Row of `einvoice_documents`. */
-export interface EinvoiceDocumentsRow {
-  document_id: string;
-  tenant_id: string;
-  document_kind: string;
-  document_number: string;
-  document_type: string | null;
-  status: string;
-  buyer_endpoint: string | null;
-  provider_id: string | null;
-  asp_reference: string | null;
-  fta_reference: string | null;
-  errors: string;
-  attempts: number;
-  submitted_at: string | null;
-  created_at: string | null;
-  updated_at: string;
-}
-
-/** Row of `gst_local_filings`. */
-export interface GstLocalFilingsRow {
-  id: string;
-  period: string;
-  return_type: string;
-  status: string;
-  filing_mode: string;
-  acknowledgement_number: string | null;
-  filing_date: string | null;
-  gross_taxable_value: number | null;
-  total_tax_amount: number | null;
-  summary_payload: string | null;
-  approved_by: string | null;
-  approved_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 /** Row of `invoice_items`. */
 export interface InvoiceItemsRow {
   item_id: string;
@@ -253,7 +215,6 @@ export interface InvoiceItemsRow {
   bos_tax_amount: number | null;
   bos_total: number | null;
   qty_from_paper_stock: number | null;
-  is_deleted: number | null;
   row_version: number;
   origin: string | null;
 }
@@ -318,7 +279,6 @@ export interface InvoicesRow {
   counts_in_revenue: number;
   bill_purpose: string;
   stock_applied: number;
-  stock_revision: number;
 }
 
 /** Row of `loyalty_transactions`. */
@@ -493,14 +453,6 @@ export interface ProductPricingRow {
   origin: string | null;
 }
 
-/** Row of `product_stock_bootstraps`. */
-export interface ProductStockBootstrapsRow {
-  tenant_id: string;
-  product_id: string;
-  origin: string;
-  balance: number | null;
-}
-
 /** Row of `products`. */
 export interface ProductsRow {
   product_id: string;
@@ -536,10 +488,6 @@ export interface ProductsRow {
   updated_at: string | null;
   row_version: number;
   origin: string | null;
-  stock_counters: string | null;
-  stock_opening: number | null;
-  stock_bootstrap: string | null;
-  stock_protocol: string | null;
 }
 
 /** Row of `purchase_bill_items`. */
@@ -583,7 +531,6 @@ export interface PurchaseBillsRow {
   updated_at: string | null;
   row_version: number;
   origin: string | null;
-  stock_revision: number;
 }
 
 /** Row of `quotation_items`. */
@@ -654,17 +601,8 @@ export interface ReturnItemsRow {
   total: number;
   sync_status: string | null;
   created_at: string | null;
-  taxable_amount: number | null;
-  cgst_rate: string | null;
-  sgst_rate: string | null;
-  igst_rate: string | null;
-  cgst_amount: number | null;
-  sgst_amount: number | null;
-  igst_amount: number | null;
-  hsn_sac_code: string | null;
   row_version: number;
   origin: string | null;
-  combo_details: string | null;
 }
 
 /** Row of `returns`. */
@@ -688,21 +626,8 @@ export interface ReturnsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
-  credit_note_number: string | null;
-  original_invoice_number: string | null;
-  original_invoice_date: string | null;
-  customer_gstin: string | null;
-  supply_type: string | null;
-  pos_state_code: string | null;
-  cgst_total: number | null;
-  sgst_total: number | null;
-  igst_total: number | null;
-  note_type: string | null;
-  reason_code: string | null;
   row_version: number;
   origin: string | null;
-  is_deleted: number;
-  stock_revision: number;
 }
 
 /** Row of `schema_migrations`. */
@@ -873,55 +798,6 @@ export interface StaffTransactionsRow {
   updated_at: string | null;
 }
 
-/** Row of `stock_effects`. */
-export interface StockEffectsRow {
-  effect_id: string;
-  document_id: string;
-  document_type: string;
-  product_id: string;
-  quantity: number;
-  direction: string;
-  origin: string;
-  version: number;
-  sync_status: string;
-  created_at: string;
-}
-
-/** Row of `stock_operation_context`. */
-export interface StockOperationContextRow {
-  document_id: string | null;
-  document_type: string | null;
-}
-
-/** Row of `stock_operation_deltas`. */
-export interface StockOperationDeltasRow {
-  product_id: string;
-  quantity: number;
-}
-
-/** Row of `stock_operation_heads`. */
-export interface StockOperationHeadsRow {
-  tenant_id: string;
-  document_type: string;
-  document_id: string;
-  revision: number;
-}
-
-/** Row of `stock_operations`. */
-export interface StockOperationsRow {
-  operation_id: string;
-  tenant_id: string;
-  document_id: string;
-  document_type: string;
-  revision: number;
-  action: string;
-  payload: string;
-  origin: string;
-  created_at: string;
-  sync_status: string;
-  last_error: string | null;
-}
-
 /** Row of `sync_apply_guard`. */
 export interface SyncApplyGuardRow {
   id: number;
@@ -949,11 +825,6 @@ export interface SyncOutboxRow {
   sent_at: string | null;
 }
 
-/** Row of `trial_access_registry`. */
-export interface TrialAccessRegistryRow {
-  tenant_id: string;
-}
-
 /** Row of `users`. */
 export interface UsersRow {
   user_id: string;
@@ -966,27 +837,6 @@ export interface UsersRow {
   permissions: string | null;
   login_enabled: number;
   created_at: string | null;
-}
-
-/** Row of `vat_local_filings`. */
-export interface VatLocalFilingsRow {
-  id: string;
-  period: string;
-  return_type: string;
-  status: string;
-  filing_mode: string;
-  acknowledgement_number: string | null;
-  filing_date: string | null;
-  net_output_vat: number | null;
-  recoverable_input_vat: number | null;
-  net_vat_payable: number | null;
-  net_vat_status: string | null;
-  summary_payload: string | null;
-  notes: string | null;
-  approved_by: string | null;
-  approved_at: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 /** Row of `warranties`. */

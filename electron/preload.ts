@@ -38,10 +38,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetLocalVatFilings: () => ipcRenderer.invoke('db:getLocalVatFilings'),
   dbUpsertLocalVatFiling: (payload: unknown) => ipcRenderer.invoke('db:upsertLocalVatFiling', payload),
   dbRecordLocalVatManualAck: (payload: unknown) => ipcRenderer.invoke('db:recordLocalVatManualAck', payload),
-  dbGetEinvoiceStatuses: (payload: unknown) => ipcRenderer.invoke('db:getEinvoiceStatuses', payload),
-  dbGetEinvoiceSummary: (payload: unknown) => ipcRenderer.invoke('db:getEinvoiceSummary', payload),
-  dbGetCustomerEinvoiceProfile: (payload: unknown) => ipcRenderer.invoke('db:getCustomerEinvoiceProfile', payload),
-  dbSaveCustomerEinvoiceProfile: (payload: unknown) => ipcRenderer.invoke('db:saveCustomerEinvoiceProfile', payload),
   dbGetInvoiceItems: (invoice_id: string) => ipcRenderer.invoke('db:getInvoiceItems', invoice_id),
   dbUpdateInvoice: (payload: unknown) => ipcRenderer.invoke('db:updateInvoice', payload),
   dbUpdateInvoicePayment: (payload: unknown) => ipcRenderer.invoke('db:updateInvoicePayment', payload),
@@ -125,17 +121,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getA4Html: () => ipcRenderer.invoke('hardware:getA4Html'),
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
   printReady: (contentHeightPx?: number) => ipcRenderer.invoke('hardware:printReady', contentHeightPx),
-  cardTerminalGetStatus: () => ipcRenderer.invoke('cardTerminal:getStatus'),
-  cardTerminalSale: (payload: { tenant_id: string; invoice_id: string; amount: number; currency?: string }) => ipcRenderer.invoke('cardTerminal:sale', payload),
-  cardTerminalVoid: (payload: { ecr_ref: string }) => ipcRenderer.invoke('cardTerminal:void', payload),
-  cardTerminalRefund: (payload: { tenant_id: string; invoice_id?: string | null; amount: number; original_ecr_ref?: string | null; currency?: string }) => ipcRenderer.invoke('cardTerminal:refund', payload),
-  cardTerminalCancel: () => ipcRenderer.invoke('cardTerminal:cancel'),
-  cardTerminalResolve: (payload: { ecr_ref: string; outcome: 'APPROVED' | 'DECLINED'; auth_code?: string }) => ipcRenderer.invoke('cardTerminal:resolve', payload),
-  cardTerminalTest: () => ipcRenderer.invoke('cardTerminal:test'),
-  cardTerminalBillSplitDetails: (payload: { invoice_id: string }) => ipcRenderer.invoke('cardTerminal:billSplitDetails', payload),
-  cardTerminalListPorts: () => ipcRenderer.invoke('cardTerminal:listPorts'),
-  cardTerminalListTransactions: (payload: { tenant_id: string; limit?: number }) => ipcRenderer.invoke('cardTerminal:listTransactions', payload),
-  cardTerminalListUnresolved: (payload: { tenant_id: string }) => ipcRenderer.invoke('cardTerminal:listUnresolved', payload),
   printA4Html: (tenant_id: string, htmlContent: string) => ipcRenderer.invoke('hardware:printA4Html', { tenant_id, htmlContent }),
   exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string, pdfOptions?: { displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => ipcRenderer.invoke('hardware:exportA4Pdf', { tenant_id, htmlContent, defaultFilename, ...(pdfOptions || {}) }),
 
@@ -181,13 +166,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('hardware:barcode', listener);
     return () => {
       ipcRenderer.removeListener('hardware:barcode', listener);
-    };
-  },
-  onCardTerminalStatus: (callback: (status: { ecr_ref: string; message: string }) => void) => {
-    const listener = (_event: unknown, status: { ecr_ref: string; message: string }) => callback(status);
-    ipcRenderer.on('cardTerminal:status', listener);
-    return () => {
-      ipcRenderer.removeListener('cardTerminal:status', listener);
     };
   },
   onScaleWeight: (callback: (weight: number) => void) => {
@@ -389,35 +367,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncGetPending: (payload: { tenant_id: string }) => ipcRenderer.invoke('sync:getPending', payload),
   setPageContext: (payload: { page: string; active: boolean }) => ipcRenderer.invoke('sync:setPageContext', payload),
   resetFastPollBackoff: () => ipcRenderer.invoke('sync:resetFastPollBackoff'),
-
-  // Restaurant mode
-  restaurantGetSetup: (payload: unknown) => ipcRenderer.invoke('restaurant:getSetup', payload),
-  restaurantSaveTable: (payload: unknown) => ipcRenderer.invoke('restaurant:saveTable', payload),
-  restaurantDeleteTable: (payload: unknown) => ipcRenderer.invoke('restaurant:deleteTable', payload),
-  restaurantSaveStation: (payload: unknown) => ipcRenderer.invoke('restaurant:saveStation', payload),
-  restaurantDeleteStation: (payload: unknown) => ipcRenderer.invoke('restaurant:deleteStation', payload),
-  restaurantSaveModifierGroup: (payload: unknown) => ipcRenderer.invoke('restaurant:saveModifierGroup', payload),
-  restaurantDeleteModifierGroup: (payload: unknown) => ipcRenderer.invoke('restaurant:deleteModifierGroup', payload),
-  restaurantListActive: (payload: unknown) => ipcRenderer.invoke('restaurant:listActive', payload),
-  restaurantGetOrder: (payload: unknown) => ipcRenderer.invoke('restaurant:getOrder', payload),
-  restaurantOpenOrder: (payload: unknown) => ipcRenderer.invoke('restaurant:openOrder', payload),
-  restaurantUpdateOrder: (payload: unknown) => ipcRenderer.invoke('restaurant:updateOrder', payload),
-  restaurantSendItems: (payload: unknown) => ipcRenderer.invoke('restaurant:sendItems', payload),
-  restaurantVoidLines: (payload: unknown) => ipcRenderer.invoke('restaurant:voidLines', payload),
-  restaurantMoveTable: (payload: unknown) => ipcRenderer.invoke('restaurant:moveTable', payload),
-  restaurantMergeOrders: (payload: unknown) => ipcRenderer.invoke('restaurant:mergeOrders', payload),
-  restaurantSplitOrder: (payload: unknown) => ipcRenderer.invoke('restaurant:splitOrder', payload),
-  restaurantCancelOrder: (payload: unknown) => ipcRenderer.invoke('restaurant:cancelOrder', payload),
-  restaurantClaimForBilling: (payload: unknown) => ipcRenderer.invoke('restaurant:claimForBilling', payload),
-  restaurantReleaseClaim: (payload: unknown) => ipcRenderer.invoke('restaurant:releaseClaim', payload),
-  restaurantPrintKots: (payload: unknown) => ipcRenderer.invoke('restaurant:printKots', payload),
-  restaurantPreviewKot: (payload: unknown) => ipcRenderer.invoke('restaurant:previewKot', payload),
-  restaurantGetPrinterConfig: () => ipcRenderer.invoke('restaurant:getPrinterConfig'),
-  restaurantSavePrinterConfig: (payload: unknown) => ipcRenderer.invoke('restaurant:savePrinterConfig', payload),
-  restaurantTestPrinter: (payload: unknown) => ipcRenderer.invoke('restaurant:testPrinter', payload),
-  restaurantListKds: (payload: unknown) => ipcRenderer.invoke('restaurant:listKds', payload),
-  restaurantSetKdsStatus: (payload: unknown) => ipcRenderer.invoke('restaurant:setKdsStatus', payload),
-  restaurantReport: (payload: unknown) => ipcRenderer.invoke('restaurant:report', payload),
 
   // E-Commerce / FusionCart Integration
   ecommerceGetSettings: (payload: { tenant_id: string }) => ipcRenderer.invoke('ecommerce:getSettings', payload),

@@ -1,7 +1,6 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
-import { Recycle, Loader2, Save } from 'lucide-react';
-import { CurrencyIcon } from '../../ui/CurrencyIcon';
+import { Recycle, IndianRupee, Loader2, Save } from 'lucide-react';
 import { Select } from '../../ui/Select';
 import clsx from 'clsx';
 import type { ScrapCategory } from '../scrapTypes';
@@ -61,7 +60,7 @@ export function ScrapCategoryForm({
         <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
           <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
             <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
-              <CurrencyIcon className="w-4 h-4" />
+              <IndianRupee className="w-4 h-4" />
             </div>
             <span className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Pricing & Stock</span>
           </div>

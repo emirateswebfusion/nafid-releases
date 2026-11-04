@@ -27,7 +27,7 @@ export function useSettingsFormState() {
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
   const [osPrinters, setOsPrinters] = useState<OsPrinterRow[]>([]);
   const [printersLoading, setPrintersLoading] = useState(false);
-  const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale' | 'card'>('receipt');
+  const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale'>('receipt');
   const [autoWhatsAppSend, setAutoWhatsAppSend] = useState<boolean>(() => localStorage.getItem('auto_whatsapp_send') === 'true');
   const [activeProductsTab, setActiveProductsTab] = useState<'coding' | 'bulk'>('coding');
   const [activeWhatsAppTab, setActiveWhatsAppTab] = useState<'qr' | 'settings' | 'closing'>('qr');

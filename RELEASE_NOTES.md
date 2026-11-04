@@ -1,6 +1,6 @@
 ## v2.2.38
 
-- Billing uses the named customer when separate accounts share one phone number, keeping the displayed and saved account balance and loyalty details on the selected account.
+- Billing uses the named customer when accounts share a phone, keeping balances and loyalty on the selected account.
 
 # Nafid POS v2.2.37
 

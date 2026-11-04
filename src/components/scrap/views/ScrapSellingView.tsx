@@ -1,7 +1,6 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
-import { Search, Recycle, ShoppingCart, Minus, Plus, X, Loader2 } from 'lucide-react';
-import { CurrencyIcon } from '../../ui/CurrencyIcon';
+import { Search, Recycle, ShoppingCart, Minus, Plus, X, IndianRupee, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { formatStock, formatCurrency } from '../scrapFormat';
 import type { ScrapCategory } from '../scrapTypes';
@@ -169,7 +168,7 @@ export function ScrapSellingView({
         <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
           <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
             <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
-              <CurrencyIcon className="w-4 h-4" />
+              <IndianRupee className="w-4 h-4" />
             </div>
             <span className="text-xs font-black text-amber-500 uppercase tracking-wider">3. Sale Summary</span>
           </div>

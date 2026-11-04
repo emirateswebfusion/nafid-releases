@@ -126,17 +126,6 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
-    id: 'restaurant',
-    name: 'Restaurant & Kitchen',
-    description: 'Restaurant mode: table orders, kitchen tickets, voids and setup',
-    permissions: [
-      { key: 'restaurant.orders', label: 'Take Orders', description: 'Can open orders, add items, send kitchen tickets and print guest checks' },
-      { key: 'restaurant.void', label: 'Void Kitchen Items', description: 'Can void items already sent to the kitchen and cancel orders' },
-      { key: 'restaurant.transfer', label: 'Move / Merge / Split', description: 'Can move tables, merge or split orders and change the waiter' },
-      { key: 'restaurant.manage', label: 'Restaurant Setup', description: 'Can manage tables, kitchen stations, printers, add-ons and the service charge' },
-    ],
-  },
-  {
     id: 'combos',
     name: 'Combos & Pricing Tiers',
     description: 'Bundle offers and wholesale pricing tiers',

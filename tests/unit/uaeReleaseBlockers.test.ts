@@ -92,7 +92,7 @@ it.each([
     // Both checkout and sales-history reprint supply the pre-credit total.
     const data = { ...bill, ...credits, isReprint };
     expect(generateUaeReceipt(data)).toContain(`TOTAL incl. VAT: AED ${credits.payable.toFixed(2)}`);
-    expect(generateUaeInvoiceHtml(data)).toContain(`<th>Total (including VAT) / <span class="ar" dir="rtl" lang="ar">الإجمالي شامل الضريبة</span></th><td><b>AED ${credits.payable.toFixed(2)}</b>`);
+    expect(generateUaeInvoiceHtml(data)).toContain(`<th>Total (including VAT)</th><td><b>AED ${credits.payable.toFixed(2)}</b>`);
     expect(data.grandTotal).toBe(105);
   }
 });

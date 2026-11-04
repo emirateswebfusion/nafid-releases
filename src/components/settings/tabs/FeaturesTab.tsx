@@ -36,7 +36,7 @@ export const FeaturesTab: React.FC<FeaturesTabProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, f.key === 'restaurant_mode' ? Boolean(useFeatureFlagsStore.getState().flags?.restaurant_mode) : true])) as FeatureFlags)); // restaurant mode changes the shop type: only its own toggle
+                      useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, true])) as FeatureFlags));
                       setShowCashRegister(true);
                     }}
                     className="px-3 py-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"

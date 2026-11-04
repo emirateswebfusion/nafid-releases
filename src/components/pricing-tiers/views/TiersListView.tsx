@@ -1,6 +1,5 @@
 import { type RefObject } from 'react';
-import { Plus, Trash, Pencil, Check, X, Loader2, Tags, Shield, Star, GripVertical } from 'lucide-react';
-import { CurrencyIcon } from '../../ui/CurrencyIcon';
+import { Plus, Trash, Pencil, Check, X, Loader2, Tags, Shield, Star, GripVertical, IndianRupee } from 'lucide-react';
 import { Skeleton } from '../../ui/Skeleton';
 import clsx from 'clsx';
 import type { PricingTier } from '../../../utils/pricing/pricingTierHelper';
@@ -264,7 +263,7 @@ export function TiersListView({
                         className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg cursor-pointer"
                         title="Set Prices in Matrix"
                       >
-                        <CurrencyIcon className="w-3.5 h-3.5" />
+                        <IndianRupee className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => { setEditingId(tier.pricing_tier_id); setEditName(tier.name); }}

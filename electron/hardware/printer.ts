@@ -683,7 +683,7 @@ function executePrintWithFallback(
     });
   });
 }
-export const printTextOnSystemPrinter = (deviceName: string, text: string, widthMm: number, tenantId: string) => { currentReceiptText = `${text}\n\n\n\n\n`; return printReceiptUSB(deviceName, widthMm, tenantId); }; // kitchen tickets
+
 function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: string = 'global'): Promise<void> {
   return pendingPrint(async (resolve, reject) => {
     const receiptText = currentReceiptText;

@@ -2,8 +2,11 @@ import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { isUaeStore, isValidTaxRegistration } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
+import type { Dispatch, SetStateAction, RefObject } from 'react';
+import type { CartItem, InvoiceType } from '../../../store/cartStore';
+import type { BillingUIConfig } from '../../../store/billingUIStore';
+import type { Tab } from '../../../store/tabStore';
 import type { PaymentMethod } from '../BillingConstants';
-import type { SplitDetails } from '../../../store/tabStore';
 import { runScrapCheckout } from './scrapCheckout';
 import { cashShortOnAccount, onAccountExcess } from './overpayment';
 import { useCartStore } from '../../../store/cartStore';
@@ -13,7 +16,7 @@ import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type Re
 import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { formatWhatsAppBillMessage } from '../../../utils/print/whatsappBillHelper';
 import { parsePrintFormat, formatPrinterError } from '../../../utils/print/printFormatHelper';
-import { useTabStore } from '../../../store/tabStore';
+import { useTabStore, type SplitDetails } from '../../../store/tabStore';
 import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import { buildCheckoutLines, buildReceiptLines, resolveSupplyType } from '../../../utils/pricing/checkoutLines';
 import { cashierApi } from '../../../data/cashier';
@@ -25,10 +28,102 @@ import { returnsApi } from '../../../data/returns';
 import { sendConfiguredBill } from '../../../data/whatsappSharing';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
 import { listParties } from '../../../data/parties';
-import { cardAmountOf, runCardTerminalStep, settleCardTerminalStep } from '../../app/cardTerminalStep';
 
-export type { CheckoutContext } from './checkoutTypes';
-import type { CheckoutContext } from './checkoutTypes';
+export interface CheckoutContext {
+  items: CartItem[];
+  setHardwareError: Dispatch<SetStateAction<string | null>>;
+  isCheckingOutRef: RefObject<boolean>;
+  activeTabId: string;
+  setIsCheckingOut: Dispatch<SetStateAction<boolean>>;
+  isScrapMode: boolean;
+  scrapTotal: number;
+  extraBonus: number;
+  scrapPaymentStatus: "CASH" | "CREDIT" | "PENDING" | "SETTLED";
+  customerName: string;
+  customerPhone: string;
+  tenantId: string | null;
+  customerAddress: string;
+  userId: string;
+  userName: string | null;
+  shopNameState: string;
+  shopName: string | null;
+  shopGstin: string;
+  shopAddress: string;
+  shopPhone: string;
+  authRole: "ADMIN" | "SUPER_ADMIN" | "STAFF" | null;
+  discount: number;
+  customerState: string;
+  setCheckoutSuccess: Dispatch<SetStateAction<false | "saved" | "printed">>;
+  uiConfig: BillingUIConfig;
+  setIsScrapMode: (isScrapMode: boolean) => void;
+  closeTab: (id: string) => void;
+  clearCart: () => void;
+  updateActiveTab: (updates: Partial<Omit<Tab, "id" | "snapshot">>) => void;
+  isCashSettlementEnabled: boolean;
+  reserveScrapInvoiceNumberForTab: (forceRefresh?: boolean) => Promise<void>;
+  reserveInvoiceNumberForTab: (forceRefresh?: boolean) => Promise<void>;
+  getActiveTab: () => Tab | undefined;
+  syncActiveSnapshot: () => void;
+  pendingCheckoutSaveOnlyRef: RefObject<boolean | null>;
+  setIsBillerPinModalOpen: Dispatch<SetStateAction<boolean>>;
+  pcsRefs: RefObject<Record<string, HTMLInputElement | null>>;
+  qtyRefs: RefObject<Record<string, HTMLInputElement | null>>;
+  localPcsStr: Record<string, string>;
+  invoiceType: InvoiceType;
+  isB2B: boolean;
+  isQuotationMode: boolean;
+  isReturnMode: boolean;
+  customerGstin: string;
+  paymentMethod: PaymentMethod;
+  splitDetails: SplitDetails;
+  splitTotal: number;
+  displayGrandTotal: number;
+  loyaltyEnabled: boolean;
+  pointsToRedeem: number;
+  loyaltyCustomerData: { customerId: string | null; pointsBalance: number; };
+  loyaltyRedemptionRate: number;
+  receivedAmount: number;
+  refundAmount: number;
+  balanceAmount: number;
+  enableThreeInvoiceSeries: boolean;
+  terminalCodeState: string;
+  bosTaxRatePercent: number;
+  bosTaxInclusive: boolean;
+  loyaltyAwardOnPending: boolean;
+  loyaltyEarningRate: number;
+  isGrandTotalOverridden: boolean;
+  activeTab: Tab | undefined;
+  storeScrapDeduction: number;
+  storeReturnDeduction: number;
+  grandTotal: number;
+  findMatchingParty: B.PartyMatch;
+  shopEmail: string;
+  shopWebsite: string;
+  bankNameState: string;
+  bankAccountState: string;
+  bankIfscState: string;
+  bankBranchState: string;
+  upiId: string;
+  showUpiQr: boolean;
+  subtotal: number;
+  totalTax: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  storeScrapInvoiceNumber: string;
+  storeReturnInvoiceNumber: string;
+  currentSelectedUpi: B.SelectedUpi;
+  actualRefundPaid: number;
+  returnConsumed: number;
+  editingQuotationId: string | null;
+  setPartiesForTier: Dispatch<SetStateAction<B.Party[]>>;
+  setInvoiceType: (type: InvoiceType) => void;
+  clearScrapDeduction: () => void;
+  clearReturnDeduction: () => void;
+  setLoyaltyCustomerData: Dispatch<SetStateAction<{ customerId: string | null; pointsBalance: number; }>>;
+  setShowLoyaltyRedemption: Dispatch<SetStateAction<boolean>>;
+  setPointsToRedeem: Dispatch<SetStateAction<number>>;
+}
 
 export function createCheckoutHandler(ctx: CheckoutContext) {
   const { items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, customerName, customerPhone, tenantId, customerAddress, userId, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod: tabPaymentMethod, splitDetails: tabSplitDetails, splitTotal, displayGrandTotal, loyaltyEnabled, pointsToRedeem, loyaltyCustomerData, loyaltyRedemptionRate, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem } = ctx;
@@ -395,10 +490,6 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         } : {}),
       };
 
-      const cardStep = await runCardTerminalStep({ tenantId: tenantId || 'global', invoiceId: invoice_id, isEditing, skip: isQuotationMode || isReturnMode || useCartStore.getState().isFilingOnly,
-        paymentMethod: effectiveFinalPaymentMethod, cardAmount: cardAmountOf(effectiveFinalPaymentMethod, effectiveGrandTotal, splitDetailsForSave.card) });
-      if (!cardStep.ok) { setHardwareError(cardStep.message); return; }
-      if (cardStep.details) Object.assign(splitDetailsForSave, { card_terminal: cardStep.details });
       let result: B.CheckoutResult;
       const wantsLoyalty = loyaltyEnabled && !!(customerName || '').trim() && (!!(customerPhone || '').trim() || !!(customerAddress || '').trim() || loyaltyCustomerData.customerId);
       if (isEditing) {
@@ -450,7 +541,6 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       } else {
         result = await invoicesApi.checkout({
           bill_purpose: useCartStore.getState().isFilingOnly ? 'FILING_ONLY' : 'SALE',
-          restaurant_order_id: activeTab?.restaurantOrderId || null,
           invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset',
           biller_staff_id: useCartStore.getState().billerStaffId || null,
           sales_staff_id: useCartStore.getState().salesStaffId || null,
@@ -498,13 +588,11 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           remaining_points_balance: remainingPointsBalance,
         });
       }
-      await settleCardTerminalStep(result.success);
       if (!result.success) {
         setHardwareError(isEditing ? `Update failed: ${result.error || 'Unknown error'}` : `Checkout failed: ${result.error || 'Unknown error'}`);
         return;
       }
 
-      if (activeTab?.restaurantOrderId) useTabStore.getState().updateActiveTab({ restaurantOrderId: undefined }); // order closed
       // Ensure receipt printing and activeTab title use the exact confirmed invoice_number returned by DB/checkout
       const confirmedInvoiceNumber = (result && result.invoice_number) ? result.invoice_number : invoice_number;
       invoice_number = confirmedInvoiceNumber;
@@ -644,7 +732,6 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
             dueDate: (receiptData as typeof receiptData & { dueDate?: string; creditPeriodDays?: number }).dueDate,
             creditPeriodDays: (receiptData as typeof receiptData & { dueDate?: string; creditPeriodDays?: number }).creditPeriodDays,
             customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
-            invoiceType: receiptData.invoiceType, isB2B: receiptData.isB2B, shopTrn: receiptData.shopGstin,
           });
 
           sendConfiguredBill(tenantId || 'global', {
@@ -695,7 +782,6 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       }, 1800);
     } catch (err) {
       console.error('[Checkout Error]', err);
-      await settleCardTerminalStep(false);
       setHardwareError(`Checkout failed: ${(err as Error)?.message || 'Unexpected error'}`);
     } finally {
       isCheckingOutRef.current = false;

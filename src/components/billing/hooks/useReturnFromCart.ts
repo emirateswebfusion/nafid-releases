@@ -16,7 +16,6 @@ import type { CartItem } from '../../../store/cartStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { Tab } from '../../../store/tabStore';
 import type { Invoice } from '../../../data/invoices';
-import { offerCardTerminalRefund } from '../../app/cardTerminalStep';
 
 export interface UseReturnFromCartContext {
   activeTabId: string;
@@ -129,10 +128,6 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
             user_name: useAuthStore.getState().userName || undefined,
           });
         } catch (e) { console.error('Failed to log return cash out', e); }
-      }
-
-      if (returnRefundMethod === 'CARD') {
-        await offerCardTerminalRefund({ tenantId: tid, invoiceId: selectedReturnInvoice.invoice_id, amount: returnGrandTotal, originalSplitDetails: selectedReturnInvoice.split_details });
       }
 
       if (returnRefundMethod === 'ADJUST_BILL') {

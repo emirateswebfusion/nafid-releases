@@ -9,8 +9,6 @@ import { Receipt, FileText, Clock, User, ChevronRight } from 'lucide-react';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { getSalesHistoryAmount } from '../../../utils/pricing/salesHistoryAmount';
 import type { SalesInvoiceRow } from '../salesTypes';
-import type { EinvoiceStatusRow } from '../../../data/einvoice';
-import { EinvoiceBadge } from './EinvoiceBadge';
 
 /* ─── Payment Badge ─── */
 export function PaymentBadge({ method }: { method: string }) {
@@ -36,7 +34,7 @@ export function InvoiceTypeBadge({ inv }: { inv: DisplayInvoice }) {
 }
 
 /* ─── Invoice Row ─── */
-export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload: _onDownload, onPrint: _onPrint, showEinvoice = false, einvoice }: { inv: DisplayInvoice; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: UpiSourceOption[]; onDownload?: (inv: SalesInvoiceRow) => void; onPrint?: (inv: SalesInvoiceRow) => void; showEinvoice?: boolean; einvoice?: EinvoiceStatusRow }) {
+export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload: _onDownload, onPrint: _onPrint }: { inv: DisplayInvoice; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: UpiSourceOption[]; onDownload?: (inv: SalesInvoiceRow) => void; onPrint?: (inv: SalesInvoiceRow) => void }) {
   const { date, time } = formatDate(inv.created_at || '');
   const isCredit = inv.payment_method === 'CREDIT';
   const isConvertedBos = !!inv.converted_to_invoice_id;
@@ -224,7 +222,6 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
           );
         })()}
       </td>
-      {showEinvoice && <td className="px-4 py-3.5 whitespace-nowrap"><EinvoiceBadge row={einvoice} /></td>}
       {/* Arrow */}
       <td className="px-3 py-3.5 text-right">
         <ChevronRight className={clsx(

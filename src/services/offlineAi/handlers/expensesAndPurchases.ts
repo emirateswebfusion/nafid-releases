@@ -1,5 +1,5 @@
 import { resolveDateRange } from '../dates';
-import { formatMoney } from '../format';
+import { formatINR } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
 import type { AiQueryContext } from '../queryContext';
@@ -21,13 +21,13 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
 
       const md = isMal
         ? `### 💸 ചെലവ് റിപ്പോർട്ട് — ${range.label}\n\n` +
-          `* **ആകെ ചെലവുകൾ (Total Expenses):** **${formatMoney(totalExpense)}**\n` +
+          `* **ആകെ ചെലവുകൾ (Total Expenses):** **${formatINR(totalExpense)}**\n` +
           `* **ഇടപാടുകളുടെ എണ്ണം:** **${count} എണ്ണം**\n` +
-          `* **ശരാശരി ചെലവ്:** **${formatMoney(avg)}**\n`
+          `* **ശരാശരി ചെലവ്:** **${formatINR(avg)}**\n`
         : `### 💸 Expense Summary Report — ${range.label}\n\n` +
-          `* **Total Operating Expenses:** **${formatMoney(totalExpense)}**\n` +
+          `* **Total Operating Expenses:** **${formatINR(totalExpense)}**\n` +
           `* **Total Transactions Count:** **${count} records**\n` +
-          `* **Average Transaction Amount:** **${formatMoney(avg)}**\n`;
+          `* **Average Transaction Amount:** **${formatINR(avg)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -52,15 +52,15 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
 
       let md = isMal
         ? `### 📂 കാറ്റഗറി തിരിച്ചുള്ള ചെലവുകൾ — ${range.label}\n\n` +
-          `ആകെ ചെലവ് തുക: **${formatMoney(total)}**\n\n` +
+          `ആകെ ചെലവ് തുക: **${formatINR(total)}**\n\n` +
           `| കാറ്റഗറി | എണ്ണം | തുക | വിഹിതം |\n| :--- | :---: | :---: | :---: |\n`
         : `### 📂 Expenses Grouped by Category — ${range.label}\n\n` +
-          `Total Expense Payout: **${formatMoney(total)}**\n\n` +
+          `Total Expense Payout: **${formatINR(total)}**\n\n` +
           `| Expense Category | Count | Amount | Share |\n| :--- | :---: | :---: | :---: |\n`;
 
       list.forEach(c => {
         const share = total > 0 ? Math.round((c.total / total) * 100) : 0;
-        md += `| **${c.category}** | ${c.count} | **${formatMoney(c.total)}** | ${share}% |\n`;
+        md += `| **${c.category}** | ${c.count} | **${formatINR(c.total)}** | ${share}% |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -80,7 +80,7 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
 
       sorted.forEach((t: AiRow) => {
         const d = (t.transaction_date || '').slice(0, 10) || '—';
-        md += `| ${d} | ${t.category || 'General'} | ${t.notes || '—'} | **${formatMoney(t.amount)}** |\n`;
+        md += `| ${d} | ${t.category || 'General'} | ${t.notes || '—'} | **${formatINR(t.amount)}** |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -101,13 +101,13 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
 
       const md = isMal
         ? `### ⚖️ ചെലവ് താരതമ്യ റിപ്പോർട്ട് (Month vs Last Month)\n\n` +
-          `* **ഈ മാസം:** **${formatMoney(curTotal)}**\n` +
-          `* **കഴിഞ്ഞ മാസം:** **${formatMoney(prevTotal)}**\n` +
-          `* **വ്യത്യാസം:** **${diff >= 0 ? '+' : ''}${formatMoney(diff)}**\n`
+          `* **ഈ മാസം:** **${formatINR(curTotal)}**\n` +
+          `* **കഴിഞ്ഞ മാസം:** **${formatINR(prevTotal)}**\n` +
+          `* **വ്യത്യാസം:** **${diff >= 0 ? '+' : ''}${formatINR(diff)}**\n`
         : `### ⚖️ Monthly Expense Comparison\n\n` +
-          `* **This Month:** **${formatMoney(curTotal)}**\n` +
-          `* **Last Month:** **${formatMoney(prevTotal)}**\n` +
-          `* **Net Variance:** **${diff >= 0 ? '+' : ''}${formatMoney(diff)}**\n`;
+          `* **This Month:** **${formatINR(curTotal)}**\n` +
+          `* **Last Month:** **${formatINR(prevTotal)}**\n` +
+          `* **Net Variance:** **${diff >= 0 ? '+' : ''}${formatINR(diff)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -118,8 +118,8 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
       const todayCashOut = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
 
       const md = isMal
-        ? `### 💵 ഇന്ന് നൽകിയ ക്യാഷ് ചെലവുകൾ\n\n* **ഇന്നത്തെ ആകെ ക്യാഷ് ചെലവ്:** **${formatMoney(todayCashOut)}**\n`
-        : `### 💵 Cash Paid Out for Expenses Today\n\n* **Total Cash Paid Out Today:** **${formatMoney(todayCashOut)}**\n`;
+        ? `### 💵 ഇന്ന് നൽകിയ ക്യാഷ് ചെലവുകൾ\n\n* **ഇന്നത്തെ ആകെ ക്യാഷ് ചെലവ്:** **${formatINR(todayCashOut)}**\n`
+        : `### 💵 Cash Paid Out for Expenses Today\n\n* **Total Cash Paid Out Today:** **${formatINR(todayCashOut)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -141,13 +141,13 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
 
       const md = isMal
         ? `### 📦 പർച്ചേസ് സംഗ്രഹം — ${range.label}\n\n` +
-          `* **ആകെ പർച്ചേസ് തുക:** **${formatMoney(total)}**\n` +
+          `* **ആകെ പർച്ചേസ് തുക:** **${formatINR(total)}**\n` +
           `* **പർച്ചേസ് ബില്ലുകൾ:** **${count} എണ്ണം**\n` +
-          `* **ശരാശരി ബിൽ തുക:** **${formatMoney(avg)}**\n`
+          `* **ശരാശരി ബിൽ തുക:** **${formatINR(avg)}**\n`
         : `### 📦 Purchases & Supplier Bills Summary — ${range.label}\n\n` +
-          `* **Total Purchases Amount:** **${formatMoney(total)}**\n` +
+          `* **Total Purchases Amount:** **${formatINR(total)}**\n` +
           `* **Total Purchase Bills:** **${count} bills**\n` +
-          `* **Average Bill Amount:** **${formatMoney(avg)}**\n`;
+          `* **Average Bill Amount:** **${formatINR(avg)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -175,7 +175,7 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
         : `### 🚚 Purchases Grouped by Supplier — ${range.label}\n\n| Supplier Name | Bills | Total Amount |\n| :--- | :---: | :---: |\n`;
 
       list.forEach(s => {
-        md += `| **${s.supplier}** | ${s.count} | **${formatMoney(s.total)}** |\n`;
+        md += `| **${s.supplier}** | ${s.count} | **${formatINR(s.total)}** |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -189,10 +189,10 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
       const md = isMal
         ? `### 📒 പണം നൽകാനുള്ള പർച്ചേസ് ബില്ലുകൾ (Unpaid Purchases)\n\n` +
           `* **ആകെ ബില്ലുകൾ:** **${unpaid.length} എണ്ണം**\n` +
-          `* **നൽകാനുള്ള ആകെ തുക:** **${formatMoney(total)}**\n`
+          `* **നൽകാനുള്ള ആകെ തുക:** **${formatINR(total)}**\n`
         : `### 📒 Unpaid & Partially Paid Purchase Bills\n\n` +
           `* **Total Unpaid Bills:** **${unpaid.length} bills**\n` +
-          `* **Total Outstanding Amount:** **${formatMoney(total)}**\n`;
+          `* **Total Outstanding Amount:** **${formatINR(total)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }

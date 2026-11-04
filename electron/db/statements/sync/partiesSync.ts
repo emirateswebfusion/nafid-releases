@@ -141,11 +141,11 @@ export const insertCustomers = (db: Db) => db.prepare(`
     INSERT INTO customers (
       customer_id, tenant_id, name, phone, address, pricing_tier_id,
       total_points_earned, total_points_redeemed, current_points_balance,
-      last_purchase_date, is_deleted, sync_status, created_at, updated_at, einvoice_profile
+      last_purchase_date, is_deleted, sync_status, created_at, updated_at
     ) VALUES (
       @customer_id, @tenant_id, @name, @phone, @address, @pricing_tier_id,
       @total_points_earned, @total_points_redeemed, @current_points_balance,
-      @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at, @einvoice_profile
+      @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(customer_id) DO UPDATE SET
       name = excluded.name,
@@ -157,7 +157,6 @@ export const insertCustomers = (db: Db) => db.prepare(`
       current_points_balance = excluded.current_points_balance,
       last_purchase_date = excluded.last_purchase_date,
       is_deleted = excluded.is_deleted,
-      einvoice_profile = COALESCE(excluded.einvoice_profile, customers.einvoice_profile),
       sync_status = 'SYNCED',
       updated_at = excluded.updated_at
     WHERE customers.sync_status != 'PENDING'

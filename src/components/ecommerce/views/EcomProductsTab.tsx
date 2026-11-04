@@ -1,6 +1,5 @@
 import { Search, X, CheckSquare, RefreshCw, Upload, Square, Package, Tag, Edit2 } from 'lucide-react';
 import clsx from 'clsx';
-import { formatCurrency } from '../../../utils/pricing/money';
 import type { EcommerceProductItem } from '../../../services/fusionCartService';
 import type { EcommerceState } from '../hooks/useEcommerceState';
 
@@ -231,19 +230,19 @@ export function EcomProductsTab({
 
                       {/* POS Counter Price */}
                       <td className="px-3 py-2 text-right font-mono font-medium text-foreground">
-                        {formatCurrency(prod.base_price)}
+                        INR {Number(prod.base_price).toFixed(2)}
                       </td>
 
                       {/* Online Price Override */}
                       <td className="px-3 py-2 text-right font-mono">
                         {prod.online_price_override !== null && prod.online_price_override !== undefined ? (
                           <div className="font-bold text-emerald-600 dark:text-emerald-400">
-                            {formatCurrency(prod.online_price_override)}
+                            INR {Number(prod.online_price_override).toFixed(2)}
                             <span className="block text-[9px] font-sans text-muted-foreground font-normal">Custom Override</span>
                           </div>
                         ) : (
                           <span className="text-muted-foreground/60 text-[11px]">
-                            {formatCurrency(prod.base_price)} <span className="text-[10px] italic">(POS)</span>
+                            INR {Number(prod.base_price).toFixed(2)} <span className="text-[10px] italic">(POS)</span>
                           </span>
                         )}
                       </td>

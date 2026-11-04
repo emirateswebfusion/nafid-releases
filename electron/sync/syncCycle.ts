@@ -10,14 +10,12 @@ import { pullComboOffers, pullGrades, pullPricingTiers, pullProductPricing, pull
 import { pullCustomers, pullLoyaltyTransactions, pullParties, pullPartyLedger, pullUsers, pushCustomers, pushLoyaltyTransactions, syncParties, syncPartyLedger } from './entities/partiesSync.js';
 import { pullInvoices, pullQuotations, pullWarranties, syncInvoices, syncWarranties } from './entities/salesDocsSync.js';
 import { pullSettings, syncSettings } from './entities/settingsSync.js';
-import { syncEinvoices } from './einvoiceSync.js';
 import { pullPurchaseBills, pullReturns, pullScrapCategories, pullScrapTransactions, syncPurchaseBills, syncReturns, syncScrapCategories, syncScrapTransactions } from './entities/stockDocsSync.js';
 import { PULL_CONCURRENCY, getAuthConfig, toSqliteDate } from './syncConfig.js';
 import { getTotalPendingRecords, notifyCycleComplete, notifyOnlineStatus, notifyPercent, notifyProgress, notifyRenderer } from './syncProgress.js';
 import { clearAuthAndNotify, cursorKey, fetchWithFallback, getMeta, getSyncEndpoints, replaySince, setMeta } from './syncTransport.js';
 import * as syncCycleSql from '../db/statements/sync/syncCycle.js';
 import { withSyncApplyGuard } from '../db/statements/outbox.js';
-import { syncRestaurant } from './entities/restaurantSync.js';
 
 /** One sync cycle: cloud status check, lightweight pending-bill pull, unified delta pull and the full push / pull sequence. */
 export async function checkCloudStatus(token: string, tenantId: string, sinceTimestamp: string | null): Promise<{ success: boolean; hasChanges: boolean; maxUpdatedAt?: string | null }> {
@@ -259,7 +257,6 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       if (activeRoute === 'CLOUD' && outboxEnabled(tenant_id)) {
         try {
           if (await runOutboxSync(jwt_token, tenant_id, sender)) notifyRenderer('outbox-sync');
-          if (await syncEinvoices(jwt_token, tenant_id)) notifyRenderer('sync-cycle-completed-with-changes');
           await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then(r => r.response), () => { syncState.isSyncActive = false; });
         } finally { notifyCycleComplete(sender); }
         return;
@@ -352,9 +349,6 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
         if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.5, sender, undefined, totalRecords); await syncWarranties(jwt_token, tenant_id);
-        if (await syncRestaurant(jwt_token, tenant_id)) notifyRenderer('restaurant-sync');
-        // UAE e-invoicing runs after documents and customers are pushed; it is cloud-only and never blocks the cycle.
-        if (activeRoute === 'CLOUD' && await syncEinvoices(jwt_token, tenant_id)) dataUpdated = true;
         if (activeRoute === 'CLOUD') await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then((r) => r.response), () => { syncState.isSyncActive = false; });
         if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         // Pre-check if cloud has any new changes before running pull requests

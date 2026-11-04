@@ -1,7 +1,5 @@
 import { Package, Clock, ShoppingCart, DollarSign, Wifi, WifiOff, RefreshCw, Store, Upload, ChevronRight, Copy, Zap, Server } from 'lucide-react';
 import clsx from 'clsx';
-import { getStoreProfile } from '../../../utils/localization/storeProfile';
-import { formatAmount } from '../../../utils/pricing/money';
 import type { EcommerceState } from '../hooks/useEcommerceState';
 
 export interface EcomOverviewTabProps {
@@ -89,8 +87,8 @@ export function EcomOverviewTab({
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-foreground tracking-tight font-mono flex items-baseline gap-1">
-            <span className="text-xs font-semibold text-muted-foreground">{getStoreProfile().currency}</span>
-            <span>{formatAmount(summary.revenue)}</span>
+            <span className="text-xs font-semibold text-muted-foreground">INR</span>
+            <span>{summary.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium mt-1.5 pt-1.5 border-t border-border/40">
             <span>Gross customer sales</span>

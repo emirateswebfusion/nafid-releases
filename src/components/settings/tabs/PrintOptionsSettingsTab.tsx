@@ -5,7 +5,6 @@ import { FileText, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 import { FONT_OPTIONS } from '../settingsUtils';
 import type { SettingsForm } from '../settingsFormTypes';
-import { UaeArabicPrintSetting } from './UaeArabicPrintSetting';
 
 export interface PrintOptionsSettingsTabProps {
   billSettings: SettingsForm['billSettings']; setBillSettings: SettingsForm['setBillSettings'];
@@ -23,7 +22,6 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
 }) => {
   return (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {isUaeStore() && <UaeArabicPrintSetting />}
             {/* Card 1: General Bill Options & Checklist */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">

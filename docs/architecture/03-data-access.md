@@ -51,8 +51,6 @@ const inv = await scrapApi.getScrapInvoiceByNumber({ tenant_id, scrap_invoice_nu
 | `staff.ts` | staff, PIN, staff ledger, attendance |
 | `recycleBin.ts` | soft-deleted records, restore, hard delete, emergency purge |
 | `printing.ts`, `whatsapp.ts`, `ecommerce.ts`, `sync.ts` | hardware printing, WhatsApp, FusionCart, sync control |
-| `cardTerminal.ts` | bank card machine (ECR): sale, void, refund, cancel, slip resolution, journal (`card-terminal-design.md`) |
-| `restaurant.ts` | restaurant mode: tables, kitchen stations, add-ons, orders, KOT printing, kitchen display, reports |
 | `events.ts` | `bridgeEvents` subscriptions |
 
 ### Adding or changing an IPC channel (5 steps, one change)
@@ -171,27 +169,3 @@ and cloud/LAN settings payloads. Legacy pulls allow both keys. No columns or inv
 UAE VAT remains `tax_total` / `tax_amount`, with Indian component fields zero. Older clients are not UAE
 aware: all terminals of a UAE shop must run a UAE-capable version. Server contract coverage:
 `nafid-server/tests/storeProfileSync.test.ts`; POS pull coverage: `storeProfileSync.test.ts`.
-
-`uae_arabic_print` (`{ documents, thermal }`, typed in `KnownSettings`) uses the same settings IPC. It is pushed like
-any setting but deliberately not in the pull allowlist (`electron/sync/entities/settingsSync.ts`), so each terminal
-keeps its own choice; no server change is needed (the settings push accepts any key).
-
-### UAE e-invoicing (migration 017, 3 Nov 2026)
-
-`einvoice_documents` is a read-only mirror of the server-owned statuses. `electron/sync/einvoiceSync.ts` fills it after each cloud cycle: `POST /api/einvoice/process`, then `GET /api/sync/einvoice-documents`. It is cloud-only, so it stays outside `sync/entities/` (the LAN table rules cover entities only).
-
-`customers.einvoice_profile` (JSON) is synced in both directions. A pull with no profile keeps the local one. The outbox trigger for `customers` is rebuilt by 017.
-
-IPC channels: `db:getEinvoiceStatuses`, `db:getEinvoiceSummary`, `db:getCustomerEinvoiceProfile`, `db:saveCustomerEinvoiceProfile` (`src/data/einvoice.ts`). Cloud configuration goes through `src/data/cloud/einvoiceCloud.ts`. Design: `uae-einvoicing-design.md`.
-
-
-
-### Unified release / UAE feature migration histories (4 November 2026)
-
-Released POS 2.2.35–2.2.37 databases recorded scrap repairs at versions 015/016, while
-local UAE previews recorded card-terminal / restaurant schema at those versions. Historical
-files and applied records are preserved. The canonical registry keeps feature migrations
-015–017, then 018 idempotently ensures card-terminal and restaurant schema for released shops;
-019/020 reuse the historical scrap repair implementations for preview shops. The runner never
-registers duplicate versions. No shop settings or feature flags are enabled by the upgrade.
-Fresh databases and both prior histories are covered by `migrationBranchCompatibility.test.ts`.

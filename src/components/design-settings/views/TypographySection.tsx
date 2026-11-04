@@ -1,8 +1,6 @@
 import { FONT_PRESETS, type FontPreset } from '../../../store/themeStore';
 import clsx from 'clsx';
 import { Check } from 'lucide-react';
-import { getSampleBarcode } from '../../../utils/localization/storeProfile';
-import { formatCurrency } from '../../../utils/pricing/money';
 
 export interface TypographySectionProps {
   activeFontPreset: FontPreset;
@@ -81,7 +79,7 @@ export function TypographySection({
                   The quick brown fox jumps over the lazy dog.
                 </p>
                 <p className="text-xs font-mono font-bold text-primary mt-1">
-                  {formatCurrency(4890)} • {getSampleBarcode()} • #1042
+                  INR 4,890.00 • 890103000213 • #1042
                 </p>
               </div>
 

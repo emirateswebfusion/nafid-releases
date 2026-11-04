@@ -205,11 +205,3 @@ This uses real Chromium text ranges, no database or physical printer, and disabl
 nine receipt styles / three fonts / 58 and 80 mm, after load, after narrowing the container, and before printing.
 For the native thermal gate also run `--no-canvas=true --font=lucida` and `--no-inline-script=true` separately.
 Both exercise production preparation; the latter must recover through the main-process preflight before spooling.
-
-### UAE e-invoicing branch (3 Nov 2026)
-
-`sync-run.mts` HEAD vs candidate (login): 47 calls. The one intended difference is that `POST /api/sync/customers` now carries `einvoice_profile`. Terminal ids, stock-counter keys and party order vary from run to run (base vs base shows the same).
-
-No-login run: 6 calls, 0 differences.
-
-`migrations.mts`: the 017 checks pass. The 7 product-outbox failures also occur on unmodified HEAD.

@@ -15,13 +15,11 @@ import type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } fr
 import type { OfflineLoginResult, PinLoginResult, TerminalConfigResult } from './data/auth';
 import type { EffectiveCloudState } from './data/sync';
 import type { BulkPrintItem } from './data/printing';
-import type { CardTerminalPayment, CardTerminalStatus, CardTerminalTransaction } from './data/cardTerminal';
 import type { CashDrawerResult } from './data/cashier';
 import type { ReturnInvoiceByNumberResult } from './data/returns';
 import type { EcommerceOrdersResult, EcommerceProductsResult } from './data/ecommerce';
 import type { ShopClosingConfigResult, ShopClosingHistoryRow, ShopClosingPreviewResult, ShopClosingSaveConfigResult } from './data/whatsapp';
 import type * as Rows from './data/dbRows';
-import type * as R from './data/restaurant';
 export interface SyncProgress {
   percent: number;
   label: string;
@@ -76,10 +74,6 @@ export interface IElectronAPI {
   dbGetLocalVatFilings: () => Promise<import('../electron/services/vatFilingService').LocalVatFilingRow[] | { error: string }>;
   dbUpsertLocalVatFiling: (payload: { id?: string; period: string; return_type?: string; status: string; filing_mode: string; net_output_vat: number; recoverable_input_vat: number; net_vat_payable: number; net_vat_status: string; summary_payload?: string; notes?: string; approved_by?: string; approved_at?: string }) => Promise<{ success: boolean; id?: string } | { error: string }>;
   dbRecordLocalVatManualAck: (payload: { id?: string; period: string; return_type?: string; filing_mode?: string; acknowledgement_number: string; filing_date: string; net_output_vat: number; recoverable_input_vat: number; net_vat_payable: number; net_vat_status: string; notes?: string; approved_by?: string; approved_at?: string }) => Promise<{ success: boolean; id?: string } | { error: string }>;
-  dbGetEinvoiceStatuses: (payload: { tenant_id: string; document_ids: string[] }) => Promise<import('./data/einvoice').EinvoiceStatusRow[]>;
-  dbGetEinvoiceSummary: (payload: { tenant_id: string }) => Promise<{ status: string; count: number }[]>;
-  dbGetCustomerEinvoiceProfile: (payload: { tenant_id: string; customer_id: string }) => Promise<import('./data/einvoice').CustomerEinvoiceRow | null>;
-  dbSaveCustomerEinvoiceProfile: (payload: { tenant_id: string; customer_id: string; profile: unknown }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<InvoiceItem[]>;
   dbUpdateInvoice: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: unknown }) => Promise<{ success: boolean; error?: string }>;
@@ -166,17 +160,6 @@ export interface IElectronAPI {
   getReceiptText: () => Promise<string>;
   getA4Html: () => Promise<string>;
   printReady: (contentHeightPx?: number) => Promise<{ success: boolean; error?: string }>;
-  cardTerminalGetStatus: () => Promise<CardTerminalStatus>;
-  cardTerminalSale: (payload: { tenant_id: string; invoice_id: string; amount: number; currency?: string }) => Promise<CardTerminalPayment>;
-  cardTerminalVoid: (payload: { ecr_ref: string }) => Promise<CardTerminalPayment>;
-  cardTerminalRefund: (payload: { tenant_id: string; invoice_id?: string | null; amount: number; original_ecr_ref?: string | null; currency?: string }) => Promise<CardTerminalPayment>;
-  cardTerminalCancel: () => Promise<{ success: boolean }>;
-  cardTerminalResolve: (payload: { ecr_ref: string; outcome: 'APPROVED' | 'DECLINED'; auth_code?: string }) => Promise<{ success: boolean; error?: string }>;
-  cardTerminalTest: () => Promise<{ ok: boolean; message: string }>;
-  cardTerminalBillSplitDetails: (payload: { invoice_id: string }) => Promise<{ split_details: string | null }>;
-  cardTerminalListPorts: () => Promise<{ path: string; manufacturer?: string }[]>;
-  cardTerminalListTransactions: (payload: { tenant_id: string; limit?: number }) => Promise<CardTerminalTransaction[]>;
-  cardTerminalListUnresolved: (payload: { tenant_id: string }) => Promise<CardTerminalTransaction[]>;
   printA4Html: (tenant_id: string, htmlContent: string) => Promise<{ success: boolean; useDefaultDialog?: boolean; error?: string }>;
   exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string, pdfOptions?: { displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
 
@@ -199,7 +182,6 @@ export interface IElectronAPI {
   onUpdateInfo: (callback: (info: UpdateInfoPayload) => void) => void;
   onBarcodeScanned: (callback: (code: string) => void) => () => void;
   onScaleWeight: (callback: (weight: number) => void) => () => void;
-  onCardTerminalStatus: (callback: (status: { ecr_ref: string; message: string }) => void) => () => void;
   onSyncDataUpdated: (callback: () => void) => (() => void);
   onSyncCycleComplete: (callback: () => void) => (() => void);
   onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => void) => (() => void);
@@ -341,34 +323,6 @@ export interface IElectronAPI {
   dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
 
   // Hold Bill
-  // Restaurant mode (src/data/restaurant.ts)
-  restaurantGetSetup: (payload: { tenant_id: string }) => Promise<R.RestaurantSetup>;
-  restaurantSaveTable: (payload: unknown) => Promise<R.WriteResult<{ table_id: string }>>;
-  restaurantDeleteTable: (payload: { tenant_id: string; table_id: string }) => Promise<R.WriteResult>;
-  restaurantSaveStation: (payload: unknown) => Promise<R.WriteResult<{ station_id: string }>>;
-  restaurantDeleteStation: (payload: { tenant_id: string; station_id: string }) => Promise<R.WriteResult>;
-  restaurantSaveModifierGroup: (payload: unknown) => Promise<R.WriteResult<{ group_id: string }>>;
-  restaurantDeleteModifierGroup: (payload: { tenant_id: string; group_id: string }) => Promise<R.WriteResult>;
-  restaurantListActive: (payload: { tenant_id: string }) => Promise<R.ActiveOrders>;
-  restaurantGetOrder: (payload: { order_id: string }) => Promise<{ order: R.RestaurantOrder | null; lines: R.OrderLine[]; kots: R.KotTicket[] }>;
-  restaurantOpenOrder: (payload: unknown) => Promise<R.WriteResult<{ order: R.RestaurantOrder }>>;
-  restaurantUpdateOrder: (payload: unknown) => Promise<R.WriteResult>;
-  restaurantSendItems: (payload: { tenant_id: string; order_id: string; user_id: string | null; lines: R.NewOrderLine[] }) => Promise<R.WriteResult<{ kot_ids: string[] }>>;
-  restaurantVoidLines: (payload: { order_id: string; reason: string; user_id: string | null; lines: { line_id: string; quantity?: number }[] }) => Promise<R.WriteResult<{ kot_ids: string[] }>>;
-  restaurantMoveTable: (payload: { order_id: string; table_id: string }) => Promise<R.WriteResult>;
-  restaurantMergeOrders: (payload: { target_order_id: string; source_order_id: string; user_id: string | null }) => Promise<R.WriteResult>;
-  restaurantSplitOrder: (payload: { order_id: string; user_id: string | null; lines: { line_id: string; quantity: number }[] }) => Promise<R.WriteResult<{ order_id: string }>>;
-  restaurantCancelOrder: (payload: { order_id: string; reason: string; user_id: string | null }) => Promise<R.WriteResult<{ kot_ids: string[] }>>;
-  restaurantClaimForBilling: (payload: { order_id: string }) => Promise<R.ClaimResult>;
-  restaurantReleaseClaim: (payload: { order_id: string }) => Promise<R.WriteResult>;
-  restaurantPrintKots: (payload: { kot_ids: string[]; reprint?: boolean }) => Promise<{ success: boolean; results: R.KotPrintResult[] }>;
-  restaurantPreviewKot: (payload: { kot_id: string }) => Promise<R.WriteResult<{ text: string }>>;
-  restaurantGetPrinterConfig: () => Promise<R.KitchenPrinterConfig>;
-  restaurantSavePrinterConfig: (payload: R.KitchenPrinterConfig) => Promise<R.WriteResult<{ config: R.KitchenPrinterConfig }>>;
-  restaurantTestPrinter: (payload: { tenant_id: string; station_name: string; target: R.KitchenPrinterTarget }) => Promise<R.WriteResult>;
-  restaurantListKds: (payload: { tenant_id: string }) => Promise<R.KdsData>;
-  restaurantSetKdsStatus: (payload: { kot_id: string; status: R.KdsStatus }) => Promise<R.WriteResult>;
-  restaurantReport: (payload: { tenant_id: string; from?: string; to?: string }) => Promise<R.RestaurantReport>;
   dbHoldBill: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbGetHeldBills: (payload: { tenant_id: string }) => Promise<Invoice[]>;
   dbRecallHeldBill: (payload: { invoice_id: string }) => Promise<{ success: boolean; invoice?: Invoice; items?: InvoiceItemWithProduct[]; error?: string }>;

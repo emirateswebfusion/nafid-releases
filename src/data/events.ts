@@ -11,7 +11,6 @@ export const bridgeEvents = bindEvents({
   onUpdateInfo: 'onUpdateInfo',
   onBarcodeScanned: 'onBarcodeScanned',
   onScaleWeight: 'onScaleWeight',
-  onCardTerminalStatus: 'onCardTerminalStatus',
   onSyncDataUpdated: 'onSyncDataUpdated',
   onSyncCycleComplete: 'onSyncCycleComplete',
   onOnlineStatus: 'onOnlineStatus',

@@ -1,5 +1,4 @@
-import { getCurrencyPrefix, isUaeStore } from '../../../utils/localization/storeProfile';
-import { CustomerEinvoicePanel } from './CustomerEinvoicePanel';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { getInitials, formatDate, formatDateTime, renderPaymentMethodBadge, renderBillTypeBadge } from '../customerFormat';
 import { Phone, MapPin, Calendar, Building2, ExternalLink, Clock, Award, ShoppingBag, Receipt, TrendingUp, Gift, Loader2, FileText, Download, RotateCw, SlidersHorizontal, CreditCard, FilterX, Eye, ChevronRight } from 'lucide-react';
@@ -266,8 +265,6 @@ export function CustomerDetailView({
         </>
       )}
     </div>
-
-    {isUaeStore() && <CustomerEinvoicePanel key={selectedCustomer.customer_id} customerId={selectedCustomer.customer_id} customerGstin={selectedCustomer.gstin} />}
 
     {/* Interactive Tabbed History Section */}
     <div className="flex-1 flex flex-col bg-card border border-border/80 rounded-2xl shadow-xs overflow-hidden">

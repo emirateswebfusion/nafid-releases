@@ -175,7 +175,6 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
         receivedAmount: selectedInvoice.received_amount != null ? Number(selectedInvoice.received_amount) : undefined,
         balanceAmount: Number(selectedInvoice.balance_amount) || 0,
         paymentMethod: selectedInvoice.payment_method as string | undefined,
-        invoiceType: receiptData.invoiceType, isB2B: receiptData.isB2B, shopTrn: receiptData.shopGstin,
       });
 
       const res = await sendConfiguredBill(tenantId || 'global', {

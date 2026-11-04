@@ -44,9 +44,7 @@ only in a deliberate maintenance change after debt went **down**.
   dialogs add `role="dialog"` + `aria-modal`.
 - Shared UI primitives come from `components/ui/`. Do not restyle a new button/input from scratch.
 - Format money with `formatCurrency` from `src/utils/pricing/money.ts` (billing screens use the compact
-  `formatCurrency` re-exported by `components/billing/BillingConstants.ts`). Never hardcode ₹, `INR`, `en-IN` or an
-  Indian sample barcode in UI text: use `localizeCurrencyText`, `getStoreProfile().currency`, `getSampleBarcode()` and
-  `components/ui/CurrencyIcon` (not `IndianRupee`).
+  `formatCurrency` re-exported by `components/billing/BillingConstants.ts`).
 - Semantic icons only: use standard, purpose-fit Lucide icons. Do not use decorative or AI-styled icons like `Sparkles` for system actions, sync statuses, or notification badges.
 
 ## 5.4 State

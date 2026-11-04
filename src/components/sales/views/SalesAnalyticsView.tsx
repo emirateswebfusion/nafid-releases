@@ -1,8 +1,7 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { SalesTaxSummary } from './SalesTaxSummary';
 import { StatCard } from './StatCard';
-import { Layers, TrendingUp, Tag } from 'lucide-react';
-import { getCurrencyIcon } from '../../ui/currencyIconType';
+import { IndianRupee, Layers, TrendingUp, Tag } from 'lucide-react';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
 
@@ -24,7 +23,7 @@ export function SalesAnalyticsView({
       {/* Top Stat Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <StatCard 
-          icon={getCurrencyIcon()} 
+          icon={IndianRupee} 
           label="Total Revenue" 
           value={maskedRevenue.isHidden ? '••••••••' : formatCurrency(maskedRevenue.displayAmount)} 
           colorClass="text-emerald-500" 

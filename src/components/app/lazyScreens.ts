@@ -20,7 +20,6 @@ export const CashierSettlement = lazy(() => import('../cashier/CashierSettlement
 export const PaymentMethods = lazy(() => import('../payment-methods/PaymentMethods').then((m) => ({ default: m.PaymentMethods })));
 export const ScrapManager = lazy(() => import('../scrap/ScrapManager').then((m) => ({ default: m.ScrapManager })));
 export const QuotationManager = lazy(() => import('../quotation/QuotationManager').then((m) => ({ default: m.QuotationManager })));
-export const RestaurantPage = lazy(() => import('../restaurant/RestaurantPage').then((m) => ({ default: m.RestaurantPage })));
 export const WarrantyManager = lazy(() => import('../warranty/WarrantyManager').then((m) => ({ default: m.WarrantyManager })));
 export const ReturnManager = lazy(() => import('../returns/ReturnManager').then((m) => ({ default: m.ReturnManager })));
 export const StockReport = lazy(() => import('../stock-report/StockReport').then((m) => ({ default: m.StockReport })));

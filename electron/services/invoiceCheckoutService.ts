@@ -7,12 +7,10 @@ import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDra
 import { normalizePaymentSplit, syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
 import { checkCustomerOverdueSync } from './customerCreditService.js';
 import { getGuaranteedNextInvoiceNumber } from './invoiceNumberService.js';
-import { formatStoreMoney, getStoreCountrySetting, storeMoneyProfile } from './storeCountryService.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { localTimestamp, localDate } from './storeTime.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
-import { RestaurantSettleError, settleInTransaction } from './restaurantOrderService.js';
 /** Checkout use-case: creates an invoice with items, stock, payments, cash drawer and credit ledger in one transaction. Called by electron/ipc handlers via invoicesService. */
 
 /** Short-lived dedupe cache shared by checkout and updateInvoice (4 s window). */
@@ -39,7 +37,7 @@ export function checkout(payload: CheckoutPayload) {
   // within 4 s is a different bill, not a double click, and must not be dropped.
   const customerSig = `${(invoice.customer_name || '').trim().toLowerCase()}|${(invoice.customer_phone || '').trim()}`;
   const paymentSig = `${invoice.payment_method || ''}|${invoice.received_amount ?? ''}|${typeof invoice.split_details === 'string' ? invoice.split_details : JSON.stringify(invoice.split_details ?? null)}`;
-  const cacheKey = `${policy.bill_purpose}:${policy.counts_in_revenue}:${policy.stock_applied}:${tenantId}:${invoice.grand_total}:${itemsSig}:${customerSig}:${paymentSig}${payload.restaurant_order_id ? `:${payload.restaurant_order_id}` : ''}`;
+  const cacheKey = `${policy.bill_purpose}:${policy.counts_in_revenue}:${policy.stock_applied}:${tenantId}:${invoice.grand_total}:${itemsSig}:${customerSig}:${paymentSig}`;
   const now = Date.now();
   const cached = recentCheckoutsCache.get(cacheKey);
   if (cached && (now - cached.timestamp < 4000)) {
@@ -124,8 +122,7 @@ export function checkout(payload: CheckoutPayload) {
         const projected = curBal + billCredit;
         if (projected > creditLimit) {
           const excess = projected - creditLimit;
-          const { prefix: cur, locale } = storeMoneyProfile(getStoreCountrySetting(db, tenantId));
-          throw new Error(`Credit limit of ${cur}${creditLimit.toLocaleString(locale)} exceeded for ${matchedParty.name || 'Customer'}! Current balance: ${cur}${curBal.toLocaleString(locale)}, Bill credit: ${cur}${billCredit.toLocaleString(locale)}. Exceeds limit by ${cur}${excess.toLocaleString(locale)}.`);
+          throw new Error(`Credit limit of ₹${creditLimit.toLocaleString('en-IN')} exceeded for ${matchedParty.name || 'Customer'}! Current balance: ₹${curBal.toLocaleString('en-IN')}, Bill credit: ₹${billCredit.toLocaleString('en-IN')}. Exceeds limit by ₹${excess.toLocaleString('en-IN')}.`);
         }
       }
 
@@ -133,9 +130,9 @@ export function checkout(payload: CheckoutPayload) {
       // Restricts only credit purchases if configured to restrict when overdue bills exist
       const overdueStatus = checkCustomerOverdueSync(db, tenantId, invoice.customer_id, custPhone, custName);
       if (overdueStatus.creditPeriodEnabled && overdueStatus.restrictOnExpiry && overdueStatus.isOverdue) {
-        const fmtMoney = (n: number) => formatStoreMoney(n, getStoreCountrySetting(db, tenantId));
+        const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         throw new Error(
-          `Credit purchase blocked: ${overdueStatus.customerName} has ${overdueStatus.overdueCount} overdue credit bill(s) totaling ${fmtMoney(overdueStatus.overdueAmount)} (oldest overdue by ${overdueStatus.oldestOverdueDays} days). Credit period has expired. Please settle pending dues before making new credit purchases.`
+          `Credit purchase blocked: ${overdueStatus.customerName} has ${overdueStatus.overdueCount} overdue credit bill(s) totaling ₹${fmtN(overdueStatus.overdueAmount)} (oldest overdue by ${overdueStatus.oldestOverdueDays} days). Credit period has expired. Please settle pending dues before making new credit purchases.`
         );
       }
     }
@@ -252,7 +249,7 @@ export function checkout(payload: CheckoutPayload) {
           rTxId, tenantId, customerId, invoice.invoice_id,
           ptsRedeemed, runningPoints, afterRedeem,
           finalInvoiceNumber,
-          `Redeemed ${ptsRedeemed} points for ${storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix}${ptsRedeemedDiscount.toFixed(2)} discount on invoice ${finalInvoiceNumber}`,
+          `Redeemed ${ptsRedeemed} points for ₹${ptsRedeemedDiscount.toFixed(2)} discount on invoice ${finalInvoiceNumber}`,
           invoice.user_id || 'system',
           nowTimestamp, nowTimestamp
         );
@@ -390,8 +387,6 @@ export function checkout(payload: CheckoutPayload) {
       is_staff: Boolean(invoice.is_staff || invoice.isStaffCustomer),
       staff_id: invoice.staff_id || null,
     });
-    // Restaurant mode: the order this bill pays is closed in the same transaction (refused if already billed).
-    if (payload.restaurant_order_id) settleInTransaction(db, payload.restaurant_order_id, invoice.invoice_id, finalInvoiceNumber);
     // Reset backfill cooldown so the next db:getParties call immediately
     // picks up this newly created credit entry.
     resetBackfillThrottle();
@@ -455,6 +450,6 @@ export function checkout(payload: CheckoutPayload) {
     return res;
   } catch (error) {
     console.error('[db:checkout]', error);
-    return { success: false, error: error instanceof RestaurantSettleError ? error.message : 'Operation failed' };
+    return { success: false, error: 'Operation failed' };
   }
 }

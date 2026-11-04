@@ -229,7 +229,7 @@ export function parseModuleIntent({ text, dateExtraction }: IntentParseContext):
     text.includes('total discount amount for each invoice') ||
     text.includes('invoices with discounts')
   ) {
-    const amtMatch = text.match(/(?:₹|rs.?|inr|aed)?\s*(\d[\d,]*)/i);
+    const amtMatch = text.match(/(?:₹|rs.?|inr)?\s*(\d[\d,]*)/i);
     const minAmount = amtMatch && amtMatch[1] ? parseInt(amtMatch[1].replace(/,/g, ''), 10) : 500;
     return { intent: 'DISCOUNTS_SUMMARY', domain: 'RETURNS_LOYALTY', params: { minAmount, rangeType: 'today' } };
   }
@@ -342,7 +342,7 @@ export function parseModuleIntent({ text, dateExtraction }: IntentParseContext):
   }
 
   if (isCreditOrLedger && !text.includes('credit sales') && !text.includes('ക്രെഡിറ്റ് സെയിൽസ്')) {
-    const amtMatch = text.match(/(?:₹|rs.?|inr|aed)?\s*(\d[\d,]*)/i);
+    const amtMatch = text.match(/(?:₹|rs.?|inr)?\s*(\d[\d,]*)/i);
     const minAmount = amtMatch && amtMatch[1] ? parseInt(amtMatch[1].replace(/,/g, ''), 10) : 0;
 
     const limitMatch = text.match(/\btop\s+(\d+)\b/i);
@@ -397,7 +397,7 @@ export function parseModuleIntent({ text, dateExtraction }: IntentParseContext):
       .replace(/\b(balance\s+of|balance\s+for|ledger\s+transactions\s+for|ledger\s+for|statement\s+for)\b/gi, ' ')
       .replace(/\b(current|present|existing|given|a|an|balance|credit|ledger|statement|account|due|receivables?|debtors?|outstanding|pending|amount|customer|party|transactions|the|of|for)\b/gi, ' ')
       .replace(/\b(total|all|overall|list|summary|report|status|overview|details?|who|someone|anyone|everyone|every|full|complete|aggregate|sum|count|highest|top|maximum|max|minimum|min|many|much|owes?|money|people|persons?|accounts?|users?|clients?)\b/gi, ' ')
-      .replace(/[₹$]|inr|\baed\b|rs\.?/gi, ' ')
+      .replace(/[₹$]|inr|rs\.?/gi, ' ')
       .replace(/(?:ന്റെ|യുടെ|ടെ|ൽ|ല്)\b/g, ' ')
       .replace(/(?:മൊത്തം|ആകെ|എല്ലാ|എല്ലാവരുടെയും|ലിസ്റ്റ്|പട്ടിക|വിവരം|വിവരങ്ങൾ|സംഗ്രഹം)/g, ' ')
       .replace(/(?:എത്രയാണ്|എത്ര|ആണ്|കാണിക്കൂ|തരുമോ|നോക്കൂ|റിപ്പോർട്ട്|ബാലൻസ്|ബാക്കി|തുക|ക്രെഡിറ്റ്|കടം|കുടിശ്ശിക|ലെഡ്ജർ|സ്റ്റേറ്റ്മെന്റ്|കസ്റ്റമർ|കസ്റ്റമേഴ്സ്|പാർട്ടി)/g, ' ')

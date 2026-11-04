@@ -1,6 +1,6 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { resolveDateRange } from '../dates';
-import { formatMoney } from '../format';
+import { formatINR } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
 import type { AiQueryContext } from '../queryContext';
@@ -84,14 +84,14 @@ export async function handleDiagnosticsIntent(parsed: ParsedOfflineIntent, ctx: 
 
       const md = isMal
         ? `### ⚖️ സെയിൽസ് തുക പരിശോധനാ റിപ്പോർട്ട്\n\n` +
-          `* **വ്യക്തിഗത ഇൻവോയ്സുകളുടെ ആകെത്തുക:** **${formatMoney(computedSum)}** (${validInvs.length} ബില്ലുകൾ)\n` +
-          `* **റിപ്പോർട്ട് ചെയ്ത ആകെ സെയിൽസ്:** **${formatMoney(summary.totalSales)}**\n` +
-          `* **വ്യത്യാസം (Difference):** **${formatMoney(diff)}**\n\n` +
+          `* **വ്യക്തിഗത ഇൻവോയ്സുകളുടെ ആകെത്തുക:** **${formatINR(computedSum)}** (${validInvs.length} ബില്ലുകൾ)\n` +
+          `* **റിപ്പോർട്ട് ചെയ്ത ആകെ സെയിൽസ്:** **${formatINR(summary.totalSales)}**\n` +
+          `* **വ്യത്യാസം (Difference):** **${formatINR(diff)}**\n\n` +
           `**സ്റ്റാറ്റസ്:** ${diff === 0 ? '100% കൃത്യമാണ്, പൊരുത്തക്കേടുകൾ ഒന്നുമില്ല ✅' : 'പൊരുത്തക്കേട് കണ്ടെത്തി ⚠️'}`
         : `### ⚖️ Sales Total vs Invoice Sum Verification\n\n` +
-          `* **Sum of Individual Invoices (${validInvs.length} bills):** **${formatMoney(computedSum)}**\n` +
-          `* **Aggregated Daily Sales Revenue:** **${formatMoney(summary.totalSales)}**\n` +
-          `* **Reconciliation Difference:** **${formatMoney(diff)}**\n\n` +
+          `* **Sum of Individual Invoices (${validInvs.length} bills):** **${formatINR(computedSum)}**\n` +
+          `* **Aggregated Daily Sales Revenue:** **${formatINR(summary.totalSales)}**\n` +
+          `* **Reconciliation Difference:** **${formatINR(diff)}**\n\n` +
           `**Status:** ${diff === 0 ? '100% Reconciled — All invoice totals match the aggregate sales revenue perfectly ✅' : 'Variance detected ⚠️'}\n`;
 
       return { content: md, intent: parsed.intent };
@@ -106,14 +106,14 @@ export async function handleDiagnosticsIntent(parsed: ParsedOfflineIntent, ctx: 
       const md = isMal
         ? `### ⚖️ ചെലവ് ഇടപാടുകളുടെ പരിശോധനാ റിപ്പോർട്ട്\n\n` +
           `* **ഇന്നത്തെ ചെലവ് വൗച്ചറുകൾ:** **${expenseTxs.length} എണ്ണം**\n` +
-          `* **ഓരോ വൗച്ചറുകളുടെയും ആകെത്തുക:** **${formatMoney(sumLineItems)}**\n` +
-          `* **റിപ്പോർട്ട് ചെയ്ത ആകെ ചെലവ്:** **${formatMoney(sumLineItems)}**\n` +
+          `* **ഓരോ വൗച്ചറുകളുടെയും ആകെത്തുക:** **${formatINR(sumLineItems)}**\n` +
+          `* **റിപ്പോർട്ട് ചെയ്ത ആകെ ചെലവ്:** **${formatINR(sumLineItems)}**\n` +
           `* **വ്യത്യാസം:** **${getCurrencyPrefix()}0.00 (പൂർണ്ണമായും കൃത്യം ✅)**\n\n` +
           `എല്ലാ ചെലവ് ഇടപാടുകളും കൃത്യമായി രേഖപ്പെടുത്തിയിട്ടുണ്ട്.`
         : `### ⚖️ Expense Total vs Recorded Transactions Verification\n\n` +
           `* **Expense Transactions Audited:** **${expenseTxs.length} records**\n` +
-          `* **Sum of Line Item Vouchers:** **${formatMoney(sumLineItems)}**\n` +
-          `* **Total Operating Expenses Reported:** **${formatMoney(sumLineItems)}**\n` +
+          `* **Sum of Line Item Vouchers:** **${formatINR(sumLineItems)}**\n` +
+          `* **Total Operating Expenses Reported:** **${formatINR(sumLineItems)}**\n` +
           `* **Variance / Discrepancy:** **${getCurrencyPrefix()}0.00 (100% Balanced ✅)**\n\n` +
           `All recorded expense transactions match the operating expense ledger without discrepancies.\n`;
 

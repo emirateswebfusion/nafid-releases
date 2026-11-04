@@ -2,7 +2,6 @@ import { useState } from 'react';
 import clsx from 'clsx';
 import { ChevronRight, Search, X } from 'lucide-react';
 import { SETTINGS_GROUPS, sectionMatchesSearch, type SettingsSection } from '../settingsSections';
-import { getStoreCountry } from '../../../utils/localization/storeProfile';
 
 export interface SettingsSidebarProps {
   activeSection: string;
@@ -13,8 +12,7 @@ export interface SettingsSidebarProps {
 /** Grouped settings navigation with a search box; a horizontal picker on narrow screens. */
 export function SettingsSidebar({ activeSection, isAdmin, onSelect }: SettingsSidebarProps) {
   const [query, setQuery] = useState('');
-  const country = getStoreCountry();
-  const visible = (item: SettingsSection) => (!item.ownerOnly || isAdmin) && (!item.countries || item.countries.includes(country)) && sectionMatchesSearch(item, query);
+  const visible = (item: SettingsSection) => (!item.ownerOnly || isAdmin) && sectionMatchesSearch(item, query);
   const groups = SETTINGS_GROUPS
     .map(group => ({ ...group, items: group.items.filter(visible) }))
     .filter(group => group.items.length > 0);

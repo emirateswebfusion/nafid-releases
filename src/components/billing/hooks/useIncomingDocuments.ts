@@ -20,7 +20,6 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Tab } from '../../../store/tabStore';
 import type { InvoiceType, UserRole } from '../../../store/cartStore';
 import type { ProductSearchState } from './useProductSearchState';
-import { useRestaurantBillHandover } from '../../restaurant/restaurantBillHandover';
 
 export interface UseIncomingDocumentsContext {
   productSearch: ProductSearchState;
@@ -61,7 +60,6 @@ export interface UseIncomingDocumentsContext {
 export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
   const { addItem, addTab, applyPartyTier, authRole, clearCart, isCashSettlementEnabled, nextTabNumber, quotationGstEnabledSetting, reserveQuotationNumberForTab, reserveReturnNumberForTab, searchRef, setCustomerState, setEditingQuotation, setHardwareError, setInvoiceType, setIsLoadingEditBill, setIsScrapMode, setLocalKgStr, setLocalPcsStr, setQuotationMode, setQuotationTerms, setReturnMode, setSelectedReturnInvoice, syncActiveSnapshot, tenantId, updateActiveTab } = ctx;
   const { setIsPastBillMode } = ctx.productSearch;
-  useRestaurantBillHandover(ctx);
   // Listen for Edit Bill from Sales History — loads items directly into cart
   useEffect(() => {
     const handler = async () => {

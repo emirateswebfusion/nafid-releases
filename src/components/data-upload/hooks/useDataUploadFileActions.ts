@@ -168,7 +168,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
             const rawVal = rawRow[rawKey];
             if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
               const str = String(rawVal).trim();
-              const cleaned = str.replace(/^(?:[₹$€£\s]|AED|INR)+/i, '').replace(/,/g, '');
+              const cleaned = str.replace(/^[₹$€£\s]+/, '').replace(/,/g, '');
               if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
                 const valNum = parseFloat(cleaned);
                 if (!isNaN(valNum) && valNum >= 0) {

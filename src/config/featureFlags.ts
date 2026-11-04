@@ -25,8 +25,7 @@ export type FeatureKey =
   | 'ecommerce'
   | 'ai_assistant'
   | 'recycle_bin'
-  | 'gst_reports'
-  | 'restaurant_mode';
+  | 'gst_reports';
 
 export type FeatureFlags = Record<FeatureKey, boolean>;
 
@@ -65,7 +64,6 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'gst_reports', label: 'GST Reports & Returns', desc: 'GSTR-1 returns, HSN summaries, and tax return filing export' },
   { key: 'recycle_bin', label: 'Recycle Bin', desc: 'Restore accidentally deleted bills, inventory items, and customer contacts' },
   { key: 'loyalty', label: 'Loyalty Points', desc: 'Earn and redeem loyalty points on purchases' },
-  { key: 'restaurant_mode', label: 'Restaurant / Cafeteria Mode', desc: 'Tables, takeaway and delivery orders, kitchen tickets (KOT), kitchen display and service charge' },
   ...(isAiAssistantAvailable ? [
     { key: 'ai_assistant' as FeatureKey, label: 'AI Business Assistant', desc: 'Smart AI chatbot for sales analytics, stock alerts, credit reports & commands' }
   ] : []),
@@ -99,7 +97,6 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   loyalty: true,
   ai_assistant: isAiAssistantAvailable,
   recycle_bin: true,
-  restaurant_mode: false,
 };
 
 export function sanitizeFeatureFlags(flags: FeatureFlags): FeatureFlags {

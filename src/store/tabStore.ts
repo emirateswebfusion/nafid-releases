@@ -83,8 +83,6 @@ export interface Tab {
   selectedUpiSourceId?: string;
   selectedUpiName?: string;
   isB2B?: boolean;
-  /** Restaurant order this bill pays (restaurant mode); checkout closes the order in the same transaction. */
-  restaurantOrderId?: string;
 }
 
 interface TabState {
@@ -386,7 +384,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',
       'reservedInvoiceNumber', 'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
-      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B', 'restaurantOrderId'
+      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
@@ -407,7 +405,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',
       'reservedInvoiceNumber', 'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
-      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B', 'restaurantOrderId'
+      'scrapPaymentStatus', 'isStaffCustomer', 'staffId', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName', 'isB2B'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))

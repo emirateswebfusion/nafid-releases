@@ -1,8 +1,7 @@
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash, Clock, Printer, RefreshCw } from 'lucide-react';
-import { CurrencyIcon } from '../ui/CurrencyIcon';
+import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash, IndianRupee, Clock, Printer, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from '../ui/Skeleton';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
@@ -291,7 +290,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
 
           <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
             <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-              <CurrencyIcon className="w-5 h-5" />
+              <IndianRupee className="w-5 h-5" />
             </div>
             <div className="leading-tight text-left min-w-0 flex-1">
               <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(totalRefunded)}</p>

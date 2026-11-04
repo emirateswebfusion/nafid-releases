@@ -1,5 +1,5 @@
 import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
-import { ShoppingCart, FileText, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw, UtensilsCrossed } from 'lucide-react';
+import { ShoppingCart, FileText, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw } from 'lucide-react';
 import { cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../../../config/featureFlags';
 import { hasPermission } from '../../../utils/security/permissions';
 import type { FeatureFlags } from '../../../config/featureFlags';
@@ -25,16 +25,6 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
       action: () => window.dispatchEvent(new CustomEvent('open-billing-page')),
       shortcut: 'F1',
       perm: 'sales.create'
-    },
-    {
-      id: 'restaurant',
-      title: 'Restaurant',
-      desc: 'Tables, kitchen tickets, takeaway & delivery and the kitchen display',
-      icon: UtensilsCrossed,
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-500/10',
-      action: () => window.dispatchEvent(new CustomEvent('open-restaurant')),
-      perm: 'restaurant.orders'
     },
     {
       id: 'cashier',
@@ -286,13 +276,10 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
     'recycle-bin': 'recycle_bin',
   };
 
-  // Sort cards according to user's custom sequence. A saved order from before restaurant mode existed does not list
-  // its card: place it right after Billing (its main screen) instead of last; dragging it still saves a new order.
-  const order = cardOrder.includes('restaurant') || !cardOrder.includes('billing') ? cardOrder
-    : cardOrder.flatMap(id => (id === 'billing' ? [id, 'restaurant'] : [id]));
+  // Sort cards according to user's custom sequence
   const sortedCards = [...cards].sort((a, b) => {
-    const indexA = order.indexOf(a.id);
-    const indexB = order.indexOf(b.id);
+    const indexA = cardOrder.indexOf(a.id);
+    const indexB = cardOrder.indexOf(b.id);
     if (indexA === -1 && indexB === -1) return 0;
     if (indexA === -1) return 1;
     if (indexB === -1) return -1;
@@ -300,8 +287,7 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
   });
 
   const visibleCards = sortedCards.filter(c => {
-    // 1. Feature Flag check (restaurant mode is off unless the shop turned it on, even before flags load)
-    if (c.id === 'restaurant' && !featureFlags?.restaurant_mode) return false;
+    // 1. Feature Flag check
     if (c.id === 'ai-assistant') {
       if (!isAiAssistantAvailable || (featureFlags && featureFlags.ai_assistant === false)) return false;
     } else if (featureFlags) {

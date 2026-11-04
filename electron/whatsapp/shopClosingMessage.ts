@@ -1,12 +1,23 @@
 import { withNafidFooter } from './messageFooter.js';
-import { formatStoreMoney } from '../services/storeCountryService.js';
 import type { ShopClosingChecklist } from './shopClosingTypes.js';
+
+/** Formats the shop closing WhatsApp message from the summary data and the owner's checklist. */
+function formatStoreCurrency(amount: number | null | undefined, country?: string): string {
+  const num = Number(amount) || 0;
+  const isNegative = num < 0;
+  const absFormatted = Math.abs(num).toLocaleString(country === 'AE' ? 'en-AE' : 'en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const prefix = country === 'AE' ? 'AED ' : '₹';
+  return `${isNegative ? '-' : ''}${prefix}${absFormatted}`;
+}
 
 /**
  * Format the WhatsApp closing message based on checklist
  */
 export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof import('./shopClosingSummary.js').buildShopClosingSummaryData>, checklist: ShopClosingChecklist): string {
-  const formatCurrency = (amount: number | null | undefined) => formatStoreMoney(amount, summaryData.storeCountry);
+  const formatCurrency = (amount: number | null | undefined) => formatStoreCurrency(amount, summaryData.storeCountry);
   const lines: string[] = [];
 
   // Header
