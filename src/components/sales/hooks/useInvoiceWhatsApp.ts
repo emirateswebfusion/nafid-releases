@@ -85,18 +85,46 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
         invoiceNumber: selectedInvoice.invoice_number as string,
         date: formatBillDateTime(selectedInvoice.created_at as string),
         billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (selectedInvoice.biller_name || undefined) : undefined,
-        items: items.map(item => ({
-          name: item.name as string,
-          quantity: Number(item.quantity) || 0,
-          unit_price: item.unit_price,
-          total: item.total,
-          originalRate: item.originalRate,
-          discountLabel: item.discountLabel,
-          brand: item.brand_manufacturer || undefined,
-          billing_type: item.billing_type as string | undefined,
-          pieces_sold: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
-          unit: item.unit as string | undefined,
-        })),
+        items: items.map(item => {
+          const itemCgstR = Number(item.cgst_rate) || 0;
+          const itemSgstR = Number(item.sgst_rate) || 0;
+          const itemIgstR = Number(item.igst_rate) || 0;
+          const rawRate = Number(item.tax_rate) || (itemCgstR + itemSgstR + itemIgstR);
+          let calcRate = rawRate;
+          const iTax = Number(item.tax_amount) || 0;
+          if (!calcRate || calcRate <= 0) {
+            const baseVal = (Number(item.unit_price) * Number(item.quantity)) || (Number(item.total) - iTax);
+            if (baseVal > 0 && iTax > 0) {
+              calcRate = Math.round((iTax / baseVal) * 100 * 10) / 10;
+            }
+          }
+          const itemTaxPct = calcRate > 0 ? calcRate : 0;
+          const hsnVal = item.hsn_sac_code || item.hsn_code || item.hsn || '';
+
+          return {
+            name: item.name as string,
+            quantity: Number(item.quantity) || 0,
+            unit_price: item.unit_price,
+            total: item.total,
+            originalRate: item.originalRate,
+            discountLabel: item.discountLabel,
+            brand: item.brand_manufacturer || undefined,
+            billing_type: item.billing_type as string | undefined,
+            pieces_sold: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
+            unit: item.unit as string | undefined,
+            hsn: hsnVal || undefined,
+            hsn_code: hsnVal || undefined,
+            hsn_sac_code: hsnVal || undefined,
+            tax_rate_percent: itemTaxPct || undefined,
+            gst_percent: itemTaxPct || undefined,
+            cgst_rate: itemCgstR || undefined,
+            sgst_rate: itemSgstR || undefined,
+            igst_rate: itemIgstR || undefined,
+            cgst_amount: item.cgst_amount != null ? Number(item.cgst_amount) : undefined,
+            sgst_amount: item.sgst_amount != null ? Number(item.sgst_amount) : undefined,
+            igst_amount: item.igst_amount != null ? Number(item.igst_amount) : undefined,
+          };
+        }),
         subtotal: selectedInvoice.subtotal,
         tax: selectedInvoice.tax_total,
         cgst,
@@ -137,10 +165,17 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
           unit_price: Number(i.unit_price) || 0,
           total: Number(i.total) || 0
         })),
+        subtotal: Number(selectedInvoice.subtotal) || 0,
+        tax: Number(selectedInvoice.tax_total) || 0,
+        cgst: Number(cgst) || 0,
+        sgst: Number(sgst) || 0,
+        igst: Number(igst) || 0,
+        discount: Number(selectedInvoice.discount_total) || 0,
         grandTotal: baseGrandTotal,
         receivedAmount: selectedInvoice.received_amount != null ? Number(selectedInvoice.received_amount) : undefined,
         balanceAmount: Number(selectedInvoice.balance_amount) || 0,
         paymentMethod: selectedInvoice.payment_method as string | undefined,
+        invoiceType: receiptData.invoiceType, isB2B: receiptData.isB2B, shopTrn: receiptData.shopGstin,
       });
 
       const res = await sendConfiguredBill(tenantId || 'global', {

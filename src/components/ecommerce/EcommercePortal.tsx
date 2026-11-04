@@ -3,6 +3,7 @@ import { Store, Package, ShoppingCart, Settings, RefreshCw, X, TrendingUp } from
 import { useAuthStore } from '../../store/authStore';
 import { fusionCartService, type EcommerceProductItem } from '../../services/fusionCartService';
 import clsx from 'clsx';
+import { formatCurrency } from '../../utils/pricing/money';
 import { useEcommerceState } from './hooks/useEcommerceState';
 import { EditCatalogProductDialog } from './views/EditCatalogProductDialog';
 import { EcomSettingsTab } from './views/EcomSettingsTab';
@@ -551,11 +552,11 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
                       <div>
                         <div className="font-bold text-foreground">{p.name}</div>
                         <div className="text-[10px] text-muted-foreground font-mono">
-                          Qty: {p.pivot?.quantity || 1} × INR {Number(p.pivot?.single_price || 0).toFixed(2)}
+                          Qty: {p.pivot?.quantity || 1} × {formatCurrency(p.pivot?.single_price)}
                         </div>
                       </div>
                       <div className="font-mono font-bold text-foreground">
-                        INR {Number(p.pivot?.subtotal || 0).toFixed(2)}
+                        {formatCurrency(p.pivot?.subtotal)}
                       </div>
                     </div>
                   ))}
@@ -566,7 +567,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
               <div className="pt-2 border-t border-border/60 flex items-center justify-between">
                 <span className="font-bold text-foreground text-sm">Total Paid</span>
                 <span className="font-mono font-black text-foreground text-base">
-                  INR {Number(selectedOrder.total || selectedOrder.amount).toFixed(2)}
+                  {formatCurrency(selectedOrder.total || selectedOrder.amount)}
                 </span>
               </div>
             </div>

@@ -1,4 +1,6 @@
 import { X } from 'lucide-react';
+import { getStoreProfile } from '../../../utils/localization/storeProfile';
+import { formatCurrency } from '../../../utils/pricing/money';
 import { fusionCartService } from '../../../services/fusionCartService';
 import type { EcommerceState } from '../hooks/useEcommerceState';
 import type { EcommerceProductItem } from '../../../services/fusionCartService';
@@ -46,17 +48,17 @@ export function EditCatalogProductDialog({
           </div>
 
           <div>
-            <label className="font-semibold block mb-1 text-foreground">Online Price Override (INR)</label>
+            <label className="font-semibold block mb-1 text-foreground">Online Price Override ({getStoreProfile().currency})</label>
             <input
               type="number"
               step="0.01"
-              placeholder={`POS Counter Price: INR ${Number(editingProduct.base_price).toFixed(2)}`}
+              placeholder={`POS Counter Price: ${formatCurrency(editingProduct.base_price)}`}
               defaultValue={editingProduct.online_price_override !== null && editingProduct.online_price_override !== undefined ? editingProduct.online_price_override : ''}
               id="modal-online-price"
               className="w-full px-3.5 py-2 rounded-xl border border-border/80 bg-background font-mono text-xs text-foreground focus:outline-none focus:border-primary shadow-2xs"
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              Leave blank to inherit POS billing price (INR {Number(editingProduct.base_price).toFixed(2)}).
+              Leave blank to inherit POS billing price ({formatCurrency(editingProduct.base_price)}).
             </p>
           </div>
 

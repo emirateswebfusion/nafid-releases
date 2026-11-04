@@ -1,4 +1,4 @@
-import { getCurrencyPrefix, localizeCurrencyText } from '../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getStoreProfile } from '../../utils/localization/storeProfile';
 import { useState, useEffect } from 'react';
 import { EyeOff, Shield, Eye, CheckCircle2, AlertCircle, Calendar, Package } from 'lucide-react';
 import clsx from 'clsx';
@@ -82,7 +82,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
     }
   };
 
-  const formatWholeRupees = (amount: number) => formatCurrency(amount, { decimals: 0 });
+  const formatWholeAmount = (amount: number) => formatCurrency(amount, { decimals: 0 });
 
   if (loading) {
     return (
@@ -198,8 +198,8 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                 {
                   id: 'FIXED_OVERRIDE',
                   title: 'Fixed Override Amount',
-                  desc: localizeCurrencyText('Show a specific fixed figure (e.g. ₹20,00,000).'),
-                  badge: localizeCurrencyText('Custom ₹'),
+                  desc: `Show a specific fixed figure (e.g. ${formatWholeAmount(2000000)}).`,
+                  badge: `Custom ${getStoreProfile().currency}`,
                 },
                 {
                   id: 'PERCENTAGE_OFFSET',
@@ -255,11 +255,11 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                     />
                   </div>
                   <span className="text-xs font-bold text-muted-foreground">
-                    Formatted: <span className="font-mono text-primary font-black">{formatWholeRupees(config.stock_fixed_amount)}</span>
+                    Formatted: <span className="font-mono text-primary font-black">{formatWholeAmount(config.stock_fixed_amount)}</span>
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground font-medium">
-                  Regardless of the actual stock value (e.g. {getCurrencyPrefix()}35,00,000), staff members will see {formatWholeRupees(config.stock_fixed_amount)} as the total stock valuation.
+                  Regardless of the actual stock value (e.g. {formatWholeAmount(3500000)}), staff members will see {formatWholeAmount(config.stock_fixed_amount)} as the total stock valuation.
                 </p>
               </div>
             )}
@@ -434,7 +434,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground font-medium">
-                    Displays {formatWholeRupees(config.sales_revenue_fixed_amount)} on staff Sales History cards.
+                    Displays {formatWholeAmount(config.sales_revenue_fixed_amount)} on staff Sales History cards.
                   </p>
                 </div>
               )}
@@ -481,11 +481,11 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Stock Valuation:</span>
-                    <span className="font-mono font-bold text-foreground">{getCurrencyPrefix()} 35,00,000</span>
+                    <span className="font-mono font-bold text-foreground">{formatWholeAmount(3500000)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sales Revenue:</span>
-                    <span className="font-mono font-bold text-foreground">{getCurrencyPrefix()} 1,50,000</span>
+                    <span className="font-mono font-bold text-foreground">{formatWholeAmount(150000)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Sales Date Scope:</span>
@@ -515,10 +515,10 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                       {config.stock_valuation_mode === 'HIDDEN'
                         ? '••••••'
                         : config.stock_valuation_mode === 'FIXED_OVERRIDE'
-                        ? formatWholeRupees(config.stock_fixed_amount)
+                        ? formatWholeAmount(config.stock_fixed_amount)
                         : config.stock_valuation_mode === 'PERCENTAGE_OFFSET'
-                        ? formatWholeRupees((3500000 * config.stock_percentage_offset) / 100)
-                        : localizeCurrencyText('₹ 35,00,000')}
+                        ? formatWholeAmount((3500000 * config.stock_percentage_offset) / 100)
+                        : formatWholeAmount(3500000)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -527,10 +527,10 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
                       {config.sales_revenue_mode === 'HIDDEN'
                         ? '••••••'
                         : config.sales_revenue_mode === 'FIXED_OVERRIDE'
-                        ? formatWholeRupees(config.sales_revenue_fixed_amount)
+                        ? formatWholeAmount(config.sales_revenue_fixed_amount)
                         : config.sales_revenue_mode === 'PERCENTAGE_OFFSET'
-                        ? formatWholeRupees((150000 * config.sales_revenue_percentage) / 100)
-                        : localizeCurrencyText('₹ 1,50,000')}
+                        ? formatWholeAmount((150000 * config.sales_revenue_percentage) / 100)
+                        : formatWholeAmount(150000)}
                     </span>
                   </div>
                   <div className="flex justify-between">

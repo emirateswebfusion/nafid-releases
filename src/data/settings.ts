@@ -60,6 +60,8 @@ export interface KnownSettings {
   quotation_gst_enabled: boolean | string;
   print_format: PrintFormatSettings;
   receipt_printer_config: ReceiptPrinterConfig;
+  /** UAE only: Arabic beside English on documents (A4, PDF, quotation, WhatsApp) and on thermal receipts. */
+  uae_arabic_print: { documents?: boolean; thermal?: boolean };
   bank_account_number: string;
   nafid_terminology_preset: string;
   nafid_terminology_custom: Record<string, string>;

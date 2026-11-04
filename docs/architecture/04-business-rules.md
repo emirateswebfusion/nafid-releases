@@ -12,7 +12,7 @@ and update every caller in the same change.
 | Checkout payload lines, CGST/SGST/IGST split, Bill-of-Supply tax, receipt lines, quotation lines, supply type | `src/utils/pricing/checkoutLines.ts` | `tests/unit/checkoutLines.test.ts` |
 | Return source discounts, fractional quantities, stored invoice tax, rounded line/header totals | `src/utils/pricing/returnPricing.ts` (reuses `resolveLinePrice`; invoice rates already include line discounts) | `tests/unit/returnPricing.test.ts`, `returnSelection.test.ts`, `billingScreen.ui.test.tsx` |
 | Live cart totals (subtotal, tax, scrap, discounts) | `src/store/cartStore.ts` (`useCartTotals`, uses `resolveLinePrice`) | via `linePricing` tests |
-| Money formatting (₹, en-IN grouping, sign) | `src/utils/pricing/money.ts` (`formatCurrency`, `formatAmount`) | `tests/unit/money.test.ts` |
+| Money formatting (₹/en-IN or AED/en-AE from the store profile, sign) | `src/utils/pricing/money.ts` (`formatCurrency`, `formatAmount`); main process: `electron/services/storeCountryService.ts` (`formatStoreMoney`, `storeMoneyProfile`) | `tests/unit/money.test.ts`, `storeProfile.test.ts`, `storeMoneyText.test.ts` |
 | Document numbers: offsets (including digit-only values with an empty prefix), digit matching | `src/utils/pricing/invoiceNumberHelper.ts` | `tests/unit/invoiceNumberHelper.test.ts`, `deductionLookup.test.ts` |
 | Tab number previews (peek + skip numbers other tabs show; series; per-type retitle rules) | `src/components/billing/numberReservation.ts` | `tests/unit/numberReservation.test.ts` (characterization) |
 | Scrap/return credits that can be deducted from a bill | `src/components/billing/deductionLookup.ts` | `tests/unit/deductionLookup.test.ts` |
@@ -21,10 +21,14 @@ and update every caller in the same change.
 | Pricing tiers applied to products | `src/utils/pricing/pricingTierHelper.ts` | — |
 | Store timezone and UTC parsing | `src/utils/time/timezoneHelper.ts` | — |
 | Staff data masking | `src/utils/security/staffDataMasking.ts` | — |
+| Staff monthly pay statement (carried forward, salary added, extras, advances, store purchases, deductions, paid, balance) and total payable to staff | `src/utils/pricing/staffPayStatement.ts` (`buildPayStatement`, `totalPayableToStaff`) | `tests/unit/staffPayStatement.test.ts` |
 | Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
 | Tax calculations (GST split CGST/SGST/IGST & UAE VAT 5% inclusive/exclusive) | `src/utils/pricing/taxEngine.ts`, `electron/utils/gstEngine.ts` | `tests/unit/taxEngine.test.ts` |
 | UAE TRN validation (15 digits, prefix 100) & Emirate normalization | `src/utils/pricing/trnValidator.ts`, `electron/utils/trnValidator.ts` | `tests/unit/trnValidator.test.ts` |
+| UAE e-invoicing on the terminal: seller setting keys, buyer profile checks, status labels (the PINT AE document is built on the server, `nafid-server/src/services/einvoice/`) | `src/utils/einvoice/einvoice.ts`, `electron/services/einvoiceService.ts` (profile sanitizing) | `tests/unit/uaeEinvoice.test.ts` |
 | UAE Form VAT 201 Return, FTA Audit File (FAF), and filing lifecycle | `electron/services/vatReportService.ts`, `vatFilingService.ts`, `src/utils/export/ftaAuditFileExporter.ts` | `tests/unit/vatReportService.test.ts`, `vat201JsonSerializer.test.ts`, `vatDashboardCard.test.ts` |
+| Restaurant mode: order-time menu price, service charge (UAE: standard-rated, VAT on top of / inside it like any line), add-on limits, order → billing cart lines, guest check totals | `src/components/restaurant/restaurantRules.ts`, `guestCheck.ts` (reuse `linePricing`, `checkoutLines`) | `tests/unit/restaurantRules.test.ts` |
+| Restaurant mode: KOT station routing and ticket text; orders, voids, merge / split, billing claim, settlement inside checkout; forward-only statuses | `electron/services/restaurantKot.ts`, `restaurantOrderService.ts`, migration `016-restaurant.ts` triggers | `tests/unit/restaurantOrders.test.ts`, `restaurantRules.test.ts` |
 | Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts`, `receiptCore.ts`, `styles/boxed.ts` | `tests/unit/thermalPrint.test.ts`, `printGenerators.characterization.test.ts` |
 
 Sales History date filters and dashboard sales use invoice creation instants in the store timezone. The shared `electron/db/statements/invoiceDates.ts` predicate parses legacy UTC space-separated timestamps and ISO timestamps numerically; later settlement does not move a sale to another date. Tests: `invoiceDateFilters.test.ts`.
@@ -87,6 +91,15 @@ and `electron/utils/` (ids, cashier settlement math).
 - Tests: `creditLedger.test.ts` (real SQLite and services, incl. a 40-customer / 600-operation randomised run),
   `tabStoreEditing.test.ts`.
 
+### Card terminal payments (`electron/services/cardTerminalService.ts`, `src/components/app/cardTerminalStep.ts`)
+
+- Off by default, per PC (`card_terminal_config`, device-local). When on, the card part of a CARD / SPLIT bill is sent
+  to the machine before the bill is saved; the approved result is stored as `split_details.card_terminal` (last 4 card
+  digits only). Ledger rows and amounts do not change.
+- Every request is journaled in `card_terminal_transactions` before it is sent. A missing answer is resolved by an
+  inquiry or by the cashier from the slip, never by sending the payment again. A save that fails after a charge voids it.
+- Design and flows: `card-terminal-design.md`. Tests: `cardTerminalService.test.ts`, `cardTerminalStep.test.ts`.
+
 ### Cash drawer sessions (`electron/services/cashDrawerSession.ts`)
 
 - Timestamps are stored in UTC; the store timezone setting decides business dates and wall-clock times
@@ -105,7 +118,8 @@ and `electron/utils/` (ids, cashier settlement math).
   +30 min / +1 h, `cash_drawer_auto_close_snooze`), closes after 5 minutes without an answer or when the app has been
   idle for 10 minutes; the main process closes drawers still open 15 minutes past the due time
   (`autoCloseOverdueDrawers`). An auto close counts the expected cash (no short / excess).
-- Tests: `tests/characterization/drawer-session.mts`.
+- Tests: `tests/characterization/drawer-session.mts`, `tests/unit/scrapCashReconciliation.test.ts`.
+- Scrap purchases: a single consolidated cash-out row is written for a cash scrap purchase (`Scrap Purchase`). Legacy per-item system-generated cash entries are filtered at runtime in `getRegisterCashEntries` and permanently cleaned up via migrations (015, 016) and `purgeDuplicateScrapCashTransactions` so scrap purchase cash is never deducted twice from the drawer.
 
 ### Sales History totals and scope
 
@@ -325,6 +339,16 @@ backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test
 UAE price-basis changes after trading starts; neither operation converts balances. SQL remains in
 `electron/db/statements/settings.ts`. Existing India behavior and persisted invoice kinds remain compatible.
 
+No screen in a UAE shop shows ₹, INR, en-IN grouping or Indian sample data. Amounts go through `money.ts`;
+legacy ₹ label strings go through `localizeCurrencyText` (`Rate (₹)` → `Rate (AED)`, `₹15` → `AED 15`); currency
+codes in labels use `getStoreProfile().currency`; preview/template barcodes use `getSampleBarcode()` (GS1 890 / 629);
+money icons use `components/ui/CurrencyIcon`. Main-process text (checkout errors, ledger and loyalty descriptions,
+WhatsApp closing) uses `formatStoreMoney` / `storeMoneyProfile` with the tenant's `store_country`; stored ledger and
+loyalty descriptions keep their ungrouped India text (`Total ₹1500.00`) and only take the prefix from the profile.
+The main process cannot import `src/` (`tsconfig.electron.json` rootDir), so these two helpers mirror the profile
+values; change both together. GST report
+screens and `gstReportService` remain India-only (UAE opens the VAT report).
+
 `src/utils/pricing/vat.ts` owns inclusive extraction and two-decimal line VAT rounding. Zero product rates
 remain zero; new UAE product forms start at 5%. Checkout, receipt and quotation line builders use the same
 basis. UAE VAT is stored in existing `tax_amount` / `tax_total`; CGST/SGST/IGST fields stay zero, including
@@ -373,3 +397,46 @@ o sync payload or server route shape changes (the server already accepts the req
 peek and allocation paths share this rule. Tests: `uaeNumbering.characterization.test.ts`.
 UAE ERP display reuses `buildCheckoutLines`; UAE cashier items reuse `InvoiceItemsTable`, showing VAT
 without an Indian tax split. UI coverage: `uaeWording.ui.test.tsx`.
+
+
+### UAE document titles and Arabic labels
+
+One module: `src/utils/print/uaeLabels.ts`. `uaeDocumentTitle` decides Tax Invoice / Invoice / Tax Credit Note
+(FTA rule, see `vat-uae-integration.md` §9); `UAE_LABELS` holds every English/Arabic label pair; `getUaeArabicPrint()`
+reads the `uae_arabic_print` setting. India printing never calls it. Tests: `printGenerators.characterization.test.ts`
+(UAE section), `thermalPrint.test.ts` (network printers print the English-only receipt), `uaeArabicPrintSetting.ui.test.tsx`.
+### Staff Monthly Pay Statement (`src/utils/pricing/staffPayStatement.ts`)
+
+- `buildPayStatement(staffId, year, month, entries, baseSalary, joiningDate)`: Computes the precise monthly payroll breakdown (opening balance carried forward from prior months, earned salary based on calendar days and joining date, extra additions, cash advances, store purchases/credits on staff account, deductions, net paid, and closing balance).
+- `totalPayableToStaff(statements)`: Summarizes total accrued liability payable to staff across all active team members.
+- Staff UI components (`StaffManager.tsx`, `SalarySteps.tsx`, `StaffAttendanceTab.tsx`, `StaffDetailPanel.tsx`, `StaffLedgerTab.tsx`, `StaffSalaryTab.tsx`) provide full staff profile management, salary history, attendance tracking, and monthly statement generation with print export.
+
+### Scrap Purchase Cash Register Deduplication & Reconciliation (`electron/services/scrapService.ts`, migration `015-dedupe-scrap-cash-transactions.ts`)
+
+- Scrap purchase invoice checkouts create a consolidated cashier payout (`Scrap Purchase`, entered by active cashier) in the open cash drawer for the invoice net total.
+- Individual line item insertion (`addScrapTransaction`) checks `if (!t.scrap_invoice_number)` before posting cash drawer movements. When an item belongs to an invoice checkout, per-item `SCRAP_PURCHASE` cash movements are bypassed to prevent double deductions from the cash register.
+- Migration `015` cleans up legacy duplicate per-item `SCRAP_PURCHASE` cash transactions matching a consolidated `Scrap Purchase` payout in the same drawer.
+- Invoice updates (`updateScrapInvoiceFull`) and cancellations (`deleteScrapInvoice`) purge associated cash transactions and trigger `reconcileCashDrawer` to recompute expected cash balances cleanly.
+- Tests: `tests/unit/scrapCashReconciliation.test.ts`.
+
+### WhatsApp Bill tax breakdown (`src/utils/print/whatsappBillHelper.ts`)
+
+- `formatWhatsAppBillMessage` outputs detailed tax and discount breakdown lines: `Subtotal`, `CGST` & `SGST` (for intra-state supplies) or `IGST` (for inter-state supplies) or `Tax`, and `Discount`, matching physical thermal receipt layouts.
+- Invoices without tax (e.g. Bill of Supply / zero tax) omit tax lines cleanly.
+- Tests: `tests/unit/whatsappTaxBreakdown.test.ts`.
+
+### Shop Closing Gross Sales reconciliation (`electron/whatsapp/shopClosingSummary.ts`)
+
+- In `buildShopClosingSummaryData`, `grossSales` is strictly calculated as `netSales + totalDiscount` (`gTotal + disc`), matching the ground truth in `FinancialReport.tsx`.
+- Bill-level scrap deductions (`scrap_deduction`) and return deductions (`return_deduction`) are accounted for in their dedicated summary sections, never added into `grossSales`.
+- In the closing WhatsApp message (`shopClosingMessage.ts` and `shopClosingHelper.ts`), `Gross Sales` and `Total Discount` are displayed before `Net Sales` whenever discounts exist.
+- Tests: `tests/unit/shopClosingGrossAmount.test.ts`.
+
+### Inline Pricing Tier Creation (`src/components/inventory/views/form/PricingSection.tsx`, `InventoryManager.tsx`)
+
+- Allows creating new custom pricing tiers (e.g. Wholesale, VIP, Retail Tier B) directly inline inside the product form via `onAddPricingTier`.
+- Persists via `pricingTiersApi.addPricingTier` and reloads active tiers into state dynamically without navigating away from the active product draft.
+
+### Billing accounts sharing a phone number
+
+`src/components/billing/customerDirectory.ts` resolves an exact normalized customer name with a compatible phone before falling back to a phone match. Distinct accounts can share a phone; displayed balances, saved old/new dues and loyalty identity must follow the named account. Covered by `tests/unit/customerDirectory.test.ts`.

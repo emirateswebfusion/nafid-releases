@@ -1,7 +1,7 @@
 import { hasBridge } from '../../../data/client';
 import { productsApi } from '../../../data/products';
 import { resolveDateRange } from '../dates';
-import { formatINR, formatQty } from '../format';
+import { formatMoney, formatQty } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
 import type { AiQueryContext } from '../queryContext';
@@ -72,16 +72,16 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
       let md = isMal
         ? `### 🏆 ${title} (${periodLabel})\n\n` +
           `* **മാസം:** **${targetMonth.label}**\n` +
-          `* **ആകെ വിൽപ്പന:** **${formatINR(targetMonth.sales)}**\n` +
+          `* **ആകെ വിൽപ്പന:** **${formatMoney(targetMonth.sales)}**\n` +
           `* **ബില്ലുകളുടെ എണ്ണം:** **${targetMonth.count} എണ്ണം**\n` +
-          `* **ശരാശരി ബിൽ തുക:** **${formatINR(targetMonth.count > 0 ? targetMonth.sales / targetMonth.count : 0)}**\n\n` +
+          `* **ശരാശരി ബിൽ തുക:** **${formatMoney(targetMonth.count > 0 ? targetMonth.sales / targetMonth.count : 0)}**\n\n` +
           `#### 📊 മാസ തിരിച്ചുള്ള വിൽപ്പന വിവരങ്ങൾ:\n\n` +
           `| മാസം | ബില്ലുകൾ | ആകെ വിൽപ്പന |\n| :--- | :---: | :---: |\n`
         : `### 🏆 ${title} (${periodLabel})\n\n` +
           `* **Month:** **${targetMonth.label}**\n` +
-          `* **Total Sales Revenue:** **${formatINR(targetMonth.sales)}**\n` +
+          `* **Total Sales Revenue:** **${formatMoney(targetMonth.sales)}**\n` +
           `* **Total Invoices:** **${targetMonth.count} bills**\n` +
-          `* **Average Ticket Value:** **${formatINR(targetMonth.count > 0 ? targetMonth.sales / targetMonth.count : 0)}**\n\n` +
+          `* **Average Ticket Value:** **${formatMoney(targetMonth.count > 0 ? targetMonth.sales / targetMonth.count : 0)}**\n\n` +
           `#### 📊 Monthly Sales Breakdown:\n\n` +
           `| Month | Invoices | Total Sales Revenue |\n| :--- | :---: | :---: |\n`;
 
@@ -89,7 +89,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
         const isTarget = m.key === targetMonth.key;
         const prefix = isTarget ? (isLowest ? '🔻 ' : '⭐ ') : '';
         const nameDisplay = isTarget ? `**${prefix}${m.label}**` : `${m.label}`;
-        md += `| ${nameDisplay} | ${m.count} | **${formatINR(m.sales)}** |\n`;
+        md += `| ${nameDisplay} | ${m.count} | **${formatMoney(m.sales)}** |\n`;
       });
 
       const chartItems = monthsArray.map(m => ({
@@ -159,25 +159,25 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
         md = isMal
           ? `### 🏆 ${labelTitle} (${range.label})\n\n` +
             `* **തിയതി:** **${targetDay.date}**\n` +
-            `* **വിൽപ്പന തുക:** **${formatINR(targetDay.sales)}**\n` +
+            `* **വിൽപ്പന തുക:** **${formatMoney(targetDay.sales)}**\n` +
             `* **ബില്ലുകളുടെ എണ്ണം:** **${targetDay.count} എണ്ണം**\n`
           : `### 🏆 ${labelTitle} (${range.label})\n\n` +
             `* **Date:** **${targetDay.date}**\n` +
-            `* **Sales Revenue:** **${formatINR(targetDay.sales)}**\n` +
+            `* **Sales Revenue:** **${formatMoney(targetDay.sales)}**\n` +
             `* **Invoices Count:** **${targetDay.count} invoices**\n`;
       } else {
         md = isMal
           ? `### 📈 പ്രതിദിന സെയിൽസ് ട്രെൻഡ് — ${range.label}\n\n` +
-            `* **കൂടുതൽ വിൽപ്പന നടന്ന ദിവസം:** **${highestDay.date}** (${formatINR(highestDay.sales)})\n` +
-            `* **കുറഞ്ഞ വിൽപ്പന നടന്ന ദിവസം:** **${lowestDay.date}** (${formatINR(lowestDay.sales)})\n\n` +
+            `* **കൂടുതൽ വിൽപ്പന നടന്ന ദിവസം:** **${highestDay.date}** (${formatMoney(highestDay.sales)})\n` +
+            `* **കുറഞ്ഞ വിൽപ്പന നടന്ന ദിവസം:** **${lowestDay.date}** (${formatMoney(lowestDay.sales)})\n\n` +
             `| തിയതി | ബില്ലുകൾ | വിൽപ്പന തുക |\n| :---: | :---: | :---: |\n`
           : `### 📈 Daily Sales Trend — ${range.label}\n\n` +
-            `* **Best Performing Day:** **${highestDay.date}** (${formatINR(highestDay.sales)})\n` +
-            `* **Lowest Performing Day:** **${lowestDay.date}** (${formatINR(lowestDay.sales)})\n\n` +
+            `* **Best Performing Day:** **${highestDay.date}** (${formatMoney(highestDay.sales)})\n` +
+            `* **Lowest Performing Day:** **${lowestDay.date}** (${formatMoney(lowestDay.sales)})\n\n` +
             `| Date | Invoices | Total Sales |\n| :---: | :---: | :---: |\n`;
 
         dailyArray.slice(-10).forEach(d => {
-          md += `| ${d.date} | ${d.count} | **${formatINR(d.sales)}** |\n`;
+          md += `| ${d.date} | ${d.count} | **${formatMoney(d.sales)}** |\n`;
         });
       }
 
@@ -206,7 +206,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
           `| Biller / Cashier | Invoices | Total Revenue |\n| :--- | :---: | :---: |\n`;
 
       list.forEach(b => {
-        md += `| **${b.name}** | ${b.count} bills | **${formatINR(b.total)}** |\n`;
+        md += `| **${b.name}** | ${b.count} bills | **${formatMoney(b.total)}** |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -237,7 +237,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
           `| Customer Name | Phone | Bills | Total Purchases |\n| :--- | :---: | :---: | :---: |\n`;
 
       list.slice(0, 10).forEach(c => {
-        md += `| **${c.name}** | ${c.phone || '—'} | ${c.count} | **${formatINR(c.total)}** |\n`;
+        md += `| **${c.name}** | ${c.phone || '—'} | ${c.count} | **${formatMoney(c.total)}** |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -271,14 +271,14 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
       if (summaryList && summaryList.length > 0) {
         const topProduct = summaryList[0];
         md += isMal
-          ? `* **ഒന്നാം സ്ഥാനം:** **${topProduct.name}** (${topProduct.total_qty || topProduct.gst_qty || 0} എണ്ണം, ${formatINR(topProduct.total_revenue || 0)})\n\n` +
+          ? `* **ഒന്നാം സ്ഥാനം:** **${topProduct.name}** (${topProduct.total_qty || topProduct.gst_qty || 0} എണ്ണം, ${formatMoney(topProduct.total_revenue || 0)})\n\n` +
             `| ഉൽപ്പന്നം | വിറ്റ അളവ് | ആകെ വരുമാനം |\n| :--- | :---: | :---: |\n`
-          : `* **#1 Top Seller:** **${topProduct.name}** (${topProduct.total_qty || topProduct.gst_qty || 0} sold, ${formatINR(topProduct.total_revenue || 0)})\n\n` +
+          : `* **#1 Top Seller:** **${topProduct.name}** (${topProduct.total_qty || topProduct.gst_qty || 0} sold, ${formatMoney(topProduct.total_revenue || 0)})\n\n` +
             `| Product Name | Qty Sold | Revenue |\n| :--- | :---: | :---: |\n`;
 
         summaryList.slice(0, limit).forEach((p, idx) => {
           const prefix = idx === 0 ? '⭐ ' : '';
-          md += `| ${prefix}**${p.name}** | ${p.total_qty || p.gst_qty || 0} | **${formatINR(p.total_revenue || 0)}** |\n`;
+          md += `| ${prefix}**${p.name}** | ${p.total_qty || p.gst_qty || 0} | **${formatMoney(p.total_revenue || 0)}** |\n`;
         });
       } else {
         md += isMal ? `ഈ കാലയളവിൽ ഉൽപ്പന്ന വിൽപ്പനകൾ ഒന്നും രേഖപ്പെടുത്തിയിട്ടില്ല (${range.label}).` : `No product sales recorded for ${range.label}.`;
@@ -350,7 +350,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
       } else {
         md += `| Counter / Register | Invoices | Cash Sales | Digital / UPI | Total Sales |\n| :--- | :---: | :---: | :---: | :---: |\n`;
         counters.forEach(([name, data]) => {
-          md += `| **${name}** | ${data.count} bills | ${formatINR(data.cash)} | ${formatINR(data.digital)} | **${formatINR(data.total)}** |\n`;
+          md += `| **${name}** | ${data.count} bills | ${formatMoney(data.cash)} | ${formatMoney(data.digital)} | **${formatMoney(data.total)}** |\n`;
         });
       }
 
@@ -378,12 +378,12 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
             `* **ഇൻവോയ്സ് നമ്പർ (Invoice #):** **${latest.invoice_number}**\n` +
             `* **തീയതി:** **${latest.invoice_date || (latest.created_at || '').substring(0, 10)}**\n` +
             `* **കസ്റ്റമർ:** **${latest.customer_name || 'Walk-in Customer'}**\n` +
-            `* **ബിൽ തുക:** **${formatINR(latest.grand_total)}**\n`
+            `* **ബിൽ തുക:** **${formatMoney(latest.grand_total)}**\n`
           : `### 🧾 Latest Invoice Details\n\n` +
             `* **Latest Invoice Number:** **${latest.invoice_number}**\n` +
             `* **Date / Timestamp:** **${latest.invoice_date || (latest.created_at || '').substring(0, 10)}**\n` +
             `* **Customer:** **${latest.customer_name || 'Walk-in Customer'}**\n` +
-            `* **Invoice Grand Total:** **${formatINR(latest.grand_total)}**\n`;
+            `* **Invoice Grand Total:** **${formatMoney(latest.grand_total)}**\n`;
       }
 
       return { content: md, intent: parsed.intent };
@@ -403,7 +403,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
       } else {
         md += `| Invoice # | Customer | Payment Mode | Grand Total |\n| :--- | :--- | :---: | :---: |\n`;
         validInvs.slice(0, 25).forEach((inv: AiRow) => {
-          md += `| **${inv.invoice_number}** | ${inv.customer_name || 'Walk-in'} | ${inv.payment_method || 'Cash'} | **${formatINR(inv.grand_total)}** |\n`;
+          md += `| **${inv.invoice_number}** | ${inv.customer_name || 'Walk-in'} | ${inv.payment_method || 'Cash'} | **${formatMoney(inv.grand_total)}** |\n`;
         });
       }
 
@@ -443,7 +443,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
         md += `| Invoice # | Date | Customer | Quantity | Invoice Total |\n| :--- | :---: | :--- | :---: | :---: |\n`;
         matchingInvs.slice(0, 20).forEach((inv: AiRow) => {
           const item = (inv.items || []).find((it: AiRow) => (it.name || '').toLowerCase().includes(prod.toLowerCase()));
-          md += `| **${inv.invoice_number}** | ${inv.invoice_date || (inv.created_at || '').substring(0, 10)} | ${inv.customer_name || 'Walk-in'} | ${formatQty(item?.quantity || 1)} | **${formatINR(inv.grand_total)}** |\n`;
+          md += `| **${inv.invoice_number}** | ${inv.invoice_date || (inv.created_at || '').substring(0, 10)} | ${inv.customer_name || 'Walk-in'} | ${formatQty(item?.quantity || 1)} | **${formatMoney(inv.grand_total)}** |\n`;
         });
       }
 

@@ -1,12 +1,12 @@
 import type { Db } from '../types.js';
 import type { SyncOutboxRow } from '../outbox.js';
-import { SYNCED_TABLES } from '../../migrations/002-sync-outbox.js';
+import { ALL_SYNCED_TABLES } from '../../migrations/syncedTables.js';
 
 const quote = (name: string) => `"${name.replace(/"/g, '""')}"`;
 type Row = Record<string, unknown>;
 interface Column { name: string; pk: number }
 function metadata(db: Db, entity: string) {
-  if (!(SYNCED_TABLES as readonly string[]).includes(entity)) throw new Error('Unknown sync entity');
+  if (!ALL_SYNCED_TABLES.includes(entity)) throw new Error('Unknown sync entity');
   const columns = db.prepare(`PRAGMA table_info(${quote(entity)})`).all() as Column[];
   const primary = columns.filter(c => c.pk).sort((a, b) => a.pk - b.pk).map(c => c.name);
   const keys = primary.length ? primary : [columns.find(c => c.name.endsWith('_id'))!.name];

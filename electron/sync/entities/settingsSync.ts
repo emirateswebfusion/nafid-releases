@@ -71,7 +71,10 @@ export async function pullSettings(token: string, tenantId: string): Promise<boo
     'store_country', 'vat_price_inclusive', 'time_format', 'store_timezone', 'bank_name', 'bank_account_number',
     'bank_ifsc', 'bank_branch', 'feature_flags', 'print_format', 'label_code_type',
     'label_show_shop_name', 'auto_print_barcode', 'show_cash_register', 'staff_data_masking_config',
-    'emergency_panic_config'
+    'emergency_panic_config',
+    // UAE e-invoicing seller identity (src/utils/einvoice/sellerSettings.ts)
+    'uae_legal_name', 'uae_tin', 'uae_trade_license_no', 'uae_trade_license_authority',
+    'uae_address_street', 'uae_address_city'
   ];
 
   const upsert = settingsSyncSql.insertSettings(db);

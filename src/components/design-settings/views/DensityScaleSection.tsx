@@ -1,4 +1,6 @@
 import clsx from 'clsx';
+import { getSampleBarcode } from '../../../utils/localization/storeProfile';
+import { formatCurrency } from '../../../utils/pricing/money';
 
 export interface DensityScaleSectionProps {
   decreaseFontScale: () => void;
@@ -104,7 +106,7 @@ export function DensityScaleSection({
             Receipts, touch cart lists, invoice tables, and product search results scale harmoniously with this setting.
           </p>
           <p className="text-[11px] text-muted-foreground font-mono">
-            Sample Barcode: 8901234567890 • Quantity: 4 • Price: INR 25.00
+            Sample Barcode: {getSampleBarcode()} • Quantity: 4 • Price: {formatCurrency(25)}
           </p>
         </div>
       </div>

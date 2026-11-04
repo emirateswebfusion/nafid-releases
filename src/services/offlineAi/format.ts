@@ -3,7 +3,7 @@ import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { formatCurrency } from '../../utils/pricing/money';
 import type { AiRow } from './types';
 
-export function formatINR(val: number | string | null | undefined): string {
+export function formatMoney(val: number | string | null | undefined): string {
   return formatCurrency(val);
 }
 

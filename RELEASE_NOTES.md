@@ -1,3 +1,19 @@
+## v2.2.38
+
+- Billing uses the named customer when separate accounts share one phone number, keeping the displayed and saved account balance and loyalty details on the selected account.
+
+# Nafid POS v2.2.37
+
+## What's New
+- **Staff Hub & Pay Statements**: full staff management, attendance tracking, advances, salary adjustments, and monthly pay statements.
+- **Pricing Tiers**: create and assign product pricing tiers inline directly within product forms.
+- **WhatsApp PDF Invoice Tax Breakdown**: WhatsApp PDF attachments and text messages now detail separate CGST and SGST taxes and item HSNs matching physical printouts.
+- **Shop Closing Gross Sales**: WhatsApp shop closing message accurately calculates gross sales, revenue, and drawer totals.
+- **Cash Register Scrap Fix**: duplicate scrap purchase cash entries are purged and drawer balances reconciled without duplicating deductions.
+- Includes v2.2.36 part payment on account and v2.2.35 ledger parameter fixes.
+
+**Download:** [Nafid-Setup-2.2.37.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.37/Nafid-Setup-2.2.37.exe)
+
 # Nafid POS v2.2.36
 
 ## What's New

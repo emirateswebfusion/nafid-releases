@@ -1,3 +1,5 @@
+import { RESTAURANT_SYNCED_TABLES } from '../db/migrations/016-restaurant.js';
+
 /**
  * Which tables the LAN host (primary terminal) serves to paired terminals, and which it accepts from them.
  * Pulls may read every shared table; pushes are limited to the tables terminals actually send
@@ -13,6 +15,8 @@ export const LAN_PULL_TABLES: ReadonlySet<string> = new Set([
   'payment_source_transactions', 'pricing_tiers', 'product_pricing', 'combo_offers',
   'combo_items', 'staff', 'staff_salaries', 'staff_transactions', 'staff_ledger', 'staff_attendance', 'sync_meta',
   'stock_operations',
+  // Restaurant mode (pushed by entities/restaurantSync.ts)
+  ...RESTAURANT_SYNCED_TABLES,
 ]);
 
 export const LAN_PUSH_TABLES: ReadonlySet<string> = new Set([
@@ -21,4 +25,5 @@ export const LAN_PUSH_TABLES: ReadonlySet<string> = new Set([
   'payment_source_transactions', 'payment_sources', 'pricing_tiers', 'product_grades', 'product_pricing', 'products',
   'purchase_bills', 'quotations', 'returns', 'scrap_categories', 'scrap_transactions', 'settings', 'warranties',
   'stock_operations',
+  ...RESTAURANT_SYNCED_TABLES,
 ]);

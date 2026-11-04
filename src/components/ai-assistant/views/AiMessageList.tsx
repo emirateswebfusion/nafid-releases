@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { BarChart3, Check, Copy, VolumeX, Volume2 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar } from 'recharts';
 import { humanizeKey } from '../aiAssistantTypes';
-import { formatCurrency as formatINR } from '../../../utils/pricing/money';
+import { formatCurrency } from '../../../utils/pricing/money';
 import type { ChatMessage } from '../aiAssistantTypes';
 import type { LucideProps } from 'lucide-react';
 import type { AiAssistantState } from '../hooks/useAiAssistantState';
@@ -146,7 +146,7 @@ export function AiMessageList({
                               const label = humanizeKey(rawName);
                               const num = Number(value) || 0;
                               const isCurrency = /amount|total|sales|price|cost|rate|revenue|balance|due/i.test(rawName);
-                              const valStr = isCurrency ? formatINR(num) : num.toLocaleString(getStoreLocale());
+                              const valStr = isCurrency ? formatCurrency(num) : num.toLocaleString(getStoreLocale());
                               return [valStr, label];
                             }}
                           />

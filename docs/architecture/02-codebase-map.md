@@ -27,8 +27,11 @@ src/
     <feature>/<Screen>.tsx   the screen (orchestration) next to its views/, modals/, hooks/ (e.g. billing/BillingPage.tsx,
                              sales/SalesHistory.tsx, cashier/CashierSettlement.tsx, inventory/InventoryManager.tsx)
     billing/              + checkout/, customerDirectory.ts, productSearch.ts, numberReservation.ts, BillingConstants.ts
+    restaurant/           RestaurantPage + views/, modals/, settings/, hooks/: tables, orders, KOT, kitchen display;
+                          restaurantRules (India/UAE charges and channels), restaurantBillHandover (order → checkout)
     settings/             SettingsManager + tabs/, the settings panels (emergency purge, data masking, terminology)
     app/                  app shell: ErrorBoundary, PermissionGuard, SplashScreen, UpdateBanner, prompts, PrintRouter, lazyScreens, hooks/
+                          and app-wide flows used by several screens: CardTerminalDialog + cardTerminalStep (card machine)
     auth/ print/          login + trial sign-up preview (AuthBrandPanel, TrialRegistration,
                          trialShopDetails validation); receipt / A4 / barcode print views
     ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, ScrollText, …)
@@ -37,7 +40,8 @@ src/
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)
   utils/                  pure rules and generators, grouped (folders only, guard R15):
     pricing/              money, line pricing, checkout lines, pricing tiers, invoice numbering, sales-history amounts/tax
-    print/                receipt / invoice / quotation / ledger generators (receipt/, invoiceHtml/ split by style), UPI, WhatsApp bill
+    print/                receipt / invoice / quotation / ledger generators (receipt/, invoiceHtml/ split by style), UPI, WhatsApp bill;
+                          UAE documents: uaeInvoice (A4 + thermal), uaeLabels (English/Arabic labels, titles, Arabic setting)
     time/                 store time zone, date display, shop closing (business day)
     security/             permissions, staff data masking, emergency purge
   services/               long-running renderer services (offline AI engine, FusionCart client)
@@ -97,7 +101,8 @@ electron/
     customerCreditService (credit limits/overdue) · quotationsService · returnsService · warrantiesService
     scrapService · purchasesService · cashierService · cashDrawerService · paymentSourcesService
     staffService (staff, biller PIN, staff ledger, attendance) · localAuthService (offline login)
-    emergencyPurgeService · settingsService · recycleBinService · syncService · ecommerceService
+    emergencyPurgeService · settingsService · recycleBinService · syncService · ecommerceService · cardTerminalService
+    restaurantOrderService · restaurantKitchenService · restaurantSetupService · restaurantKot · restaurantClaim
     invoiceNumberService · storeTime · authStorage · windowRegistry · updater · fusionCartBridge …
   db/
     localDb.ts       SQLite connection (getDb/getOpenDb) and initDb, which runs in order:
@@ -113,10 +118,12 @@ electron/
     syncWorker.ts    public API + scheduler: init, fast bill pull, urgent triggers, page context, initial sync
     syncCycle.ts     one cycle: cloud status, lightweight / delta pulls, the push → pull sequence
     syncTransport.ts endpoints + connectivity, fetch with LAN→cloud fallback, pushBatch + outbox, cursors, pullPaginated
+    einvoiceSync.ts  cloud-only UAE e-invoicing step after each cycle (process request + status mirror pull)
     syncConfig.ts / cloudAccess.ts / syncProgress.ts / syncState.ts   limits + stored login / access rules / progress / shared state
     entities/        per-table push + pull: catalog, salesDocs, parties, cash, stockDocs, settings
     localHostServer.ts (LAN server) + lanUpsert.ts (LAN row merge)
-  hardware/          printer (ESC/POS, A4/PDF), weighingScale (serial), barcodeScanner (keyboard wedge)
+  hardware/          printer (ESC/POS, A4/PDF), weighingScale (serial), barcodeScanner (keyboard wedge),
+                     cardTerminal/ (bank card machine: PaymentTerminal interface, registry, link check, adapters/)
   whatsapp/          Baileys session, invoice sending, shop-closing report (service + IPC; shopClosingSummary = data,
                      shopClosingMessage = WhatsApp text, shopClosingTypes)
   utils/             pure helpers for the main process (ids, gst, validation, timestamps, cashier settlement math)

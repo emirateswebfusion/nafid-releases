@@ -1,4 +1,4 @@
-import type { PartyLedgerRow, PartyRow, ScrapCategoryInput, ScrapCategoryRow, ScrapInvoiceItemInput, ScrapInvoiceListRow, ScrapTotalRow, ScrapTransactionInput, ScrapTransactionRow, ScrapTransactionUpdateInput, SettingRow } from './typesA.js';
+import type { CashDrawerRow, PartyLedgerRow, PartyRow, ScrapCategoryInput, ScrapCategoryRow, ScrapInvoiceItemInput, ScrapInvoiceListRow, ScrapTotalRow, ScrapTransactionInput, ScrapTransactionRow, ScrapTransactionUpdateInput, SettingRow } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
 import { localDate } from './storeTime.js';
@@ -88,7 +88,7 @@ export function addScrapTransaction(t: ScrapTransactionInput) {
       scrapSql.insertScrapTransaction(db).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, qtyNum, t.rate, t.total_amount, t.party_name || null, t.customer_phone || null, t.customer_address || null, t.notes || null, t.scrap_invoice_number || null, paymentStatus);
       scrapSql.updateScrapCategoryCurrentStock(db).run(delta, t.scrap_category_id);
 
-      if (t.type === 'PURCHASE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
+      if (!t.scrap_invoice_number && t.type === 'PURCHASE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
         const todayDate = localDate(new Date(), t.tenant_id || 'global');
         const drawer = getOpenCashDrawer(db, t.tenant_id || 'global', todayDate);
         if (drawer) {
@@ -102,7 +102,7 @@ export function addScrapTransaction(t: ScrapTransactionInput) {
           );
           reconcileCashDrawer(db, t.tenant_id || 'global', drawer);
         }
-      } else if (t.type === 'SALE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
+      } else if (!t.scrap_invoice_number && t.type === 'SALE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
         const todayDate = localDate(new Date(), t.tenant_id || 'global');
         const drawer = getOpenCashDrawer(db, t.tenant_id || 'global', todayDate);
         if (drawer) {
@@ -313,6 +313,19 @@ export function updateScrapInvoiceFull({ tenant_id, scrap_invoice_number, party_
       scrapSql.updateScrapTransactionIsDeleted(db)
         .run(tenant_id, scrap_invoice_number);
 
+      const notePattern = `%${scrap_invoice_number}%`;
+      const cashTxs = scrapSql.findCashTransactionsByScrapInvoiceNumber(db).all(tenant_id, notePattern) as Array<{ drawer_id: string }>;
+      if (cashTxs.length > 0) {
+        scrapSql.deleteCashTransactionsByScrapInvoiceNumber(db).run(tenant_id, notePattern);
+        const drawerIds = Array.from(new Set(cashTxs.map(tx => tx.drawer_id)));
+        for (const drawerId of drawerIds) {
+          const drawer = scrapSql.findCashDrawerByDrawerId(db).get(drawerId) as CashDrawerRow | undefined;
+          if (drawer) {
+            reconcileCashDrawer(db, tenant_id || 'global', drawer);
+          }
+        }
+      }
+
       const insertTx = scrapSql.insertScrapTransaction2(db);
 
       const updateStock = scrapSql.updateScrapCategoryCurrentStock(db);
@@ -432,10 +445,23 @@ export function deleteScrapInvoice({ tenant_id, scrap_invoice_number }: { tenant
       }
       scrapSql.updateScrapTransactionIsDeleted(db)
         .run(tenant_id, scrap_invoice_number);
+
       const ledgerEntries = scrapSql.findPartyLedgerByReferenceNumber(db).all(tenant_id, scrap_invoice_number) as PartyLedgerRow[];
       for (const entry of ledgerEntries) {
         scrapSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
         recalcPartyBalances(db, entry.party_id as string);
+      }
+      const notePattern = `%${scrap_invoice_number}%`;
+      const cashTxs = scrapSql.findCashTransactionsByScrapInvoiceNumber(db).all(tenant_id, notePattern) as Array<{ drawer_id: string }>;
+      if (cashTxs.length > 0) {
+        scrapSql.deleteCashTransactionsByScrapInvoiceNumber(db).run(tenant_id, notePattern);
+        const drawerIds = Array.from(new Set(cashTxs.map(tx => tx.drawer_id)));
+        for (const drawerId of drawerIds) {
+          const drawer = scrapSql.findCashDrawerByDrawerId(db).get(drawerId) as CashDrawerRow | undefined;
+          if (drawer) {
+            reconcileCashDrawer(db, tenant_id || 'global', drawer);
+          }
+        }
       }
       return { success: true };
     })();

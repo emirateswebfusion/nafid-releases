@@ -1,6 +1,6 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { resolveDateRange } from '../dates';
-import { calculatePaymentBreakdown, formatINR, pad } from '../format';
+import { calculatePaymentBreakdown, formatMoney, pad } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, OfflineDateRange, ParsedOfflineIntent } from '../types';
 import type { AiQueryContext } from '../queryContext';
@@ -23,22 +23,22 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
         : `### 📊 Today's Sales Summary (${range.label})\n\n`;
 
       md += isMal
-        ? `* **മൊത്തം വരുമാനം (Total Revenue):** **${formatINR(summary.totalSales)}**\n` +
+        ? `* **മൊത്തം വരുമാനം (Total Revenue):** **${formatMoney(summary.totalSales)}**\n` +
           `* **ആകെ ബില്ലുകൾ (Total Bills):** **${summary.totalInvoices} എണ്ണം**\n` +
-          `* **ശരാശരി ബിൽ തുക (Avg Bill Value):** **${formatINR(summary.avgOrder)}**\n`
-        : `* **Total Sales Revenue:** **${formatINR(summary.totalSales)}**\n` +
+          `* **ശരാശരി ബിൽ തുക (Avg Bill Value):** **${formatMoney(summary.avgOrder)}**\n`
+        : `* **Total Sales Revenue:** **${formatMoney(summary.totalSales)}**\n` +
           `* **Total Invoices Generated:** **${summary.totalInvoices} invoices**\n` +
-          `* **Average Ticket Value:** **${formatINR(summary.avgOrder)}**\n`;
+          `* **Average Ticket Value:** **${formatMoney(summary.avgOrder)}**\n`;
 
       if (summary.totalTax > 0) {
-        md += isMal ? `* **ടാക്സ് (GST Collected):** ${formatINR(summary.totalTax)}\n` : `* **Tax (GST) Collected:** ${formatINR(summary.totalTax)}\n`;
+        md += isMal ? `* **ടാക്സ് (GST Collected):** ${formatMoney(summary.totalTax)}\n` : `* **Tax (GST) Collected:** ${formatMoney(summary.totalTax)}\n`;
       }
       if (summary.totalDiscount > 0) {
-        md += isMal ? `* **നൽകിയ ഡിസ്കൗണ്ട് (Discounts):** ${formatINR(summary.totalDiscount)}\n` : `* **Discounts Given:** ${formatINR(summary.totalDiscount)}\n`;
+        md += isMal ? `* **നൽകിയ ഡിസ്കൗണ്ട് (Discounts):** ${formatMoney(summary.totalDiscount)}\n` : `* **Discounts Given:** ${formatMoney(summary.totalDiscount)}\n`;
       }
 
       md += isMal ? `\n#### 💳 പേയ്‌മെന്റ് വിഹിതം:\n` : `\n#### 💳 Payment Breakdown:\n`;
-      md += `* **Cash:** ${formatINR(pm.cash)} | **UPI:** ${formatINR(pm.upi)} | **Card:** ${formatINR(pm.card)} | **Credit:** ${formatINR(pm.credit)}\n`;
+      md += `* **Cash:** ${formatMoney(pm.cash)} | **UPI:** ${formatMoney(pm.upi)} | **Card:** ${formatMoney(pm.card)} | **Credit:** ${formatMoney(pm.credit)}\n`;
 
       return {
         content: md,
@@ -88,11 +88,11 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
 
       const md = isMal
         ? `### ⏱️ മണിക്കൂർ തിരിച്ചുള്ള സെയിൽസ് (Hourly Sales)\n\n` +
-          `* **കഴിഞ്ഞ 1 മണിക്കൂറിലെ വിൽപ്പന (Last 1 Hour):** **${formatINR(lastHourSales)}** (${lastHourInvs.length} ബില്ലുകൾ)\n` +
-          `* **ഇന്നത്തെ ആകെ വിൽപ്പന:** **${formatINR(validInvs.reduce((acc: number, i: AiRow) => acc + (Number(i.grand_total) || 0), 0))}**\n\n`
+          `* **കഴിഞ്ഞ 1 മണിക്കൂറിലെ വിൽപ്പന (Last 1 Hour):** **${formatMoney(lastHourSales)}** (${lastHourInvs.length} ബില്ലുകൾ)\n` +
+          `* **ഇന്നത്തെ ആകെ വിൽപ്പന:** **${formatMoney(validInvs.reduce((acc: number, i: AiRow) => acc + (Number(i.grand_total) || 0), 0))}**\n\n`
         : `### ⏱️ Hourly Sales Intelligence\n\n` +
-          `* **Sales During Last Hour:** **${formatINR(lastHourSales)}** (${lastHourInvs.length} invoices)\n` +
-          `* **Total Sales Today:** **${formatINR(validInvs.reduce((acc: number, i: AiRow) => acc + (Number(i.grand_total) || 0), 0))}** (${validInvs.length} invoices)\n\n`;
+          `* **Sales During Last Hour:** **${formatMoney(lastHourSales)}** (${lastHourInvs.length} invoices)\n` +
+          `* **Total Sales Today:** **${formatMoney(validInvs.reduce((acc: number, i: AiRow) => acc + (Number(i.grand_total) || 0), 0))}** (${validInvs.length} invoices)\n\n`;
 
       return {
         content: md,
@@ -131,36 +131,36 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
         : `### 📈 Sales Report — ${range.label}\n\n`;
 
       md += isMal
-        ? `* **മൊത്തം വരുമാനം (Total Revenue):** **${formatINR(summary.totalSales)}**\n` +
+        ? `* **മൊത്തം വരുമാനം (Total Revenue):** **${formatMoney(summary.totalSales)}**\n` +
           `* **ആകെ ബില്ലുകൾ (Total Invoices):** **${summary.totalInvoices} എണ്ണം**\n` +
-          `* **ശരാശരി ബിൽ തുക (Avg Ticket):** **${formatINR(summary.avgOrder)}**\n` +
-          (range.daysCount > 1 ? `* **പ്രതിദിന ശരാശരി (Avg Daily Sales):** **${formatINR(avgDaily)}** (${range.daysCount} ദിവസങ്ങൾ)\n` : '')
-        : `* **Total Sales Revenue:** **${formatINR(summary.totalSales)}**\n` +
+          `* **ശരാശരി ബിൽ തുക (Avg Ticket):** **${formatMoney(summary.avgOrder)}**\n` +
+          (range.daysCount > 1 ? `* **പ്രതിദിന ശരാശരി (Avg Daily Sales):** **${formatMoney(avgDaily)}** (${range.daysCount} ദിവസങ്ങൾ)\n` : '')
+        : `* **Total Sales Revenue:** **${formatMoney(summary.totalSales)}**\n` +
           `* **Total Invoices Count:** **${summary.totalInvoices} invoices**\n` +
-          `* **Average Ticket Value:** **${formatINR(summary.avgOrder)}**\n` +
-          (range.daysCount > 1 ? `* **Average Daily Sales:** **${formatINR(avgDaily)}** (over ${range.daysCount} days)\n` : '');
+          `* **Average Ticket Value:** **${formatMoney(summary.avgOrder)}**\n` +
+          (range.daysCount > 1 ? `* **Average Daily Sales:** **${formatMoney(avgDaily)}** (over ${range.daysCount} days)\n` : '');
 
       if (summary.totalTax > 0) {
-        md += isMal ? `* **ടാക്സ് (GST):** ${formatINR(summary.totalTax)}\n` : `* **Tax (GST) Collected:** ${formatINR(summary.totalTax)}\n`;
+        md += isMal ? `* **ടാക്സ് (GST):** ${formatMoney(summary.totalTax)}\n` : `* **Tax (GST) Collected:** ${formatMoney(summary.totalTax)}\n`;
       }
       if (summary.totalDiscount > 0) {
-        md += isMal ? `* **ഡിസ്കൗണ്ട്:** ${formatINR(summary.totalDiscount)}\n` : `* **Discounts Given:** ${formatINR(summary.totalDiscount)}\n`;
+        md += isMal ? `* **ഡിസ്കൗണ്ട്:** ${formatMoney(summary.totalDiscount)}\n` : `* **Discounts Given:** ${formatMoney(summary.totalDiscount)}\n`;
       }
 
       if (validInvs.length > 0) {
         md += isMal
           ? `\n#### 💳 പേയ്‌മെന്റ് രീതി തിരിച്ചുള്ള തുക:\n` +
             `| രീതി | തുക |\n| :--- | :---: |\n` +
-            `| 💵 ക്യാഷ് (Cash) | **${formatINR(pm.cash)}** |\n` +
-            `| 📱 UPI | **${formatINR(pm.upi)}** |\n` +
-            `| 💳 കാർഡ് (Card) | **${formatINR(pm.card)}** |\n` +
-            `| 📒 ക്രെഡിറ്റ് (Credit) | **${formatINR(pm.credit)}** |\n`
+            `| 💵 ക്യാഷ് (Cash) | **${formatMoney(pm.cash)}** |\n` +
+            `| 📱 UPI | **${formatMoney(pm.upi)}** |\n` +
+            `| 💳 കാർഡ് (Card) | **${formatMoney(pm.card)}** |\n` +
+            `| 📒 ക്രെഡിറ്റ് (Credit) | **${formatMoney(pm.credit)}** |\n`
           : `\n#### 💳 Sales by Payment Method:\n` +
             `| Payment Method | Total Amount |\n| :--- | :---: |\n` +
-            `| 💵 Cash | **${formatINR(pm.cash)}** |\n` +
-            `| 📱 UPI | **${formatINR(pm.upi)}** |\n` +
-            `| 💳 Card | **${formatINR(pm.card)}** |\n` +
-            `| 📒 Credit | **${formatINR(pm.credit)}** |\n`;
+            `| 💵 Cash | **${formatMoney(pm.cash)}** |\n` +
+            `| 📱 UPI | **${formatMoney(pm.upi)}** |\n` +
+            `| 💳 Card | **${formatMoney(pm.card)}** |\n` +
+            `| 📒 Credit | **${formatMoney(pm.credit)}** |\n`;
       }
 
       return {
@@ -213,17 +213,17 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
           `**${curRange.label}**-ഉം **${prevRange.label}**-ഉം തമ്മിലുള്ള വിശകലനം:\n\n` +
           `| സൂചിക | ${curRange.label} | ${prevRange.label} | വ്യത്യാസം |\n` +
           `| :--- | :---: | :---: | :---: |\n` +
-          `| **ആകെ വിൽപ്പന** | **${formatINR(curSummary.totalSales)}** | **${formatINR(prevSummary.totalSales)}** | **${diffSales >= 0 ? '+' : ''}${formatINR(diffSales)} (${growthLabel})** |\n` +
+          `| **ആകെ വിൽപ്പന** | **${formatMoney(curSummary.totalSales)}** | **${formatMoney(prevSummary.totalSales)}** | **${diffSales >= 0 ? '+' : ''}${formatMoney(diffSales)} (${growthLabel})** |\n` +
           `| **ബില്ലുകളുടെ എണ്ണം** | ${curSummary.totalInvoices} ബില്ലുകൾ | ${prevSummary.totalInvoices} ബില്ലുകൾ | ${diffInvs >= 0 ? '+' : ''}${diffInvs} |\n` +
-          `| **ശരാശരി ബിൽ തുക** | ${formatINR(curSummary.avgOrder)} | ${formatINR(prevSummary.avgOrder)} | — |\n\n` +
+          `| **ശരാശരി ബിൽ തുക** | ${formatMoney(curSummary.avgOrder)} | ${formatMoney(prevSummary.avgOrder)} | — |\n\n` +
           `💡 **സംഗ്രഹം:** ${prevRange.label}-നേക്കാൾ വിൽപ്പന വരുമാനത്തിൽ **${Math.abs(Math.round(pctSales))}%${diffSales >= 0 ? ' വർദ്ധനവ്' : ' കുറവ്'}** രേഖപ്പെടുത്തി.\n`
         : `### ⚖️ Sales Comparison Report\n` +
           `Comparative analysis between **${curRange.label}** and **${prevRange.label}**:\n\n` +
           `| Metric | ${curRange.label} | ${prevRange.label} | Variance |\n` +
           `| :--- | :---: | :---: | :---: |\n` +
-          `| **Total Sales** | **${formatINR(curSummary.totalSales)}** | **${formatINR(prevSummary.totalSales)}** | **${diffSales >= 0 ? '+' : ''}${formatINR(diffSales)} (${growthLabel})** |\n` +
+          `| **Total Sales** | **${formatMoney(curSummary.totalSales)}** | **${formatMoney(prevSummary.totalSales)}** | **${diffSales >= 0 ? '+' : ''}${formatMoney(diffSales)} (${growthLabel})** |\n` +
           `| **Invoices Count** | ${curSummary.totalInvoices} invoices | ${prevSummary.totalInvoices} invoices | ${diffInvs >= 0 ? '+' : ''}${diffInvs} |\n` +
-          `| **Average Ticket** | ${formatINR(curSummary.avgOrder)} | ${formatINR(prevSummary.avgOrder)} | — |\n\n` +
+          `| **Average Ticket** | ${formatMoney(curSummary.avgOrder)} | ${formatMoney(prevSummary.avgOrder)} | — |\n\n` +
           `💡 **Summary:** Sales revenue shows a **${Math.abs(Math.round(pctSales))}% ${growthLabel}** compared to ${prevRange.label}.\n`;
 
       return {
@@ -243,12 +243,12 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
       const md = isMal
         ? `### 🧾 ബില്ലുകളുടെ എണ്ണം — ${range.label}\n\n` +
           `* **ആകെ അടിച്ച ബില്ലുകൾ (Total Invoices):** **${summary.totalInvoices} ബില്ലുകൾ**\n` +
-          `* **ആകെ വിൽപ്പന തുക:** **${formatINR(summary.totalSales)}**\n` +
-          `* **ശരാശരി ബിൽ തുക:** **${formatINR(summary.avgOrder)}**\n`
+          `* **ആകെ വിൽപ്പന തുക:** **${formatMoney(summary.totalSales)}**\n` +
+          `* **ശരാശരി ബിൽ തുക:** **${formatMoney(summary.avgOrder)}**\n`
         : `### 🧾 Invoice Count — ${range.label}\n\n` +
           `* **Total Invoices Generated:** **${summary.totalInvoices} bills**\n` +
-          `* **Total Revenue:** **${formatINR(summary.totalSales)}**\n` +
-          `* **Average Ticket Value:** **${formatINR(summary.avgOrder)}**\n`;
+          `* **Total Revenue:** **${formatMoney(summary.totalSales)}**\n` +
+          `* **Average Ticket Value:** **${formatMoney(summary.avgOrder)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -260,13 +260,13 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
       const md = isMal
         ? `### 🎟️ ശരാശരി ബിൽ തുക (Average Ticket Value)\n\n` +
           `* **കാലയളവ്:** ${range.label}\n` +
-          `* **ശരാശരി ബിൽ തുക (Average Ticket):** **${formatINR(summary.avgOrder)}**\n` +
-          `* **ആകെ വിൽപ്പന:** ${formatINR(summary.totalSales)}\n` +
+          `* **ശരാശരി ബിൽ തുക (Average Ticket):** **${formatMoney(summary.avgOrder)}**\n` +
+          `* **ആകെ വിൽപ്പന:** ${formatMoney(summary.totalSales)}\n` +
           `* **ആകെ ബില്ലുകൾ:** ${summary.totalInvoices} എണ്ണം\n`
         : `### 🎟️ Average Ticket Value (Average Order Value)\n\n` +
           `* **Period:** ${range.label}\n` +
-          `* **Average Ticket Value:** **${formatINR(summary.avgOrder)}**\n` +
-          `* **Total Revenue:** ${formatINR(summary.totalSales)}\n` +
+          `* **Average Ticket Value:** **${formatMoney(summary.avgOrder)}**\n` +
+          `* **Total Revenue:** ${formatMoney(summary.totalSales)}\n` +
           `* **Total Bills:** ${summary.totalInvoices} invoices\n`;
 
       return { content: md, intent: parsed.intent };
@@ -281,13 +281,13 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
 
       const md = isMal
         ? `### 📅 പ്രതിദിന ശരാശരി വിൽപ്പന — ${range.label}\n\n` +
-          `* **പ്രതിദിന ശരാശരി വരുമാനം:** **${formatINR(avgDailySales)}**\n` +
+          `* **പ്രതിദിന ശരാശരി വരുമാനം:** **${formatMoney(avgDailySales)}**\n` +
           `* **പ്രതിദിന ശരാശരി ബില്ലുകൾ:** **${avgDailyBills} ബില്ലുകൾ/ദിവസം**\n` +
-          `* **ആകെ വിൽപ്പന തുക:** ${formatINR(summary.totalSales)} (${days} ദിവസങ്ങളിൽ നിന്ന്)\n`
+          `* **ആകെ വിൽപ്പന തുക:** ${formatMoney(summary.totalSales)} (${days} ദിവസങ്ങളിൽ നിന്ന്)\n`
         : `### 📅 Average Daily Sales — ${range.label}\n\n` +
-          `* **Average Daily Sales Revenue:** **${formatINR(avgDailySales)}**\n` +
+          `* **Average Daily Sales Revenue:** **${formatMoney(avgDailySales)}**\n` +
           `* **Average Invoices per Day:** **${avgDailyBills} bills/day**\n` +
-          `* **Period Total Sales:** ${formatINR(summary.totalSales)} over ${days} calendar days\n`;
+          `* **Period Total Sales:** ${formatMoney(summary.totalSales)} over ${days} calendar days\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -351,21 +351,21 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
         md = isMal
           ? `### 🧾 ഏറ്റവും കുറഞ്ഞ ബിൽ തുക (${range.label})\n\n` +
             `* **ബിൽ നമ്പർ:** **${lowest.invoice_number || 'N/A'}**\n` +
-            `* **തുക:** **${formatINR(lowest.grand_total)}**\n` +
+            `* **തുക:** **${formatMoney(lowest.grand_total)}**\n` +
             `* **കസ്റ്റമർ:** ${lowest.customer_name || 'Walk-in Customer'}\n`
           : `### 🧾 Lowest-Value Invoice (${range.label})\n\n` +
             `* **Invoice Number:** **${lowest.invoice_number || 'N/A'}**\n` +
-            `* **Invoice Amount:** **${formatINR(lowest.grand_total)}**\n` +
+            `* **Invoice Amount:** **${formatMoney(lowest.grand_total)}**\n` +
             `* **Customer:** ${lowest.customer_name || 'Walk-in Customer'}\n`;
       } else {
         md = isMal
           ? `### 🧾 ഏറ്റവും കൂടിയ ബിൽ തുക (${range.label})\n\n` +
             `* **ബിൽ നമ്പർ:** **${highest.invoice_number || 'N/A'}**\n` +
-            `* **തുക:** **${formatINR(highest.grand_total)}**\n` +
+            `* **തുക:** **${formatMoney(highest.grand_total)}**\n` +
             `* **കസ്റ്റമർ:** ${highest.customer_name || 'Walk-in Customer'}\n`
           : `### 🧾 Highest-Value Invoice (${range.label})\n\n` +
             `* **Invoice Number:** **${highest.invoice_number || 'N/A'}**\n` +
-            `* **Invoice Amount:** **${formatINR(highest.grand_total)}**\n` +
+            `* **Invoice Amount:** **${formatMoney(highest.grand_total)}**\n` +
             `* **Customer:** ${highest.customer_name || 'Walk-in Customer'}\n`;
       }
 
@@ -390,46 +390,46 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
         const cashPct = totalSales > 0 ? ((pm.cash / totalSales) * 100).toFixed(1) : '0';
         md = isMal
           ? `### 💵 ക്യാഷ് സെയിൽസ് (Cash Sales) — ${range.label}\n\n` +
-            `* **ആകെ ലഭിച്ച ക്യാഷ്:** **${formatINR(pm.cash)}** (${cashPct}% of total)\n` +
-            `* **ആകെ സെയിൽസ്:** ${formatINR(totalSales)}\n`
+            `* **ആകെ ലഭിച്ച ക്യാഷ്:** **${formatMoney(pm.cash)}** (${cashPct}% of total)\n` +
+            `* **ആകെ സെയിൽസ്:** ${formatMoney(totalSales)}\n`
           : `### 💵 Cash Sales — ${range.label}\n\n` +
-            `* **Total Cash Collected:** **${formatINR(pm.cash)}** (${cashPct}% of total)\n` +
-            `* **Total Sales Revenue:** ${formatINR(totalSales)}\n`;
+            `* **Total Cash Collected:** **${formatMoney(pm.cash)}** (${cashPct}% of total)\n` +
+            `* **Total Sales Revenue:** ${formatMoney(totalSales)}\n`;
       } else if (requestedMethod === 'CREDIT') {
         const creditPct = totalSales > 0 ? ((pm.credit / totalSales) * 100).toFixed(1) : '0';
         md = isMal
           ? `### 📒 ക്രെഡിറ്റ് സെയിൽസ് (Credit Sales) — ${range.label}\n\n` +
-            `* **ആകെ ക്രെഡിറ്റ് വിൽപ്പന:** **${formatINR(pm.credit)}** (${creditPct}% of total)\n` +
-            `* **ആകെ സെയിൽസ്:** ${formatINR(totalSales)}\n`
+            `* **ആകെ ക്രെഡിറ്റ് വിൽപ്പന:** **${formatMoney(pm.credit)}** (${creditPct}% of total)\n` +
+            `* **ആകെ സെയിൽസ്:** ${formatMoney(totalSales)}\n`
           : `### 📒 Credit Sales — ${range.label}\n\n` +
-            `* **Total Credit Sales:** **${formatINR(pm.credit)}** (${creditPct}% of total)\n` +
-            `* **Total Sales Revenue:** ${formatINR(totalSales)}\n`;
+            `* **Total Credit Sales:** **${formatMoney(pm.credit)}** (${creditPct}% of total)\n` +
+            `* **Total Sales Revenue:** ${formatMoney(totalSales)}\n`;
       } else if (requestedMethod === 'UPI') {
         md = isMal
-          ? `### 📱 UPI സെയിൽസ് — ${range.label}\n\n* **UPI വഴി ലഭിച്ച തുക:** **${formatINR(pm.upi)}**\n`
-          : `### 📱 UPI Sales — ${range.label}\n\n* **Total Paid via UPI:** **${formatINR(pm.upi)}**\n`;
+          ? `### 📱 UPI സെയിൽസ് — ${range.label}\n\n* **UPI വഴി ലഭിച്ച തുക:** **${formatMoney(pm.upi)}**\n`
+          : `### 📱 UPI Sales — ${range.label}\n\n* **Total Paid via UPI:** **${formatMoney(pm.upi)}**\n`;
       } else if (requestedMethod === 'CARD') {
         md = isMal
-          ? `### 💳 കാർഡ് സെയിൽസ് — ${range.label}\n\n* **കാർഡ് വഴി ലഭിച്ച തുക:** **${formatINR(pm.card)}**\n`
-          : `### 💳 Card Sales — ${range.label}\n\n* **Total Paid via Card:** **${formatINR(pm.card)}**\n`;
+          ? `### 💳 കാർഡ് സെയിൽസ് — ${range.label}\n\n* **കാർഡ് വഴി ലഭിച്ച തുക:** **${formatMoney(pm.card)}**\n`
+          : `### 💳 Card Sales — ${range.label}\n\n* **Total Paid via Card:** **${formatMoney(pm.card)}**\n`;
       } else {
         md = isMal
           ? `### 💳 പേയ്‌മെന്റ് രീതി തിരിച്ചുള്ള വിൽപ്പന — ${range.label}\n\n` +
-            `ആകെ വിൽപ്പന വരുമാനം: **${formatINR(totalSales)}**\n\n` +
+            `ആകെ വിൽപ്പന വരുമാനം: **${formatMoney(totalSales)}**\n\n` +
             `| പേയ്‌മെന്റ് രീതി | തുക | വിഹിതം |\n| :--- | :---: | :---: |\n` +
-            `| 💵 ക്യാഷ് (Cash) | **${formatINR(pm.cash)}** | ${totalSales > 0 ? Math.round((pm.cash / totalSales) * 100) : 0}% |\n` +
-            `| 📱 UPI | **${formatINR(pm.upi)}** | ${totalSales > 0 ? Math.round((pm.upi / totalSales) * 100) : 0}% |\n` +
-            `| 💳 കാർഡ് (Card) | **${formatINR(pm.card)}** | ${totalSales > 0 ? Math.round((pm.card / totalSales) * 100) : 0}% |\n` +
-            `| 📒 ക്രെഡിറ്റ് (Credit) | **${formatINR(pm.credit)}** | ${totalSales > 0 ? Math.round((pm.credit / totalSales) * 100) : 0}% |\n` +
-            `| 🏦 ബാങ്ക് / ചെക്ക് | **${formatINR(pm.bank + pm.cheque)}** | ${totalSales > 0 ? Math.round(((pm.bank + pm.cheque) / totalSales) * 100) : 0}% |\n`
+            `| 💵 ക്യാഷ് (Cash) | **${formatMoney(pm.cash)}** | ${totalSales > 0 ? Math.round((pm.cash / totalSales) * 100) : 0}% |\n` +
+            `| 📱 UPI | **${formatMoney(pm.upi)}** | ${totalSales > 0 ? Math.round((pm.upi / totalSales) * 100) : 0}% |\n` +
+            `| 💳 കാർഡ് (Card) | **${formatMoney(pm.card)}** | ${totalSales > 0 ? Math.round((pm.card / totalSales) * 100) : 0}% |\n` +
+            `| 📒 ക്രെഡിറ്റ് (Credit) | **${formatMoney(pm.credit)}** | ${totalSales > 0 ? Math.round((pm.credit / totalSales) * 100) : 0}% |\n` +
+            `| 🏦 ബാങ്ക് / ചെക്ക് | **${formatMoney(pm.bank + pm.cheque)}** | ${totalSales > 0 ? Math.round(((pm.bank + pm.cheque) / totalSales) * 100) : 0}% |\n`
           : `### 💳 Sales by Payment Method — ${range.label}\n\n` +
-            `Total Sales Revenue: **${formatINR(totalSales)}**\n\n` +
+            `Total Sales Revenue: **${formatMoney(totalSales)}**\n\n` +
             `| Payment Method | Amount | Share |\n| :--- | :---: | :---: |\n` +
-            `| 💵 Cash | **${formatINR(pm.cash)}** | ${totalSales > 0 ? Math.round((pm.cash / totalSales) * 100) : 0}% |\n` +
-            `| 📱 UPI | **${formatINR(pm.upi)}** | ${totalSales > 0 ? Math.round((pm.upi / totalSales) * 100) : 0}% |\n` +
-            `| 💳 Card | **${formatINR(pm.card)}** | ${totalSales > 0 ? Math.round((pm.card / totalSales) * 100) : 0}% |\n` +
-            `| 📒 Credit | **${formatINR(pm.credit)}** | ${totalSales > 0 ? Math.round((pm.credit / totalSales) * 100) : 0}% |\n` +
-            `| 🏦 Bank / Cheque | **${formatINR(pm.bank + pm.cheque)}** | ${totalSales > 0 ? Math.round(((pm.bank + pm.cheque) / totalSales) * 100) : 0}% |\n`;
+            `| 💵 Cash | **${formatMoney(pm.cash)}** | ${totalSales > 0 ? Math.round((pm.cash / totalSales) * 100) : 0}% |\n` +
+            `| 📱 UPI | **${formatMoney(pm.upi)}** | ${totalSales > 0 ? Math.round((pm.upi / totalSales) * 100) : 0}% |\n` +
+            `| 💳 Card | **${formatMoney(pm.card)}** | ${totalSales > 0 ? Math.round((pm.card / totalSales) * 100) : 0}% |\n` +
+            `| 📒 Credit | **${formatMoney(pm.credit)}** | ${totalSales > 0 ? Math.round((pm.credit / totalSales) * 100) : 0}% |\n` +
+            `| 🏦 Bank / Cheque | **${formatMoney(pm.bank + pm.cheque)}** | ${totalSales > 0 ? Math.round(((pm.bank + pm.cheque) / totalSales) * 100) : 0}% |\n`;
       }
 
       return { content: md, intent: parsed.intent };
@@ -442,9 +442,9 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
 
       const md = isMal
         ? `### 📒 ഇൻവോയ്സ് ക്രെഡിറ്റ് കുടിശ്ശിക\n\n` +
-          `* **ആകെ ലഭിക്കാനുള്ള ക്രെഡിറ്റ് തുക:** **${formatINR(pm.credit)}**\n`
+          `* **ആകെ ലഭിക്കാനുള്ള ക്രെഡിറ്റ് തുക:** **${formatMoney(pm.credit)}**\n`
         : `### 📒 Outstanding Credit from Invoices\n\n` +
-          `* **Total Outstanding Credit Amount:** **${formatINR(pm.credit)}**\n`;
+          `* **Total Outstanding Credit Amount:** **${formatMoney(pm.credit)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -456,16 +456,16 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
 
       const md = isMal
         ? `### 📊 ഗ്രോസ് vs നെറ്റ് സെയിൽസ് — ${range.label}\n\n` +
-          `* **ഗ്രോസ് സെയിൽസ് (ഡിസ്കൗണ്ടിന് മുൻപ്):** **${formatINR(gross)}**\n` +
-          `* **നൽകിയ ആകെ ഡിസ്കൗണ്ട്:** **${formatINR(summary.totalDiscount)}**\n` +
-          `* **നെറ്റ് സെയിൽസ് (യഥാർത്ഥ ഇൻവോയ്സ് തുക):** **${formatINR(summary.totalSales)}**\n` +
-          `* **പിരിച്ചെടുത്ത ജിഎസ്ടി (Tax):** **${formatINR(summary.totalTax)}**\n` +
+          `* **ഗ്രോസ് സെയിൽസ് (ഡിസ്കൗണ്ടിന് മുൻപ്):** **${formatMoney(gross)}**\n` +
+          `* **നൽകിയ ആകെ ഡിസ്കൗണ്ട്:** **${formatMoney(summary.totalDiscount)}**\n` +
+          `* **നെറ്റ് സെയിൽസ് (യഥാർത്ഥ ഇൻവോയ്സ് തുക):** **${formatMoney(summary.totalSales)}**\n` +
+          `* **പിരിച്ചെടുത്ത ജിഎസ്ടി (Tax):** **${formatMoney(summary.totalTax)}**\n` +
           `* **ബില്ലുകളുടെ എണ്ണം:** ${summary.totalInvoices} എണ്ണം\n`
         : `### 📊 Gross vs Net Sales & Deductions — ${range.label}\n\n` +
-          `* **Gross Sales (Before Discounts):** **${formatINR(gross)}**\n` +
-          `* **Total Discounts Given:** **${formatINR(summary.totalDiscount)}**\n` +
-          `* **Net Sales Revenue (Final Invoiced):** **${formatINR(summary.totalSales)}**\n` +
-          `* **Total Tax (GST) Collected:** **${formatINR(summary.totalTax)}**\n` +
+          `* **Gross Sales (Before Discounts):** **${formatMoney(gross)}**\n` +
+          `* **Total Discounts Given:** **${formatMoney(summary.totalDiscount)}**\n` +
+          `* **Net Sales Revenue (Final Invoiced):** **${formatMoney(summary.totalSales)}**\n` +
+          `* **Total Tax (GST) Collected:** **${formatMoney(summary.totalTax)}**\n` +
           `* **Invoices Count:** ${summary.totalInvoices} bills\n`;
 
       return { content: md, intent: parsed.intent };
@@ -491,7 +491,7 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
           `| Invoice Type | Count | Total Amount |\n| :--- | :---: | :---: |\n`;
 
       Object.keys(typeMap).forEach(k => {
-        md += `| **${k}** | ${typeMap[k].count} | **${formatINR(typeMap[k].total)}** |\n`;
+        md += `| **${k}** | ${typeMap[k].count} | **${formatMoney(typeMap[k].total)}** |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -528,25 +528,25 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
         ? `### 📑 സമഗ്ര ദിന ബിസിനസ്സ് റിപ്പോർട്ട് (${range.label})\n\n` +
           `| പ്രധാന സൂചികകൾ | എണ്ണം | ആകെ തുക |\n` +
           `| :--- | :--- | :--- |\n` +
-          `| 📊 **ആകെ വിൽപ്പന (Sales)** | ${summary.totalInvoices} ബില്ലുകൾ | **${formatINR(summary.totalSales)}** |\n` +
-          `| 🔄 **സെയിൽസ് റിട്ടേണുകൾ (Returns)** | ${rangeReturns.length} എണ്ണം | **${formatINR(totalReturns)}** |\n` +
-          `| 📦 **പർച്ചേസ് ബില്ലുകൾ (Purchases)** | ${rangePurchases.length} എണ്ണം | **${formatINR(totalPurchases)}** |\n` +
-          `| 💸 **പ്രവർത്തന ചെലവുകൾ (Expenses)** | ${expenseTxs.length} എണ്ണം | **${formatINR(totalExpense)}** |\n` +
-          `| 📈 **അറ്റ വിൽപ്പന വരുമാനം (Net Revenue)** | — | **${formatINR(netRevenue)}** |\n` +
-          `| 💵 **പ്രതിദിന അറ്റ ക്യാഷ് ഫ്ലോ (Net Flow)** | — | **${formatINR(netCashFlow)}** |\n\n` +
+          `| 📊 **ആകെ വിൽപ്പന (Sales)** | ${summary.totalInvoices} ബില്ലുകൾ | **${formatMoney(summary.totalSales)}** |\n` +
+          `| 🔄 **സെയിൽസ് റിട്ടേണുകൾ (Returns)** | ${rangeReturns.length} എണ്ണം | **${formatMoney(totalReturns)}** |\n` +
+          `| 📦 **പർച്ചേസ് ബില്ലുകൾ (Purchases)** | ${rangePurchases.length} എണ്ണം | **${formatMoney(totalPurchases)}** |\n` +
+          `| 💸 **പ്രവർത്തന ചെലവുകൾ (Expenses)** | ${expenseTxs.length} എണ്ണം | **${formatMoney(totalExpense)}** |\n` +
+          `| 📈 **അറ്റ വിൽപ്പന വരുമാനം (Net Revenue)** | — | **${formatMoney(netRevenue)}** |\n` +
+          `| 💵 **പ്രതിദിന അറ്റ ക്യാഷ് ഫ്ലോ (Net Flow)** | — | **${formatMoney(netCashFlow)}** |\n\n` +
           `#### 💳 പേയ്‌മെന്റ് വിഹിതം:\n` +
-          `* **ക്യാഷ്:** ${formatINR(pm.cash)} | **യുപിഐ:** ${formatINR(pm.upi)} | **കാർഡ്:** ${formatINR(pm.card)} | **ക്രെഡിറ്റ്:** ${formatINR(pm.credit)}\n`
+          `* **ക്യാഷ്:** ${formatMoney(pm.cash)} | **യുപിഐ:** ${formatMoney(pm.upi)} | **കാർഡ്:** ${formatMoney(pm.card)} | **ക്രെഡിറ്റ്:** ${formatMoney(pm.credit)}\n`
         : `### 📑 Comprehensive Daily Business Report (${range.label})\n\n` +
           `| Core Metric | Count | Total Amount |\n` +
           `| :--- | :--- | :--- |\n` +
-          `| 📊 **Total Sales Revenue** | ${summary.totalInvoices} invoices | **${formatINR(summary.totalSales)}** |\n` +
-          `| 🔄 **Sales Returns & Refunds** | ${rangeReturns.length} returns | **${formatINR(totalReturns)}** |\n` +
-          `| 📦 **Purchases Incurred** | ${rangePurchases.length} bills | **${formatINR(totalPurchases)}** |\n` +
-          `| 💸 **Operating Expenses** | ${expenseTxs.length} records | **${formatINR(totalExpense)}** |\n` +
-          `| 📈 **Net Sales Revenue** | — | **${formatINR(netRevenue)}** |\n` +
-          `| 💵 **Estimated Net Daily Cashflow** | — | **${formatINR(netCashFlow)}** |\n\n` +
+          `| 📊 **Total Sales Revenue** | ${summary.totalInvoices} invoices | **${formatMoney(summary.totalSales)}** |\n` +
+          `| 🔄 **Sales Returns & Refunds** | ${rangeReturns.length} returns | **${formatMoney(totalReturns)}** |\n` +
+          `| 📦 **Purchases Incurred** | ${rangePurchases.length} bills | **${formatMoney(totalPurchases)}** |\n` +
+          `| 💸 **Operating Expenses** | ${expenseTxs.length} records | **${formatMoney(totalExpense)}** |\n` +
+          `| 📈 **Net Sales Revenue** | — | **${formatMoney(netRevenue)}** |\n` +
+          `| 💵 **Estimated Net Daily Cashflow** | — | **${formatMoney(netCashFlow)}** |\n\n` +
           `#### 💳 Payment Breakdown:\n` +
-          `* **Cash:** ${formatINR(pm.cash)} | **UPI:** ${formatINR(pm.upi)} | **Card:** ${formatINR(pm.card)} | **Credit:** ${formatINR(pm.credit)}\n`;
+          `* **Cash:** ${formatMoney(pm.cash)} | **UPI:** ${formatMoney(pm.upi)} | **Card:** ${formatMoney(pm.card)} | **Credit:** ${formatMoney(pm.credit)}\n`;
 
       return { content: md, intent: parsed.intent };
     }

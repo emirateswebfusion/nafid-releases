@@ -1,23 +1,12 @@
 import { withNafidFooter } from './messageFooter.js';
+import { formatStoreMoney } from '../services/storeCountryService.js';
 import type { ShopClosingChecklist } from './shopClosingTypes.js';
-
-/** Formats the shop closing WhatsApp message from the summary data and the owner's checklist. */
-function formatStoreCurrency(amount: number | null | undefined, country?: string): string {
-  const num = Number(amount) || 0;
-  const isNegative = num < 0;
-  const absFormatted = Math.abs(num).toLocaleString(country === 'AE' ? 'en-AE' : 'en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  const prefix = country === 'AE' ? 'AED ' : '₹';
-  return `${isNegative ? '-' : ''}${prefix}${absFormatted}`;
-}
 
 /**
  * Format the WhatsApp closing message based on checklist
  */
 export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof import('./shopClosingSummary.js').buildShopClosingSummaryData>, checklist: ShopClosingChecklist): string {
-  const formatCurrency = (amount: number | null | undefined) => formatStoreCurrency(amount, summaryData.storeCountry);
+  const formatCurrency = (amount: number | null | undefined) => formatStoreMoney(amount, summaryData.storeCountry);
   const lines: string[] = [];
 
   // Header
@@ -61,13 +50,13 @@ export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof impo
       lines.push(`• Total Invoices: *${summaryData.totalInvoices}*`);
     }
     if (checklist.sales) {
-      lines.push(`• Net Sales: *${formatCurrency((summaryData.netSales as number | null | undefined))}*`);
-      if (checklist.grossSales !== false && summaryData.grossSales > 0 && summaryData.totalDiscount > 0) {
+      if (checklist.grossSales !== false && (summaryData.grossSales > summaryData.netSales || summaryData.totalDiscount > 0)) {
         lines.push(`• Gross Sales: ${formatCurrency((summaryData.grossSales as number | null | undefined))}`);
       }
       if (checklist.totalDiscount !== false && summaryData.totalDiscount > 0) {
         lines.push(`• Total Discount: -${formatCurrency((summaryData.totalDiscount as number | null | undefined))}`);
       }
+      lines.push(`• Net Sales: *${formatCurrency((summaryData.netSales as number | null | undefined))}*`);
       if (checklist.taxCollected !== false && summaryData.totalTax > 0) {
         lines.push(`• Tax Collected: ${formatCurrency((summaryData.totalTax as number | null | undefined))}`);
       }

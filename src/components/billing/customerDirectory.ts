@@ -170,7 +170,12 @@ export function findMatchingParty(
     ...(lists.customers || []).filter((c) => isAllowedInBilling(c?.party_type, isStaffEnabled)),
     ...(lists.searchResults || []).filter((c) => isAllowedInBilling(c?.party_type, isStaffEnabled)),
   ];
-  const match = combinedList.find((c) => {
+  const matchesNameAndPhone = (c: (typeof combinedList)[number]) => {
+    const n = String(c?.name || '').trim().toLowerCase().replace(/^[.\s]+/, '');
+    const p = String(c?.phone || '').trim();
+    return Boolean(cleanName) && n === cleanName.replace(/^[.\s]+/, '') && (!cleanPhone || !p || p === cleanPhone);
+  };
+  const match = combinedList.find(matchesNameAndPhone) || combinedList.find((c) => {
     if (!c) return false;
     const cName = (c.name || '').trim().toLowerCase();
     const cPhone = String(c.phone || '').trim();
@@ -184,7 +189,7 @@ export function findMatchingParty(
   }) || null;
 
   if (match) {
-    const cust = (lists.customers || []).find((c) => {
+    const cust = (lists.customers || []).find(matchesNameAndPhone) || (lists.customers || []).find((c) => {
       if (!c) return false;
       const cp = String(c.phone || '').trim();
       const cn = String(c.name || '').trim().toLowerCase();

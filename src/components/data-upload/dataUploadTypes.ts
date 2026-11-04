@@ -1,3 +1,4 @@
+import { getSampleBarcode } from '../../utils/localization/storeProfile';
 /** Data upload modal: entity types, parsed row and column shapes, column specs, header maps and demo samples. */
 
 export type UploadEntityType = 'products' | 'suppliers' | 'customers' | 'staff' | 'opening_balances';
@@ -61,7 +62,7 @@ export interface ColumnSpec {
 export const PRODUCT_COLUMN_SPECS: ColumnSpec[] = [
   { name: 'Product Name', required: true, example: 'Basmati Rice 5kg' },
   { name: 'MRP', required: true, example: '450' },
-  { name: 'Barcode', required: false, example: '8901234567890' },
+  { name: 'Barcode', required: false, get example() { return getSampleBarcode(); } },
   { name: 'Item Code', required: false, example: 'RICE-01' },
   { name: 'Category', required: false, example: 'Groceries' },
   { name: 'Brand', required: false, example: 'Royal Gold' },
@@ -308,7 +309,7 @@ export const SAMPLE_PRODUCTS = [
   {
     'Product Name': 'Basmati Rice 5kg',
     'MRP': 450,
-    'Barcode': '8901234567890',
+    get 'Barcode'() { return getSampleBarcode(); },
     'Item Code': 'RICE-01',
     'Category': 'Groceries',
     'Brand': 'Royal Gold',
@@ -325,7 +326,7 @@ export const SAMPLE_PRODUCTS = [
   {
     'Product Name': 'Sunflower Oil 1L',
     'MRP': 140,
-    'Barcode': '8901234567891',
+    get 'Barcode'() { return `${getSampleBarcode().slice(0, -1)}1`; },
     'Item Code': 'OIL-01',
     'Category': 'Groceries',
     'Brand': 'Fortune',

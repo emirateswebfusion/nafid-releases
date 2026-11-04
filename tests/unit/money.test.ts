@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { formatAmount, formatCurrency } from '../../src/utils/pricing/money';
+import { setStoreCountry } from '../../src/utils/localization/storeProfile';
 
 describe('formatCurrency', () => {
   it('groups digits the Indian way with two decimals', () => {
@@ -52,5 +53,36 @@ describe('formatAmount', () => {
   it('supports custom decimals', () => {
     expect(formatAmount(98765.456, 3)).toBe('98,765.456');
     expect(formatAmount(98765.456, 0)).toBe('98,765');
+  });
+});
+
+describe('UAE (AED) shop', () => {
+  afterEach(() => setStoreCountry('IN'));
+
+  it('prefixes AED and groups digits in thousands', () => {
+    setStoreCountry('AE');
+    expect(formatCurrency(1234.5)).toBe('AED 1,234.50');
+    expect(formatCurrency(1234567.5)).toBe('AED 1,234,567.50');
+    expect(formatCurrency(100000000)).toBe('AED 100,000,000.00');
+  });
+
+  it('puts the sign before AED and never prints ₹ or a negative zero', () => {
+    setStoreCountry('AE');
+    expect(formatCurrency(-50)).toBe('-AED 50.00');
+    expect(formatCurrency(-0.001)).toBe('AED 0.00');
+    expect(formatCurrency(null)).toBe('AED 0.00');
+    expect(formatCurrency(1234.4, { decimals: 0 })).toBe('AED 1,234');
+    expect(formatCurrency(1234.5, { grouping: false })).toBe('AED 1234.50');
+  });
+
+  it('formats symbol-less amounts with en-AE grouping', () => {
+    setStoreCountry('AE');
+    expect(formatAmount(1234567.4)).toBe('1,234,567.40');
+  });
+
+  it('returns to Indian output when the shop is India', () => {
+    setStoreCountry('AE');
+    setStoreCountry('IN');
+    expect(formatCurrency(1234567.5)).toBe('₹12,34,567.50');
   });
 });

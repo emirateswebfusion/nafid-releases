@@ -20,6 +20,7 @@ import { BarcodePrintModal } from './modals/BarcodePrintModal';
 import { DeleteProductModal } from './modals/DeleteProductModal';
 import { BulkDeleteProductsModal } from './modals/BulkDeleteProductsModal';
 import { getProductPricing } from '../../data/products';
+import { pricingTiersApi, listPricingTiers } from '../../data/pricingTiers';
 import { isDesktopRuntime } from '../../data/client';
 import { useInventoryState } from './hooks/useInventoryState';
 import { useInventorySave } from './hooks/useInventorySave';
@@ -445,6 +446,22 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     tenantId, viewModeRef,
   });
 
+  const handleAddPricingTier = async (name: string) => {
+    try {
+      const tid = tenantId || 'global';
+      const res = (await pricingTiersApi.addPricingTier({ name, tenant_id: tid })) as { success: boolean; error?: string; pricing_tier_id?: string };
+      if (res.success && res.pricing_tier_id) {
+        const updated = await listPricingTiers(tid);
+        inv.setPricingTiers(updated);
+        setTierPrices(prev => ({ ...prev, [res.pricing_tier_id!]: '' }));
+        return { success: true, pricing_tier_id: res.pricing_tier_id };
+      }
+      return { success: false, error: res.error || 'Failed to add tier' };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  };
+
 return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ═══════════════════════════════════════════════════
@@ -554,6 +571,7 @@ return (
           handleSave={handleSave}
           setView={setView}
           setFormData={setFormData}
+          onAddPricingTier={handleAddPricingTier}
         />
       )}
 
