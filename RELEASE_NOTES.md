@@ -1,3 +1,19 @@
+# Nafid POS v2.2.36
+
+## What's New
+- **Part payment with the Cash button**: for a customer with a balance, typing less than the bill total in Received now puts the unpaid part on the customer's account, exactly as the screen shows (New Total Due). Before, the unpaid part was not added to the customer's balance.
+
+**Download:** [Nafid-Setup-2.2.36.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.36/Nafid-Setup-2.2.36.exe)
+
+# Nafid POS v2.2.35
+
+## What's New
+- **Fix for v2.2.34**: saving a credit bill, a split bill or a payment that changes a customer balance failed with "Too many parameter values were provided". This is fixed.
+- **Editing a bill paid with more than its total keeps the advance**: reopening such a bill and saving it again no longer loses the extra amount.
+- Includes v2.2.34: bill and ledger dates follow the shop time zone, and customers are re-uploaded only when their balance changes.
+
+**Download:** [Nafid-Setup-2.2.35.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.35/Nafid-Setup-2.2.35.exe)
+
 # Nafid POS v2.2.34
 
 ## What's New
