@@ -24,6 +24,7 @@ and update every caller in the same change.
 | Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
 | Tax calculations (GST split CGST/SGST/IGST & UAE VAT 5% inclusive/exclusive) | `src/utils/pricing/taxEngine.ts`, `electron/utils/gstEngine.ts` | `tests/unit/taxEngine.test.ts` |
 | UAE TRN validation (15 digits, prefix 100) & Emirate normalization | `src/utils/pricing/trnValidator.ts`, `electron/utils/trnValidator.ts` | `tests/unit/trnValidator.test.ts` |
+| UAE e-invoicing on the terminal: seller setting keys, buyer profile checks, status labels (the PINT AE document is built on the server, `nafid-server/src/services/einvoice/`) | `src/utils/einvoice/einvoice.ts`, `electron/services/einvoiceService.ts` (profile sanitizing) | `tests/unit/uaeEinvoice.test.ts` |
 | UAE Form VAT 201 Return, FTA Audit File (FAF), and filing lifecycle | `electron/services/vatReportService.ts`, `vatFilingService.ts`, `src/utils/export/ftaAuditFileExporter.ts` | `tests/unit/vatReportService.test.ts`, `vat201JsonSerializer.test.ts`, `vatDashboardCard.test.ts` |
 | Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts`, `receiptCore.ts`, `styles/boxed.ts` | `tests/unit/thermalPrint.test.ts`, `printGenerators.characterization.test.ts` |
 

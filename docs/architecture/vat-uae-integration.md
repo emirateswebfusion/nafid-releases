@@ -192,3 +192,11 @@ allowlist, so it stays per terminal: thermal capability is a property of each te
   receipt (`thermalPrint.test.ts`). Other Arabic text, such as Arabic product names, still prints as `?`.
 - Bilingual thermal receipts are about twice as long. Arabic on thermal therefore stays off until a shop's printer has
   been test-printed. A4 and WhatsApp put the pair on one line (`EN / AR`).
+
+---
+
+## 10. Electronic invoicing (Peppol PINT AE)
+
+From 1 July 2027 (shops below AED 50M; appoint an Accredited Service Provider by 31 March 2027), sales to business and government buyers must also be issued as e-invoices. Nafid builds and transmits them on the server after sync; terminals mirror the status.
+
+Design, rules, field map and implementation: [uae-einvoicing-design.md](uae-einvoicing-design.md).

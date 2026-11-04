@@ -28,6 +28,17 @@ check('user_version = latest', db.pragma('user_version', { simple: true }), late
 check('returns indexes exist', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_return%' ORDER BY name").all() as { name: string }[]).map((r) => r.name),
   ['idx_return_items_invoice_item_id', 'idx_return_items_return_id', 'idx_returns_invoice_id']);
 check('sync_outbox table exists', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_outbox'").get() as { name: string } | undefined)?.name, 'sync_outbox');
+check('einvoice_documents mirror table exists (017)', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'einvoice_documents'").get() as { name: string } | undefined)?.name, 'einvoice_documents');
+check('customers.einvoice_profile exists (017)', (db.prepare('PRAGMA table_info(customers)').all() as { name: string }[]).some((c) => c.name === 'einvoice_profile'), true);
+{
+  db.prepare("INSERT INTO customers (customer_id, tenant_id, name, phone) VALUES ('einv-cust', 't-einv', 'Buyer LLC', '0500000001')").run();
+  db.prepare("UPDATE customers SET einvoice_profile = ? WHERE customer_id = 'einv-cust'").run(JSON.stringify({ isBusiness: true, trn: '100987654300003' }));
+  const ops = db.prepare("SELECT payload FROM sync_outbox WHERE entity = 'customers' AND entity_id = 'einv-cust' ORDER BY row_version").all() as { payload: string }[];
+  check('customer e-invoice profile edit is carried by an outbox op (017 rebuilt triggers)', ops.length === 2 && JSON.parse(ops[1].payload).einvoice_profile.includes('100987654300003'), true);
+  db.prepare("DELETE FROM sync_outbox WHERE entity = 'customers' AND entity_id = 'einv-cust'").run();
+  db.prepare("DELETE FROM customers WHERE customer_id = 'einv-cust'").run();
+  db.prepare("DELETE FROM sync_outbox WHERE entity = 'customers' AND entity_id = 'einv-cust'").run();
+}
 check('sync_outbox pending index exists', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_sync_outbox_pending'").get() as { name: string } | undefined)?.name, 'idx_sync_outbox_pending');
 for (const table of SYNCED_TABLES as readonly string[]) {
   const columns = db.prepare('PRAGMA table_info(' + table + ')').all() as { name: string }[];

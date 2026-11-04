@@ -397,6 +397,8 @@ export async function pullCustomers(token: string, tenantId: string): Promise<bo
               current_points_balance: r.current_points_balance ?? 0,
               last_purchase_date: toSqliteDate((r.last_purchase_date as string | number | Date | null | undefined)),
               is_deleted: r.is_deleted ? 1 : 0,
+              // Older servers do not send it: null keeps the local profile (COALESCE in the upsert).
+              einvoice_profile: typeof r.einvoice_profile === 'string' ? r.einvoice_profile : null,
               created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)),
               updated_at: toSqliteDate((r.updated_at as string | number | Date | null | undefined)),
             };

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createCoreTables } from '../../electron/db/schemaCoreTables';
 import { createExtendedTables } from '../../electron/db/schemaExtendedTables';
 import { ensureSchemaColumns } from '../../electron/db/schemaColumns';
+import { m017UaeEinvoicing } from '../../electron/db/migrations/017-uae-einvoicing';
 import { runColumnMigrations } from '../../electron/db/migrationsColumns';
 
 const state = vi.hoisted(() => ({
@@ -47,6 +48,7 @@ beforeEach(() => {
   createExtendedTables(state.db);
   ensureSchemaColumns(state.db);
   runColumnMigrations(state.db);
+  m017UaeEinvoicing.up(state.db); // versioned migrations run before any sync at startup
   raw.exec('PRAGMA foreign_keys = ON;');
   state.remote = [];
 });

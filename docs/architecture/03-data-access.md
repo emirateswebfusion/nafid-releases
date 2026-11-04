@@ -174,3 +174,12 @@ aware: all terminals of a UAE shop must run a UAE-capable version. Server contra
 `uae_arabic_print` (`{ documents, thermal }`, typed in `KnownSettings`) uses the same settings IPC. It is pushed like
 any setting but deliberately not in the pull allowlist (`electron/sync/entities/settingsSync.ts`), so each terminal
 keeps its own choice; no server change is needed (the settings push accepts any key).
+
+### UAE e-invoicing (migration 017, 3 Nov 2026)
+
+`einvoice_documents` is a read-only mirror of the server-owned statuses. `electron/sync/einvoiceSync.ts` fills it after each cloud cycle: `POST /api/einvoice/process`, then `GET /api/sync/einvoice-documents`. It is cloud-only, so it stays outside `sync/entities/` (the LAN table rules cover entities only).
+
+`customers.einvoice_profile` (JSON) is synced in both directions. A pull with no profile keeps the local one. The outbox trigger for `customers` is rebuilt by 017.
+
+IPC channels: `db:getEinvoiceStatuses`, `db:getEinvoiceSummary`, `db:getCustomerEinvoiceProfile`, `db:saveCustomerEinvoiceProfile` (`src/data/einvoice.ts`). Cloud configuration goes through `src/data/cloud/einvoiceCloud.ts`. Design: `uae-einvoicing-design.md`.
+
