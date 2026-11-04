@@ -81,6 +81,8 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
         const rate = listRate(item);
         const qty = Number(item.quantity) || 0;
         const total = rate * qty;
+        const hsnVal = item.hsn_sac_code || '';
+        const taxRate = item.tax_rate_percent != null ? Number(item.tax_rate_percent) : undefined;
         return {
           name: item.name,
           quantity: qty,
@@ -89,6 +91,10 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
           brand: item.brand_manufacturer || undefined,
           billing_type: item.billing_type,
           unit: item.unit || item.uom,
+          hsn: hsnVal || undefined,
+          hsn_code: hsnVal || undefined,
+          tax_rate_percent: taxRate,
+          gst_percent: taxRate,
         };
       });
 
@@ -103,6 +109,9 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
         items: receiptItems,
         subtotal,
         tax: totalTax,
+        cgst,
+        sgst,
+        igst,
         discount,
         grandTotal: displayGrandTotal,
         paymentMethod,
