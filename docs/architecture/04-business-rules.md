@@ -436,3 +436,15 @@ reads the `uae_arabic_print` setting. India printing never calls it. Tests: `pri
 
 - Allows creating new custom pricing tiers (e.g. Wholesale, VIP, Retail Tier B) directly inline inside the product form via `onAddPricingTier`.
 - Persists via `pricingTiersApi.addPricingTier` and reloads active tiers into state dynamically without navigating away from the active product draft.
+
+### Accounts sharing a phone
+
+Billing customerDirectory prefers an exact normalized name with a compatible phone before a phone-only match, for balances and loyalty. Regression: tests/unit/customerDirectory.test.ts.
+
+### Filtered ledger balance direction
+
+Ledger date and GST/Estimate filters use `calculateLedgerStatement` for opening, running and closing balances. `components/party/ledgerBalances.ts` derives each bucket closing balance through that canonical calculation; date filtering must retain advances before the period. Positive means the customer owes the shop, negative means the shop owes the customer. Regression: `ledgerBalanceDirection.ui.test.tsx`.
+
+### Historical credit notes
+
+Returns > Record credit note uses `returns/creditNote.ts` and canonical returnPricing for original printed rates/tax; no fabricated sale is created. Historical migration 017 (replayed idempotently by compatibility migration 021, with UAE e-invoicing schema ensured by 022) allows nullable original invoice ids while preserving returns/items/indexes/outbox triggers. `returnsService.createReturn` accepts an optional original return date and uses it consistently for return_date, created_at and ledger transaction date. Existing dates/fields are sent through the existing sync contract; server already accepts a null invoice. Financial amounts are validated before writes. Regression: historicalReturnMigration, historicalCreditNote and creditLedger tests.

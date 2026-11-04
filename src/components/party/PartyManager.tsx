@@ -17,6 +17,7 @@ import { DataUploadModal } from '../data-upload/DataUploadModal';
 import { FloatToast } from '../ui/FloatToast';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { calculateLedgerStatement } from '../../utils/print/partyLedgerPdfGenerator';
+import { calculateLedgerBalances } from './ledgerBalances';
 import { partiesApi } from '../../data/parties';
 import { usePartyManagerState } from './hooks/usePartyManagerState';
 import { usePartyBillPreview } from './hooks/usePartyBillPreview';
@@ -178,18 +179,6 @@ export function PartyManager({
     }
   };
 
-  const gstBalance = useMemo(() => {
-    return ledger
-      .filter(e => (e.balance_type || 'GST') === 'GST')
-      .reduce((sum, e) => sum + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
-  }, [ledger]);
-
-  const estimateBalance = useMemo(() => {
-    return ledger
-      .filter(e => e.balance_type === 'ESTIMATE')
-      .reduce((sum, e) => sum + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
-  }, [ledger]);
-
   const gstEntriesCount = useMemo(() => {
     return ledger.filter(e => (e.balance_type || 'GST') === 'GST').length;
   }, [ledger]);
@@ -202,63 +191,28 @@ export function PartyManager({
   const statementData = useMemo(() => {
     if (!selectedParty) return null;
     return calculateLedgerStatement(
-      ledger,
+      ledger.filter(entry => {
+        const mode = enablePartyGst && !enablePartyEstimate ? 'GST'
+          : !enablePartyGst && enablePartyEstimate ? 'ESTIMATE' : ledgerBalanceFilter;
+        return mode === 'ALL' || (entry.balance_type || 'GST') === mode;
+      }),
       { startDate: ledgerStartDate, endDate: ledgerEndDate },
       selectedParty,
       tLabels,
       getStoreTimezone()
     );
-  }, [ledger, ledgerStartDate, ledgerEndDate, selectedParty, tLabels]);
+  }, [ledger, ledgerStartDate, ledgerEndDate, selectedParty, tLabels, enablePartyGst, enablePartyEstimate, ledgerBalanceFilter]);
 
-  const isPeriodFiltered = Boolean(ledgerStartDate || ledgerEndDate);
-  const activeGstBal = useMemo(() => {
-    if (isPeriodFiltered && statementData) {
-      return (statementData.entries || [])
-        .filter(e => (e.balance_type || 'GST') === 'GST')
-        .reduce((sum, e) => sum + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
-    }
-    return gstBalance;
-  }, [isPeriodFiltered, statementData, gstBalance]);
-
-  const activeEstimateBal = useMemo(() => {
-    if (isPeriodFiltered && statementData) {
-      return (statementData.entries || [])
-        .filter(e => e.balance_type === 'ESTIMATE')
-        .reduce((sum, e) => sum + (Number(e.credit_amount) || 0) - (Number(e.debit_amount) || 0), 0);
-    }
-    return estimateBalance;
-  }, [isPeriodFiltered, statementData, estimateBalance]);
+  const { gst: activeGstBal, estimate: activeEstimateBal } = useMemo(() => calculateLedgerBalances(
+    ledger, { startDate: ledgerStartDate, endDate: ledgerEndDate }, getStoreTimezone()
+  ), [ledger, ledgerStartDate, ledgerEndDate]);
 
   const displayLedger = useMemo(() => {
-    let list = statementData ? statementData.entries : ledger;
-    if (enablePartyGst && !enablePartyEstimate) {
-      list = list.filter(e => (e.balance_type || 'GST') === 'GST');
-    } else if (!enablePartyGst && enablePartyEstimate) {
-      list = list.filter(e => e.balance_type === 'ESTIMATE');
-    } else if (enablePartyGst && enablePartyEstimate && ledgerBalanceFilter !== 'ALL') {
-      list = list.filter(e => (e.balance_type || 'GST') === ledgerBalanceFilter);
-    }
-    const sortedAsc = [...list].sort((a, b) => {
-      const timeA = new Date(a.transaction_date).getTime();
-      const timeB = new Date(b.transaction_date).getTime();
-      if (timeA !== timeB) return timeA - timeB;
-      const catA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const catB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return catA - catB;
-    });
-
-    const isFilteredByMode = (enablePartyGst && !enablePartyEstimate) || (!enablePartyGst && enablePartyEstimate) || (enablePartyGst && enablePartyEstimate && ledgerBalanceFilter !== 'ALL');
-    let running = (statementData && ledgerStartDate && !isFilteredByMode) ? statementData.openingBalance : 0;
-    const withRunning = sortedAsc.map(entry => {
-      running += (Number(entry.credit_amount) || 0) - (Number(entry.debit_amount) || 0);
-      return {
-        ...entry,
-        contextRunningBalance: !isFilteredByMode ? entry.running_balance : running,
-      };
-    });
-
-    return dateSortOrder === 'desc' ? withRunning.reverse() : withRunning;
-  }, [statementData, ledger, dateSortOrder, enablePartyGst, enablePartyEstimate, ledgerBalanceFilter, ledgerStartDate]);
+    const entries = (statementData?.entries || []).map(entry => ({
+      ...entry, contextRunningBalance: entry.running_balance,
+    }));
+    return dateSortOrder === 'desc' ? entries.reverse() : entries;
+  }, [statementData, dateSortOrder]);
 
   const totalCreditSum = useMemo(() => {
     return displayLedger.reduce((sum, entry) => sum + (Number(entry.credit_amount) || 0), 0);

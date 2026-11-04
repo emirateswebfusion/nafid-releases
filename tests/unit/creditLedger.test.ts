@@ -24,6 +24,7 @@ vi.mock('../../electron/sync/syncWorker', () => ({ runInitialSync: async () => {
 import { checkout, recentCheckoutsCache } from '../../electron/services/invoiceCheckoutService';
 import { deleteInvoice, updateInvoice, updateInvoicePayment } from '../../electron/services/invoiceEditService';
 import { restoreInvoice } from '../../electron/services/recycleBinService';
+import { m017HistoricalCreditNotes } from '../../electron/db/migrations/017-historical-credit-notes';
 import { createReturn, deleteReturn, settleReturnInvoice } from '../../electron/services/returnsService';
 import { addPartyLedgerEntry, getParties, getPartyLedger } from '../../electron/services/partiesService';
 import { computeCustomerCreditStatusSync } from '../../electron/services/customerCreditService';
@@ -388,4 +389,14 @@ describe('randomised wholesale day: 40 customers, 600 operations', () => {
       }
     }
   }, 120_000);
+});
+
+it('posts an unlinked historical credit note on its document date exactly once', () => {
+  m017HistoricalCreditNotes.up(state.db);
+  const payload = { return_id:'historical',invoice_id:null,tenant_id:SHOP,return_number:'CDNR/00149',customer_name:'Historical customer',return_date:'2026-11-03T18:30:00.000Z',subtotal:1144.07,tax_total:205.93,grand_total:1350,refund_method:'CREDIT',items:[{return_item_id:'hist-item',product_id:'p',name:'Carburettor',quantity:1,unit_price:1144.07,tax_amount:205.93,total:1144.07}] };
+  expect(createReturn(payload)).toEqual({success:true});
+  expect(raw.prepare('SELECT invoice_id,return_date,grand_total FROM returns WHERE return_id=?').get('historical')).toEqual({invoice_id:null,return_date:payload.return_date,grand_total:1350});
+  expect(raw.prepare('SELECT transaction_date,debit_amount FROM party_ledger WHERE reference_number=? AND is_deleted=0').get(payload.return_number)).toMatchObject({transaction_date:payload.return_date,debit_amount:1350});
+  expect(createReturn(payload).success).toBe(false);
+  expect(raw.prepare('SELECT COUNT(*) n FROM returns WHERE return_id=?').get('historical')).toEqual({n:1});
 });

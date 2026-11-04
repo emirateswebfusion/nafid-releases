@@ -28,6 +28,7 @@ check('all released migrations applied on a fresh database', recorded(), MIGRATI
 check('user_version = latest', db.pragma('user_version', { simple: true }), latest);
 check('returns indexes exist', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_return%' ORDER BY name").all() as { name: string }[]).map((r) => r.name),
   ['idx_return_items_invoice_item_id', 'idx_return_items_return_id', 'idx_returns_invoice_id']);
+check('historical credit notes accept no original invoice (021)', (db.prepare('PRAGMA table_info(returns)').all() as { name: string; notnull: number }[]).find(c => c.name === 'invoice_id')?.notnull, 0);
 check('sync_outbox table exists', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sync_outbox'").get() as { name: string } | undefined)?.name, 'sync_outbox');
 check('einvoice_documents mirror table exists (017)', (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'einvoice_documents'").get() as { name: string } | undefined)?.name, 'einvoice_documents');
 check('customers.einvoice_profile exists (017)', (db.prepare('PRAGMA table_info(customers)').all() as { name: string }[]).some((c) => c.name === 'einvoice_profile'), true);

@@ -670,7 +670,7 @@ export interface ReturnItemsRow {
 /** Row of `returns`. */
 export interface ReturnsRow {
   return_id: string;
-  invoice_id: string;
+  invoice_id: string | null;
   tenant_id: string;
   user_id: string | null;
   return_number: string;

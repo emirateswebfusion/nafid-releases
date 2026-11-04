@@ -22,7 +22,7 @@ export interface PartyBalanceCardsProps {
 /** Party balance cards: current balance, totals and credit position. */
 export function PartyBalanceCards({
   activeEstimateBal, activeGstBal, enablePartyEstimate, enablePartyGst, getPartyBalance, ledgerBalanceFilter,
-  ledgerEndDate, ledgerStartDate, selectedParty, setLedgerBalanceFilter, statementData, tLabels,
+  ledgerEndDate, ledgerStartDate, selectedParty, setLedgerBalanceFilter, tLabels,
 }: PartyBalanceCardsProps) {
   return (
     <>
@@ -30,7 +30,7 @@ export function PartyBalanceCards({
       {(() => {
         const currentTotalBal = getPartyBalance(selectedParty);
         const isPeriodFiltered = Boolean(ledgerStartDate || ledgerEndDate);
-        const activeBal = (isPeriodFiltered && statementData) ? statementData.closingBalance : currentTotalBal;
+        const activeBal = isPeriodFiltered ? Math.round((activeGstBal + activeEstimateBal) * 100) / 100 : currentTotalBal;
         const showBoth = enablePartyGst && enablePartyEstimate;
         const showOnlyGst = enablePartyGst && !enablePartyEstimate;
         const showOnlyEstimate = !enablePartyGst && enablePartyEstimate;

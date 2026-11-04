@@ -99,3 +99,14 @@ describe('findMatchingParty', () => {
     expect(findMatchingParty(twins, 'Anas Traders')?.only_account_with_name).toBe(false);
   });
 });
+
+describe('shared phone account identity', () => {
+  it('uses the named account balance and loyalty customer regardless of shared-phone order', () => {
+    const first = { party_id: 'pr', name: 'PR POWER TOOLS', phone: '9744552033', balance: 910, party_type: 'CUSTOMER' };
+    const selected = { party_id: 'pandhlam', name: 'PR POWER TOOLS PANDHLAM', phone: '9744552033', balance: 18968, party_type: 'CUSTOMER' };
+    const directory = { parties: [first, selected], customers: [{ customer_id: 'c-pr', name: first.name, phone: first.phone, current_points_balance: 1 }, { customer_id: 'c-pandhlam', name: selected.name, phone: selected.phone, current_points_balance: 7 }], searchResults: [], staffEnabled: false };
+    expect(findMatchingParty(directory, selected.name, selected.phone)).toMatchObject({ party_id: 'pandhlam', balance: 18968, customer_id: 'c-pandhlam', current_points_balance: 7 });
+    expect(findMatchingParty(directory, first.name, first.phone)).toMatchObject({ party_id: 'pr', balance: 910, customer_id: 'c-pr' });
+    expect(findMatchingParty(directory, '', first.phone)?.party_id).toBe('pr');
+  });
+});

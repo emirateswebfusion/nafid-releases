@@ -14,7 +14,7 @@ import { syncReturnPaymentAccount } from './ledgerPaymentAccounts.js';
 /** IPC `db:createReturn` */
 export function createReturn(payload: {
   return_id: string;
-  invoice_id: string;
+  invoice_id: string | null;
   tenant_id: string;
   user_id?: string;
   user_name?: string;
@@ -26,6 +26,7 @@ export function createReturn(payload: {
   tax_total: number;
   grand_total: number;
   reason?: string;
+  return_date?: string;
   refund_method?: string;
   adjusted_invoice_number?: string;
   adjusted_amount?: number;
@@ -44,6 +45,8 @@ export function createReturn(payload: {
       payload.items.some(item => !Number.isFinite(item.quantity) || item.quantity <= 0)) {
     return { success: false, error: 'Enter a positive quantity for at least one return item; omit zero-quantity items.' };
   }
+  if (!Number.isFinite(payload.grand_total) || payload.grand_total <= 0 || !Number.isFinite(payload.subtotal) || !Number.isFinite(payload.tax_total) || payload.subtotal < 0 || payload.tax_total < 0 || payload.items.some(item => !Number.isFinite(item.unit_price) || item.unit_price < 0 || !Number.isFinite(item.tax_amount) || item.tax_amount < 0 || !Number.isFinite(item.total) || item.total < 0)) return { success: false, error: 'Enter valid non-negative return amounts.' };
+  if (payload.return_date && !Number.isFinite(Date.parse(payload.return_date))) return { success: false, error: 'Enter a valid return date.' };
   const { items, ...returnData } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
@@ -51,6 +54,7 @@ export function createReturn(payload: {
       upsertCustomerRecord(db, returnData.tenant_id || 'global', returnData.customer_name, returnData.customer_phone, null);
     }
     const now = localTimestamp();
+    const occurredAt = returnData.return_date ? new Date(returnData.return_date).toISOString() : now;
     returnsSql.insertReturn(db).run(
       returnData.return_id, returnData.invoice_id, returnData.tenant_id, returnData.user_id || null,
       returnData.return_number, returnData.customer_name || null, returnData.customer_phone || null,
@@ -58,7 +62,7 @@ export function createReturn(payload: {
       returnData.subtotal, returnData.tax_total, returnData.grand_total, returnData.reason || null,
       returnData.refund_method || null, returnData.adjusted_invoice_number || null,
       returnData.adjusted_amount ?? 0,
-      now, now
+      occurredAt, occurredAt, now
     );
 
     const stockInvoice = returnData.invoice_id ? returnsSql.findInvoicesByInvoiceId(db).get(returnData.invoice_id) as InvoiceRow | undefined : undefined;
@@ -106,7 +110,7 @@ export function createReturn(payload: {
     syncReturnPaymentAccount(db, { ...returnData, refund_method: refMethod });
 
     if (refMethod === 'CASH' && Number(returnData.grand_total) > 0) {
-      const todayDate = localDate(new Date(), returnData.tenant_id);
+      const todayDate = localDate(new Date(occurredAt), returnData.tenant_id);
       const drawer = getOpenCashDrawer(db, returnData.tenant_id, todayDate);
       if (drawer) {
         const existingTx = returnsSql.findCashTransactionsByDrawerIdAndCategory(db).get(drawer.drawer_id, `%${returnData.return_number}%`);
@@ -152,7 +156,7 @@ export function createReturn(payload: {
         amount: Number(returnData.grand_total) || 0,
         user_id: returnData.user_id,
         user_name: returnData.user_name || returnData.user_id,
-        created_at: now,
+        created_at: occurredAt,
       });
     }
   });

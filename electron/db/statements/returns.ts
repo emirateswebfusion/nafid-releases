@@ -8,9 +8,9 @@ export const insertReturn = (db: Db) => db.prepare(`
         customer_name, customer_phone, customer_address,
         subtotal, tax_total, grand_total, reason,
         refund_method, adjusted_invoice_number, adjusted_amount,
-        sync_status, created_at, updated_at
+        sync_status, return_date, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)
     `);
 
 export const insertReturnItem = (db: Db) => db.prepare(`

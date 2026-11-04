@@ -16,6 +16,8 @@ import { getStoreBusinessDate, getStoreTimezone } from '../../utils/time/timezon
 import { isDesktopRuntime } from '../../data/client';
 import { printingApi } from '../../data/printing';
 import { ReturnCashRegisterNote } from './ReturnCashRegisterNote';
+import { CreditNoteDialog } from './CreditNoteDialog';
+import { hasPermission } from '../../utils/security/permissions';
 import { returnsApi } from '../../data/returns';
 import { settingsApi } from '../../data/settings';
 import { syncApi } from '../../data/sync';
@@ -43,6 +45,8 @@ function formatDate(dateStr: string | null) {
 export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
   const { tenantId, userName: _userName, userId: _userId } = useAuthStore();
+  const [creditNoteOpen,setCreditNoteOpen] = useState(false);
+  const auth = useAuthStore();
   const [returns, setReturns] = useState<ReturnInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -227,6 +231,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
+      {creditNoteOpen && <CreditNoteDialog onClose={() => setCreditNoteOpen(false)} onSaved={() => {setCreditNoteOpen(false);void loadReturns();}}/>}
       {/* Header */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
@@ -245,6 +250,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {!isRestricted && hasPermission(auth, 'sales.refund') && <button type="button" className="px-3 py-2 rounded-xl border border-input text-xs font-bold" onClick={() => setCreditNoteOpen(true)}>Record credit note</button>}
             <button
               onClick={handleResyncReturns}
               disabled={isResyncing}

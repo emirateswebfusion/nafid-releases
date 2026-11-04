@@ -1,3 +1,15 @@
+## v2.2.40
+
+- Record historical credit notes with their document number, actual date, original item rates and tax when the old invoice is outside NAFID. Account credit and cash refunds remain separate.
+
+## v2.2.39
+
+- Ledger date filters carry forward customer advances and opening balances in GST/Estimate cards, rows and totals, preserving the correct amount payable or receivable.
+
+## v2.2.38
+
+- Billing uses the named customer when accounts share a phone, keeping balances and loyalty on the selected account.
+
 # Nafid POS v2.2.37
 
 ## What's New

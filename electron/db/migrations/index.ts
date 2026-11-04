@@ -19,6 +19,7 @@ import { m015CardTerminalTransactions } from './015-card-terminal-transactions.j
 import { m016Restaurant } from './016-restaurant.js';
 import { m017UaeEinvoicing } from './017-uae-einvoicing.js';
 import { m018ReconcileFeatureMigrations } from './018-reconcile-feature-migrations.js';
+import { m017HistoricalCreditNotes } from './017-historical-credit-notes.js';
 
 import { m015DedupeScrapCashTransactions } from './015-dedupe-scrap-cash-transactions.js';
 import { m016PurgeDuplicateScrapCashTransactions } from './016-purge-duplicate-scrap-cash-transactions.js';
@@ -49,6 +50,8 @@ export const MIGRATIONS: readonly Migration[] = [
   m018ReconcileFeatureMigrations,
   { version: 19, name: 'scrap-dedupe-compatibility', up: m015DedupeScrapCashTransactions.up },
   { version: 20, name: 'scrap-purge-compatibility', up: m016PurgeDuplicateScrapCashTransactions.up },
+  { version: 21, name: 'historical-credit-notes-compatibility', up: m017HistoricalCreditNotes.up },
+  { version: 22, name: 'uae-einvoicing-compatibility', up: m017UaeEinvoicing.up },
 ];
 
 /** Startup step after the baseline schema: apply pending migrations, then remove a sync apply guard row left by a
