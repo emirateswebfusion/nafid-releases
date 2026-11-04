@@ -29,6 +29,7 @@ src/
     billing/              + checkout/, customerDirectory.ts, productSearch.ts, numberReservation.ts, BillingConstants.ts
     settings/             SettingsManager + tabs/, the settings panels (emergency purge, data masking, terminology)
     app/                  app shell: ErrorBoundary, PermissionGuard, SplashScreen, UpdateBanner, prompts, PrintRouter, lazyScreens, hooks/
+                          and app-wide flows used by several screens: CardTerminalDialog + cardTerminalStep (card machine)
     auth/ print/          login + trial sign-up preview (AuthBrandPanel, TrialRegistration,
                          trialShopDetails validation); receipt / A4 / barcode print views
     ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, ScrollText, …)
@@ -98,7 +99,7 @@ electron/
     customerCreditService (credit limits/overdue) · quotationsService · returnsService · warrantiesService
     scrapService · purchasesService · cashierService · cashDrawerService · paymentSourcesService
     staffService (staff, biller PIN, staff ledger, attendance) · localAuthService (offline login)
-    emergencyPurgeService · settingsService · recycleBinService · syncService · ecommerceService
+    emergencyPurgeService · settingsService · recycleBinService · syncService · ecommerceService · cardTerminalService
     invoiceNumberService · storeTime · authStorage · windowRegistry · updater · fusionCartBridge …
   db/
     localDb.ts       SQLite connection (getDb/getOpenDb) and initDb, which runs in order:
@@ -117,7 +118,8 @@ electron/
     syncConfig.ts / cloudAccess.ts / syncProgress.ts / syncState.ts   limits + stored login / access rules / progress / shared state
     entities/        per-table push + pull: catalog, salesDocs, parties, cash, stockDocs, settings
     localHostServer.ts (LAN server) + lanUpsert.ts (LAN row merge)
-  hardware/          printer (ESC/POS, A4/PDF), weighingScale (serial), barcodeScanner (keyboard wedge)
+  hardware/          printer (ESC/POS, A4/PDF), weighingScale (serial), barcodeScanner (keyboard wedge),
+                     cardTerminal/ (bank card machine: PaymentTerminal interface, registry, link check, adapters/)
   whatsapp/          Baileys session, invoice sending, shop-closing report (service + IPC; shopClosingSummary = data,
                      shopClosingMessage = WhatsApp text, shopClosingTypes)
   utils/             pure helpers for the main process (ids, gst, validation, timestamps, cashier settlement math)

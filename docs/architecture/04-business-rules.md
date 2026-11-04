@@ -87,6 +87,15 @@ and `electron/utils/` (ids, cashier settlement math).
 - Tests: `creditLedger.test.ts` (real SQLite and services, incl. a 40-customer / 600-operation randomised run),
   `tabStoreEditing.test.ts`.
 
+### Card terminal payments (`electron/services/cardTerminalService.ts`, `src/components/app/cardTerminalStep.ts`)
+
+- Off by default, per PC (`card_terminal_config`, device-local). When on, the card part of a CARD / SPLIT bill is sent
+  to the machine before the bill is saved; the approved result is stored as `split_details.card_terminal` (last 4 card
+  digits only). Ledger rows and amounts do not change.
+- Every request is journaled in `card_terminal_transactions` before it is sent. A missing answer is resolved by an
+  inquiry or by the cashier from the slip, never by sending the payment again. A save that fails after a charge voids it.
+- Design and flows: `card-terminal-design.md`. Tests: `cardTerminalService.test.ts`, `cardTerminalStep.test.ts`.
+
 ### Cash drawer sessions (`electron/services/cashDrawerSession.ts`)
 
 - Timestamps are stored in UTC; the store timezone setting decides business dates and wall-clock times

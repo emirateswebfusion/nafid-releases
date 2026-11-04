@@ -28,6 +28,7 @@ import { returnsApi } from '../../../data/returns';
 import { sendConfiguredBill } from '../../../data/whatsappSharing';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
 import { listParties } from '../../../data/parties';
+import { cardAmountOf, runCardTerminalStep, settleCardTerminalStep } from '../../app/cardTerminalStep';
 
 export interface CheckoutContext {
   items: CartItem[];
@@ -488,6 +489,10 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         } : {}),
       };
 
+      const cardStep = await runCardTerminalStep({ tenantId: tenantId || 'global', invoiceId: invoice_id, isEditing, skip: isQuotationMode || isReturnMode || useCartStore.getState().isFilingOnly,
+        paymentMethod: effectiveFinalPaymentMethod, cardAmount: cardAmountOf(effectiveFinalPaymentMethod, effectiveGrandTotal, splitDetailsForSave.card) });
+      if (!cardStep.ok) { setHardwareError(cardStep.message); return; }
+      if (cardStep.details) Object.assign(splitDetailsForSave, { card_terminal: cardStep.details });
       let result: B.CheckoutResult;
       const wantsLoyalty = loyaltyEnabled && !!(customerName || '').trim() && (!!(customerPhone || '').trim() || !!(customerAddress || '').trim() || loyaltyCustomerData.customerId);
       if (isEditing) {
@@ -586,6 +591,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           remaining_points_balance: remainingPointsBalance,
         });
       }
+      await settleCardTerminalStep(result.success);
       if (!result.success) {
         setHardwareError(isEditing ? `Update failed: ${result.error || 'Unknown error'}` : `Checkout failed: ${result.error || 'Unknown error'}`);
         return;
@@ -775,6 +781,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       }, 1800);
     } catch (err) {
       console.error('[Checkout Error]', err);
+      await settleCardTerminalStep(false);
       setHardwareError(`Checkout failed: ${(err as Error)?.message || 'Unexpected error'}`);
     } finally {
       isCheckingOutRef.current = false;

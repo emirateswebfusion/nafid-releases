@@ -15,6 +15,7 @@ import type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } fr
 import type { OfflineLoginResult, PinLoginResult, TerminalConfigResult } from './data/auth';
 import type { EffectiveCloudState } from './data/sync';
 import type { BulkPrintItem } from './data/printing';
+import type { CardTerminalPayment, CardTerminalStatus, CardTerminalTransaction } from './data/cardTerminal';
 import type { CashDrawerResult } from './data/cashier';
 import type { ReturnInvoiceByNumberResult } from './data/returns';
 import type { EcommerceOrdersResult, EcommerceProductsResult } from './data/ecommerce';
@@ -160,6 +161,17 @@ export interface IElectronAPI {
   getReceiptText: () => Promise<string>;
   getA4Html: () => Promise<string>;
   printReady: (contentHeightPx?: number) => Promise<{ success: boolean; error?: string }>;
+  cardTerminalGetStatus: () => Promise<CardTerminalStatus>;
+  cardTerminalSale: (payload: { tenant_id: string; invoice_id: string; amount: number; currency?: string }) => Promise<CardTerminalPayment>;
+  cardTerminalVoid: (payload: { ecr_ref: string }) => Promise<CardTerminalPayment>;
+  cardTerminalRefund: (payload: { tenant_id: string; invoice_id?: string | null; amount: number; original_ecr_ref?: string | null; currency?: string }) => Promise<CardTerminalPayment>;
+  cardTerminalCancel: () => Promise<{ success: boolean }>;
+  cardTerminalResolve: (payload: { ecr_ref: string; outcome: 'APPROVED' | 'DECLINED'; auth_code?: string }) => Promise<{ success: boolean; error?: string }>;
+  cardTerminalTest: () => Promise<{ ok: boolean; message: string }>;
+  cardTerminalBillSplitDetails: (payload: { invoice_id: string }) => Promise<{ split_details: string | null }>;
+  cardTerminalListPorts: () => Promise<{ path: string; manufacturer?: string }[]>;
+  cardTerminalListTransactions: (payload: { tenant_id: string; limit?: number }) => Promise<CardTerminalTransaction[]>;
+  cardTerminalListUnresolved: (payload: { tenant_id: string }) => Promise<CardTerminalTransaction[]>;
   printA4Html: (tenant_id: string, htmlContent: string) => Promise<{ success: boolean; useDefaultDialog?: boolean; error?: string }>;
   exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string, pdfOptions?: { displayHeaderFooter?: boolean; headerTemplate?: string; footerTemplate?: string }) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
 
@@ -182,6 +194,7 @@ export interface IElectronAPI {
   onUpdateInfo: (callback: (info: UpdateInfoPayload) => void) => void;
   onBarcodeScanned: (callback: (code: string) => void) => () => void;
   onScaleWeight: (callback: (weight: number) => void) => () => void;
+  onCardTerminalStatus: (callback: (status: { ecr_ref: string; message: string }) => void) => () => void;
   onSyncDataUpdated: (callback: () => void) => (() => void);
   onSyncCycleComplete: (callback: () => void) => (() => void);
   onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => void) => (() => void);

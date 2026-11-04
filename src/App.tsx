@@ -12,6 +12,7 @@ import { setAppTimeFormat } from './utils/print/receiptGenerator';
 import { useStoreProfile } from './hooks/useStoreProfile';
 import { CashDrawerAutoCloseWatcher } from './components/cashier/CashDrawerAutoCloseWatcher';
 import { SessionExpiredModal } from './components/app/SessionExpiredModal';
+import { CardTerminalDialog } from './components/app/CardTerminalDialog';
 import { useFeatureFlagsStore, isAiAssistantAvailable } from './config/featureFlags';
 import { SplashScreen } from './components/app/SplashScreen';
 import { useEmergencyPanicTrigger } from './hooks/useEmergencyPanicTrigger';
@@ -334,6 +335,7 @@ function App() {
         }}
       />
 
+      <CardTerminalDialog />
       <EmergencyWipePrompt panic={panic} />
     </div>
   );

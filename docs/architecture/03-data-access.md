@@ -51,6 +51,7 @@ const inv = await scrapApi.getScrapInvoiceByNumber({ tenant_id, scrap_invoice_nu
 | `staff.ts` | staff, PIN, staff ledger, attendance |
 | `recycleBin.ts` | soft-deleted records, restore, hard delete, emergency purge |
 | `printing.ts`, `whatsapp.ts`, `ecommerce.ts`, `sync.ts` | hardware printing, WhatsApp, FusionCart, sync control |
+| `cardTerminal.ts` | bank card machine (ECR): sale, void, refund, cancel, slip resolution, journal (`card-terminal-design.md`) |
 | `events.ts` | `bridgeEvents` subscriptions |
 
 ### Adding or changing an IPC channel (5 steps, one change)
