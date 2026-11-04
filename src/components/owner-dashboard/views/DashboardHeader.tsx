@@ -34,7 +34,7 @@ export function DashboardHeader({
   const displaySalesAmount = isRevenueMetric ? totalSales : (totalSalesBeforeDeductions || totalSales);
   const displaySalesLabel = isRevenueMetric ? 'Revenue Today' : 'Sales Today';
 
-  const { updateInfo, updateReady, isDownloading, installUpdate, init: initUpdate } = useUpdateStore();
+  const { updateInfo, updateReady, isDownloading, installUpdate, init: initUpdate, installError, isInstalling } = useUpdateStore();
 
   useEffect(() => {
     initUpdate();
@@ -105,16 +105,16 @@ export function DashboardHeader({
           {updateReady ? (
             <button
               type="button"
-              onClick={installUpdate}
+              onClick={installUpdate} disabled={isInstalling}
               className="group relative flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md hover:brightness-105 active:scale-95 transition-all duration-300 cursor-pointer animate-in fade-in slide-in-from-right-3 zoom-in-95 border border-emerald-400/30"
-              title="Update is downloaded and ready to apply. Click to restart instantly!"
+              title={installError || "Start the downloaded update installer"}
             >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
               </span>
               <RotateCcw className="w-3.5 h-3.5 shrink-0 transition-transform duration-500 group-hover:-rotate-180" />
-              <span className="tracking-wide">Restart to Update</span>
+              <span className="tracking-wide">{isInstalling ? 'Starting installer...' : installError ? 'Retry installation' : 'Restart to Update'}</span>
               {updateInfo?.version && (
                 <span className="text-[9px] font-mono font-bold bg-white/20 px-1.5 py-0.5 rounded-md">
                   v{updateInfo.version}

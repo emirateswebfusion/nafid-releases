@@ -9,6 +9,8 @@ export interface UpdateState {
   isDownloading: boolean;
   downloadProgress: { percent: number; transferred: number; total: number } | null;
   initialized: boolean;
+  installError: string | null;
+  isInstalling: boolean;
   init: () => void;
   installUpdate: () => void;
   checkForUpdates: () => Promise<void>;
@@ -20,6 +22,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   isDownloading: false,
   downloadProgress: null,
   initialized: false,
+  installError: null,
+  isInstalling: false,
 
   init: () => {
     if (get().initialized || !isDesktopRuntime()) return;
@@ -68,14 +72,14 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   },
 
   installUpdate: () => {
+    if (get().isInstalling) return;
+    set({ isInstalling: true, installError: null });
     void appApi.installUpdate().then((res) => {
       if (!res || res.success) return;
-      // No installer was launched, so the app is still open. Drop the dead
-      // "Restart to update" button and re-download. Download state is driven by
-      // the main process events, so a failed re-check cannot leave a spinner stuck.
-      set({ updateReady: false, downloadProgress: null });
-      void get().checkForUpdates();
-    }).catch(() => {});
+      set({ updateReady: res.installerReady === true, isDownloading: false, downloadProgress: null, installError: res.error });
+    }).catch(() => {
+      set({ isDownloading: false, installError: 'Could not start the update. Nafid is still open. Please retry.' });
+    }).finally(() => set({ isInstalling: false }));
   },
 
   checkForUpdates: async () => {

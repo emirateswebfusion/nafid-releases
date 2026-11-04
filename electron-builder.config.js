@@ -2,9 +2,8 @@ require('dotenv').config();
 if (!process.env.GH_TOKEN) {
   require('dotenv').config({ path: '.env.production' });
 }
-process.env.CSC_IDENTITY_AUTO_DISCOVERY = "false";
-process.env.CSC_LINK = "";
-process.env.WIN_CSC_LINK = "";
+// Preserve configured signing credentials. Windows may refuse unsigned installers.
+// CI/build machines supply CSC_LINK / WIN_CSC_LINK or their configured signing provider.
 
 // Point rcedit to the already-extracted winCodeSign cache so electron-builder
 // never tries to re-download/re-extract the 7z (which fails on Windows without
