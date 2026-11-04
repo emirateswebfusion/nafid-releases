@@ -14,15 +14,15 @@ export const m015DedupeScrapCashTransactions: Migration = {
     const duplicateDrawers = db.prepare(`
       SELECT DISTINCT drawer_id FROM cash_transactions
       WHERE (category = 'SCRAP_PURCHASE' OR category = 'Scrap Purchase')
-        AND entered_by = 'system'
+        AND (entered_by = 'system' OR entered_by IS NULL OR entered_by = '')
         AND notes LIKE 'Scrap purchase %'
         AND notes != 'Scrap purchase'
         AND EXISTS (
           SELECT 1 FROM cash_transactions ct2
           WHERE ct2.drawer_id = cash_transactions.drawer_id
             AND (ct2.category = 'Scrap Purchase' OR ct2.category = 'SCRAP_PURCHASE')
-            AND ct2.entered_by != 'system'
-            AND TRIM(ct2.notes) = TRIM(cash_transactions.notes)
+            AND (ct2.entered_by != 'system' AND ct2.entered_by IS NOT NULL AND ct2.entered_by != '')
+            AND LOWER(TRIM(ct2.notes)) = LOWER(TRIM(cash_transactions.notes))
         )
     `).all() as Array<{ drawer_id: string }>;
 
@@ -30,15 +30,15 @@ export const m015DedupeScrapCashTransactions: Migration = {
     db.exec(`
       DELETE FROM cash_transactions
       WHERE (category = 'SCRAP_PURCHASE' OR category = 'Scrap Purchase')
-        AND entered_by = 'system'
+        AND (entered_by = 'system' OR entered_by IS NULL OR entered_by = '')
         AND notes LIKE 'Scrap purchase %'
         AND notes != 'Scrap purchase'
         AND EXISTS (
           SELECT 1 FROM cash_transactions ct2
           WHERE ct2.drawer_id = cash_transactions.drawer_id
             AND (ct2.category = 'Scrap Purchase' OR ct2.category = 'SCRAP_PURCHASE')
-            AND ct2.entered_by != 'system'
-            AND TRIM(ct2.notes) = TRIM(cash_transactions.notes)
+            AND (ct2.entered_by != 'system' AND ct2.entered_by IS NOT NULL AND ct2.entered_by != '')
+            AND LOWER(TRIM(ct2.notes)) = LOWER(TRIM(cash_transactions.notes))
         );
     `);
 
