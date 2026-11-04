@@ -2,7 +2,7 @@ import type { Migration } from './runner.js';
 import * as outboxSql from '../statements/outbox.js';
 
 /**
- * UAE Electronic Invoicing (server migration 102): the customer's e-invoice identity (synced JSON text) and a
+ * UAE Electronic Invoicing (server tenant migration 103): the customer's e-invoice identity (synced JSON text) and a
  * read-only mirror of the server-owned `einvoice_documents` status rows. Version 17 leaves 15/16 to the parallel
  * restaurant / card-terminal branches. The customers outbox trigger is rebuilt so the new column is carried by ops.
  */

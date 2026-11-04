@@ -15,6 +15,8 @@ Read it before writing code. If the code and these documents disagree, fix one o
 | — | [GST Phase 2A Integration](gst-phase2a-integration.md) | India GST multi-mode integration architecture (Managed GSP, Shop GSP, Offline) |
 | — | [UAE VAT 201 & FTA Audit](vat-uae-integration.md) | UAE Form VAT 201 return, FTA Audit File (FAF), and filing lifecycle |
 | — | [Card terminal (ECR)](card-terminal-design.md) | sending card amounts to the bank card machine: UAE acquirer research, `PaymentTerminal` interface, journal, flows, how to add an acquirer |
+| — | [UAE e-invoicing (PINT AE)](uae-einvoicing-design.md) | Peppol PINT AE e-invoices built and sent by the server after sync; read-only status mirror on terminals; ASP adapters |
+| — | [Restaurant mode](restaurant-mode-design.md) | tables, kitchen stations, add-ons, orders and KOT, kitchen display, settlement through checkout, India and UAE rules |
 
 Related:
 

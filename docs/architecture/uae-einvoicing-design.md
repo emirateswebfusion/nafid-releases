@@ -153,7 +153,7 @@ Why a separate table, not columns on `invoices`: the invoice row is written by t
 (R4). Server-written status columns on the same row would be overwritten by the next terminal push or would force a
 conflict rule. A server-owned table pulled with `server_seq` keeps one writer per row.
 
-POS side: SQLite migration `015-einvoice-documents.ts`, `electron/db/statements/einvoice.ts`, sync pull step,
+POS side: SQLite migration `017-uae-einvoicing.ts`, `electron/db/statements/einvoice.ts`, sync pull step,
 `src/data/einvoice.ts` (`einvoiceApi.listStatuses(ids)`), and a **UAE-only "E-invoice" column** in Sales History and the
 returns list (badge + error tooltip + "Retry" for owners). Hidden when `country !== 'AE'` or mode `OFF`.
 
@@ -229,7 +229,7 @@ The owner asked for the full feature at once. That means outbound B2B/B2G **and*
 
 | Piece | Server (`nafid-server`) | POS (`nafid-pos`) |
 |---|---|---|
-| Schema | tenant migration `102_uae_einvoicing.sql` | migration `017-uae-einvoicing.ts` (15/16 left to the restaurant / card-terminal branches; renumber on merge if needed) |
+| Schema | tenant migration `103_uae_einvoicing.sql` | migration `017-uae-einvoicing.ts` (015 is the card-terminal journal, 016 restaurant mode) |
 | Generator | `services/einvoice/pintAe/{buildXml,validate,codes,parseInbound}.ts`, `mapDocument.ts` | — |
 | ASP | `aspAdapter.ts`, `aspRegistry.ts`, `adapters/sandboxAdapter.ts` | — |
 | Use-cases | `einvoiceService.ts` (build → validate → Peppol lookup → submit → status → inbound; backoff 2 min … 6 h, 10 attempts) | `electron/services/einvoiceService.ts` (status mirror reads, customer profile) |
