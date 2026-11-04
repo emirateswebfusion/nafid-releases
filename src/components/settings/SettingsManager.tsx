@@ -14,6 +14,7 @@ import { isAdminRole } from '../../utils/security/permissions';
 
 import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../../config/featureFlags';
 import { appApi } from '../../data/app';
+import { useUpdateStore } from '../../store/updateStore';
 import { hasBridge, isDesktopRuntime } from '../../data/client';
 import { bridgeEvents } from '../../data/events';
 import { printingApi } from '../../data/printing';
@@ -263,7 +264,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const handleInstallUpdate = async () => {
     setUpdateStatus('Starting installer...');
     try {
-      const res = await appApi.installUpdate();
+      const res = await useUpdateStore.getState().installUpdate();
       if (!res || res.success) return;
       setUpdateReady(res.installerReady === true);
       setIsDownloading(false);
