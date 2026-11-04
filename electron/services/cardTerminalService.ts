@@ -38,7 +38,7 @@ export interface CardTerminalTransactionRow {
   message: string | null; original_ecr_ref: string | null; resolved_by: string | null; created_at: string; updated_at: string;
 }
 
-const MAX_AMOUNT_MINOR = 100_000_000; // AED 1,000,000: guards against a mistyped amount reaching the machine
+const MAX_AMOUNT_MINOR = 100_000_000; // 1,000,000 in the shop currency: guards against a mistyped amount reaching the machine
 let terminal: PaymentTerminal | null = null;
 let terminalKey = '';
 let active: { controller: AbortController; ecrRef: string; cancelled: boolean } | null = null;
@@ -169,7 +169,7 @@ function amountMinorOf(value: unknown) {
   return Number.isFinite(amount) ? toMinor(amount) : NaN;
 }
 
-/** IPC `cardTerminal:sale`: send a bill's card amount (AED) to the machine. */
+/** IPC `cardTerminal:sale`: send a bill's card amount (shop currency) to the machine. */
 export function sale(payload: unknown): Promise<CardTerminalPayment> {
   const p = record(payload);
   return run('SALE', { tenantId: text(p.tenant_id) || 'global', invoiceId: text(p.invoice_id), amountMinor: amountMinorOf(p.amount), currency: currencyOf(p.currency) },

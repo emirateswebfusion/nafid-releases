@@ -25,7 +25,7 @@ export interface CardTerminalConfig {
 export interface TerminalRequest {
   /** Unique per attempt; the terminal echoes it and inquiries look it up. */
   ecrRef: string;
-  /** Integer minor units (fils). Never a float. */
+  /** Integer minor units (fils / paise). Never a float. */
   amountMinor: number;
   currency: string;
 }
@@ -73,7 +73,7 @@ export function maskPan(raw: string | undefined | null): string | null {
   return match ? `****${match[1]}` : null;
 }
 
-/** AED → fils, rounded half away from zero on the cent. */
+/** Major units → minor units (AED → fils, INR → paise), rounded half away from zero on the cent. */
 export function toMinor(amount: number): number {
   return Math.round(Math.abs(amount) * 100 + 1e-7) * Math.sign(amount);
 }
