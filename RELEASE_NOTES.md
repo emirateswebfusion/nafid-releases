@@ -1,3 +1,7 @@
+## v2.2.39
+
+- Ledger date filters carry forward customer advances and opening balances in GST/Estimate cards, rows and totals, preserving the correct amount payable or receivable.
+
 ## v2.2.38
 
 - Billing uses the named customer when accounts share a phone, keeping balances and loyalty on the selected account.

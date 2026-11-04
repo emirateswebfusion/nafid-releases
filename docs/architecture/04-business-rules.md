@@ -412,3 +412,7 @@ without an Indian tax split. UI coverage: `uaeWording.ui.test.tsx`.
 ### Accounts sharing a phone
 
 Billing customerDirectory prefers an exact normalized name with a compatible phone before a phone-only match, for balances and loyalty. Regression: tests/unit/customerDirectory.test.ts.
+
+### Filtered ledger balance direction
+
+Ledger date and GST/Estimate filters use `calculateLedgerStatement` for opening, running and closing balances. `components/party/ledgerBalances.ts` derives each bucket closing balance through that canonical calculation; date filtering must retain advances before the period. Positive means the customer owes the shop, negative means the shop owes the customer. Regression: `ledgerBalanceDirection.ui.test.tsx`.
