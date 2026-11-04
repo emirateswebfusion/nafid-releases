@@ -8,7 +8,7 @@ import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { Tab } from '../../../store/tabStore';
 import type { PaymentMethod } from '../BillingConstants';
 import { runScrapCheckout } from './scrapCheckout';
-import { onAccountExcess } from './overpayment';
+import { cashShortOnAccount, onAccountExcess } from './overpayment';
 import { useCartStore } from '../../../store/cartStore';
 import { useAuthStore } from '../../../store/authStore';
 import { v4 as uuidv4 } from 'uuid';
@@ -326,6 +326,8 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       // Paid more than the bill and kept on account: a Credit bill, so the customer's ledger shows the sale and all the money.
       const onAccount = onAccountExcess({ paymentMethod: effectiveFinalPaymentMethod, grandTotal: effectiveGrandTotal, received: effectiveReceivedAmount, hasParty: Boolean(matchedParty), isStaff: isStaffParty, partyOldBalance });
       if (onAccount > 0) effectiveFinalPaymentMethod = 'CREDIT';
+      // Paid less than the bill on the Cash button: the screen shows the new due, so the rest goes on account.
+      if (cashShortOnAccount({ paymentMethod: effectiveFinalPaymentMethod, grandTotal: effectiveGrandTotal, received: effectiveReceivedAmount, hasParty: Boolean(matchedParty), isStaff: isStaffParty, partyOldBalance }) > 0) effectiveFinalPaymentMethod = 'CREDIT';
       const splitCreditAmount = Number(splitDetails?.credit) || 0;
       const isSplitCreditBill = effectiveFinalPaymentMethod === 'SPLIT' && splitCreditAmount > 0;
       const splitNonCreditPaid = (Number(splitDetails?.cash) || 0)

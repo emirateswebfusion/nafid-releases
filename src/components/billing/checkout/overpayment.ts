@@ -19,3 +19,22 @@ export function onAccountExcess(params: {
   if (!tracksPartyBalance) return 0;
   return Math.max(0, money(received - grandTotal));
 }
+
+/**
+ * Cash received below the bill on the Cash button, for a customer whose balance the screen shows: the screen shows
+ * the new due (old balance + bill − cash), so the unpaid part goes on the customer's account (saved as Credit with
+ * that cash paid). An empty Received box means paid in full. Walk-ins and staff keep the old behaviour.
+ */
+export function cashShortOnAccount(params: {
+  paymentMethod: string;
+  grandTotal: number;
+  received: number;
+  hasParty: boolean;
+  isStaff: boolean;
+  partyOldBalance: number;
+}): number {
+  const { paymentMethod, grandTotal, received, hasParty, isStaff, partyOldBalance } = params;
+  if (paymentMethod !== 'CASH' || !hasParty || isStaff || partyOldBalance === 0) return 0;
+  if (!(received > 0) || received >= grandTotal) return 0;
+  return money(grandTotal - received);
+}

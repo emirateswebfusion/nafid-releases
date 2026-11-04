@@ -23,7 +23,7 @@ import { addPartyLedgerEntry, getParties, getPartyLedger } from '../../electron/
 import { computeCustomerCreditStatusSync } from '../../electron/services/customerCreditService';
 import { getCashAmountFromInvoice } from '../../electron/services/cashDrawerService';
 import { sumCashSalesInWindow } from '../../electron/db/statements/cashDrawer';
-import { onAccountExcess } from '../../src/components/billing/checkout/overpayment';
+import { cashShortOnAccount, onAccountExcess } from '../../src/components/billing/checkout/overpayment';
 
 const SHOP = 't';
 const CHOTUS = { name: 'Chotus', phone: '9000000001' };
@@ -145,5 +145,26 @@ describe('onAccountExcess follows the billing screen', () => {
   it('is nothing when the money does not exceed the bill or is not cash', () => {
     expect(onAccountExcess({ ...base, received: 7390, paymentMethod: 'CASH' })).toBe(0);
     expect(onAccountExcess({ ...base, paymentMethod: 'UPI' })).toBe(0);
+  });
+});
+
+describe('cashShortOnAccount: cash below the bill on the Cash button', () => {
+  const base = { paymentMethod: 'CASH', grandTotal: 600, received: 100, hasParty: true, isStaff: false, partyOldBalance: 500 };
+  it('puts the unpaid part on account for a customer whose balance the screen shows (owing or advance)', () => {
+    expect(cashShortOnAccount(base)).toBe(500);
+    expect(cashShortOnAccount({ ...base, partyOldBalance: -500 })).toBe(500);
+  });
+  it('does nothing when paid in full, the Received box is empty, or for walk-ins, staff and other methods', () => {
+    expect(cashShortOnAccount({ ...base, received: 600 })).toBe(0);
+    expect(cashShortOnAccount({ ...base, received: 0 })).toBe(0);
+    expect(cashShortOnAccount({ ...base, hasParty: false })).toBe(0);
+    expect(cashShortOnAccount({ ...base, isStaff: true })).toBe(0);
+    expect(cashShortOnAccount({ ...base, partyOldBalance: 0 })).toBe(0);
+    expect(cashShortOnAccount({ ...base, paymentMethod: 'CREDIT' })).toBe(0);
+  });
+  it('saved as Credit with 100 paid, the ledger ends where the screen said: 500 + 600 - 100 = 1,000', () => {
+    opening(500);
+    bill('S1', 600, 100);
+    expect(party().balance).toBe(1000);
   });
 });

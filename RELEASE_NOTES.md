@@ -1,3 +1,10 @@
+# Nafid POS v2.2.36
+
+## What's New
+- **Part payment with the Cash button**: for a customer with a balance, typing less than the bill total in Received now puts the unpaid part on the customer's account, exactly as the screen shows (New Total Due). Before, the unpaid part was not added to the customer's balance.
+
+**Download:** [Nafid-Setup-2.2.36.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.36/Nafid-Setup-2.2.36.exe)
+
 # Nafid POS v2.2.35
 
 ## What's New
