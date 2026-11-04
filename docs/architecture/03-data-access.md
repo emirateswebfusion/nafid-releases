@@ -184,3 +184,14 @@ keeps its own choice; no server change is needed (the settings push accepts any 
 
 IPC channels: `db:getEinvoiceStatuses`, `db:getEinvoiceSummary`, `db:getCustomerEinvoiceProfile`, `db:saveCustomerEinvoiceProfile` (`src/data/einvoice.ts`). Cloud configuration goes through `src/data/cloud/einvoiceCloud.ts`. Design: `uae-einvoicing-design.md`.
 
+
+
+### Unified release / UAE feature migration histories (4 November 2026)
+
+Released POS 2.2.35–2.2.37 databases recorded scrap repairs at versions 015/016, while
+local UAE previews recorded card-terminal / restaurant schema at those versions. Historical
+files and applied records are preserved. The canonical registry keeps feature migrations
+015–017, then 018 idempotently ensures card-terminal and restaurant schema for released shops;
+019/020 reuse the historical scrap repair implementations for preview shops. The runner never
+registers duplicate versions. No shop settings or feature flags are enabled by the upgrade.
+Fresh databases and both prior histories are covered by `migrationBranchCompatibility.test.ts`.

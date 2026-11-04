@@ -57,3 +57,45 @@ export function getStoreTimezone(): string {
 export function getStoreBusinessDate(timeZone: string = getStoreTimezone()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
 }
+
+/** An instant from a Date, epoch ms, ISO text, or SQLite UTC text without a zone ("2026-11-02 18:37:00"). */
+function toInstant(value: Date | string | number): Date {
+  if (value instanceof Date || typeof value === 'number') return new Date(value);
+  const s = String(value).trim();
+  const zoned = /(Z|[+-]\d{2}:?\d{2})$/i.test(s);
+  return new Date(zoned ? s : `${s.replace(' ', 'T')}Z`);
+}
+
+/**
+ * The shop's wall clock for an instant: date `YYYY-MM-DD` and time `HH:mm` in the store timezone, never the PC's.
+ * Date and time pickers show this, so a bill entered on a PC set to another zone keeps the shop's date and time.
+ */
+export function toStoreWallClock(value: Date | string | number = new Date(), timeZone: string = getStoreTimezone()): { date: string; time: string } {
+  const d = toInstant(value);
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(isNaN(d.getTime()) ? new Date() : d).map((p) => [p.type, p.value]));
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+/** The UTC ISO instant of a wall-clock date (`YYYY-MM-DD`) and time (`HH:mm`) in the store timezone. */
+export function storeWallClockToUtcIso(date: string, time: string = '00:00', timeZone: string = getStoreTimezone()): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const [h, min] = (time || '00:00').split(':').map(Number);
+  const wanted = Date.UTC(y, m - 1, d, h || 0, min || 0);
+  // The zone's offset at the instant, found from its wall clock; a second pass settles daylight-saving edges.
+  let instant = wanted;
+  for (let i = 0; i < 2; i++) {
+    const w = toStoreWallClock(new Date(instant), timeZone);
+    const [wy, wm, wd] = w.date.split('-').map(Number);
+    const [wh, wmin] = w.time.split(':').map(Number);
+    instant += wanted - Date.UTC(wy, wm - 1, wd, wh, wmin);
+  }
+  return new Date(instant).toISOString();
+}
+
+/** The calendar date `days` after (or before, when negative) a `YYYY-MM-DD` date. */
+export function addCalendarDays(date: string, days: number): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}

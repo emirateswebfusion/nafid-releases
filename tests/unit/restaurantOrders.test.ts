@@ -18,7 +18,7 @@ vi.mock('../../electron/whatsapp/shopClosingReportService', () => ({ sendShopClo
 vi.mock('../../electron/db/localDb', () => ({ getDb: () => state.db }));
 vi.mock('../../electron/services/cashDrawerService', () => ({ getCashAmountFromInvoice: () => 0, adjustPaymentSourcesForInvoice: vi.fn(), syncPaymentSourcesForInvoice: vi.fn(), adjustCashDrawerForInvoice: vi.fn(), getOpenCashDrawer: () => null, reconcileCashDrawer: vi.fn(), autoCloseOverdueDrawers: vi.fn(), deduplicateAndGetOpenDrawer: () => null }));
 vi.mock('../../electron/services/cashRegisterLedgerService', () => ({ recordLedgerCashEntry: vi.fn() }));
-vi.mock('../../electron/services/invoiceNumberService', () => ({ getOrInitTerminalCode: () => 'POS1', getGuaranteedNextInvoiceNumber: () => ({ invoiceNumber: `AUTO-${++state.tick}` }) }));
+vi.mock('../../electron/services/invoiceNumberService', () => ({ rollbackUnsavedInvoiceNumber: vi.fn(), getOrInitTerminalCode: () => 'POS1', getGuaranteedNextInvoiceNumber: () => ({ invoiceNumber: `AUTO-${++state.tick}` }) }));
 vi.mock('../../electron/services/storeTime', () => ({
   localTimestamp: () => new Date().toISOString(), localDate: () => '2026-11-03', getStoreTimezoneSetting: () => 'Asia/Dubai', parseCleanDate: (d: string) => d,
 }));

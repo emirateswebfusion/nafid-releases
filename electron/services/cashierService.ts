@@ -13,6 +13,7 @@ import { calculateCashierSettlement } from '../utils/cashierSettlement.js';
 import { normalizePaymentSplit, syncInvoiceCreditLedger } from './partyLedgerService.js';
 import { sendShopClosingReport } from '../whatsapp/shopClosingReportService.js';
 import * as cashierSql from '../db/statements/cashier.js';
+import * as scrapSql from '../db/statements/scrap.js';
 /** cashier use-cases for the main process (called by electron/ipc handlers). */
 
 /** IPC `db:cashier:getDrawer` */
@@ -434,6 +435,7 @@ export function deleteTransaction({ tenant_id, transaction_id, user_id, user_nam
 export function getTransactions({ tenant_id }: { tenant_id: string }) {
   try {
     const db = getDb();
+    scrapSql.purgeDuplicateScrapCashTransactions(db).run(tenant_id || 'global');
     const drawer = deduplicateAndGetOpenDrawer(db, tenant_id);
     return drawer ? getRegisterCashEntries(db, tenant_id, drawer).reverse() : [];
 

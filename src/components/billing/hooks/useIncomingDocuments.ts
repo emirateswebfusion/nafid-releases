@@ -351,6 +351,14 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
           else if (pmUpper === 'SPLIT') finalSplitDetails.cash = amt;
         }
 
+        // A bill paid beyond its total (cash kept on account) reopens as it was entered: Credit with the full amount in
+        // "Paid", so saving it again keeps the advance. With the paid part in the Cash tile it would save as a split
+        // bill paid only up to the total, and the advance would be lost.
+        const onAccount = Number((parsedSplitDetails as { on_account?: unknown } | null)?.on_account) || 0;
+        if (pmUpper === 'CREDIT' && onAccount > 0) {
+          finalSplitDetails = { ...finalSplitDetails, cash: 0, card: 0, upi: 0, credit: 0, bank_transfer: 0 };
+        }
+
         const editPartyKey = `${(invoice.customer_name || '').trim().toLowerCase()}|${(invoice.customer_phone || '').trim()}`;
         let editingInvoiceContribution = 0;
         if (pmUpper === 'CREDIT') {

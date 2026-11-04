@@ -66,6 +66,7 @@ export interface InventoryFormViewProps {
   printBarcode: () => void;
   handleSave: () => void;
   setView: import('../hooks/useInventoryState').InventoryState['setView'];
+  onAddPricingTier?: (name: string) => Promise<{ success: boolean; pricing_tier_id?: string; error?: string }>;
 }
 
 export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
@@ -124,6 +125,7 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
   setPrintPrice,
   printBarcode,
   handleSave,
+  onAddPricingTier,
 }) => {
   const shopDomain = useCartStore((state) => state.shopDomain);
   return (
@@ -149,6 +151,7 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
               activePricingTiers={activePricingTiers} enableRealPaperStock={enableRealPaperStock} formData={formData}
               handleDomainAttrChange={handleDomainAttrChange} handleInputChange={handleInputChange}
               setTierPrices={setTierPrices} tierPrices={tierPrices}
+              onAddPricingTier={onAddPricingTier}
             />
 
             {/* Section 3: Discount & Offers */}

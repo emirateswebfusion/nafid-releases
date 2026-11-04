@@ -23,7 +23,7 @@ import { addPartyLedgerEntry, getParties, getPartyLedger } from '../../electron/
 import { computeCustomerCreditStatusSync } from '../../electron/services/customerCreditService';
 import { getCashAmountFromInvoice } from '../../electron/services/cashDrawerService';
 import { sumCashSalesInWindow } from '../../electron/db/statements/cashDrawer';
-import { onAccountExcess } from '../../src/components/billing/checkout/overpayment';
+import { cashShortOnAccount, onAccountExcess } from '../../src/components/billing/checkout/overpayment';
 
 const SHOP = 't';
 const CHOTUS = { name: 'Chotus', phone: '9000000001' };
@@ -108,6 +108,20 @@ describe('paying more than the bill', () => {
     expect(getCashAmountFromInvoice(saved)).toBe(7390);
   });
 
+  it('a customer over the credit limit can still pay more than a bill (bill 7469)', () => {
+    opening(16130);
+    raw.prepare('UPDATE parties SET credit_limit = 16000 WHERE name = ?').run(CHOTUS.name);
+    bill('7469', 3960, 4000, 40);
+    expect(party().balance).toBe(16090);
+    // A bill that adds credit is still refused.
+    const res = checkout({
+      invoice_id: 'MORE', user_id: 'u', tenant_id: SHOP, invoice_number: 'MORE', invoice_type: 'ESTIMATE', subtotal: 500, tax_total: 0, discount_total: 0, grand_total: 500,
+      customer_name: CHOTUS.name, customer_phone: CHOTUS.phone, items: lines(500), payment_method: 'CREDIT', received_amount: 0, balance_amount: 500, split_details: null,
+    } as Parameters<typeof checkout>[0]);
+    expect(res.success).toBe(false);
+    expect(party().balance).toBe(16090);
+  });
+
   it('a marker can never exceed the money actually received', () => {
     bill('X', 1000, 1050, 500);
     expect(party().balance).toBe(-50);
@@ -131,5 +145,26 @@ describe('onAccountExcess follows the billing screen', () => {
   it('is nothing when the money does not exceed the bill or is not cash', () => {
     expect(onAccountExcess({ ...base, received: 7390, paymentMethod: 'CASH' })).toBe(0);
     expect(onAccountExcess({ ...base, paymentMethod: 'UPI' })).toBe(0);
+  });
+});
+
+describe('cashShortOnAccount: cash below the bill on the Cash button', () => {
+  const base = { paymentMethod: 'CASH', grandTotal: 600, received: 100, hasParty: true, isStaff: false, partyOldBalance: 500 };
+  it('puts the unpaid part on account for a customer whose balance the screen shows (owing or advance)', () => {
+    expect(cashShortOnAccount(base)).toBe(500);
+    expect(cashShortOnAccount({ ...base, partyOldBalance: -500 })).toBe(500);
+  });
+  it('does nothing when paid in full, the Received box is empty, or for walk-ins, staff and other methods', () => {
+    expect(cashShortOnAccount({ ...base, received: 600 })).toBe(0);
+    expect(cashShortOnAccount({ ...base, received: 0 })).toBe(0);
+    expect(cashShortOnAccount({ ...base, hasParty: false })).toBe(0);
+    expect(cashShortOnAccount({ ...base, isStaff: true })).toBe(0);
+    expect(cashShortOnAccount({ ...base, partyOldBalance: 0 })).toBe(0);
+    expect(cashShortOnAccount({ ...base, paymentMethod: 'CREDIT' })).toBe(0);
+  });
+  it('saved as Credit with 100 paid, the ledger ends where the screen said: 500 + 600 - 100 = 1,000', () => {
+    opening(500);
+    bill('S1', 600, 100);
+    expect(party().balance).toBe(1000);
   });
 });

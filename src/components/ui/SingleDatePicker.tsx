@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { addCalendarDays, storeWallClockToUtcIso, toStoreWallClock } from '../../utils/time/timezoneHelper';
 import { Calendar, X, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -97,42 +98,18 @@ export function SingleDatePicker({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Extract initial date (YYYY-MM-DD) and time (HH:mm)
+  // Dates and times are the shop's wall clock (store timezone), whatever zone this PC is set to.
   const parseValue = (val?: string | null): { dateStr: string; timeStr: string; isCustom: boolean } => {
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    if (!val) {
-      return {
-        dateStr: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-        timeStr: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
-        isCustom: false,
-      };
-    }
-    const d = new Date(val);
-    if (isNaN(d.getTime())) {
-      return {
-        dateStr: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-        timeStr: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
-        isCustom: false,
-      };
-    }
-    return {
-      dateStr: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-      timeStr: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-      isCustom: true,
-    };
+    const valid = Boolean(val) && !isNaN(Date.parse(String(val).replace(' ', 'T')));
+    const w = toStoreWallClock(valid ? (val as string) : new Date());
+    return { dateStr: w.date, timeStr: w.time, isCustom: valid };
   };
 
   const parsed = parseValue(value);
   const [selectedDate, setSelectedDate] = useState(parsed.dateStr);
   const [selectedTime, setSelectedTime] = useState(parsed.timeStr);
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const d = value ? new Date(value) : new Date();
-    return isNaN(d.getTime()) ? new Date().getMonth() : d.getMonth();
-  });
-  const [currentYear, setCurrentYear] = useState(() => {
-    const d = value ? new Date(value) : new Date();
-    return isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
-  });
+  const [currentMonth, setCurrentMonth] = useState(() => parseInt(parsed.dateStr.slice(5, 7), 10) - 1);
+  const [currentYear, setCurrentYear] = useState(() => parseInt(parsed.dateStr.slice(0, 4), 10));
   const [effectiveAlign, setEffectiveAlign] = useState<'left' | 'right'>(align);
 
   const updateAlignment = () => {
@@ -194,35 +171,26 @@ export function SingleDatePicker({
     }
   };
 
-  const pad = (n: number) => String(n).padStart(2, '0');
-
   const handleSelectToday = () => {
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    setSelectedDate(todayStr);
-    setSelectedTime(timeStr);
-    setCurrentMonth(now.getMonth());
-    setCurrentYear(now.getFullYear());
+    const now = toStoreWallClock();
+    setSelectedDate(now.date);
+    setSelectedTime(now.time);
+    setCurrentMonth(parseInt(now.date.slice(5, 7), 10) - 1);
+    setCurrentYear(parseInt(now.date.slice(0, 4), 10));
     // Directly apply Today (Live)
     onChange(null);
     setOpen(false);
   };
 
   const handleSelectYesterday = () => {
-    const y = new Date();
-    y.setDate(y.getDate() - 1);
-    const yStr = `${y.getFullYear()}-${pad(y.getMonth() + 1)}-${pad(y.getDate())}`;
-    const timeStr = `${pad(y.getHours())}:${pad(y.getMinutes())}`;
+    const now = toStoreWallClock();
+    const yStr = addCalendarDays(now.date, -1);
     setSelectedDate(yStr);
-    setSelectedTime(timeStr);
-    setCurrentMonth(y.getMonth());
-    setCurrentYear(y.getFullYear());
-    // Commit ISO timestamp for yesterday
-    const parts = yStr.split('-');
-    const [h, min] = timeStr.split(':');
-    const resultDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), parseInt(h || '0', 10), parseInt(min || '0', 10));
-    onChange(resultDate.toISOString());
+    setSelectedTime(now.time);
+    setCurrentMonth(parseInt(yStr.slice(5, 7), 10) - 1);
+    setCurrentYear(parseInt(yStr.slice(0, 4), 10));
+    // Commit the instant of yesterday at this time of day, on the shop's clock
+    onChange(storeWallClockToUtcIso(yStr, now.time));
     setOpen(false);
   };
 
@@ -240,18 +208,7 @@ export function SingleDatePicker({
       setOpen(false);
       return;
     }
-    const parts = selectedDate.split('-');
-    const [h, min] = (selectedTime || '00:00').split(':');
-    const resultDate = new Date(
-      parseInt(parts[0], 10),
-      parseInt(parts[1], 10) - 1,
-      parseInt(parts[2], 10),
-      parseInt(h || '0', 10),
-      parseInt(min || '0', 10),
-      0,
-      0
-    );
-    onChange(resultDate.toISOString());
+    onChange(storeWallClockToUtcIso(selectedDate, selectedTime || '00:00'));
     setOpen(false);
   };
 
@@ -261,12 +218,8 @@ export function SingleDatePicker({
   };
 
   // Determine button text and styling
-  const todayDateObj = new Date();
-  const todayStr = `${todayDateObj.getFullYear()}-${pad(todayDateObj.getMonth() + 1)}-${pad(todayDateObj.getDate())}`;
-  
-  const yestDateObj = new Date();
-  yestDateObj.setDate(yestDateObj.getDate() - 1);
-  const yestStr = `${yestDateObj.getFullYear()}-${pad(yestDateObj.getMonth() + 1)}-${pad(yestDateObj.getDate())}`;
+  const todayStr = toStoreWallClock().date;
+  const yestStr = addCalendarDays(todayStr, -1);
 
   const isCustomSet = Boolean(value);
   const isSelectedToday = parsed.dateStr === todayStr;
@@ -274,11 +227,11 @@ export function SingleDatePicker({
 
   let displayLabel: string;
   if (!isCustomSet) {
-    displayLabel = `Today, ${pad(todayDateObj.getDate())}/${pad(todayDateObj.getMonth() + 1)}/${todayDateObj.getFullYear()}`;
+    displayLabel = `Today, ${todayStr.slice(8, 10)}/${todayStr.slice(5, 7)}/${todayStr.slice(0, 4)}`;
   } else if (isSelectedYesterday) {
-    displayLabel = `Yesterday, ${pad(yestDateObj.getDate())}/${pad(yestDateObj.getMonth() + 1)} (${parsed.timeStr})`;
+    displayLabel = `Yesterday, ${yestStr.slice(8, 10)}/${yestStr.slice(5, 7)} (${parsed.timeStr})`;
   } else if (isSelectedToday) {
-    displayLabel = `Today, ${pad(todayDateObj.getDate())}/${pad(todayDateObj.getMonth() + 1)} (${parsed.timeStr})`;
+    displayLabel = `Today, ${todayStr.slice(8, 10)}/${todayStr.slice(5, 7)} (${parsed.timeStr})`;
   } else {
     const parts = parsed.dateStr.split('-');
     if (parts.length === 3) {

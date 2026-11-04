@@ -27,7 +27,7 @@ import { restoreInvoice } from '../../electron/services/recycleBinService';
 import { createReturn, deleteReturn, settleReturnInvoice } from '../../electron/services/returnsService';
 import { addPartyLedgerEntry, getParties, getPartyLedger } from '../../electron/services/partiesService';
 import { computeCustomerCreditStatusSync } from '../../electron/services/customerCreditService';
-import { resetBackfillThrottle } from '../../electron/services/partyLedgerService';
+import { recalcPartyBalances, resetBackfillThrottle } from '../../electron/services/partyLedgerService';
 
 let raw: DatabaseSync;
 beforeEach(() => {
@@ -304,6 +304,17 @@ describe('credit balance after billing operations', () => {
     const after = computeCustomerCreditStatusSync(state.db as unknown as Parameters<typeof computeCustomerCreditStatusSync>[0], SHOP, customer.customer_id, invoices);
     expect(after.map(r => r.outstanding_amount)).toEqual([400, 0]);
     expect(owed(ravi)).toBe(400);
+  });
+
+  it('recalculating an unchanged balance does not queue the party for upload', () => {
+    bill('B-1', ravi, 1000, { method: 'CREDIT', received: 400 });
+    const party = partyOf(ravi)!;
+    raw.prepare("UPDATE parties SET sync_status = 'SYNCED' WHERE party_id = ?").run(party.party_id);
+    recalcPartyBalances(state.db, party.party_id);
+    expect((raw.prepare('SELECT sync_status, balance FROM parties WHERE party_id = ?').get(party.party_id) as { sync_status: string; balance: number })).toEqual({ sync_status: 'SYNCED', balance: 600 });
+    // A real change still uploads.
+    pay(ravi, 100);
+    expect((raw.prepare('SELECT sync_status, balance FROM parties WHERE party_id = ?').get(party.party_id) as { sync_status: string; balance: number })).toEqual({ sync_status: 'PENDING', balance: 500 });
   });
 });
 

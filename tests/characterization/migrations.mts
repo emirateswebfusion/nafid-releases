@@ -68,30 +68,32 @@ const productOps = () => db.prepare(`SELECT op, entity, entity_id, row_version, 
   FROM sync_outbox WHERE entity = 'products' AND entity_id = ? ORDER BY row_version`).all(productId) as {
   op: string; entity: string; entity_id: string; row_version: number; payload: string | null; origin: string;
 }[];
-check('product insert records one op', productOps().length, 1);
+check('product insert records initial and stock-opening bootstrap ops', productOps().length, 2);
+check('stock opening bootstrap is recorded in the second op', productOps()[1] && JSON.parse(productOps()[1].payload || '{}').stock_opening, 0);
 check('product insert op identity and version', productOps()[0] && [productOps()[0].op, productOps()[0].entity, productOps()[0].entity_id, productOps()[0].row_version],
   ['UPSERT', 'products', productId, 0]);
 check('product insert op origin and payload', productOps()[0] && [productOps()[0].origin, JSON.parse(productOps()[0].payload || '{}').origin], [origin, origin]);
 check('product insert stores terminal origin on row', (db.prepare('SELECT origin FROM products WHERE product_id = ?').get(productId) as { origin: string }).origin, origin);
 
 db.prepare('UPDATE products SET name = ? WHERE product_id = ?').run('Updated outbox test', productId);
-check('product business update records one op and increments version', productOps().map((row) => [row.op, row.row_version]), [['UPSERT', 0], ['UPSERT', 1]]);
+check('product business update records one op and increments version', productOps().map((row) => [row.op, row.row_version]), [['UPSERT', 0], ['UPSERT', 1], ['UPSERT', 2]]);
 check('business update stores terminal origin on row', (db.prepare('SELECT origin FROM products WHERE product_id = ?').get(productId) as { origin: string }).origin, origin);
 
 db.prepare("UPDATE products SET sync_status = 'PENDING' WHERE product_id = ?").run(productId);
-check('sync_status-only update records no op', productOps().length, 2);
+check('sync_status-only update records no op', productOps().length, 3);
 db.prepare('UPDATE products SET name = ?, base_price = base_price WHERE product_id = ?').run('Updated outbox test', productId);
-check('same-value business update records no op (balance recalculations)', productOps().length, 2);
+check('same-value business update records no op (balance recalculations)', productOps().length, 3);
 db.prepare("UPDATE products SET updated_at = '2026-10-26T00:00:00.000Z' WHERE product_id = ?").run(productId);
-check('updated_at-only update records no op', productOps().length, 2);
+check('updated_at-only update records no op', productOps().length, 3);
 
 db.prepare('DELETE FROM products WHERE product_id = ?').run(productId);
 check('product delete records a versioned tombstone', productOps().map((row) => [row.op, row.entity_id, row.row_version, row.payload]), [
   ['UPSERT', productId, 0, productOps()[0].payload],
   ['UPSERT', productId, 1, productOps()[1].payload],
-  ['DELETE', productId, 2, null],
+  ['UPSERT', productId, 2, productOps()[2].payload],
+  ['DELETE', productId, 3, null],
 ]);
-check('pending outbox helpers count and limit rows', [countPendingOps(db), listPendingOps(db, 2).length], [3, 2]);
+check('pending outbox helpers count and limit rows', [countPendingOps(db), listPendingOps(db, 2).length], [4, 2]);
 
 const beforeGuardedWrite = countPendingOps(db);
 const guardedProductId = 'migration-outbox-guarded-product';

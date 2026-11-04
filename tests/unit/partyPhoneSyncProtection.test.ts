@@ -55,6 +55,19 @@ afterEach(() => {
   raw.close();
 });
 
+it('a deleted copy in the cloud never hides a live customer on a fresh download', async () => {
+  // A new terminal downloads the live account and an old deleted copy with the same name and phone (Paradise had
+  // 106 such pairs after its reset; 70 live customers disappeared). Ledger rows arrive later, so nothing guards it.
+  const row = (id: string, deleted: boolean) => ({ party_id: id, tenant_id: 'tenant-1', name: 'Manu Gagan', phone: '9000000001', party_type: 'CUSTOMER', balance: deleted ? 0 : 9728, is_deleted: deleted, updated_at: '2026-11-02T03:51:00Z', created_at: '2026-11-02T03:51:00Z' });
+  state.remote = [row('live', false), row('old-copy', true)];
+  await pullParties('token', 'tenant-1');
+
+  const live = raw.prepare("SELECT is_deleted FROM parties WHERE party_id = 'live'").get() as { is_deleted: number };
+  expect(live.is_deleted).toBe(0);
+  const copy = raw.prepare("SELECT is_deleted FROM parties WHERE party_id = 'old-copy'").get() as { is_deleted: number };
+  expect(copy.is_deleted).toBe(1);
+});
+
 it('preserves local pending phone number update from being overwritten by older cloud pull', async () => {
   // 1. Initial party exists with old phone and is SYNCED
   raw.exec(`

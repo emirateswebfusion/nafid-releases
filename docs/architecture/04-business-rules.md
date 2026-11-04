@@ -21,6 +21,7 @@ and update every caller in the same change.
 | Pricing tiers applied to products | `src/utils/pricing/pricingTierHelper.ts` | — |
 | Store timezone and UTC parsing | `src/utils/time/timezoneHelper.ts` | — |
 | Staff data masking | `src/utils/security/staffDataMasking.ts` | — |
+| Staff monthly pay statement (carried forward, salary added, extras, advances, store purchases, deductions, paid, balance) and total payable to staff | `src/utils/pricing/staffPayStatement.ts` (`buildPayStatement`, `totalPayableToStaff`) | `tests/unit/staffPayStatement.test.ts` |
 | Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
 | Tax calculations (GST split CGST/SGST/IGST & UAE VAT 5% inclusive/exclusive) | `src/utils/pricing/taxEngine.ts`, `electron/utils/gstEngine.ts` | `tests/unit/taxEngine.test.ts` |
 | UAE TRN validation (15 digits, prefix 100) & Emirate normalization | `src/utils/pricing/trnValidator.ts`, `electron/utils/trnValidator.ts` | `tests/unit/trnValidator.test.ts` |
@@ -117,7 +118,8 @@ and `electron/utils/` (ids, cashier settlement math).
   +30 min / +1 h, `cash_drawer_auto_close_snooze`), closes after 5 minutes without an answer or when the app has been
   idle for 10 minutes; the main process closes drawers still open 15 minutes past the due time
   (`autoCloseOverdueDrawers`). An auto close counts the expected cash (no short / excess).
-- Tests: `tests/characterization/drawer-session.mts`.
+- Tests: `tests/characterization/drawer-session.mts`, `tests/unit/scrapCashReconciliation.test.ts`.
+- Scrap purchases: a single consolidated cash-out row is written for a cash scrap purchase (`Scrap Purchase`). Legacy per-item system-generated cash entries are filtered at runtime in `getRegisterCashEntries` and permanently cleaned up via migrations (015, 016) and `purgeDuplicateScrapCashTransactions` so scrap purchase cash is never deducted twice from the drawer.
 
 ### Sales History totals and scope
 
@@ -403,3 +405,34 @@ One module: `src/utils/print/uaeLabels.ts`. `uaeDocumentTitle` decides Tax Invoi
 (FTA rule, see `vat-uae-integration.md` §9); `UAE_LABELS` holds every English/Arabic label pair; `getUaeArabicPrint()`
 reads the `uae_arabic_print` setting. India printing never calls it. Tests: `printGenerators.characterization.test.ts`
 (UAE section), `thermalPrint.test.ts` (network printers print the English-only receipt), `uaeArabicPrintSetting.ui.test.tsx`.
+### Staff Monthly Pay Statement (`src/utils/pricing/staffPayStatement.ts`)
+
+- `buildPayStatement(staffId, year, month, entries, baseSalary, joiningDate)`: Computes the precise monthly payroll breakdown (opening balance carried forward from prior months, earned salary based on calendar days and joining date, extra additions, cash advances, store purchases/credits on staff account, deductions, net paid, and closing balance).
+- `totalPayableToStaff(statements)`: Summarizes total accrued liability payable to staff across all active team members.
+- Staff UI components (`StaffManager.tsx`, `SalarySteps.tsx`, `StaffAttendanceTab.tsx`, `StaffDetailPanel.tsx`, `StaffLedgerTab.tsx`, `StaffSalaryTab.tsx`) provide full staff profile management, salary history, attendance tracking, and monthly statement generation with print export.
+
+### Scrap Purchase Cash Register Deduplication & Reconciliation (`electron/services/scrapService.ts`, migration `015-dedupe-scrap-cash-transactions.ts`)
+
+- Scrap purchase invoice checkouts create a consolidated cashier payout (`Scrap Purchase`, entered by active cashier) in the open cash drawer for the invoice net total.
+- Individual line item insertion (`addScrapTransaction`) checks `if (!t.scrap_invoice_number)` before posting cash drawer movements. When an item belongs to an invoice checkout, per-item `SCRAP_PURCHASE` cash movements are bypassed to prevent double deductions from the cash register.
+- Migration `015` cleans up legacy duplicate per-item `SCRAP_PURCHASE` cash transactions matching a consolidated `Scrap Purchase` payout in the same drawer.
+- Invoice updates (`updateScrapInvoiceFull`) and cancellations (`deleteScrapInvoice`) purge associated cash transactions and trigger `reconcileCashDrawer` to recompute expected cash balances cleanly.
+- Tests: `tests/unit/scrapCashReconciliation.test.ts`.
+
+### WhatsApp Bill tax breakdown (`src/utils/print/whatsappBillHelper.ts`)
+
+- `formatWhatsAppBillMessage` outputs detailed tax and discount breakdown lines: `Subtotal`, `CGST` & `SGST` (for intra-state supplies) or `IGST` (for inter-state supplies) or `Tax`, and `Discount`, matching physical thermal receipt layouts.
+- Invoices without tax (e.g. Bill of Supply / zero tax) omit tax lines cleanly.
+- Tests: `tests/unit/whatsappTaxBreakdown.test.ts`.
+
+### Shop Closing Gross Sales reconciliation (`electron/whatsapp/shopClosingSummary.ts`)
+
+- In `buildShopClosingSummaryData`, `grossSales` is strictly calculated as `netSales + totalDiscount` (`gTotal + disc`), matching the ground truth in `FinancialReport.tsx`.
+- Bill-level scrap deductions (`scrap_deduction`) and return deductions (`return_deduction`) are accounted for in their dedicated summary sections, never added into `grossSales`.
+- In the closing WhatsApp message (`shopClosingMessage.ts` and `shopClosingHelper.ts`), `Gross Sales` and `Total Discount` are displayed before `Net Sales` whenever discounts exist.
+- Tests: `tests/unit/shopClosingGrossAmount.test.ts`.
+
+### Inline Pricing Tier Creation (`src/components/inventory/views/form/PricingSection.tsx`, `InventoryManager.tsx`)
+
+- Allows creating new custom pricing tiers (e.g. Wholesale, VIP, Retail Tier B) directly inline inside the product form via `onAddPricingTier`.
+- Persists via `pricingTiersApi.addPricingTier` and reloads active tiers into state dynamically without navigating away from the active product draft.

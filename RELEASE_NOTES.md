@@ -1,3 +1,53 @@
+# Nafid POS v2.2.37
+
+## What's New
+- **Staff Hub & Pay Statements**: full staff management, attendance tracking, advances, salary adjustments, and monthly pay statements.
+- **Pricing Tiers**: create and assign product pricing tiers inline directly within product forms.
+- **WhatsApp PDF Invoice Tax Breakdown**: WhatsApp PDF attachments and text messages now detail separate CGST and SGST taxes and item HSNs matching physical printouts.
+- **Shop Closing Gross Sales**: WhatsApp shop closing message accurately calculates gross sales, revenue, and drawer totals.
+- **Cash Register Scrap Fix**: duplicate scrap purchase cash entries are purged and drawer balances reconciled without duplicating deductions.
+- Includes v2.2.36 part payment on account and v2.2.35 ledger parameter fixes.
+
+**Download:** [Nafid-Setup-2.2.37.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.37/Nafid-Setup-2.2.37.exe)
+
+# Nafid POS v2.2.36
+
+## What's New
+- **Part payment with the Cash button**: for a customer with a balance, typing less than the bill total in Received now puts the unpaid part on the customer's account, exactly as the screen shows (New Total Due). Before, the unpaid part was not added to the customer's balance.
+
+**Download:** [Nafid-Setup-2.2.36.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.36/Nafid-Setup-2.2.36.exe)
+
+# Nafid POS v2.2.35
+
+## What's New
+- **Fix for v2.2.34**: saving a credit bill, a split bill or a payment that changes a customer balance failed with "Too many parameter values were provided". This is fixed.
+- **Editing a bill paid with more than its total keeps the advance**: reopening such a bill and saving it again no longer loses the extra amount.
+- Includes v2.2.34: bill and ledger dates follow the shop time zone, and customers are re-uploaded only when their balance changes.
+
+**Download:** [Nafid-Setup-2.2.35.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.35/Nafid-Setup-2.2.35.exe)
+
+# Nafid POS v2.2.34
+
+## What's New
+- **Bill and ledger dates follow the shop's time zone**: the bill date picker and the ledger date-and-time box now use the time zone set in Settings, not the computer's clock, so a bill keeps the shop's date and time on any computer.
+- **Faster uploads after installing on a new computer**: a customer is uploaded again only when their balance changes, so new bills and payments reach the cloud quickly.
+
+**Download:** [Nafid-Setup-2.2.34.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.34/Nafid-Setup-2.2.34.exe)
+
+# Nafid POS v2.2.33
+
+## What's New
+- **No customers missing after installing on a new computer**: when the cloud held an old deleted copy of a customer, a new computer hid the live customer. Deleted copies are now ignored, so every active customer and balance appears.
+
+**Download:** [Nafid-Setup-2.2.33.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.33/Nafid-Setup-2.2.33.exe)
+
+# Nafid POS v2.2.32
+
+## What's New
+- **Payments are never blocked by the credit limit**: a customer who is already over their credit limit can still pay for a bill in full, or pay more than it. Only a bill that adds to what the customer owes is checked against the limit and overdue rules.
+
+**Download:** [Nafid-Setup-2.2.32.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.32/Nafid-Setup-2.2.32.exe)
+
 # Nafid POS v2.2.31
 
 ## What's New

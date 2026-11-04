@@ -23,7 +23,7 @@ describe('Sales History / Cash Register / Shop Closing reconciliation', () => {
       expect(totals.totalSalesBeforeDeductions).toBe(realInvoices.reduce((sum, row) => sum + getInvoicePreDeductionTotal(row), 0));
       expect(closing.netSales).toBe(totals.totalSales);
       expect(closing.totalTax).toBe(totals.totalTax);
-      expect(closing.grossSales - closing.totalDiscount).toBe(totals.totalSalesBeforeDeductions);
+      expect(closing.grossSales - closing.totalDiscount).toBe(totals.totalSales);
       expect(cash.total_cash_sales).toBe(totals.totalSales);
     } finally { memory.close(); }
   });

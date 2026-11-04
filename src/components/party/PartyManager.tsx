@@ -1,4 +1,5 @@
 import { useCallback, useRef, useMemo, useState } from 'react';
+import { toStoreWallClock } from '../../utils/time/timezoneHelper';
 import { syncApi } from '../../data/sync';
 import { useAuthStore } from '../../store/authStore';
 import { useTerminologyStore } from '../../store/terminologyStore';
@@ -284,8 +285,8 @@ export function PartyManager({
     } else if (ledgerBalanceFilter === 'GST' && enablePartyGst) {
       defaultBalanceType = 'GST';
     }
-    const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const now = toStoreWallClock();
+    const dateStr = `${now.date}T${now.time}`;
     const hasPhone = Boolean(selectedParty?.phone && selectedParty.phone.trim());
     const isPartyAlertEnabled = selectedParty?.whatsapp_alerts_enabled !== 0 && selectedParty?.whatsapp_alerts_enabled !== false;
     const shouldSendWa = Boolean(ledgerWhatsappEnabled && isPartyAlertEnabled && hasPhone);

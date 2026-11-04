@@ -99,7 +99,20 @@ export const findPartyLedgerByPartyId4 = (db: Db) => db.prepare(`SELECT COALESCE
 
 export const findOnePartyLedgerByPartyId = (db: Db) => db.prepare(`SELECT transaction_date FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date DESC LIMIT 1`);
 
-export const updatePartyByPartyId = (db: Db) => db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`);
+/**
+ * Stores a party's recalculated balances. Only a real change marks the party for upload: recalculating every party at
+ * startup must not queue all of them ahead of the ledger rows. Params: balance, gst, estimate, last date, party id.
+ */
+export const updatePartyByPartyId = (db: Db) => ({
+  run: (balance: number, gst: number, estimate: number, lastDate: string | null | undefined, partyId: string) => {
+    lastDate = lastDate ?? null;
+    // Plain `?` only: better-sqlite3 (the app) rejects re-used numbered parameters that node:sqlite (tests) accepts.
+    db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE party_id = ? AND (ROUND(COALESCE(balance, 0), 2) <> ? OR ROUND(COALESCE(gst_balance, 0), 2) <> ? OR ROUND(COALESCE(estimate_balance, 0), 2) <> ?)`)
+      .run(balance, gst, estimate, lastDate, partyId, balance, gst, estimate);
+    db.prepare(`UPDATE parties SET last_transaction_date = ? WHERE party_id = ? AND last_transaction_date IS NOT ?`).run(lastDate, partyId, lastDate);
+  },
+});
 
 export const updatePartyLedgerRunningBalanceAlt = (db: Db) => db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`);
 
