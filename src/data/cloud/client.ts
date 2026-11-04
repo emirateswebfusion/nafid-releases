@@ -39,7 +39,8 @@ export async function cloudFetch<T = unknown>(endpoint: string, options: Request
   const response = await fetch(`${CLOUD_API}${endpoint}`, { ...options, headers });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    if (response.status === 401) auth.onUnauthorized();
+    // A response from an older login must not pause the replacement session.
+    if (response.status === 401 && token && token === await auth.getToken()) auth.onUnauthorized();
     const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : '';
     throw new Error(message || 'An error occurred');
   }

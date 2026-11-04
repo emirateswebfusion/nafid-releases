@@ -195,3 +195,9 @@ files and applied records are preserved. The canonical registry keeps feature mi
 019/020 reuse the historical scrap repair implementations for preview shops. The runner never
 registers duplicate versions. No shop settings or feature flags are enabled by the upgrade.
 Fresh databases and both prior histories are covered by `migrationBranchCompatibility.test.ts`.
+
+### Repeated cloud authorization failures
+
+Cloud JSON calls notify once while the current session is paused. A 401 from a previous token is ignored
+for session state after login or sign-out; the request still rejects. Local POS access remains active.
+Regression: `sessionUnauthorized.ui.test.ts` (concurrent failures and delayed prior-session responses).
