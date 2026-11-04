@@ -43,7 +43,7 @@ export const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeo
   { value: 'SPLIT', label: 'Split', icon: Split, color: 'text-purple-500' },
 ];
 
-/** Billing screens show compact, ungrouped amounts (₹1234.50). */
+/** Billing screens show compact, ungrouped amounts (₹1234.50 / AED 1234.50). */
 export function formatCurrency(amount: unknown): string {
   return formatMoney(amount, { grouping: false });
 }

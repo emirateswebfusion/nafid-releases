@@ -1,4 +1,4 @@
-import { getStoreLocale, localizeTaxText } from '../../utils/localization/storeProfile';
+import { getStoreLocale, getStoreProfile, localizeTaxText } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, DollarSign, Calendar, Printer, RefreshCw, X, ShieldCheck, Landmark, FileSpreadsheet, BarChart2 } from 'lucide-react';
@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
+import { formatCurrency } from '../../utils/pricing/money';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { isDesktopRuntime } from '../../data/client';
 import { invoicesApi } from '../../data/invoices';
@@ -249,7 +250,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
   }, [fetchFinancialData]);
 
   // Formatters
-  const fmtCurr = (val: number) => `\u20B9${val.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtCurr = (val: number) => formatCurrency(val);
 
   // Export to CSV Function
   const exportCSV = () => {
@@ -259,7 +260,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       ['Date Period', `${startDate} to ${endDate}`],
       ['Generated On', new Date().toLocaleString(getStoreLocale(), { timeZone: getStoreTimezone() })],
       [],
-      ['Metric', 'Amount (INR)'],
+      ['Metric', `Amount (${getStoreProfile().currency})`],
       ['Gross Sales Revenue', finData.grossSales.toFixed(2)],
       ['Discounts Allowed', finData.totalDiscount.toFixed(2)],
       ['Net Sales Revenue', finData.netSales.toFixed(2)],

@@ -1,6 +1,7 @@
 import { localizeTaxText } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
-import { Receipt, FileText, IndianRupee, Building2, Plus } from 'lucide-react';
+import { Receipt, FileText, Building2, Plus } from 'lucide-react';
+import { CurrencyIcon } from '../../../ui/CurrencyIcon';
 import clsx from 'clsx';
 import type { InventoryFormViewProps } from '../InventoryFormView';
 
@@ -133,7 +134,7 @@ export function GstPurchaseSection({
           {/* Purchase Price & Quantity */}
           <div className="rounded-xl border border-border overflow-hidden">
             <div className="px-4 py-2 bg-muted/20 border-b border-border/50 flex items-center gap-2">
-              <IndianRupee className="w-3.5 h-3.5 text-muted-foreground" />
+              <CurrencyIcon className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs font-black text-muted-foreground uppercase tracking-wider">Purchase Figures</span>
             </div>
             <div className="grid grid-cols-2 gap-0 divide-x divide-border/50">

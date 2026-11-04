@@ -3,7 +3,7 @@ import { hasBridge } from '../../../data/client';
 import { customersApi } from '../../../data/customers';
 import { partiesApi } from '../../../data/parties';
 import { resolveDateRange } from '../dates';
-import { calculatePaymentBreakdown, formatINR } from '../format';
+import { calculatePaymentBreakdown, formatMoney } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
 import type { AiQueryContext } from '../queryContext';
@@ -53,28 +53,28 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
             `ഏറ്റവും കൂടുതൽ കുടിശ്ശികയുള്ള കസ്റ്റമർ **${top.name}** ആണ്:\n\n` +
             `* **കസ്റ്റമർ പേര്:** **${top.name}**\n` +
             `* **ഫോൺ നമ്പർ:** ${top.phone || '—'}\n` +
-            `* **ബാക്കി നിൽക്കുന്ന ക്രെഡിറ്റ്:** **${formatINR(top.balance)}**\n`
+            `* **ബാക്കി നിൽക്കുന്ന ക്രെഡിറ്റ്:** **${formatMoney(top.balance)}**\n`
           : `### 👤 Top Credit Customer\n\n` +
             `The customer with the highest outstanding credit balance is **${top.name}**:\n\n` +
             `* **Customer / Party:** **${top.name}**\n` +
             `* **Phone:** ${top.phone || '—'}\n` +
-            `* **Outstanding Balance:** **${formatINR(top.balance)}**\n`;
+            `* **Outstanding Balance:** **${formatMoney(top.balance)}**\n`;
 
         return { content: md, intent: parsed.intent };
       }
 
       let md = isMal
         ? `### 👥 കസ്റ്റമർ കുടിശ്ശിക റിപ്പോർട്ട് (Receivables)\n\n` +
-          `* **ആകെ കുടിശ്ശിക (Total Outstanding):** **${formatINR(totalOut)}**\n` +
+          `* **ആകെ കുടിശ്ശിക (Total Outstanding):** **${formatMoney(totalOut)}**\n` +
           `* **അക്കൗണ്ടുകളുടെ എണ്ണം:** **${debtors.length} accounts**\n\n` +
           `| കസ്റ്റമർ / പാർട്ടി | ഫോൺ | കുടിശ്ശിക |\n| :--- | :---: | :---: |\n`
         : `### 👥 Customer Credit & Receivables Summary\n\n` +
-          `* **Total Outstanding Balance:** **${formatINR(totalOut)}**\n` +
+          `* **Total Outstanding Balance:** **${formatMoney(totalOut)}**\n` +
           `* **Total Accounts:** **${debtors.length} accounts**\n\n` +
           `| Customer / Party | Phone | Balance |\n| :--- | :---: | :---: |\n`;
 
       debtors.slice(0, 15).forEach(c => {
-        md += `| **${c.name}** | ${c.phone || '—'} | **${formatINR(c.balance)}** |\n`;
+        md += `| **${c.name}** | ${c.phone || '—'} | **${formatMoney(c.balance)}** |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -87,10 +87,10 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
 
       const md = isMal
         ? `### 🏭 സപ്ലയർമാർക്ക് നൽകാനുള്ള തുക (Payables)\n\n` +
-          `* **ആകെ സപ്ലയർ കുടിശ്ശിക:** **${formatINR(total)}**\n` +
+          `* **ആകെ സപ്ലയർ കുടിശ്ശിക:** **${formatMoney(total)}**\n` +
           `* **സപ്ലയർമാരുടെ എണ്ണം:** **${suppliers.length} accounts**\n`
         : `### 🏭 Supplier Payables & Outstanding Dues\n\n` +
-          `* **Total Amount Owed to Suppliers:** **${formatINR(total)}**\n` +
+          `* **Total Amount Owed to Suppliers:** **${formatMoney(total)}**\n` +
           `* **Total Supplier Accounts:** **${suppliers.length} accounts**\n`;
 
       return { content: md, intent: parsed.intent };
@@ -127,7 +127,7 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
 
       let md = `### 📒 Ledger Account: **${target.name}**\n\n` +
         `* **Phone Number:** ${target.phone || 'N/A'}\n` +
-        `* **Current Balance:** **${formatINR(absBal)}** (${balDesc})\n`;
+        `* **Current Balance:** **${formatMoney(absBal)}** (${balDesc})\n`;
 
       if (target.party_id && hasBridge('dbGetPartyLedger')) {
         try {
@@ -139,9 +139,9 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
 
             entries.slice(0, 10).forEach((entry: AiRow) => {
               const d = entry.transaction_date ? String(entry.transaction_date).split('T')[0] : '—';
-              const dr = (entry.debit_amount as number) > 0 ? formatINR(entry.debit_amount) : '—';
-              const cr = (entry.credit_amount as number) > 0 ? formatINR(entry.credit_amount) : '—';
-              const rb = formatINR(Math.abs(Number(entry.running_balance || 0)));
+              const dr = (entry.debit_amount as number) > 0 ? formatMoney(entry.debit_amount) : '—';
+              const cr = (entry.credit_amount as number) > 0 ? formatMoney(entry.credit_amount) : '—';
+              const rb = formatMoney(Math.abs(Number(entry.running_balance || 0)));
               md += `| ${d} | ${entry.description || 'Entry'} | ${dr} | ${cr} | **${rb}** |\n`;
             });
           }
@@ -176,15 +176,15 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       let md = isMal
         ? `### ⚠️ കസ്റ്റമർ കുടിശ്ശിക ലിസ്റ്റ് (Overdue Receivables)\n\n` +
           `* **കുടിശ്ശികയുള്ള കസ്റ്റമർമാർ:** **${overdue.length} പേർ**\n` +
-          `* **ആകെ കുടിശ്ശിക തുക:** **${formatINR(total)}**\n\n`
+          `* **ആകെ കുടിശ്ശിക തുക:** **${formatMoney(total)}**\n\n`
         : `### ⚠️ Overdue Customer Receivables List\n\n` +
           `* **Overdue Debtors Count:** **${overdue.length} customers**\n` +
-          `* **Total Overdue Receivables:** **${formatINR(total)}**\n\n`;
+          `* **Total Overdue Receivables:** **${formatMoney(total)}**\n\n`;
 
       if (overdue.length > 0) {
         md += `| Customer Name | Phone | Outstanding Due |\n| :--- | :---: | :---: |\n`;
         overdue.slice(0, 15).forEach((c) => {
-          md += `| **${c.name}** | ${c.phone || '—'} | **${formatINR(c.balance)}** |\n`;
+          md += `| **${c.name}** | ${c.phone || '—'} | **${formatMoney(c.balance)}** |\n`;
         });
       }
 
@@ -198,8 +198,8 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       const total = collections.reduce((acc: number, t: AiRow) => acc + (Number(t.amount) || 0), 0);
 
       const md = isMal
-        ? `### 💵 ഇന്ന് കസ്റ്റമർമാരിൽ നിന്ന് ശേഖരിച്ച പണം\n\n* **ആകെ ശേഖരിച്ച തുക:** **${formatINR(total)}**\n* **രസീതുകൾ:** **${collections.length} എണ്ണം**\n`
-        : `### 💵 Customer Debt Payments Collected Today\n\n* **Total Amount Collected Today:** **${formatINR(total)}**\n* **Receipts Count:** **${collections.length} transactions**\n`;
+        ? `### 💵 ഇന്ന് കസ്റ്റമർമാരിൽ നിന്ന് ശേഖരിച്ച പണം\n\n* **ആകെ ശേഖരിച്ച തുക:** **${formatMoney(total)}**\n* **രസീതുകൾ:** **${collections.length} എണ്ണം**\n`
+        : `### 💵 Customer Debt Payments Collected Today\n\n* **Total Amount Collected Today:** **${formatMoney(total)}**\n* **Receipts Count:** **${collections.length} transactions**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -210,8 +210,8 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       const pm = calculatePaymentBreakdown(invs);
 
       const md = isMal
-        ? `### 📒 ഇന്ന് നൽകിയ കസ്റ്റമർ ക്രെഡിറ്റ് (Credit Sales Today)\n\n* **ആകെ ക്രെഡിറ്റ് തുക:** **${formatINR(pm.credit)}**\n`
-        : `### 📒 Credit Extended to Customers Today\n\n* **Total Credit Sales Today:** **${formatINR(pm.credit)}**\n`;
+        ? `### 📒 ഇന്ന് നൽകിയ കസ്റ്റമർ ക്രെഡിറ്റ് (Credit Sales Today)\n\n* **ആകെ ക്രെഡിറ്റ് തുക:** **${formatMoney(pm.credit)}**\n`
+        : `### 📒 Credit Extended to Customers Today\n\n* **Total Credit Sales Today:** **${formatMoney(pm.credit)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -223,8 +223,8 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       const total = supplierTxs.reduce((acc: number, t: AiRow) => acc + (Number(t.amount) || 0), 0);
 
       const md = isMal
-        ? `### 🏢 ഇന്ന് സപ്ലയർമാർക്ക് നൽകിയ പണം\n\n* **ആകെ നൽകിയ തുക:** **${formatINR(total)}**\n* **ഇടപാടുകൾ:** **${supplierTxs.length} എണ്ണം**\n`
-        : `### 🏢 Supplier Payments Disbursed Today\n\n* **Total Paid to Suppliers Today:** **${formatINR(total)}**\n* **Transactions:** **${supplierTxs.length} vouchers**\n`;
+        ? `### 🏢 ഇന്ന് സപ്ലയർമാർക്ക് നൽകിയ പണം\n\n* **ആകെ നൽകിയ തുക:** **${formatMoney(total)}**\n* **ഇടപാടുകൾ:** **${supplierTxs.length} എണ്ണം**\n`
+        : `### 🏢 Supplier Payments Disbursed Today\n\n* **Total Paid to Suppliers Today:** **${formatMoney(total)}**\n* **Transactions:** **${supplierTxs.length} vouchers**\n`;
 
       return { content: md, intent: parsed.intent };
     }

@@ -1,7 +1,7 @@
 import { cashierApi } from '../../../data/cashier';
 import { hasBridge } from '../../../data/client';
 import { resolveDateRange } from '../dates';
-import { calculatePaymentBreakdown, formatINR } from '../format';
+import { calculatePaymentBreakdown, formatMoney } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
 import type { AiQueryContext } from '../queryContext';
@@ -40,15 +40,15 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
         ? `### 💵 ക്യാഷ് ഡ്രോയർ നില (Cash Drawer Status)\n\n` +
           `* **ഡ്രോയർ സ്റ്റാറ്റസ്:** **${drawer.status || 'OPEN'}**\n` +
           `* **ബിസിനസ്സ് തിയതി:** ${drawer.business_date || 'Today'}\n` +
-          `* **ഓപ്പണിംഗ് ബാലൻസ്:** **${formatINR(drawer.opening_balance)}**\n` +
-          `* **ഇന്നത്തെ ക്യാഷ് സെയിൽസ്:** **${formatINR(drawer.cash_sales)}**\n` +
-          `* **ഡ്രോയറിലെ നിലവിലെ ക്യാഷ്:** **${formatINR(drawer.current_cash || drawer.actual_cash || 0)}**\n`
+          `* **ഓപ്പണിംഗ് ബാലൻസ്:** **${formatMoney(drawer.opening_balance)}**\n` +
+          `* **ഇന്നത്തെ ക്യാഷ് സെയിൽസ്:** **${formatMoney(drawer.cash_sales)}**\n` +
+          `* **ഡ്രോയറിലെ നിലവിലെ ക്യാഷ്:** **${formatMoney(drawer.current_cash || drawer.actual_cash || 0)}**\n`
         : `### 💵 Current Cash Drawer Balance\n\n` +
           `* **Drawer Status:** **${drawer.status || 'OPEN'}**\n` +
           `* **Business Date:** ${drawer.business_date || 'Today'}\n` +
-          `* **Opening Balance:** **${formatINR(drawer.opening_balance)}**\n` +
-          `* **Recorded Cash Sales:** **${formatINR(drawer.cash_sales)}**\n` +
-          `* **Current Drawer Cash:** **${formatINR(drawer.current_cash || drawer.actual_cash || 0)}**\n`;
+          `* **Opening Balance:** **${formatMoney(drawer.opening_balance)}**\n` +
+          `* **Recorded Cash Sales:** **${formatMoney(drawer.cash_sales)}**\n` +
+          `* **Current Drawer Cash:** **${formatMoney(drawer.current_cash || drawer.actual_cash || 0)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -67,13 +67,13 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
 
       const md = isMal
         ? `### 🔄 ഇന്നത്തെ ക്യാഷ് വരവ്-ചെലവുകൾ (Drawer Movements)\n\n` +
-          `* **ക്യാഷ് ഇൻ (Cash In):** **${formatINR(drawer?.cash_in || 0)}**\n` +
-          `* **ക്യാഷ് ഔട്ട് (Cash Out):** **${formatINR(drawer?.cash_out || 0)}**\n` +
-          `* **ക്യാഷ് വിൽപ്പന:** ${formatINR(drawer?.cash_sales || 0)}\n`
+          `* **ക്യാഷ് ഇൻ (Cash In):** **${formatMoney(drawer?.cash_in || 0)}**\n` +
+          `* **ക്യാഷ് ഔട്ട് (Cash Out):** **${formatMoney(drawer?.cash_out || 0)}**\n` +
+          `* **ക്യാഷ് വിൽപ്പന:** ${formatMoney(drawer?.cash_sales || 0)}\n`
         : `### 🔄 Today's Cash Inflows & Outflows\n\n` +
-          `* **Total Cash Inflows (Cash In):** **${formatINR(drawer?.cash_in || 0)}**\n` +
-          `* **Total Cash Outflows (Cash Out):** **${formatINR(drawer?.cash_out || 0)}**\n` +
-          `* **Cash Sales Added:** ${formatINR(drawer?.cash_sales || 0)}\n`;
+          `* **Total Cash Inflows (Cash In):** **${formatMoney(drawer?.cash_in || 0)}**\n` +
+          `* **Total Cash Outflows (Cash Out):** **${formatMoney(drawer?.cash_out || 0)}**\n` +
+          `* **Cash Sales Added:** ${formatMoney(drawer?.cash_sales || 0)}\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -93,13 +93,13 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
 
       const md = isMal
         ? `### ⚖️ ക്യാഷ് സെറ്റിൽമെന്റ് താരതമ്യം\n\n` +
-          `* **പ്രതീക്ഷിച്ച ക്ലോസിംഗ് ക്യാഷ്:** **${formatINR(drawer?.expected_closing || 0)}**\n` +
-          `* **എണ്ണിയ യഥാർത്ഥ ക്യാഷ്:** **${formatINR(drawer?.actual_cash || 0)}**\n` +
-          `* **വ്യത്യാസം (Short / Excess):** **${formatINR((drawer?.actual_cash || 0) - (drawer?.expected_closing || 0))}**\n`
+          `* **പ്രതീക്ഷിച്ച ക്ലോസിംഗ് ക്യാഷ്:** **${formatMoney(drawer?.expected_closing || 0)}**\n` +
+          `* **എണ്ണിയ യഥാർത്ഥ ക്യാഷ്:** **${formatMoney(drawer?.actual_cash || 0)}**\n` +
+          `* **വ്യത്യാസം (Short / Excess):** **${formatMoney((drawer?.actual_cash || 0) - (drawer?.expected_closing || 0))}**\n`
         : `### ⚖️ Cash Drawer Reconciliation\n\n` +
-          `* **Expected Closing Cash:** **${formatINR(drawer?.expected_closing || 0)}**\n` +
-          `* **Actual Counted Cash:** **${formatINR(drawer?.actual_cash || 0)}**\n` +
-          `* **Settlement Difference:** **${formatINR((drawer?.actual_cash || 0) - (drawer?.expected_closing || 0))}**\n`;
+          `* **Expected Closing Cash:** **${formatMoney(drawer?.expected_closing || 0)}**\n` +
+          `* **Actual Counted Cash:** **${formatMoney(drawer?.actual_cash || 0)}**\n` +
+          `* **Settlement Difference:** **${formatMoney((drawer?.actual_cash || 0) - (drawer?.expected_closing || 0))}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -117,7 +117,7 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       if (pendingInvs.length > 0) {
         md += `\n| Invoice # | Amount | Biller |\n| :--- | :---: | :--- |\n`;
         pendingInvs.slice(0, 10).forEach((inv: AiRow) => {
-          md += `| **${inv.invoice_number}** | ${formatINR(inv.grand_total)} | ${inv.biller_name || 'Counter'} |\n`;
+          md += `| **${inv.invoice_number}** | ${formatMoney(inv.grand_total)} | ${inv.biller_name || 'Counter'} |\n`;
         });
       } else {
         md += `\nAll completed transactions have been properly accounted for in the register (Zero Pending ✅).\n`;
@@ -158,7 +158,7 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       if (list.length > 0) {
         md += `| Biller / Cashier | Invoices | Cash Sales | Total Sales |\n| :--- | :---: | :---: | :---: |\n`;
         list.forEach(b => {
-          md += `| **${b.name}** | ${b.count} | ${formatINR(b.cash)} | **${formatINR(b.total)}** |\n`;
+          md += `| **${b.name}** | ${b.count} | ${formatMoney(b.cash)} | **${formatMoney(b.total)}** |\n`;
         });
       } else {
         md += `No cashier billing sessions active today.\n`;

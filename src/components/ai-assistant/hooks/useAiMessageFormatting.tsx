@@ -35,7 +35,7 @@ export function useAiMessageFormatting(ctx: UseAiMessageFormattingContext) {
         let hasNumberOrCurrency = false;
         for (const r of bodyRows) {
           const val = (r[i] || '').replace(/\*+/g, '').trim();
-          if (/^[₹$]?\s*[\d,]+(\.\d+)?(\s*[a-zA-Z/%]+)?$/.test(val)) {
+          if (/^(?:[₹$]|AED)?\s*[\d,]+(\.\d+)?(\s*[a-zA-Z/%]+)?$/.test(val)) {
             hasNumberOrCurrency = true;
             break;
           }

@@ -2,7 +2,8 @@ import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { SalesTaxSummary } from './SalesTaxSummary';
 import React, { Fragment } from 'react';
-import { IndianRupee, TrendingUp, Percent, Receipt, BarChart3, Loader2, Search, X, SlidersHorizontal, Building, User, FileText, FileCheck2, ShieldAlert, CheckCheck, ArrowDownRight, RefreshCw } from 'lucide-react';
+import { TrendingUp, Percent, Receipt, BarChart3, Loader2, Search, X, SlidersHorizontal, Building, User, FileText, FileCheck2, ShieldAlert, CheckCheck, ArrowDownRight, RefreshCw } from 'lucide-react';
+import { CurrencyIcon } from '../../ui/CurrencyIcon';
 import { formatCurrency } from '../../../utils/pricing/money';
 import clsx from 'clsx';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
@@ -86,7 +87,7 @@ export function SalesBillsView({
             {/* KPI 1: Total Revenue / GST Turnover */}
             <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[170px] transition-all">
               <div className="p-1.5 rounded-lg shrink-0 transition-colors bg-emerald-500/10 text-emerald-500">
-                <IndianRupee className="w-3.5 h-3.5" />
+                <CurrencyIcon className="w-3.5 h-3.5" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1">

@@ -5,11 +5,11 @@
 import { getStoreProfile } from '../localization/storeProfile';
 
 export interface MoneyFormatOptions {
-  /** en-IN digit grouping (1,23,456.00). Default true. */
+  /** Digit grouping in the store locale (en-IN 1,23,456.00; en-AE 123,456.00). Default true. */
   grouping?: boolean;
   /** Fraction digits. Default 2. */
   decimals?: number;
-  /** Prefix with the rupee sign. Default true. */
+  /** Prefix with the store currency (₹ or `AED `). Default true. */
   symbol?: boolean;
 }
 
@@ -18,7 +18,7 @@ function toNumber(amount: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** `1234.5` → `₹1,234.50`; `-50` → `-₹50.00`; null/NaN → `₹0.00`. */
+/** India: `1234.5` → `₹1,234.50`, `-50` → `-₹50.00`, null/NaN → `₹0.00`. UAE: `AED 1,234.50`, `-AED 50.00`. */
 export function formatCurrency(amount: unknown, options: MoneyFormatOptions = {}): string {
   const { grouping = true, decimals = 2, symbol = true } = options;
   const n = toNumber(amount);
