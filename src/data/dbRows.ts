@@ -608,7 +608,7 @@ export interface ReturnItemsRow {
 /** Row of `returns`. */
 export interface ReturnsRow {
   return_id: string;
-  invoice_id: string;
+  invoice_id: string | null;
   tenant_id: string;
   user_id: string | null;
   return_number: string;
@@ -626,8 +626,21 @@ export interface ReturnsRow {
   sync_status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  credit_note_number: string | null;
+  original_invoice_number: string | null;
+  original_invoice_date: string | null;
+  customer_gstin: string | null;
+  supply_type: string | null;
+  pos_state_code: string | null;
+  cgst_total: number | null;
+  sgst_total: number | null;
+  igst_total: number | null;
+  note_type: string | null;
+  reason_code: string | null;
   row_version: number;
   origin: string | null;
+  is_deleted: number;
+  stock_revision: number;
 }
 
 /** Row of `schema_migrations`. */

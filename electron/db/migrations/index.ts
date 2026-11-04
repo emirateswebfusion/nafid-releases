@@ -18,6 +18,8 @@ import { m014VatLocalFilings } from './014-vat-local-filings.js';
 import { m015DedupeScrapCashTransactions } from './015-dedupe-scrap-cash-transactions.js';
 import { m016PurgeDuplicateScrapCashTransactions } from './016-purge-duplicate-scrap-cash-transactions.js';
 
+import { m017HistoricalCreditNotes } from './017-historical-credit-notes.js';
+
 /**
  * Every versioned migration, in order. To change the schema or fix data: add `NNN-short-name.ts` exporting a
  * `Migration` with the next version, append it here, and cover it in tests/characterization/migrations.mts.
@@ -40,6 +42,7 @@ export const MIGRATIONS: readonly Migration[] = [
   m014VatLocalFilings,
   m015DedupeScrapCashTransactions,
   m016PurgeDuplicateScrapCashTransactions,
+  m017HistoricalCreditNotes,
 ];
 
 /** Startup step after the baseline schema: apply pending migrations, then remove a sync apply guard row left by a

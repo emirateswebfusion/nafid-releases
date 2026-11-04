@@ -416,3 +416,7 @@ Billing customerDirectory prefers an exact normalized name with a compatible pho
 ### Filtered ledger balance direction
 
 Ledger date and GST/Estimate filters use `calculateLedgerStatement` for opening, running and closing balances. `components/party/ledgerBalances.ts` derives each bucket closing balance through that canonical calculation; date filtering must retain advances before the period. Positive means the customer owes the shop, negative means the shop owes the customer. Regression: `ledgerBalanceDirection.ui.test.tsx`.
+
+### Historical credit notes
+
+Returns > Record credit note uses `returns/creditNote.ts` and canonical returnPricing for original printed rates/tax; no fabricated sale is created. Migration 017 allows nullable original invoice ids while preserving returns/items/indexes/outbox triggers. `returnsService.createReturn` accepts an optional original return date and uses it consistently for return_date, created_at and ledger transaction date. Existing dates/fields are sent through the existing sync contract; server already accepts a null invoice. Financial amounts are validated before writes. Regression: historicalReturnMigration, historicalCreditNote and creditLedger tests.
