@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useLayoutEffect, useState, useRef } from 'react';
-import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, preloadBilling } from './components/app/lazyScreens';
+import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, RestaurantPage, preloadBilling } from './components/app/lazyScreens';
 import UpdateBanner from './components/app/UpdateBanner';
 import { PermissionGuard } from './components/app/PermissionGuard';
 import { LoginScreen } from './components/auth/LoginScreen';
@@ -59,6 +59,12 @@ function App() {
   });
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
+  const [showRestaurant, setShowRestaurant] = useState(false);
+  useEffect(() => {
+    const open = () => { if (featureFlagsRef.current?.restaurant_mode) setShowRestaurant(true); };
+    window.addEventListener('open-restaurant', open);
+    return () => window.removeEventListener('open-restaurant', open);
+  }, []);
   const [showReturnManager, setShowReturnManager] = useState(false);
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
   const [showCashierSettlement, setShowCashierSettlement] = useState(false);
@@ -145,7 +151,11 @@ function App() {
       <CashDrawerAutoCloseWatcher />
 
       <Suspense fallback={<ScreenLoading />}>
-      {showComboManager ? (
+      {showRestaurant ? (
+        <PermissionGuard permission="restaurant.orders" onBack={() => setShowRestaurant(false)}>
+          <RestaurantPage onClose={() => setShowRestaurant(false)} />
+        </PermissionGuard>
+      ) : showComboManager ? (
         <PermissionGuard permission="combos.view" onBack={() => setShowComboManager(false)}>
           <ComboManager onClose={() => setShowComboManager(false)} />
         </PermissionGuard>

@@ -1,7 +1,7 @@
 import { FilingOnlyButton } from './FilingOnlyButton';
 import React from 'react';
 import { isAdminRole } from '../../../utils/security/permissions';
-import { Store, RotateCcw, TrendingUp, PauseCircle, Truck, Recycle, FileText, ArrowLeftRight, Banknote, BookOpen, Users, Package, User, Layers, Shield, Settings, X } from 'lucide-react';
+import { Store, RotateCcw, TrendingUp, PauseCircle, Truck, Recycle, FileText, ArrowLeftRight, Banknote, BookOpen, Users, Package, User, Layers, Shield, Settings, UtensilsCrossed, X } from 'lucide-react';
 import clsx from 'clsx';
 import { displayInvoiceNumber } from '../../../utils/pricing/invoiceNumberHelper';
 import { isHeaderButtonVisible, QUICK_PAGES_LIST } from '../../../store/billingUIStore';
@@ -371,6 +371,16 @@ export function BillingHeader({
           <span>Return</span>
           <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F7</span>
         </button>
+        )}
+        {featureFlags?.restaurant_mode && (
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-restaurant'))}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+            title="Restaurant: tables, kitchen tickets and kitchen display"
+          >
+            <UtensilsCrossed className="w-4 h-4 text-primary" />
+            <span>Tables</span>
+          </button>
         )}
         {isHeaderButtonVisible(uiConfig, 'showRegister') && showCashRegister && (
           <button

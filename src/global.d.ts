@@ -21,6 +21,7 @@ import type { ReturnInvoiceByNumberResult } from './data/returns';
 import type { EcommerceOrdersResult, EcommerceProductsResult } from './data/ecommerce';
 import type { ShopClosingConfigResult, ShopClosingHistoryRow, ShopClosingPreviewResult, ShopClosingSaveConfigResult } from './data/whatsapp';
 import type * as Rows from './data/dbRows';
+import type * as R from './data/restaurant';
 export interface SyncProgress {
   percent: number;
   label: string;
@@ -340,6 +341,34 @@ export interface IElectronAPI {
   dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
 
   // Hold Bill
+  // Restaurant mode (src/data/restaurant.ts)
+  restaurantGetSetup: (payload: { tenant_id: string }) => Promise<R.RestaurantSetup>;
+  restaurantSaveTable: (payload: unknown) => Promise<R.WriteResult<{ table_id: string }>>;
+  restaurantDeleteTable: (payload: { tenant_id: string; table_id: string }) => Promise<R.WriteResult>;
+  restaurantSaveStation: (payload: unknown) => Promise<R.WriteResult<{ station_id: string }>>;
+  restaurantDeleteStation: (payload: { tenant_id: string; station_id: string }) => Promise<R.WriteResult>;
+  restaurantSaveModifierGroup: (payload: unknown) => Promise<R.WriteResult<{ group_id: string }>>;
+  restaurantDeleteModifierGroup: (payload: { tenant_id: string; group_id: string }) => Promise<R.WriteResult>;
+  restaurantListActive: (payload: { tenant_id: string }) => Promise<R.ActiveOrders>;
+  restaurantGetOrder: (payload: { order_id: string }) => Promise<{ order: R.RestaurantOrder | null; lines: R.OrderLine[]; kots: R.KotTicket[] }>;
+  restaurantOpenOrder: (payload: unknown) => Promise<R.WriteResult<{ order: R.RestaurantOrder }>>;
+  restaurantUpdateOrder: (payload: unknown) => Promise<R.WriteResult>;
+  restaurantSendItems: (payload: { tenant_id: string; order_id: string; user_id: string | null; lines: R.NewOrderLine[] }) => Promise<R.WriteResult<{ kot_ids: string[] }>>;
+  restaurantVoidLines: (payload: { order_id: string; reason: string; user_id: string | null; lines: { line_id: string; quantity?: number }[] }) => Promise<R.WriteResult<{ kot_ids: string[] }>>;
+  restaurantMoveTable: (payload: { order_id: string; table_id: string }) => Promise<R.WriteResult>;
+  restaurantMergeOrders: (payload: { target_order_id: string; source_order_id: string; user_id: string | null }) => Promise<R.WriteResult>;
+  restaurantSplitOrder: (payload: { order_id: string; user_id: string | null; lines: { line_id: string; quantity: number }[] }) => Promise<R.WriteResult<{ order_id: string }>>;
+  restaurantCancelOrder: (payload: { order_id: string; reason: string; user_id: string | null }) => Promise<R.WriteResult<{ kot_ids: string[] }>>;
+  restaurantClaimForBilling: (payload: { order_id: string }) => Promise<R.ClaimResult>;
+  restaurantReleaseClaim: (payload: { order_id: string }) => Promise<R.WriteResult>;
+  restaurantPrintKots: (payload: { kot_ids: string[]; reprint?: boolean }) => Promise<{ success: boolean; results: R.KotPrintResult[] }>;
+  restaurantPreviewKot: (payload: { kot_id: string }) => Promise<R.WriteResult<{ text: string }>>;
+  restaurantGetPrinterConfig: () => Promise<R.KitchenPrinterConfig>;
+  restaurantSavePrinterConfig: (payload: R.KitchenPrinterConfig) => Promise<R.WriteResult<{ config: R.KitchenPrinterConfig }>>;
+  restaurantTestPrinter: (payload: { tenant_id: string; station_name: string; target: R.KitchenPrinterTarget }) => Promise<R.WriteResult>;
+  restaurantListKds: (payload: { tenant_id: string }) => Promise<R.KdsData>;
+  restaurantSetKdsStatus: (payload: { kot_id: string; status: R.KdsStatus }) => Promise<R.WriteResult>;
+  restaurantReport: (payload: { tenant_id: string; from?: string; to?: string }) => Promise<R.RestaurantReport>;
   dbHoldBill: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbGetHeldBills: (payload: { tenant_id: string }) => Promise<Invoice[]>;
   dbRecallHeldBill: (payload: { invoice_id: string }) => Promise<{ success: boolean; invoice?: Invoice; items?: InvoiceItemWithProduct[]; error?: string }>;

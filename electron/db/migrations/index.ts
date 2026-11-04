@@ -16,6 +16,7 @@ import { m012GstReturnsAndCreditNotes } from './012-gst-returns-and-credit-notes
 import { m013GstPhase2aLocalFilings } from './013-gst-phase2a-local-filings.js';
 import { m014VatLocalFilings } from './014-vat-local-filings.js';
 import { m015CardTerminalTransactions } from './015-card-terminal-transactions.js';
+import { m016Restaurant } from './016-restaurant.js';
 import { m017UaeEinvoicing } from './017-uae-einvoicing.js';
 
 /**
@@ -39,6 +40,7 @@ export const MIGRATIONS: readonly Migration[] = [
   m013GstPhase2aLocalFilings,
   m014VatLocalFilings,
   m015CardTerminalTransactions,
+  m016Restaurant,
   m017UaeEinvoicing,
 ];
 

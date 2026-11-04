@@ -12,6 +12,7 @@ import { toIsoTimestamp } from '../utils/timestamps.js';
 import { localTimestamp, localDate } from './storeTime.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
+import { RestaurantSettleError, settleInTransaction } from './restaurantOrderService.js';
 /** Checkout use-case: creates an invoice with items, stock, payments, cash drawer and credit ledger in one transaction. Called by electron/ipc handlers via invoicesService. */
 
 /** Short-lived dedupe cache shared by checkout and updateInvoice (4 s window). */
@@ -38,7 +39,7 @@ export function checkout(payload: CheckoutPayload) {
   // within 4 s is a different bill, not a double click, and must not be dropped.
   const customerSig = `${(invoice.customer_name || '').trim().toLowerCase()}|${(invoice.customer_phone || '').trim()}`;
   const paymentSig = `${invoice.payment_method || ''}|${invoice.received_amount ?? ''}|${typeof invoice.split_details === 'string' ? invoice.split_details : JSON.stringify(invoice.split_details ?? null)}`;
-  const cacheKey = `${policy.bill_purpose}:${policy.counts_in_revenue}:${policy.stock_applied}:${tenantId}:${invoice.grand_total}:${itemsSig}:${customerSig}:${paymentSig}`;
+  const cacheKey = `${policy.bill_purpose}:${policy.counts_in_revenue}:${policy.stock_applied}:${tenantId}:${invoice.grand_total}:${itemsSig}:${customerSig}:${paymentSig}${payload.restaurant_order_id ? `:${payload.restaurant_order_id}` : ''}`;
   const now = Date.now();
   const cached = recentCheckoutsCache.get(cacheKey);
   if (cached && (now - cached.timestamp < 4000)) {
@@ -388,6 +389,8 @@ export function checkout(payload: CheckoutPayload) {
       is_staff: Boolean(invoice.is_staff || invoice.isStaffCustomer),
       staff_id: invoice.staff_id || null,
     });
+    // Restaurant mode: the order this bill pays is closed in the same transaction (refused if already billed).
+    if (payload.restaurant_order_id) settleInTransaction(db, payload.restaurant_order_id, invoice.invoice_id, finalInvoiceNumber);
     // Reset backfill cooldown so the next db:getParties call immediately
     // picks up this newly created credit entry.
     resetBackfillThrottle();
@@ -451,6 +454,6 @@ export function checkout(payload: CheckoutPayload) {
     return res;
   } catch (error) {
     console.error('[db:checkout]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error instanceof RestaurantSettleError ? error.message : 'Operation failed' };
   }
 }

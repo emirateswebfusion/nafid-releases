@@ -10,6 +10,7 @@ import { registerSettingsHandlers } from './settingsHandlers.js';
 import { registerSyncEcommerceHandlers } from './syncEcommerceHandlers.js';
 import { registerCardTerminalHandlers } from './cardTerminalHandlers.js';
 import { registerEinvoiceHandlers } from './einvoiceHandlers.js';
+import { registerRestaurantHandlers } from './restaurantHandlers.js';
 import { registerUpdaterIpc } from '../services/updaterService.js';
 import { reconcileCashDrawer } from '../services/cashDrawerService.js';
 import { getStoreTimezoneSetting } from '../services/storeTime.js';
@@ -28,6 +29,7 @@ export function registerAllIpcHandlers(): void {
   registerSyncEcommerceHandlers();
   registerCardTerminalHandlers();
   registerEinvoiceHandlers();
+  registerRestaurantHandlers();
   registerUpdaterIpc();
   initWhatsAppIpc();
   initShopClosingIpc({
