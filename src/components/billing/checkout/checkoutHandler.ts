@@ -724,6 +724,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
             dueDate: (receiptData as typeof receiptData & { dueDate?: string; creditPeriodDays?: number }).dueDate,
             creditPeriodDays: (receiptData as typeof receiptData & { dueDate?: string; creditPeriodDays?: number }).creditPeriodDays,
             customerBalance: partyOldBalance !== 0 ? partyNewBalance : undefined,
+            invoiceType: receiptData.invoiceType, isB2B: receiptData.isB2B, shopTrn: receiptData.shopGstin, tax: receiptData.tax,
           });
 
           sendConfiguredBill(tenantId || 'global', {

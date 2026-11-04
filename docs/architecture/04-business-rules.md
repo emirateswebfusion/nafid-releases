@@ -383,3 +383,11 @@ o sync payload or server route shape changes (the server already accepts the req
 peek and allocation paths share this rule. Tests: `uaeNumbering.characterization.test.ts`.
 UAE ERP display reuses `buildCheckoutLines`; UAE cashier items reuse `InvoiceItemsTable`, showing VAT
 without an Indian tax split. UI coverage: `uaeWording.ui.test.tsx`.
+
+
+### UAE document titles and Arabic labels
+
+One module: `src/utils/print/uaeLabels.ts`. `uaeDocumentTitle` decides Tax Invoice / Invoice / Tax Credit Note
+(FTA rule, see `vat-uae-integration.md` §9); `UAE_LABELS` holds every English/Arabic label pair; `getUaeArabicPrint()`
+reads the `uae_arabic_print` setting. India printing never calls it. Tests: `printGenerators.characterization.test.ts`
+(UAE section), `thermalPrint.test.ts` (network printers print the English-only receipt), `uaeArabicPrintSetting.ui.test.tsx`.

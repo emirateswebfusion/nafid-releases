@@ -128,6 +128,7 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
         receivedAmount: paymentMethod === 'CASH' ? Number(receivedAmount || displayGrandTotal) : displayGrandTotal,
         balanceAmount: paymentMethod === 'CREDIT' ? displayGrandTotal : 0,
         paymentMethod,
+        invoiceType, isB2B, shopTrn: shopGstin, tax: totalTax,
       });
 
       const sendRes = await sendConfiguredBill(tenantId || 'global', {

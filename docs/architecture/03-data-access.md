@@ -169,3 +169,7 @@ and cloud/LAN settings payloads. Legacy pulls allow both keys. No columns or inv
 UAE VAT remains `tax_total` / `tax_amount`, with Indian component fields zero. Older clients are not UAE
 aware: all terminals of a UAE shop must run a UAE-capable version. Server contract coverage:
 `nafid-server/tests/storeProfileSync.test.ts`; POS pull coverage: `storeProfileSync.test.ts`.
+
+`uae_arabic_print` (`{ documents, thermal }`, typed in `KnownSettings`) uses the same settings IPC. It is pushed like
+any setting but deliberately not in the pull allowlist (`electron/sync/entities/settingsSync.ts`), so each terminal
+keeps its own choice; no server change is needed (the settings push accepts any key).
