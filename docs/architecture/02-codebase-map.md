@@ -27,6 +27,8 @@ src/
     <feature>/<Screen>.tsx   the screen (orchestration) next to its views/, modals/, hooks/ (e.g. billing/BillingPage.tsx,
                              sales/SalesHistory.tsx, cashier/CashierSettlement.tsx, inventory/InventoryManager.tsx)
     billing/              + checkout/, customerDirectory.ts, productSearch.ts, numberReservation.ts, BillingConstants.ts
+    restaurant/           RestaurantPage + views/, modals/, settings/, hooks/: tables, orders, KOT, kitchen display;
+                          restaurantRules (India/UAE charges and channels), restaurantBillHandover (order → checkout)
     settings/             SettingsManager + tabs/, the settings panels (emergency purge, data masking, terminology)
     app/                  app shell: ErrorBoundary, PermissionGuard, SplashScreen, UpdateBanner, prompts, PrintRouter, lazyScreens, hooks/
                           and app-wide flows used by several screens: CardTerminalDialog + cardTerminalStep (card machine)
@@ -100,6 +102,7 @@ electron/
     scrapService · purchasesService · cashierService · cashDrawerService · paymentSourcesService
     staffService (staff, biller PIN, staff ledger, attendance) · localAuthService (offline login)
     emergencyPurgeService · settingsService · recycleBinService · syncService · ecommerceService · cardTerminalService
+    restaurantOrderService · restaurantKitchenService · restaurantSetupService · restaurantKot · restaurantClaim
     invoiceNumberService · storeTime · authStorage · windowRegistry · updater · fusionCartBridge …
   db/
     localDb.ts       SQLite connection (getDb/getOpenDb) and initDb, which runs in order:
