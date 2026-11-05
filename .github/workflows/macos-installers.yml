@@ -64,7 +64,7 @@ jobs:
           if [[ "$MAC_SIGNED_RELEASE" == true ]]; then
             pnpm exec electron-builder --config electron-builder.config.js --mac --${{ matrix.arch }} --publish never -c.forceCodeSigning=true -c.mac.notarize=true
           else
-            CSC_FOR_PULL_REQUEST=true CSC_IDENTITY_AUTO_DISCOVERY=false pnpm exec electron-builder --config electron-builder.config.js --mac --${{ matrix.arch }} --publish never -c.mac.identity=- -c.mac.notarize=false
+            env -u CSC_LINK -u CSC_KEY_PASSWORD -u APPLE_API_KEY -u APPLE_API_KEY_ID -u APPLE_API_ISSUER CSC_FOR_PULL_REQUEST=true CSC_IDENTITY_AUTO_DISCOVERY=false pnpm exec electron-builder --config electron-builder.config.js --mac --${{ matrix.arch }} --publish never -c.mac.identity=- -c.mac.notarize=false
           fi
       - name: Verify final DMG, native modules, and app startup
         run: node tests/packaged/macos-installer.cjs release '${{ matrix.arch }}'
