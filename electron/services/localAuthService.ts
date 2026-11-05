@@ -1,5 +1,7 @@
 import type { SettingRow, UserRow } from './typesB.js';
 import crypto from 'node:crypto';
+import { readTerminalSession, parseTerminalSession } from './terminalSession.js';
+import { readAuthPayload, readOfflineSession } from './authStorage.js';
 import bcrypt from 'bcryptjs';
 import { getOpenDb } from '../db/localDb.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
@@ -146,33 +148,18 @@ export function hashStaffPin(pin: string, tenantId: string): string {
 }
 
 export function getTerminalConfig(): {
-  isConfigured: boolean;
-  tenant_id?: string;
-  shop_name?: string;
+  isConfigured: boolean; tenant_id?: string; shop_name?: string; user_name?: string; role?: string; user_id?: string;
 } {
   const db = getOpenDb();
   if (!db) return { isConfigured: false };
-  try {
-    const activeSetting = localAuthSql.findActiveTenant(db).get() as { tenant_id?: string; shop_name?: string } | undefined;
-    if (activeSetting?.tenant_id) {
-      return {
-        isConfigured: true,
-        tenant_id: activeSetting.tenant_id,
-        shop_name: activeSetting.shop_name || 'My Shop',
-      };
-    }
-    const anyUser = localAuthSql.findAnyTenant(db).get() as { tenant_id?: string; shop_name?: string } | undefined;
-    if (anyUser?.tenant_id) {
-      return {
-        isConfigured: true,
-        tenant_id: anyUser.tenant_id,
-        shop_name: anyUser.shop_name || 'My Shop',
-      };
-    }
-    return { isConfigured: false };
-  } catch {
-    return { isConfigured: false };
-  }
+  const session = readTerminalSession() || parseTerminalSession(readOfflineSession()) || parseTerminalSession(readAuthPayload());
+  if (session) return { isConfigured: true, ...session };
+  // An older install with multiple shops needs an explicit email login to choose the shop.
+  const tenants = localAuthSql.listConfiguredTenants(db).all() as { tenant_id: string }[];
+  if (tenants.length !== 1) return { isConfigured: false };
+  const tenantId = tenants[0].tenant_id;
+  const shop = localAuthSql.findSettingShopName(db).get(tenantId, tenantId) as { value?: string } | undefined;
+  return { isConfigured: true, tenant_id: tenantId, shop_name: shop?.value || 'My Shop' };
 }
 
 export function localAuthenticatePin(payload: { pin: string; tenant_id?: string }): {
@@ -192,7 +179,7 @@ export function localAuthenticatePin(payload: { pin: string; tenant_id?: string 
   if (!db) return { success: false, error: 'Local database unavailable' };
 
   const { pin } = payload || {};
-  if (!pin || pin.trim().length !== 4) {
+  if (!pin || !/^\d{4}$/.test(pin.trim())) {
     return { success: false, error: 'PIN must be exactly 4 digits' };
   }
 

@@ -1,7 +1,7 @@
 import { isUaeStore } from '../localization/storeProfile';
 import { splitTaxAmount } from './checkoutLines';
 
-type TaxInvoice = { customer_name?: string | null; invoice_id: string; invoice_number?: string | null; created_at?: string | null; supply_type?: string | null; converted_from_invoice_id?: string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; tax_total?: number | string | null; subtotal?: number | string | null; grand_total?: number | string | null };
+type TaxInvoice = { cgst_total?: number | null; sgst_total?: number | null; igst_total?: number | null; customer_name?: string | null; invoice_id: string; invoice_number?: string | null; created_at?: string | null; supply_type?: string | null; converted_from_invoice_id?: string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; tax_total?: number | string | null; subtotal?: number | string | null; grand_total?: number | string | null };
 type TaxItem = { product_id: string; item_id?: string | null; cgst_rate?: number | string | null; sgst_rate?: number | string | null; igst_rate?: number | string | null; tax_rate?: number | string | null; quantity?: number | string | null; unit_price?: number | string | null; total?: number | string | null; tax_amount?: number | string | null; name?: string | null; hsn_sac_code?: string | null; hsn_code?: string | null; hsn?: string | null; uom?: string | null; unit?: string | null };
 export interface InvoiceProductRow {
   invoice: TaxInvoice;
@@ -52,6 +52,16 @@ function getItemRate(item: TaxItem, taxable: number, tax: number): number {
 function isInterStateInvoice(inv: TaxInvoice, items: TaxItem[]): boolean {
   if (String(inv?.supply_type || '').toUpperCase() === 'INTER') return true;
   return items.some((item: TaxItem) => positive(item?.igst_rate) > 0);
+}
+
+/** Stored header splits are authoritative; legacy bills use supply/item evidence and the cents splitter. */
+export function getInvoiceTaxComponents(inv: TaxInvoice, items: TaxItem[], legacyInterState = false) {
+  if (isUaeStore()) return { cgst: 0, sgst: 0, igst: 0 };
+  const tax = positive(inv.tax_total);
+  const stored = { cgst: positive(inv.cgst_total), sgst: positive(inv.sgst_total), igst: positive(inv.igst_total) };
+  if (Math.round((stored.cgst + stored.sgst + stored.igst) * 100) === Math.round(tax * 100)) return stored;
+  if (isInterStateInvoice(inv, items) || legacyInterState) return { cgst: 0, sgst: 0, igst: tax };
+  return { ...splitTaxAmount(tax), igst: 0 };
 }
 
 export function sortInvoicesByInvoiceNumber<T extends { invoice_number?: string | null } = TaxInvoice>(invoices: T[]): T[] {

@@ -50,7 +50,7 @@ export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof impo
       lines.push(`• Total Invoices: *${summaryData.totalInvoices}*`);
     }
     if (checklist.sales) {
-      if (checklist.grossSales !== false && (summaryData.grossSales > summaryData.netSales || summaryData.totalDiscount > 0)) {
+      if (checklist.grossSales !== false) {
         lines.push(`• Gross Sales: ${formatCurrency((summaryData.grossSales as number | null | undefined))}`);
       }
       if (checklist.totalDiscount !== false && summaryData.totalDiscount > 0) {

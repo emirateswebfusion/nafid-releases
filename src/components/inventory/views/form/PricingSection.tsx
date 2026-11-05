@@ -26,6 +26,7 @@ export function PricingSection({
   const [isSavingTier, setIsSavingTier] = useState(false);
   const [newTierError, setNewTierError] = useState('');
   const newTierInputRef = useRef<HTMLInputElement>(null);
+  const savingTierRef = useRef(false);
 
   useEffect(() => {
     if (isAddingTier && newTierInputRef.current) {
@@ -35,7 +36,8 @@ export function PricingSection({
 
   const handleSaveTier = async () => {
     const trimmed = newTierName.trim();
-    if (!trimmed || !onAddPricingTier) return;
+    if (!trimmed || !onAddPricingTier || savingTierRef.current) return;
+    savingTierRef.current = true;
     setIsSavingTier(true);
     setNewTierError('');
     try {
@@ -49,6 +51,7 @@ export function PricingSection({
     } catch (err) {
       setNewTierError((err as Error).message || 'Failed to add tier');
     } finally {
+      savingTierRef.current = false;
       setIsSavingTier(false);
     }
   };
@@ -270,7 +273,7 @@ export function PricingSection({
                 onChange={e => { setNewTierName(e.target.value); setNewTierError(''); }}
                 onKeyDown={e => {
                   if (e.key === 'Enter') { e.preventDefault(); handleSaveTier(); }
-                  if (e.key === 'Escape') { setIsAddingTier(false); setNewTierName(''); }
+                  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (savingTierRef.current) return; setIsAddingTier(false); setNewTierName(''); }
                 }}
                 placeholder="Tier Name (e.g. Wholesale, VIP, Retail Tier B)..."
                 disabled={isSavingTier}

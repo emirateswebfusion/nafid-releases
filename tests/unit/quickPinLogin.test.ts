@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -5,14 +8,14 @@ import { createCoreTables } from '../../electron/db/schemaCoreTables';
 import { createExtendedTables } from '../../electron/db/schemaExtendedTables';
 import { ensureSchemaColumns } from '../../electron/db/schemaColumns';
 
-const state = vi.hoisted(() => ({ db: null as unknown as Database.Database }));
+const state = vi.hoisted(() => ({ db: null as unknown as Database.Database, directory: '' }));
 vi.mock('../../electron/db/localDb', () => ({
   getDb: () => state.db,
   getOpenDb: () => state.db,
 }));
 vi.mock('electron', () => ({
   BrowserWindow: { getAllWindows: () => [] },
-  app: { getPath: () => '' },
+  app: { getPath: () => state.directory },
   safeStorage: { isEncryptionAvailable: () => false },
 }));
 
@@ -21,12 +24,16 @@ import {
   getTerminalConfig,
   localAuthenticatePin,
 } from '../../electron/services/localAuthService';
+vi.mock('../../electron/sync/syncWorker', () => ({setSyncActive: vi.fn()}));
+vi.mock('../../electron/services/syncService', () => ({isLanSyncConfigured: () => false}));
+import { saveToken, saveOfflineSession, clearToken } from '../../electron/services/authSessionService';
 import { saveStaff } from '../../electron/services/staffService';
 
 describe('Quick PIN Login & Staff Security', () => {
   let raw: DatabaseSync | undefined;
 
   beforeEach(() => {
+    state.directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nafid-pin-'));
     raw = new DatabaseSync(':memory:');
     const sql = raw;
     state.db = Object.assign(sql, {
@@ -50,6 +57,7 @@ describe('Quick PIN Login & Staff Security', () => {
 
   afterEach(() => {
     raw?.close();
+    fs.rmSync(state.directory, {recursive:true,force:true});
   });
 
   it('generates deterministic PIN hashes scoped to tenant_id', () => {
@@ -205,4 +213,35 @@ describe('Quick PIN Login & Staff Security', () => {
       })
     ).toThrow('Admin accounts cannot be deactivated');
   });
+  it('restores the last shop and user instead of selecting the first shop', () => {
+    raw!.exec("INSERT INTO settings (tenant_id,key,value) VALUES ('shop-a','shop_name','Shop A'),('shop-b','shop_name','Shop B')");
+    raw!.prepare(`INSERT INTO staff (staff_id,tenant_id,staff_code,name,role_designation,biller_pin_hash,status,is_deleted)
+      VALUES ('haroon','shop-b','B1','Haroon','ADMIN',?,'ACTIVE',0)`).run(hashStaffPin('4321','shop-b'));
+    expect(getTerminalConfig().isConfigured).toBe(false);
+    rememberTerminalSession({ tenant_id:'shop-b',user_id:'haroon',user_name:'Haroon',shop_name:'Shop B',role:'ADMIN' });
+    expect(getTerminalConfig()).toMatchObject({tenant_id:'shop-b',user_name:'Haroon',shop_name:'Shop B',role:'ADMIN'});
+    expect(localAuthenticatePin({pin:'4321'})).toMatchObject({success:true,user:{tenant_id:'shop-b',name:'Haroon'}});
+    expect(raw!.prepare("SELECT sync_status FROM settings WHERE key='last_active_terminal_session'").get()?.sync_status).toBe('LOCAL');
+    rememberTerminalSession({ tenant_id:'shop-a',user_id:'mohammed',user_name:'Mohammed',shop_name:'Shop A',role:'ADMIN' });
+    expect(getTerminalConfig()).toMatchObject({tenant_id:'shop-a',user_name:'Mohammed'});
+  });
+  it('does not accept non-digit PINs', () => {
+    expect(localAuthenticatePin({pin:'abcd'})).toMatchObject({success:false,error:'PIN must be exactly 4 digits'});
+  });
+
+  it('keeps display context through online login, offline login and logout without keeping credentials', () => {
+    expect(saveToken({tenant_id:'t1',user_id:'u1',user_name:'Mohammed',shop_name:'Shop One',role:'ADMIN',email:'qa@example.test',jwt_token:'fixture'}).success).toBe(true);
+    expect(clearToken().success).toBe(true);
+    expect(getTerminalConfig()).toMatchObject({tenant_id:'t1',user_name:'Mohammed',role:'ADMIN'});
+    expect(saveOfflineSession({tenant_id:'t2',user_id:'u2',user_name:'Haroon',shop_name:'Shop Two',role:'STAFF'}).success).toBe(true);
+    expect(clearToken().success).toBe(true);
+    expect(getTerminalConfig()).toMatchObject({tenant_id:'t2',user_name:'Haroon',shop_name:'Shop Two'});
+    const value=raw!.prepare("SELECT value FROM settings WHERE key='last_active_terminal_session'").get()?.value;
+    expect(String(value)).not.toContain('fixture');expect(String(value)).not.toContain('jwt_token');
+    expect(fs.readdirSync(state.directory)).toEqual([]);
+  });
+
 });
+
+import { rememberTerminalSession } from '../../electron/services/terminalSession';
+// Uses the same disposable schema as the authentication scenarios above.

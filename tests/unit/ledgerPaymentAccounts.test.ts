@@ -13,7 +13,8 @@ vi.mock('../../electron/sync/syncWorker', () => ({ runInitialSync: async () => {
 import { addPartyLedgerEntry, updatePartyLedgerEntry, deletePartyLedgerEntry, restorePartyLedgerEntry } from '../../electron/services/partiesService';
 import { syncLedgerPaymentAccount } from '../../electron/services/ledgerPaymentAccounts';
 import { createReturn, deleteReturn } from '../../electron/services/returnsService';
-import { addStaffTransaction } from '../../electron/services/staffService';
+import { buildPayStatement } from '../../src/utils/pricing/staffPayStatement';
+import { addStaffTransaction, getStaffLedger, saveStaffAttendance, getStaffAttendance } from '../../electron/services/staffService';
 import { addPurchaseBill, updatePurchaseBill, deletePurchaseBill } from '../../electron/services/purchasesService';
 
 let raw: DatabaseSync;
@@ -150,4 +151,20 @@ it.each(['UPI', 'CARD', 'BANK_TRANSFER'])('deducts a %s return refund once and r
   expect(deleteReturn('r')).toEqual({ success:true });
   expect(balance(source)).toBe(1000);
   expect(raw.prepare("SELECT current_stock FROM products WHERE product_id='product'").get()?.current_stock).toBe(10);
+});
+
+it('completes staff salary steps with a reconciled ledger, cash drawer and editable attendance', () => {
+  raw.exec("INSERT INTO staff (staff_id,tenant_id,name,staff_code) VALUES ('worker','t','QA Worker','QA-1'); INSERT INTO cash_drawer (drawer_id,tenant_id,business_date,status,opening_balance,current_cash,expected_closing) VALUES ('staff-drawer','t','2026-11-05','OPEN',10000,10000,10000)");
+  for(const [type,amount] of [['SALARY_ACCRUAL',6500],['ADVANCE',1500],['BONUS',100],['DEDUCTION',50],['STAFF_PURCHASE',200],['SALARY_PAYMENT',4850]] as const) {
+    expect(addStaffTransaction({tenant_id:'t',staff_id:'worker',type,amount,payment_method:'CASH'}).success).toBe(true);
+  }
+  const ledger=getStaffLedger({tenant_id:'t',staff_id:'worker'}) as import('../../src/utils/pricing/staffPayStatement').PayLedgerRow[];
+  expect(buildPayStatement(ledger,new Date())).toMatchObject({salaryAdded:6500,advances:1500,extras:100,deductions:50,storePurchases:200,salaryPaid:4850,balance:0});
+  expect(raw.prepare("SELECT cash_out,current_cash FROM cash_drawer WHERE drawer_id='staff-drawer'").get()).toMatchObject({cash_out:6350,current_cash:3650});
+  const saved=saveStaffAttendance({tenant_id:'t',staff_id:'worker',date:'2026-11-05',status:'PRESENT'});
+  const edited=saveStaffAttendance({tenant_id:'t',staff_id:'worker',date:'2026-11-05',status:'HALF_DAY'});
+  expect(edited.attendance_id).toBe(saved.attendance_id);
+  expect(getStaffAttendance({tenant_id:'t',staff_id:'worker',month:'2026-11'})).toMatchObject([{status:'HALF_DAY'}]);
+  expect(getStaffAttendance({tenant_id:'other-shop',staff_id:'worker',month:'2026-11'})).toEqual([]);
+  expect(getStaffLedger({tenant_id:'t',staff_id:'worker'})).toHaveLength(6);
 });

@@ -5,7 +5,7 @@ import { hasBridge } from '../../../data/client';
 import { getSetting, type PrintFormatSettings } from '../../../data/settings';
 import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
-import { listRate } from '../../../utils/pricing/linePricing';
+import { buildReceiptLines } from '../../../utils/pricing/checkoutLines';
 import { useAuthStore } from '../../../store/authStore';
 import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { formatWhatsAppBillMessage } from '../../../utils/print/whatsappBillHelper';
@@ -77,26 +77,7 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
       const invStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
 
       const billNo = activeTab?.reservedInvoiceNumber || activeTab?.title || 'ACTIVE';
-      const receiptItems = items.map(item => {
-        const rate = listRate(item);
-        const qty = Number(item.quantity) || 0;
-        const total = rate * qty;
-        const hsnVal = item.hsn_sac_code || '';
-        const taxRate = item.tax_rate_percent != null ? Number(item.tax_rate_percent) : undefined;
-        return {
-          name: item.name,
-          quantity: qty,
-          unit_price: rate,
-          total,
-          brand: item.brand_manufacturer || undefined,
-          billing_type: item.billing_type,
-          unit: item.unit || item.uom,
-          hsn: hsnVal || undefined,
-          hsn_code: hsnVal || undefined,
-          tax_rate_percent: taxRate,
-          gst_percent: taxRate,
-        };
-      });
+      const receiptItems = buildReceiptLines(items, {}, invoiceType === 'GST');
 
       const activeReceiptData: ReceiptData = {
         shopName: shopNameState || shopName || 'My Shop',
@@ -134,6 +115,8 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
           name: i.name,
           quantity: i.quantity,
           unit_price: Number(i.unit_price) || 0,
+          hsn_sac_code: i.hsn_sac_code,
+          tax_rate_percent: i.tax_rate_percent,
           total: Number(i.total) || 0
         })),
         subtotal,

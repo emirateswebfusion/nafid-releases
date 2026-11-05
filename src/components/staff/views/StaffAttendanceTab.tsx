@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { buildAttendanceMonth } from '../../../utils/time/staffAttendance';
 import { CalendarCheck } from 'lucide-react';
 import type { StaffMember } from '../staffTypes';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
@@ -22,6 +23,7 @@ const MARK_OPTIONS = [
   { status: 'ABSENT', label: 'Absent' },
   { status: 'HALF_DAY', label: 'Half' },
   { status: 'LEAVE', label: 'Leave' },
+  { status: 'HOLIDAY', label: 'Holiday' },
 ] as const;
 
 /** Selected staff member's attendance tab. */
@@ -29,6 +31,7 @@ export function StaffAttendanceTab({
   handleMarkAttendance, selectedStaff, sm,
 }: StaffAttendanceTabProps) {
   const { attendanceRecords, selectedMonth, setSelectedMonth } = sm;
+  const days = buildAttendanceMonth(selectedMonth, attendanceRecords);
   return (
     <SectionCard
       icon={CalendarCheck}
@@ -44,7 +47,7 @@ export function StaffAttendanceTab({
         />
       }
     >
-      {attendanceRecords.length === 0 ? (
+      {days.length === 0 ? (
         <EmptyState icon={CalendarCheck} title="No attendance logged" hint={`Nothing recorded for ${selectedMonth}.`} />
       ) : (
         <table className="w-full text-left text-[13px] border-collapse">
@@ -56,7 +59,7 @@ export function StaffAttendanceTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-border/50">
-            {attendanceRecords.map(a => (
+            {days.map(a => (
               <tr key={a.attendance_id} className="hover:bg-muted/30 transition-colors">
                 <td className={clsx(STAFF_TD, 'font-medium text-foreground tabular-nums')}>{a.date}</td>
                 <td className={STAFF_TD}>

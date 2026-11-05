@@ -32,6 +32,9 @@ export type PinLoginResult =
   | { success: false; error: string };
 
 export interface TerminalConfigResult {
+  user_name?: string;
+  user_id?: string;
+  role?: string;
   isConfigured: boolean;
   tenant_id?: string;
   shop_name?: string;

@@ -6,6 +6,7 @@ import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from 
 import { parsePrintFormat, formatPrinterError } from '../../../utils/print/printFormatHelper';
 import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime, generateReceiptText } from '../../../utils/print/receiptGenerator';
 import { combosApi } from '../../../data/combos';
+import { getInvoiceTaxComponents } from '../../../utils/pricing/salesHistoryTax';
 import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import { printingApi } from '../../../data/printing';
 import type { SalesInvoiceItemRow, SalesInvoiceRow } from '../salesTypes';
@@ -62,10 +63,7 @@ export function useInvoiceReprint(ctx: UseInvoiceReprintContext) {
       }
 
       const isInterState = shopStateVal && selectedInvoice.customer_state && (shopStateVal !== selectedInvoice.customer_state);
-      const taxVal = Number(selectedInvoice.tax_total) || 0;
-      const cgst = isInterState ? undefined : taxVal / 2;
-      const sgst = isInterState ? undefined : taxVal / 2;
-      const igst = isInterState ? taxVal : undefined;
+      const { cgst, sgst, igst } = getInvoiceTaxComponents(selectedInvoice, items, Boolean(isInterState));
 
       // Fetch combo offers for fallback matching on historical bill reprints
       const allCombos = await combosApi.getComboOffers({ tenant_id: tenantId || 'global' });

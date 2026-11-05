@@ -57,7 +57,7 @@ describe('formatWhatsAppBillMessage tax breakdown', () => {
       paymentMethod: 'CASH',
     });
 
-    expect(msg).not.toContain('Subtotal');
+    expect(msg).toContain('Subtotal');
     expect(msg).not.toContain('CGST');
     expect(msg).not.toContain('SGST');
     expect(msg).not.toContain('Tax');

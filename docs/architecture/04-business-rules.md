@@ -448,3 +448,25 @@ Ledger date and GST/Estimate filters use `calculateLedgerStatement` for opening,
 ### Historical credit notes
 
 Returns > Record credit note uses `returns/creditNote.ts` and canonical returnPricing for original printed rates/tax; no fabricated sale is created. Historical migration 017 (replayed idempotently by compatibility migration 021, with UAE e-invoicing schema ensured by 022) allows nullable original invoice ids while preserving returns/items/indexes/outbox triggers. `returnsService.createReturn` accepts an optional original return date and uses it consistently for return_date, created_at and ledger transaction date. Existing dates/fields are sent through the existing sync contract; server already accepts a null invoice. Financial amounts are validated before writes. Regression: historicalReturnMigration, historicalCreditNote and creditLedger tests.
+
+### v2.2.44 register, closing and staff rules
+
+- `duplicateScrapCash.isDuplicateScrapCash` identifies only invoice-linked legacy scrap purchase rows
+  with a system/blank/placeholder actor. Category, actor and note matching ignore case; standalone
+  scrap and entries attributed to a person remain cash. Register and every day-history query use
+  this predicate. Register reads purge legacy duplicates then reconcile the open drawer immediately.
+- Closing gross sales is stored sales subtotal plus header tax, before invoice/points discounts and
+  scrap/return credit deductions. Net sales remains the stored payable total. Never reconstruct gross
+  by adding redeemed credits to a clamped payable amount. The enabled checklist always shows gross,
+  including a zero-discount day; preview and sending follow the same rule.
+- Manual WhatsApp shares use `buildReceiptLines`, like checkout, including effective item prices,
+  HSN/SAC and tax rates. Text and PDF receive header tax components, subtotal and discount. History
+  respects stored INTER supply/IGST evidence and the canonical cents split; UAE keeps VAT labels.
+- Staff monthly statements classify UTC instants in the shop timezone. Attendance exposes every day
+  of the selected calendar month, including unmarked days and holidays; marking does not accrue salary.
+- `last_active_terminal_session` stores only shop/user display context in a LOCAL global setting on
+  this PC. Login and logout update it without storing a PIN or granting access. A legacy multi-shop
+  PC without remembered context requires email login instead of selecting an arbitrary first tenant.
+
+Coverage: `scrapCashReconciliation`, `shopClosingGrossAmount`, `quickPinLogin`, `releaseFixes.ui`,
+`whatsappBillBreakdown`, `whatsappTaxBreakdown`, `staffPayStatement`, and print characterization.

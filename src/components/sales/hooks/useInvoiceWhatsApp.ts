@@ -5,6 +5,7 @@ import { getSetting, type PrintFormatSettings } from '../../../data/settings';
 import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime } from '../../../utils/print/receiptGenerator';
 import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
+import { getInvoiceTaxComponents } from '../../../utils/pricing/salesHistoryTax';
 import { formatWhatsAppBillMessage } from '../../../utils/print/whatsappBillHelper';
 import { sendConfiguredBill } from '../../../data/whatsappSharing';
 import type { SalesInvoiceItemRow, SalesInvoiceRow } from '../salesTypes';
@@ -66,11 +67,8 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
         baseGrandTotal = Math.max(0, sub + tax - disc - ptsDisc);
       }
 
-      const isInterState = shopStateVal && selectedInvoice.customer_state && (shopStateVal !== selectedInvoice.customer_state);
-      const taxVal = Number(selectedInvoice.tax_total) || 0;
-      const cgst = isInterState ? undefined : taxVal / 2;
-      const sgst = isInterState ? undefined : taxVal / 2;
-      const igst = isInterState ? taxVal : undefined;
+      const isInterState = selectedInvoice.supply_type === 'INTER' || items.some(item => Number(item.igst_rate) > 0) || Boolean(shopStateVal && selectedInvoice.customer_state && shopStateVal !== selectedInvoice.customer_state);
+      const { cgst, sgst, igst } = getInvoiceTaxComponents(selectedInvoice, items, isInterState);
 
       const receiptData: ReceiptData = {
         shopName: (isGstOrB2B || billSettings.showShopName !== false) ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
@@ -159,10 +157,12 @@ export function useInvoiceWhatsApp(ctx: UseInvoiceWhatsAppContext) {
         date: formatBillDateTime(selectedInvoice.created_at as string),
         customerName: selectedInvoice.customer_name || undefined,
         customerPhone: custPhone,
-        items: items.map(i => ({
+        items: receiptData.items.map(i => ({
           name: i.name as string,
           quantity: Number(i.quantity) || 0,
           unit_price: Number(i.unit_price) || 0,
+          hsn_sac_code: i.hsn_sac_code,
+          tax_rate_percent: i.tax_rate_percent,
           total: Number(i.total) || 0
         })),
         subtotal: Number(selectedInvoice.subtotal) || 0,

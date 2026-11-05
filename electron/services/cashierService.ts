@@ -1,6 +1,7 @@
 import { captureInvoicePoints, refreshInvoiceEarnings } from './loyaltyService.js';
 import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, InvoiceRow, SettingRow, SplitDetails } from './typesA.js';
 import { getDb } from '../db/localDb.js';
+import { isDuplicateScrapCash } from './duplicateScrapCash.js';
 import { autoCloseOverdueDrawers, deduplicateAndGetOpenDrawer, reconcileCashDrawer, getOpenCashDrawer, adjustPaymentSourcesForInvoice } from './cashDrawerService.js';
 import { getCashRegisterPreferences } from './cashRegisterPreferences.js';
 import { calculateRegisterPayments } from '../utils/registerPaymentTotals.js';
@@ -437,6 +438,7 @@ export function getTransactions({ tenant_id }: { tenant_id: string }) {
     const db = getDb();
     scrapSql.purgeDuplicateScrapCashTransactions(db).run(tenant_id || 'global');
     const drawer = deduplicateAndGetOpenDrawer(db, tenant_id);
+    if (drawer) reconcileCashDrawer(db, tenant_id, drawer);
     return drawer ? getRegisterCashEntries(db, tenant_id, drawer).reverse() : [];
 
   } catch (error) {
@@ -482,17 +484,17 @@ export function getDayTransactions({ tenant_id, business_date, from_date, to_dat
     if (from_date && to_date) {
       const cleanFrom = from_date.split('T')[0].split(' ')[0];
       const cleanTo = to_date.split('T')[0].split(' ')[0];
-      return cashierSql.findCashTransactions2(db).all(tenant_id, cleanFrom, cleanTo);
+      return (cashierSql.findCashTransactions2(db).all(tenant_id, cleanFrom, cleanTo) as CashTransactionRow[]).filter(row => !isDuplicateScrapCash(row));
     }
     const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
     const dateLike = `${cleanDate}%`;
     const drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as CashDrawerRow[];
     const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
     if (drawerIds.length === 0) {
-      return cashierSql.findCashTransactions(db).all(tenant_id, cleanDate, dateLike, cleanDate);
+      return (cashierSql.findCashTransactions(db).all(tenant_id, cleanDate, dateLike, cleanDate) as CashTransactionRow[]).filter(row => !isDuplicateScrapCash(row));
     }
     const placeholders = drawerIds.map(() => '?').join(',');
-    return cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, cleanDate, dateLike, cleanDate);
+    return (cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, cleanDate, dateLike, cleanDate) as CashTransactionRow[]).filter(row => !isDuplicateScrapCash(row));
   } catch (error) {
     console.error('[db:cashier:getDayTransactions]', error);
     return { error: 'Operation failed' };

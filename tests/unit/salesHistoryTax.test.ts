@@ -220,3 +220,11 @@ describe('sortInvoicesByInvoiceNumber', () => {
     expect(sortInvoicesByInvoiceNumber(undefined as never)).toEqual([]);
   });
 });
+
+import { getInvoiceTaxComponents } from '../../src/utils/pricing/salesHistoryTax';
+it('preserves stored component cents and recovers legacy interstate splits', () => {
+  const inv={invoice_id:'qa',tax_total:18.01,cgst_total:9,sgst_total:9.01,igst_total:0};
+  expect(getInvoiceTaxComponents(inv,[])).toEqual({cgst:9,sgst:9.01,igst:0});
+  expect(getInvoiceTaxComponents({...inv,cgst_total:null,sgst_total:null,supply_type:'INTER'},[])).toEqual({cgst:0,sgst:0,igst:18.01});
+  expect(getInvoiceTaxComponents({...inv,cgst_total:null,sgst_total:null},[])).toEqual({cgst:9.01,sgst:9,igst:0});
+});

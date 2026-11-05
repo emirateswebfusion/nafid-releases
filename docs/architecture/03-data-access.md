@@ -215,3 +215,11 @@ No shop data, sync payload, authentication permission or server endpoint changes
 ### Update verification progress
 
 The worker reports measured file bytes through update-verification-progress and the preload/data events catalog onUpdateVerificationProgress. Its percent payload is 0–99 while hashing and 100 only after SHA-512 matches. The install store keeps this separate from download progress and ignores events outside an active install. Windows process creation and app startup remain indeterminate; their duration has no measurable overall percentage. Installer timeout text distinguishes a possible Windows publisher/security block from ordinary slow startup without claiming automatic policy detection.
+
+### Last terminal session (v2.2.44)
+
+`auth:getTerminalConfig` returns optional `user_name`, `role`, and `user_id` beside the existing shop
+fields. The local `last_active_terminal_session` setting is written with sync_status LOCAL under global;
+it contains display context only, never credentials. Auth token/offline session save and logout preserve
+this context through `authSessionService` and `terminalSession`. PIN authentication still validates the
+staff hash, tenant status, active status and login permissions. No cloud/LAN payload changes.

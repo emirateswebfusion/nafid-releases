@@ -162,7 +162,8 @@ export function buildShopClosingSummaryData(
         netSales += gTotal;
         totalTax += tax;
         totalDiscount += disc;
-        grossSales += (gTotal + disc);
+        // Stored subtotal is before invoice discounts and scrap/return credit redemption.
+        grossSales += Math.max(0, Number(inv.subtotal) || 0) + tax;
         refundsPaidAmount += refundPaid;
 
         const pm = ((inv.payment_method as string) || ('CASH' as string)).toUpperCase();

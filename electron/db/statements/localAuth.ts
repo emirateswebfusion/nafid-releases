@@ -47,3 +47,15 @@ export const findSettingShopName = (db: Db) => db.prepare(`
   SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'shop_name' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 2 END) ASC LIMIT 1
 `);
 
+
+/** Last successful session belongs to this PC and must never sync between terminals. */
+export const saveTerminalSession = (db: Db) => db.prepare(`
+  INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+  VALUES ('global', 'last_active_terminal_session', ?, 'LOCAL', CURRENT_TIMESTAMP)
+  ON CONFLICT(tenant_id, key) DO UPDATE SET value = excluded.value, sync_status = 'LOCAL', updated_at = CURRENT_TIMESTAMP
+`);
+export const readTerminalSession = (db: Db) => db.prepare(`SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'last_active_terminal_session'`);
+export const listConfiguredTenants = (db: Db) => db.prepare(`
+  SELECT tenant_id FROM settings WHERE key = 'shop_name' AND tenant_id NOT IN ('global', 'unset', '')
+  UNION SELECT tenant_id FROM users WHERE tenant_id NOT IN ('global', 'unset', '')
+`);

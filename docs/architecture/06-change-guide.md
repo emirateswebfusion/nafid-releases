@@ -194,3 +194,23 @@ installer's updater/production configuration and verify the complete draft asset
 alone do not satisfy this requirement. Record the actual installed-upgrade test result and any transition limitation.
 
 `.github/workflows/windows-installer.yml` builds an unsigned installer on a Windows runner with the existing Electron/SQLite rebuild recipe and public runtime settings. It uploads reviewable artifacts without publishing. Run it manually when local Application Control prevents NSIS from generating its uninstaller; do not disable local security controls. Verify the installer metadata, packaged runtime and thermal driver characterization before publishing release assets.
+
+### v2.2.44 maintenance ownership
+
+Cash duplicate detection belongs in `electron/services/duplicateScrapCash.ts`; permanent cleanup SQL
+remains in `db/statements/scrap.ts`. Apply the same predicate to register and all history branches,
+and reconcile persisted drawer totals after cleanup. Preserve historical migrations.
+
+Terminal context persistence belongs in `services/terminalSession.ts` with statements in
+`db/statements/localAuth.ts`. Auth save/clear/PIN persistence use-cases are in `authSessionService.ts`;
+their IPC registrations remain one-line delegates. `TerminalConfigResult` adds optional user display
+fields. The existing channels remain stable; the device-local context never changes a sync payload.
+
+Use `buildReceiptLines` for active bill shares and `splitTaxAmount` for history header splits.
+Propagate HSN and tax percent to both message and PDF; never calculate a different price in a share hook.
+`buildAttendanceMonth` owns the complete calendar-day list; `buildPayStatement` owns month classification.
+
+For UI acceptance start Vite on port 5184 and run `electron tests/characterization/release-workspace.cjs`.
+The isolated fixture has no native database or outgoing messages. Unit/service checks prove persistence;
+renderer fixtures alone do not prove installed upgrade behavior. Run the final installer acceptance
+workflow in a disposable Windows runner as required by `release-validation.md` before publication.

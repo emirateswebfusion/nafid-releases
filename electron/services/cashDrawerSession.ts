@@ -1,3 +1,4 @@
+import { isDuplicateScrapCash } from './duplicateScrapCash.js';
 import type { CashTransactionRow } from './typesA.js';
 import { getStoreTimezoneSetting, localDate, parseCleanDate, storeWallClockToUtc } from './storeTime.js';
 import { getCashRegisterPreferences } from './cashRegisterPreferences.js';
@@ -181,7 +182,7 @@ export function getRegisterCashEntries(db: Db, tenantId: string, drawer: DrawerR
   const businessDate = parseCleanDate(drawer.business_date, tz);
   for (const row of rows) {
     if (row.category === 'RETURN_REFUND' || (row.category === 'SCRAP_SALE' && !prefs.includeScrapSales)) continue;
-    if (row.category === 'SCRAP_PURCHASE' && (row.entered_by === 'system' || !row.entered_by) && row.notes && row.notes.startsWith('Scrap purchase ') && row.notes.trim() !== 'Scrap purchase') continue;
+    if (isDuplicateScrapCash(row)) continue;
     const linkedLedger = row.category?.startsWith('PARTY_LEDGER:');
     const ledgerEntry = linkedLedger || row.category === 'Party Payment' || row.category === 'Party Receipt';
     let amount = Number(row.amount) || 0;

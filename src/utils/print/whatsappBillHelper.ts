@@ -16,6 +16,8 @@ export interface WhatsAppBillDetails {
     quantity: number | string;
     unit_price: number;
     total: number;
+    hsn_sac_code?: string;
+    tax_rate_percent?: number;
   }>;
   subtotal?: number;
   tax?: number;
@@ -57,6 +59,8 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
     previewItems.forEach((item, idx) => {
       const itemTotal = Number(item.total || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 });
       itemsText += `\n${idx + 1}. ${item.name} (${item.quantity}x) - ${getCurrencyPrefix()}${itemTotal}`;
+      if (item.hsn_sac_code) itemsText += ` | HSN/SAC: ${item.hsn_sac_code}`;
+      if (Number(item.tax_rate_percent) > 0) itemsText += ` | ${uae ? 'VAT' : 'GST'}: ${item.tax_rate_percent}%`;
     });
     if (data.items.length > 8) {
       itemsText += `\n...and ${data.items.length - 8} more item(s)`;
@@ -66,20 +70,20 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
   // Credit / Payment Details
   let paymentText = `\n\n💳 *${t(L.paymentMode)}:* ${t(uaePaymentMethod(data.paymentMethod || 'CASH')!)}`;
 
-  if (data.tax !== undefined && data.tax > 0) {
+  {
     if (data.subtotal !== undefined) {
       const subtotalFmt = Number(data.subtotal || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       paymentText += `\n📋 *${t(L.subtotal)}:* ${getCurrencyPrefix()}${subtotalFmt}`;
     }
-    if (data.cgst && data.sgst && (data.cgst > 0 || data.sgst > 0)) {
+    if (!uae && (Number(data.cgst) > 0 || Number(data.sgst) > 0)) {
       const cgstFmt = Number(data.cgst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const sgstFmt = Number(data.sgst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       paymentText += `\n🏛️ *CGST:* ${getCurrencyPrefix()}${cgstFmt}`;
       paymentText += `\n🏛️ *SGST:* ${getCurrencyPrefix()}${sgstFmt}`;
-    } else if (data.igst && data.igst > 0) {
+    } else if (!uae && data.igst && data.igst > 0) {
       const igstFmt = Number(data.igst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       paymentText += `\n🏛️ *IGST:* ${getCurrencyPrefix()}${igstFmt}`;
-    } else {
+    } else if (Number(data.tax) > 0) {
       const taxLabel = uae ? t(L.vat) : getStoreProfile().taxName || 'Tax';
       const taxFmt = Number(data.tax || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       paymentText += `\n🏛️ *${taxLabel}:* ${getCurrencyPrefix()}${taxFmt}`;

@@ -54,3 +54,11 @@ describe('total payable to staff', () => {
     expect(totalPayableToStaff([2400, -450, 0, null, undefined, 0.1, 0.2])).toBe(2400.3);
   });
 });
+
+it('assigns SQLite UTC and ISO month-boundary entries to the shop calendar month', () => {
+  const rows = [
+    { transaction_date:'2026-10-31 21:00:00', reference_type:'SALARY_ACCRUAL',debit_amount:1000 },
+    { transaction_date:'2026-11-30T21:00:00Z', reference_type:'SALARY_PAYMENT',credit_amount:200 },
+  ];
+  expect(buildPayStatement(rows,new Date(2026,10,1),'Asia/Dubai')).toMatchObject({salaryAdded:1000,salaryPaid:0,balance:1000});
+});

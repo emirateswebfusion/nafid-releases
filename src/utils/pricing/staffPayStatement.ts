@@ -7,6 +7,8 @@
  * attendance.
  */
 
+import { getStoreTimezone } from '../time/timezoneHelper';
+
 export interface PayLedgerRow {
   transaction_date?: string | null;
   reference_type?: string | null;
@@ -34,16 +36,22 @@ export interface PayStatement {
 const cents = (value: unknown) => Math.round((Number(value) || 0) * 100);
 
 /** Statement for the calendar month (local time) that contains `month`. */
-export function buildPayStatement(rows: PayLedgerRow[], month: Date): PayStatement {
-  const start = new Date(month.getFullYear(), month.getMonth(), 1).getTime();
-  const end = new Date(month.getFullYear(), month.getMonth() + 1, 1).getTime();
+export function buildPayStatement(rows: PayLedgerRow[], month: Date, timeZone = getStoreTimezone()): PayStatement {
+  const start = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}-01`;
+  const next = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+  const end = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-01`;
+  const format = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
   let carried = 0;
   let salary = 0, extras = 0, advances = 0, purchases = 0, deductions = 0, paid = 0;
   let salaryAddedThisMonth = false;
 
   for (const row of rows) {
-    const time = new Date(String(row.transaction_date || '')).getTime();
-    if (isNaN(time) || time >= end) continue;
+    const raw = String(row.transaction_date || '').trim();
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+    const instant = new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw.replace(' ', 'T')}Z`);
+    if (!raw || isNaN(instant.getTime())) continue;
+    const time = dateOnly ? raw : format.format(instant);
+    if (time >= end) continue;
     const debit = cents(row.debit_amount);
     const credit = cents(row.credit_amount);
     if (time < start) {

@@ -1,93 +1,16 @@
 import { ipcMain } from 'electron';
-import fs from 'node:fs';
-import { localSaveUser, localAuthenticateUser, localAuthenticatePin, getTerminalConfig } from '../services/localAuthService.js';
-import { setSyncActive } from '../sync/syncWorker.js';
-import * as syncService from '../services/syncService.js';
-import {
-  getConfigPath,
-  getEncryptedPath,
-  getOfflineSessionPath,
-  encrypt,
-  readAuthPayload,
-  clearOfflineSession,
-  readOfflineSession,
-} from '../services/authStorage.js';
-
+import { localSaveUser, localAuthenticateUser, getTerminalConfig } from '../services/localAuthService.js';
+import { readAuthPayload, readOfflineSession } from '../services/authStorage.js';
+import * as authSession from '../services/authSessionService.js';
 import { getTrialAccess, blockTrialAccess } from '../services/trialAccessService.js';
 import { refreshTrialSession } from '../services/trialSessionService.js';
 
 export function registerAuthHandlers(): void {
   ipcMain.removeHandler('auth:saveToken');
-  ipcMain.handle('auth:saveToken', (_event, payload) => {
-    try {
-      const plaintext = JSON.stringify(payload);
-      fs.writeFileSync(getConfigPath(), plaintext, 'utf-8');
-      const encrypted = encrypt(plaintext);
-      if (encrypted) {
-        fs.writeFileSync(getEncryptedPath(), encrypted);
-      }
-      // Also persist user credentials into local SQLite database for offline login capability
-      if (payload && payload.user_id && payload.tenant_id) {
-        localSaveUser({
-          user_id: payload.user_id,
-          tenant_id: payload.tenant_id,
-          name: payload.user_name || payload.email,
-          email: payload.email || payload.user_name,
-          password_hash: payload.password_hash,
-          role: payload.role,
-          restricted_page: payload.restricted_page,
-          permissions: payload.permissions,
-          login_enabled: payload.login_enabled,
-        });
-      }
-      clearOfflineSession();
-      setSyncActive(true);
-      return { success: true };
-    } catch {
-      return { success: false, error: 'Failed to save token' };
-    }
-  });
+  ipcMain.handle('auth:saveToken', (_event, payload) => authSession.saveToken(payload));
 
   ipcMain.removeHandler('auth:saveOfflineSession');
-  ipcMain.handle('auth:saveOfflineSession', (_event, payload) => {
-    try {
-      if (!payload?.tenant_id || !payload?.user_id || !payload?.role) {
-        return { success: false, error: 'Incomplete offline session' };
-      }
-      const session = {
-        tenant_id: String(payload.tenant_id),
-        user_id: String(payload.user_id),
-        role: String(payload.role),
-        user_name: String(payload.user_name || ''),
-        shop_name: String(payload.shop_name || ''),
-        restricted_page: payload.restricted_page ? String(payload.restricted_page) : null,
-        permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
-      };
-      const encrypted = encrypt(JSON.stringify(session));
-      if (!encrypted) throw new Error('Unable to encrypt offline session');
-      fs.writeFileSync(getOfflineSessionPath(), encrypted);
-
-      // Offline authentication must not leave an older cloud token active.
-      const encryptedPath = getEncryptedPath();
-      const configPath = getConfigPath();
-      if (fs.existsSync(encryptedPath)) fs.unlinkSync(encryptedPath);
-      if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
-
-      // Keep sync worker alive if terminal is configured for LAN or HYBRID peer sync
-      try {
-        if (syncService.isLanSyncConfigured()) {
-          setSyncActive(true);
-        } else {
-          setSyncActive(false);
-        }
-      } catch {
-        setSyncActive(false);
-      }
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: (error as Error).message || 'Failed to save offline session' };
-    }
-  });
+  ipcMain.handle('auth:saveOfflineSession', (_event, payload) => authSession.saveOfflineSession(payload));
 
   ipcMain.removeHandler('auth:getOfflineSession');
   ipcMain.handle('auth:getOfflineSession', () => {
@@ -122,29 +45,7 @@ export function registerAuthHandlers(): void {
   });
 
   ipcMain.removeHandler('auth:loginWithPin');
-  ipcMain.handle('auth:loginWithPin', (_event, payload) => {
-    try {
-      const res = localAuthenticatePin(payload);
-      if (res.success && res.user) {
-        const session = {
-          tenant_id: res.user.tenant_id,
-          user_id: res.user.user_id,
-          role: res.user.role,
-          user_name: res.user.name,
-          shop_name: res.user.shop_name || '',
-          restricted_page: null,
-          permissions: res.user.permissions,
-        };
-        const encrypted = encrypt(JSON.stringify(session));
-        if (encrypted) {
-          fs.writeFileSync(getOfflineSessionPath(), encrypted);
-        }
-      }
-      return res;
-    } catch (error) {
-      return { success: false, error: (error as Error).message || 'PIN authentication failed' };
-    }
-  });
+  ipcMain.handle('auth:loginWithPin', (_event, payload) => authSession.loginWithPin(payload));
 
   ipcMain.removeHandler('auth:getTerminalConfig');
   ipcMain.handle('auth:getTerminalConfig', () => {
@@ -165,19 +66,7 @@ export function registerAuthHandlers(): void {
   });
 
   ipcMain.removeHandler('auth:clearToken');
-  ipcMain.handle('auth:clearToken', () => {
-    try {
-      const encPath = getEncryptedPath();
-      if (fs.existsSync(encPath)) fs.unlinkSync(encPath);
-      const p = getConfigPath();
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-      clearOfflineSession();
-      setSyncActive(false);
-      return { success: true };
-    } catch {
-      return { success: false, error: 'Failed to clear token' };
-    }
-  });
+  ipcMain.handle('auth:clearToken', () => authSession.clearToken());
 
   ipcMain.removeHandler('auth:getTrialAccess');
   ipcMain.handle('auth:getTrialAccess', (_event, payload: { tenant_id: string }) => {

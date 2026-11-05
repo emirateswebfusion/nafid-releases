@@ -236,7 +236,7 @@ export function generateWhatsAppClosingMessage(
       lines.push(`• Total Invoices: *${data.totalInvoices}*`);
     }
     if (checklist.sales) {
-      if (checklist.grossSales !== false && (data.grossSales > data.netSales || data.totalDiscount > 0)) {
+      if (checklist.grossSales !== false) {
         lines.push(`• Gross Sales: ${formatCurrency(data.grossSales)}`);
       }
       if (checklist.totalDiscount !== false && data.totalDiscount > 0) {

@@ -629,7 +629,9 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
               name: i.name,
               quantity: i.quantity,
               unit_price: Number(i.unit_price) || 0,
-              total: Number(i.total) || 0
+              hsn_sac_code: i.hsn_sac_code,
+          tax_rate_percent: i.tax_rate_percent,
+          total: Number(i.total) || 0
             })),
             subtotal: receiptData.subtotal,
             tax: receiptData.tax,

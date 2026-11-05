@@ -18,6 +18,7 @@ export function LoginScreen() {
 
   const [tab, setTab] = useState<Tab>('login');
   const [shopName, setShopName] = useState('');
+  const [lastUser, setLastUser] = useState({ name: '', role: '' });
   const [terminalConfigured, setTerminalConfigured] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -108,6 +109,7 @@ export function LoginScreen() {
         if (cfg?.isConfigured) {
           setTerminalConfigured(true);
           if (cfg.shop_name) setShopName(cfg.shop_name);
+          setLastUser({ name: cfg.user_name || '', role: cfg.role || '' });
           setTab('pin');
         }
       }).catch(() => {});
@@ -131,7 +133,7 @@ export function LoginScreen() {
           <div className="flex lg:hidden items-center gap-2 mb-8"><img src="./logo.png" alt="" className="h-8 w-8 object-contain" /><span className="text-xl font-black">NAFID</span></div>
           {tab === 'pin' && (
             <QuickPinLogin
-              shopName={shopName}
+              shopName={shopName} userName={lastUser.name} role={lastUser.role}
               onSwitchToEmail={() => switchTab('login')}
             />
           )}

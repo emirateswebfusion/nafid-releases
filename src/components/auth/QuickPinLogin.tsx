@@ -5,10 +5,12 @@ import { useAuthStore } from '../../store/authStore';
 
 interface QuickPinLoginProps {
   shopName: string;
+  userName?: string;
+  role?: string;
   onSwitchToEmail: () => void;
 }
 
-export function QuickPinLogin({ shopName, onSwitchToEmail }: QuickPinLoginProps) {
+export function QuickPinLogin({ shopName, userName, role, onSwitchToEmail }: QuickPinLoginProps) {
   const loginWithPin = useAuthStore(state => state.loginWithPin);
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -117,6 +119,7 @@ export function QuickPinLogin({ shopName, onSwitchToEmail }: QuickPinLoginProps)
           <Store className="w-3.5 h-3.5" />
           <span>{shopName || 'POS Counter Terminal'}</span>
         </div>
+        {userName && <p className="text-sm text-foreground">👤 {userName}{role ? ` - ${role === 'ADMIN' ? 'Admin' : role === 'STAFF' ? 'Staff' : role}` : ''}</p>}
         <h2 className="text-2xl font-black text-foreground tracking-tight">Quick PIN Sign In</h2>
         <p className="text-xs text-muted-foreground">
           Enter 4-digit PIN or scan staff badge
@@ -219,7 +222,7 @@ export function QuickPinLogin({ shopName, onSwitchToEmail }: QuickPinLoginProps)
           className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors py-1 px-3 rounded-lg hover:bg-muted/50 cursor-pointer"
         >
           <Lock className="w-3.5 h-3.5" />
-          <span>Sign in with Email & Password (Admin)</span>
+          <span>Switch User / Sign in with Email</span>
           <ArrowRight className="w-3 h-3" />
         </button>
       </div>
