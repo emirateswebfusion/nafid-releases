@@ -69,6 +69,11 @@ After a sync pull the main process emits `onSyncDataUpdated`; screens subscribe 
 - Updates are published to a public release feed via `electron-builder` (`upload-release.js`).
 - NSIS builds generate `.exe.blockmap` differential files (`differentialPackage: true`, `oneClick: true`).
 - The main process updater (`electron/services/updaterService.ts`) downloads only changed byte blocks over HTTP Range requests (~2–5 MB for typical bug fixes/features instead of the full ~120 MB installer).
-- Updates apply on restart with a progress banner and automatic relaunch (`autoUpdater.quitAndInstall(false, true)`), without setup wizards or manual reinstallation.
-- Install is guarded: it runs only when an update is downloaded, and a failed install is reported to the renderer (which re-checks/re-downloads) instead of force-closing the app.
+- All update actions show preparation through the shared update store. On Windows, `windowsUpdateInstaller.ts` verifies
+  the downloaded EXE and waits for process creation before quitting; the non-silent NSIS installer shows progress and
+  relaunches Nafid. Other platforms retain the native updater path.
+- Install runs only for a downloaded update. Launch failure keeps Nafid open and preserves a verified installer for
+  retry; missing/corrupt files require a fresh download. Older installed updater code may need documented recovery.
+- Every release must pass [final installer validation](release-validation.md); missing updater configuration or empty
+  production settings blocks publication even when source tests/builds passed.
 - Full architectural details: see `adr/0006-silent-differential-updates.md`.

@@ -24,7 +24,7 @@ vi.mock('electron-updater', () => ({ autoUpdater: {
 } }));
 vi.mock('electron-log/main', () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 vi.mock('../../electron/services/windowRegistry.js', () => ({ getMainWindow: () => null }));
-vi.mock('../../electron/services/windowsUpdateInstaller.js', () => ({ launchWindowsUpdate: fixture.launch }));
+vi.mock('../../electron/services/windowsInstallerLauncher.js', () => ({ launchWindowsUpdate: fixture.launch }));
 
 const emit = (event: string, info: unknown) => { for (const fn of bucket(event)) fn(info); };
 const downloaded = () => emit('update-downloaded', { version: '2.2.41', downloadedFile: 'C:/cache/update.exe', files: [{ url: 'update.exe', sha512: 'checksum' }] });
@@ -45,7 +45,7 @@ it('waits for Windows to accept the installer before quitting', async () => {
   fixture.launch.mockImplementation(() => new Promise(resolve => { accept = resolve; }));
   const pending = install();
   expect(fixture.appQuit).not.toHaveBeenCalled();
-  expect(fixture.launch).toHaveBeenCalledWith({ file: 'C:/cache/update.exe', sha512: 'checksum' });
+  expect(fixture.launch).toHaveBeenCalledWith({ file: 'C:/cache/update.exe', sha512: 'checksum' }, expect.any(Function));
   accept({ success: true }); expect(await pending).toEqual({ success: true });
   await vi.advanceTimersByTimeAsync(0);
   expect(fixture.appQuit).toHaveBeenCalledOnce(); expect(fixture.quitAndInstall).not.toHaveBeenCalled();

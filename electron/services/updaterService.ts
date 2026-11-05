@@ -3,7 +3,8 @@ import { autoUpdater, type UpdateDownloadedEvent } from 'electron-updater';
 import log from 'electron-log/main';
 import { getMainWindow } from './windowRegistry.js';
 import { platform } from 'node:process';
-import { launchWindowsUpdate, type DownloadedWindowsInstaller } from './windowsUpdateInstaller.js';
+import { launchWindowsUpdate } from './windowsInstallerLauncher.js';
+import type { DownloadedWindowsInstaller } from './windowsUpdateInstaller.js';
 
 type UpdaterState = 'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error';
 let updaterState: UpdaterState = 'idle';
@@ -200,7 +201,10 @@ ipcMain.handle('app:installUpdate', async () => {
   if (platform === 'win32') {
     if (!downloadedInstaller) return { success: false, error: 'No verified update installer is ready. Check for updates again.', installerReady: false };
     installInProgress = true;
-    const result = await launchWindowsUpdate(downloadedInstaller);
+    const result = await launchWindowsUpdate(downloadedInstaller, phase => {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) win.webContents.send('update-status', phase);
+    });
     if (!result.success) {
       installInProgress = false;
       log.error('[Updater] Installer launch failed:', result.error);

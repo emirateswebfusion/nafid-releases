@@ -57,3 +57,14 @@ cannot override that policy. Recovery instructions must accompany the release fo
 ## Release 2.2.41: installation visibility
 
 All update actions, including Settings, use the shared store action. `UpdateInstallProgress` displays an indeterminate preparation screen while the Windows installer is being verified/started, including when the announcement banner was dismissed. On success it stays visible until exit; the non-silent NSIS installer shows its own progress and relaunches Nafid. Failures dismiss preparation and retain the retry/error state. No fabricated installation percentage is shown.
+
+## Continuous update handoff
+
+Installer verification and Windows CreateProcess run in `windowsInstallerWorker` through `windowsInstallerLauncher`,
+so a slow OS launch cannot freeze Electron's main thread. Real verifying/starting phases use the existing update-status
+event; progress is indeterminate. The worker and its built-in-only launcher helper are explicitly unpacked for Worker.
+`build/installer.nsh` prevents the default HideWindow-before-StartApp gap: the installer changes to Starting Nafid,
+launches the new app with a numeric readiness token, and stays visible until the painted, visible main renderer replies.
+Updated installs also override an older updater's silent flag to retain progress. A 120-second readiness timeout shows
+retry/close instructions; it never silently claims app readiness. The transient marker uses the canonical current-user
+Nafid data directory, shared by NSIS and Electron; TEMP can differ after shell launch. Shop databases are unchanged.

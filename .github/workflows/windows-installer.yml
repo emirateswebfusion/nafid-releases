@@ -1,10 +1,16 @@
 name: Windows installer
 on:
   workflow_dispatch:
+    inputs:
+      artifact_run:
+        description: Existing artifact run for diagnostics only (empty builds a release candidate)
+        type: string
+        required: false
   pull_request:
     paths: ['.github/workflows/windows-installer.yml']
 permissions:
   contents: read
+  actions: read
 jobs:
   package:
     runs-on: windows-latest
@@ -15,6 +21,7 @@ jobs:
       VENDORA_SYNC_INTERVAL_MINUTES: '2.0'
       ALLOWED_CONNECT_ORIGINS: https://nafid-server.vercel.app,https://nafid.vercel.app,https://vendora-server.vercel.app,https://vendora-server-ruby.vercel.app,https://clients3.google.com,https://nafid-web-portal.vercel.app,https://nafid.emirateswebfusion.com
       UPDATES_REPO_URL: https://github.com/emirateswebfusion/nafid-releases
+      DIAGNOSTIC_ARTIFACT_RUN: ${{ inputs.artifact_run }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -24,16 +31,34 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: actions/download-artifact@v4
+        if: inputs.artifact_run
+        with:
+          name: windows-installer
+          path: release
+          run-id: ${{ inputs.artifact_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - run: pnpm install --frozen-lockfile --ignore-scripts
+        if: ${{ !inputs.artifact_run }}
       - name: Prepare Electron and SQLite runtime
+        if: ${{ !inputs.artifact_run }}
         run: |
           node node_modules/electron/install.js
           New-Item -ItemType Directory -Force node_modules/better-sqlite3/build/Release | Out-Null
           pnpm run rebuild
       - run: pnpm run build
+        if: ${{ !inputs.artifact_run }}
       - name: Package without publishing
+        if: ${{ !inputs.artifact_run }}
         run: pnpm exec electron-builder --config electron-builder.config.js --win --publish never "-c.electronDist=node_modules/electron/dist"
+      - name: Download verified previous installer
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.41/Nafid-Setup-2.2.41.exe -OutFile "$env:RUNNER_TEMP/Nafid-Setup-2.2.41.exe"
+      - name: Verify final EXE and installed upgrade in disposable runner
+        run: node tests/packaged/windows-upgrade.cjs release "$env:RUNNER_TEMP/Nafid-Setup-2.2.41.exe"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: windows-installer
           retention-days: 7
@@ -45,3 +70,7 @@ jobs:
             release/win-unpacked/resources/app.asar
             release/win-unpacked/resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node
             release/win-unpacked/resources/app.env
+            release/win-unpacked/resources/app-update.yml
+            release/win-unpacked/resources/app.asar.unpacked/dist-electron/services/*.js
+            release/verification/report.json
+            release/verification/main.log

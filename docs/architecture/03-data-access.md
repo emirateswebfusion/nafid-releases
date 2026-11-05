@@ -201,3 +201,13 @@ Fresh databases and both prior histories are covered by `migrationBranchCompatib
 Cloud JSON calls notify once while the current session is paused. A 401 from a previous token is ignored
 for session state after login or sign-out; the request still rejects. Local POS access remains active.
 Regression: `sessionUnauthorized.ui.test.ts` (concurrent failures and delayed prior-session responses).
+
+### Installer-to-renderer readiness
+
+`app:rendererReady` / `appApi.rendererReady()` acknowledges a painted initial app view after auth/profile loading.
+Only the main window may acknowledge. A numeric `--nafid-update-ready=<installer PID>` launch argument selects
+`nafid-update-<PID>.ready` inside Nafid's canonical per-user data directory; arbitrary paths and ambiguous arguments are rejected.
+NSIS uses the same current-user `$APPDATA\Nafid` root. Do not use TEMP: a shell-launched app may inherit a different temporary directory.
+The service writes only after the main window is visible. Normal startup creates no marker. The NSIS installer keeps
+its Starting Nafid status open until this acknowledgement, with an explicit retry/close prompt after a bounded wait.
+No shop data, sync payload, authentication permission or server endpoint changes.

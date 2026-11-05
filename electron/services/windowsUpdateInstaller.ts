@@ -8,9 +8,10 @@ export interface DownloadedWindowsInstaller { file: string; sha512: string }
 export type InstallerLaunchResult = { success: true } | { success: false; error: string; installerReady: boolean };
 
 /** Wait for Windows to accept the installer before allowing the POS to quit. Never elevate or bypass OS policy. */
-export async function launchWindowsUpdate(installer: DownloadedWindowsInstaller): Promise<InstallerLaunchResult> {
+export async function launchWindowsUpdate(installer: DownloadedWindowsInstaller, onPhase: (phase: string) => void = () => {}): Promise<InstallerLaunchResult> {
   let verified = false;
   try {
+    onPhase('verifying-installer');
     if (!path.isAbsolute(installer.file) || path.extname(installer.file).toLowerCase() !== '.exe' || !installer.sha512) {
       throw new Error('The downloaded installer metadata is incomplete. Check for updates again.');
     }
@@ -19,6 +20,7 @@ export async function launchWindowsUpdate(installer: DownloadedWindowsInstaller)
     for await (const chunk of createReadStream(installer.file)) hash.update(chunk);
     if (hash.digest('base64') !== installer.sha512) throw new Error('The downloaded installer failed verification. Download the update again.');
     verified = true;
+    onPhase('starting-installer');
     await new Promise<void>((resolve, reject) => {
       const child = spawn(installer.file, ['--updated', '--force-run'], { detached: true, stdio: 'ignore', windowsHide: false });
       child.once('error', reject);

@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, RestaurantPage, preloadBilling } from './components/app/lazyScreens';
 import UpdateBanner from './components/app/UpdateBanner';
+import { useStartupReady } from './components/app/hooks/useStartupReady';
 import { PermissionGuard } from './components/app/PermissionGuard';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { OwnerDashboard } from './components/owner-dashboard/OwnerDashboard';
@@ -32,6 +33,7 @@ function App() {
 
   const { tenantId, isAuthenticated, isLoading, checkAuth, role, isCloudSyncPaused } = useAuthStore();
   const profileReady = useStoreProfile(tenantId, isAuthenticated);
+  useStartupReady(!isLoading && (!isAuthenticated || profileReady));
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [showComboManager, setShowComboManager] = useState(false);

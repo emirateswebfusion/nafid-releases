@@ -3,8 +3,10 @@ import os from 'node:os';
 import { execSync } from 'node:child_process';
 import dns from 'node:dns';
 import log from 'electron-log/main';
+import { acknowledgeRendererReady } from '../services/startupReadyService.js';
 
 export function registerAppHandlers(): void {
+ipcMain.handle('app:rendererReady', acknowledgeRendererReady);
 ipcMain.handle('app:getLocalIp', () => {
   try {
     const interfaces = os.networkInterfaces();

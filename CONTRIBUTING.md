@@ -43,6 +43,10 @@ One logical change per commit. Never mix formatting or mass renames with behavio
 
 Bump the version (semantic versioning), update the release notes, merge to `main`, then tag: `git tag vX.Y.Z && git push --tags`.
 
+**Mandatory release gate:** complete [release validation](docs/architecture/release-validation.md) against the final
+installer, record the evidence, then publish the complete verified draft. A successful build/CI run is insufficient.
+Missing `app-update.yml`, empty/invalid `app.env`, or mismatched installer/update metadata blocks publication.
+
 **Auto-update feed (no secrets in the app).** Installers and `latest.yml` are published to the public, binaries-only
 repo `UPDATES_REPO_URL` (e.g. `emirateswebfusion/nafid-releases`); installed apps read it without credentials.
 `GH_TOKEN` stays on the build machine (`.env.production` or CI secret) and is used only to upload the release.

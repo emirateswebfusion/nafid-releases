@@ -20,6 +20,7 @@ components → hooks/store → data ──IPC──▶ ipc (register) → servic
 | Money, pricing, tax, numbering, permissions, auth | [04-business-rules](docs/architecture/04-business-rules.md) |
 | Coding standards and enforced rules | [05-conventions](docs/architecture/05-conventions.md) |
 | Where to implement or modify a feature, definition of done | [06-change-guide](docs/architecture/06-change-guide.md) |
+| Packaging, upgrade verification and safe publication | [Release validation](docs/architecture/release-validation.md) |
 | Why it is built this way | [adr/](docs/architecture/adr/) |
 
 Non-negotiables: UI reaches data only through `src/data/*`; business rules have one tested implementation in

@@ -11,6 +11,7 @@ Read it before writing code. If the code and these documents disagree, fix one o
 | 4 | [Business rules](04-business-rules.md) | where money, pricing, tax, numbering, permissions and auth live |
 | 5 | [Conventions](05-conventions.md) | coding standards and the rules the guard scripts enforce |
 | 6 | [Change guide](06-change-guide.md) | where to put a new feature, how to modify one safely, definition of done |
+| — | [Release validation](release-validation.md) | mandatory final-installer, production configuration, upgrade and publication checks |
 | — | [Decision records](adr/) | why the architecture is the way it is (0001 bridge repositories, 0002 one rule one module, 0003 ratchets, 0004 main-process layering, 0005 LAN pairing, 0006 silent updates) |
 | — | [GST Phase 2A Integration](gst-phase2a-integration.md) | India GST multi-mode integration architecture (Managed GSP, Shop GSP, Offline) |
 | — | [UAE VAT 201 & FTA Audit](vat-uae-integration.md) | UAE Form VAT 201 return, FTA Audit File (FAF), and filing lifecycle |

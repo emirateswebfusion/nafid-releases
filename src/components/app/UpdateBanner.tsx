@@ -10,10 +10,11 @@ interface UpdateBannerProps {
 }
 
 export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
-  const { updateInfo, updateReady, installUpdate, init, installError, isInstalling } = useUpdateStore();
+  const { updateInfo, updateReady, installUpdate, init, installError, isInstalling, installPhase } = useUpdateStore();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    init();
     const stored = localStorage.getItem('vendora-update-banner-dismissed');
     if (stored) {
       const hoursSince = (Date.now() - Number(stored)) / (1000 * 60 * 60);
@@ -25,7 +26,6 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
       localStorage.removeItem('vendora-update-banner-dismissed');
     }
 
-    init();
   }, [init]);
 
   if (!updateInfo && !updateReady && !installError && !isInstalling) return null;
@@ -42,7 +42,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
 
   return (
     <div className="relative z-40 mx-2 mt-2 mb-0 animate-in slide-in-from-top-2 fade-in duration-300">
-      {isInstalling && <UpdateInstallProgress version={updateInfo?.version} />}
+      {isInstalling && <UpdateInstallProgress version={updateInfo?.version} phase={installPhase} />}
       <div className={clsx(
         'flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border shadow-sm backdrop-blur-md',
         updateReady

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ping: () => ipcRenderer.invoke('ping'),
   appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   appGetVersion: () => ipcRenderer.invoke('app:getVersion'),
+  appRendererReady: () => ipcRenderer.invoke('app:rendererReady'),
   appGetLocalIp: () => ipcRenderer.invoke('app:getLocalIp'),
   appGetNetworkDetails: () => ipcRenderer.invoke('app:getNetworkDetails'),
   appInstallUpdate: () => ipcRenderer.invoke('app:installUpdate'),

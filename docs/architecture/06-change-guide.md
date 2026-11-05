@@ -189,4 +189,8 @@ Run `outbox-run.mts` plus unchanged legacy sync (both login modes), IPC and LAN 
 
 ### Windows release packaging
 
+Every release must pass the canonical [packaged release validation gate](release-validation.md). Inspect the final
+installer's updater/production configuration and verify the complete draft asset set before publication; source gates
+alone do not satisfy this requirement. Record the actual installed-upgrade test result and any transition limitation.
+
 `.github/workflows/windows-installer.yml` builds an unsigned installer on a Windows runner with the existing Electron/SQLite rebuild recipe and public runtime settings. It uploads reviewable artifacts without publishing. Run it manually when local Application Control prevents NSIS from generating its uninstaller; do not disable local security controls. Verify the installer metadata, packaged runtime and thermal driver characterization before publishing release assets.

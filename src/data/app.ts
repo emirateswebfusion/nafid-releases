@@ -18,12 +18,15 @@ export type AppInstallUpdateResult =
   | { success: true }
   | { success: false; error: string; installerReady?: boolean };
 
+export interface AppRendererReadyResult { success: boolean }
+
 /** App shell: version, updater, network info, error logging. Channel catalog — the only way UI code reaches these IPC channels. */
 export const appApi = bindBridge({
   logError: 'logError',
   ping: 'ping',
   checkForUpdates: 'appCheckForUpdates',
   getVersion: 'appGetVersion',
+  rendererReady: 'appRendererReady',
   getLocalIp: 'appGetLocalIp',
   getNetworkDetails: 'appGetNetworkDetails',
   installUpdate: 'appInstallUpdate',

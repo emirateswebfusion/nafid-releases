@@ -11,6 +11,7 @@ export interface UpdateState {
   initialized: boolean;
   installError: string | null;
   isInstalling: boolean;
+  installPhase: 'preparing' | 'verifying-installer' | 'starting-installer';
   init: () => void;
   installUpdate: () => Promise<AppInstallUpdateResult | undefined>;
   checkForUpdates: () => Promise<void>;
@@ -24,12 +25,14 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   initialized: false,
   installError: null,
   isInstalling: false,
+  installPhase: 'preparing',
 
   init: () => {
     if (get().initialized || !isDesktopRuntime()) return;
     set({ initialized: true });
 
     bridgeEvents.onUpdateStatus((status: string) => {
+      if (status === 'verifying-installer' || status === 'starting-installer') { set({ installPhase: status }); return; }
       if (status === 'ready-to-install' || status === 'downloaded') {
         set({ updateReady: true, isDownloading: false });
       } else if (status === 'downloading') {
@@ -73,7 +76,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
 
   installUpdate: async () => {
     if (get().isInstalling) return;
-    set({ isInstalling: true, installError: null });
+    set({ isInstalling: true, installError: null, installPhase: 'preparing' });
     try {
       const result = await appApi.installUpdate();
       if (result?.success) return result; // Keep progress visible until the app exits.

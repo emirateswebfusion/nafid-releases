@@ -52,6 +52,7 @@ module.exports = {
   productName: 'Nafid',
   copyright: 'Copyright © 2026 Emirates WebFusion',
   npmRebuild: false,
+  asarUnpack: ['dist-electron/services/windowsInstallerWorker.js', 'dist-electron/services/windowsUpdateInstaller.js'],
   directories: {
     output: 'release',
     buildResources: 'build'
@@ -91,6 +92,7 @@ module.exports = {
   },
   nsis: {
     oneClick: true,
+    include: 'build/installer.nsh',
     perMachine: false,
     allowElevation: true,
     deleteAppDataOnUninstall: false,
