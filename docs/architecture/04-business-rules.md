@@ -475,3 +475,38 @@ Returns > Record credit note uses `returns/creditNote.ts` and canonical returnPr
 
 Coverage: `scrapCashReconciliation`, `shopClosingGrossAmount`, `quickPinLogin`, `releaseFixes.ui`,
 `whatsappBillBreakdown`, `whatsappTaxBreakdown`, `staffPayStatement`, and print characterization.
+
+
+### Settings: one explicit Save Changes action
+
+All preferences and feature switches in Settings are drafts. Only the header Save Changes action
+persists and applies them. No section may introduce its own Save button or write settings from
+an input/checkbox handler. This includes modules, restaurant setup, printer targets, service charge,
+WhatsApp preferences, theme, ledger terminology, dashboard order, sync engine, pairing keys and UAE
+seller/provider settings. Password changes, device linking, test print/report, updates and other explicit
+operations remain separate actions; they must not silently save edited preferences.
+
+`SettingsManager` owns the main form and feature draft. Visited sections remain mounted but hidden
+so their local drafts survive navigation. Nested setup panes and hardware/WhatsApp preferences also
+retain their draft state. `SettingsSaveSession` collects dirty sections by unique identity;
+`useSettingsSectionSave` registers the latest async callback. The header aggregates all dirty state,
+disables editing during save, awaits every section, and reports success only after completion. A failed
+section rejects to the header and retains its draft for retry. Writes span existing data APIs and are
+not one database transaction: successfully written sections may remain saved when a later section fails.
+Do not report rollback or atomicity. No persistence contracts or sync payloads change.
+
+Restaurant setup edits use `useRestaurantSettingsDraft`, retaining stable IDs for additions and saving
+only changed rows through `restaurantApi`. Table labels and numeric setup values are checked before
+writes; existing server/main-process validation remains authoritative. Theme/terminology/dashboard
+changes are applied to their runtime stores only after persistence succeeds.
+
+Regression checks: `settingsSaveSession.ui`, `businessModules.ui`, `cashRegisterSettings.ui`,
+`filingOnlySettings.ui`, `uaeArabicPrintSetting.ui`, and `timezoneSettingsSave.ui`. Renderer acceptance:
+Vite > `/tests/fixtures/moduleWorkspace.html?settings` uses isolated test shop storage. Check drafts across
+sections, exactly one Save Changes button, unsaved discard on reload, saved persistence on reload,
+and a failing/retried section. It does not prove installed native hardware behavior.
+
+
+### Shared display clock contract
+
+The root architecture's application-wide time contract applies to every module, including restaurant pages, reports, AI replies, receipts and exports. Use `storeDate`, `storeTime`, `storeDateTime` from `src/utils/time/dateDisplay.ts`; these enforce the current shared timezone and 12/24-hour setting. Pass date-only strings unchanged. Use `getStoreBusinessDate` for current-day defaults, `toStoreWallClock` / `storeWallClockToUtcIso` for editable timestamp inputs, and `storeCalendarDate` / `calendarDateKey` only for calendar arithmetic, never storage. The renderer re-exports the pure main-process UTC parser to keep one implementation. Main-process report services convert calendar filters once with `getUtcRangeForStoreDateRange`, then statement factories compare `julianday` instants. Purchase document dates remain calendar labels. Tests: `timeContract.test.ts`, `timezoneHelper.test.ts`, `storeTime.test.ts`, `invoiceDateFilters.test.ts`.

@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Download, RotateCcw, AlertCircle, CheckCircle2, Loader2, Bell, Globe, RefreshCw, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import { formatTimeAgo, formatBytes } from '../settingsUtils';
@@ -136,7 +136,6 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                                   type="button"
                                   onClick={() => {
                                     setWhatsNewLang('ml');
-                                    try { localStorage.setItem('nafid_whats_new_lang', 'ml'); } catch (_) { /* ignore */ }
                                   }}
                                   className={clsx(
                                     "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer font-malayalam",
@@ -152,7 +151,6 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                                   type="button"
                                   onClick={() => {
                                     setWhatsNewLang('en');
-                                    try { localStorage.setItem('nafid_whats_new_lang', 'en'); } catch (_) { /* ignore */ }
                                   }}
                                   className={clsx(
                                     "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer",
@@ -281,7 +279,6 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                           type="button"
                           onClick={() => {
                             setWhatsNewLang('ml');
-                            try { localStorage.setItem('nafid_whats_new_lang', 'ml'); } catch (_) { /* ignore */ }
                           }}
                           className={clsx(
                             "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer font-malayalam",
@@ -297,7 +294,6 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                           type="button"
                           onClick={() => {
                             setWhatsNewLang('en');
-                            try { localStorage.setItem('nafid_whats_new_lang', 'en'); } catch (_) { /* ignore */ }
                           }}
                           className={clsx(
                             "px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all duration-150 cursor-pointer",

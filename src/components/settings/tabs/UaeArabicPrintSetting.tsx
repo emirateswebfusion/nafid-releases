@@ -1,3 +1,4 @@
+import { useSettingsSectionSave } from '../hooks/useSettingsSectionSave';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Languages } from 'lucide-react';
 import clsx from 'clsx';
@@ -12,7 +13,7 @@ const OPTIONS: Array<{ key: keyof UaeArabicPrint; label: string; hint: string }>
 
 /**
  * UAE only: "Arabic on bills" (setting `uae_arabic_print`). Saved with the settings Save button, like the cash
- * register options: it reports unsaved changes with `settings:section-dirty` and saves on `settings:request-save`.
+ * register options: it registers a draft save with the Settings save session.
  */
 export function UaeArabicPrintSetting() {
   const tenantId = useAuthStore((s) => s.tenantId) || 'global';
@@ -41,25 +42,17 @@ export function UaeArabicPrintSetting() {
       await setSetting({ tenant_id: tenantId, key: UAE_ARABIC_PRINT_KEY, value: next });
       setUaeArabicPrint(next);
       setSaved(next);
-    } catch {
+    } catch (error) {
       setError('Could not save the Arabic print setting. Please try again.');
+      throw error;
     }
   }, [tenantId]);
 
   const dirty = value.documents !== saved.documents || value.thermal !== saved.thermal;
-  useEffect(() => {
-    if (ready) window.dispatchEvent(new CustomEvent('settings:section-dirty', { detail: { dirty } }));
-  }, [dirty, ready]);
-  useEffect(() => () => { window.dispatchEvent(new CustomEvent('settings:section-dirty', { detail: { dirty: false } })); }, []);
 
-  useEffect(() => {
-    const handleRequestSave = () => {
-      const cur = stateRef.current;
-      if (cur.ready && (cur.value.documents !== cur.saved.documents || cur.value.thermal !== cur.saved.thermal)) void save();
-    };
-    window.addEventListener('settings:request-save', handleRequestSave);
-    return () => window.removeEventListener('settings:request-save', handleRequestSave);
-  }, [save]);
+
+
+  useSettingsSectionSave(ready && dirty, save);
 
   const toggle = (key: keyof UaeArabicPrint) => setValue((current) => ({ ...current, [key]: !current[key] }));
 

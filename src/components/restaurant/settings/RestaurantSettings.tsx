@@ -1,4 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { restaurantApi, type KitchenPrinterConfig } from '../../../data/restaurant';
+import { useRestaurantSettingsDraft } from './useRestaurantSettingsDraft';
+import type { RestaurantData } from '../hooks/useRestaurantData';
 import { useAuthStore } from '../../../store/authStore';
 import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import { hasPermission } from '../../../utils/security/permissions';
@@ -13,8 +16,16 @@ export function RestaurantSettings() {
 }
 function Setup({ tenantId }: { tenantId: string }) {
   const data = useRestaurantData(tenantId);
+  const { setError } = data;
+  const [printer, setPrinter] = useState<KitchenPrinterConfig | null>(null);
+  useEffect(() => { void restaurantApi.getPrinterConfig().then(setPrinter).catch(error => setError(String(error))); }, [setError]);
+  if (data.loading || !printer) return <p role="status">{data.error || 'Loading food order settings…'}</p>;
+  return <DraftSetup tenantId={tenantId} data={data} printer={printer} />;
+}
+function DraftSetup({ tenantId, data, printer }: { tenantId: string; data: RestaurantData; printer: KitchenPrinterConfig }) {
+  const draft = useRestaurantSettingsDraft(tenantId, data.setup, printer);
   const [message, setMessage] = useState('');
   const categories = useMemo(() => [...new Set(data.products.map(p => p.category).filter((c): c is string => !!c))].sort(), [data.products]);
-  return <><p role="status" className="px-5 text-sm">{message}</p><RestaurantSetupView tenantId={tenantId} data={data} categories={categories}
-    onChanged={() => { void data.refreshSetup(); }} onError={setMessage} onInfo={setMessage} /></>;
+  return <><p role="status" className="px-5 text-sm">{message}</p><RestaurantSetupView tenantId={tenantId} api={draft.api} data={{ ...data, setup: draft.setup }} categories={categories}
+    onChanged={() => {}} onError={setMessage} onInfo={setMessage} /></>;
 }

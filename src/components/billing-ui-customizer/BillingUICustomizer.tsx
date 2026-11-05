@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { POS_LAYOUT_MODELS_DATA, DEFAULT_BILLING_UI_CONFIG, useBillingUIStore, type BillingUIConfig, type POSLayoutModel } from '../../store/billingUIStore';
+import { POS_LAYOUT_MODELS_DATA, DEFAULT_BILLING_UI_CONFIG, type BillingUIConfig, type POSLayoutModel } from '../../store/billingUIStore';
 import { LayoutGrid, Columns, Sliders, RotateCcw, Eye, Touchpad, X, AlertCircle, User, Search } from 'lucide-react';
 import clsx from 'clsx';
-import { hasBridge } from '../../data/client';
-import { settingsApi } from '../../data/settings';
 import { PostPrintModeSection } from './views/PostPrintModeSection';
 import { ComponentVisibilitySection } from './views/ComponentVisibilitySection';
 import { HeaderButtonsSection } from './views/HeaderButtonsSection';
@@ -39,10 +37,6 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
 
   const handleResetToFactoryDefaults = () => {
     onChange(DEFAULT_BILLING_UI_CONFIG);
-    useBillingUIStore.getState().resetConfig();
-    if (hasBridge('settingsSet')) {
-      settingsApi.set({ tenant_id: 'global', key: 'billing_ui_config', value: DEFAULT_BILLING_UI_CONFIG }).catch(() => {});
-    }
   };
   return (
     <div className="space-y-6 w-full pb-12 relative">

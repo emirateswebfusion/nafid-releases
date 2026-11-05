@@ -94,13 +94,13 @@ export const WhatsAppSettings: React.FC<WhatsAppSettingsProps> = ({
       )}
 
       {/* ─── TAB 2: AUTOMATION & BILLS SETTINGS ─────────────────────────────── */}
-      {currentTab === 'settings' && (
+      {(<div hidden={currentTab !== 'settings'}>
         <WhatsAppPreferencesTab
           key={effectiveTenantId} tenantId={effectiveTenantId}
           autoSendEnabled={autoSendEnabled} handleTabSelect={handleTabSelect}
           handleToggleIncludeShopName={handleToggleIncludeShopName} handleToggleLedgerAlerts={handleToggleLedgerAlerts}
           onAutoSendChange={onAutoSendChange} shopName={shopName} wa={wa}
-        />
+        /></div>
       )}
 
       {/* ─── TAB 3: SHOP CLOSING OVERVIEW (END TO END) ───────────────────────── */}

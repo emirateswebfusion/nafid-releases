@@ -1,3 +1,5 @@
+import { SettingsSaveSession } from './settingsSaveSession';
+import { SettingsSaveContext } from './hooks/useSettingsSectionSave';
 import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useMemo } from 'react';
 import { Settings, Save, Loader2, CheckCircle2, AlertCircle, X, Power } from 'lucide-react';
@@ -42,7 +44,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
     a5Orientation, printWidth,
     thermalStyle, setThermalStyle, a4Style, setA4Style, previewFormat, setPreviewFormat,
     previewStyle, setPreviewStyle, bankName, bankAccount, bankIfsc, bankBranch,
-    setShowCashRegister, setLoyaltyEnabled, returnPrefix, returnStartNumber, setDetectedLocalIp,
+    setShowCashRegister, returnPrefix, returnStartNumber, setDetectedLocalIp,
     setNetworkDetails, setEffectiveCloudState,
   } = form;
 
@@ -53,8 +55,13 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
     }, 4000);
     return () => clearTimeout(timer);
   }, [message, setMessage]);
+  const [saveSession] = useState(() => new SettingsSaveSession());
+  const [, refreshSections] = useState(0);
+  const saveContext = useMemo(() => ({ session: saveSession, changed: () => refreshSections(v => v + 1) }), [saveSession]);
+  const [visited, setVisited] = useState<string[]>([initialSection || (isAdminRole(role) ? 'store' : 'hardware')]);
   const [activeSection, setActiveSection] = useState(isAdminRole(role) ? (initialSection || 'store') : 'hardware');
   const selectSection = (id: string) => {
+    setVisited(current => current.includes(id) ? current : [...current, id]);
     setActiveSection(id);
     if (id === 'hardware') setActiveHardwareTab('receipt');
     if (id === 'products') setActiveProductsTab('coding');
@@ -62,27 +69,19 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
 
   const shopDomain = useCartStore((state) => state.shopDomain);
   const [localDomain] = useState(shopDomain || 'GENERAL');
-  const { flags: featureFlags, loadFlags } = useFeatureFlagsStore();
+  const { flags: savedFeatureFlags, loadFlags } = useFeatureFlagsStore();
+  const [draftFeatureFlags, setDraftFeatureFlags] = useState<FeatureFlags | null>(null);
+  const featureFlags = draftFeatureFlags ?? savedFeatureFlags;
 
   const handleToggleFeatureFlag = (key: FeatureKey, nextVal?: boolean) => {
-    const currentVal = featureFlags?.[key];
-    const targetVal = nextVal !== undefined ? nextVal : !currentVal;
-
-    let updatedFlags: FeatureFlags = { ...DEFAULT_FEATURE_FLAGS, ...featureFlags, [key]: targetVal };
-    if (key === 'cash_settlement' && !targetVal) {
-      updatedFlags.cash_register = false;
-      setShowCashRegister(false);
-    } else if (key === 'cash_register' && targetVal) {
-      updatedFlags.cash_settlement = true;
-      setShowCashRegister(true);
-    } else if (key === 'cash_register' && !targetVal) {
-      setShowCashRegister(false);
-    } else if (key === 'loyalty') {
-      setLoyaltyEnabled(targetVal);
-    }
-
-    updatedFlags = sanitizeFeatureFlags(updatedFlags);
-    useFeatureFlagsStore.getState().setFlags(updatedFlags);
+    setDraftFeatureFlags(previous => {
+      const current = previous ?? savedFeatureFlags ?? DEFAULT_FEATURE_FLAGS;
+      const target = nextVal ?? !current[key];
+      return sanitizeFeatureFlags({ ...current, [key]: target,
+        ...(key === 'cash_register' && target ? { cash_settlement: true } : {}),
+        ...(['dining_tables', 'takeaway_delivery', 'kitchen_display'].includes(key) && target ? { restaurant_mode: true } : {}),
+      });
+    });
   };
   const [initialSnapshot, setInitialSnapshot] = useState('');
 
@@ -179,39 +178,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
     updateSnapshotField,
   });
 
-  const {
-    barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopEmail, shopWebsite, vatPriceInclusive, storeCountry, storeTimezone, upiId, showUpiQr,
-    showPriceOverrideMrp, openCashDrawerOnPending, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer,
-    defaultOpeningBalance, printFormat, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix,
-    b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister,
-    autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, scrapBillSettings,
-    gstProfitPercentage, gstConversionTaxInclusive, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber,
-    purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode,
-    timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, enablePartyGst, enablePartyEstimate,
-    enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate,
-    showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig,
-    emergencyPanicConfig, shopClosingConfig, saveRevision,
-  } = form;
-
-  const [sectionDirty, setSectionDirty] = useState(false);
-
-  useEffect(() => {
-    const onSectionDirty = (e: Event) => {
-      const custom = e as CustomEvent<{ dirty?: boolean }>;
-      setSectionDirty(Boolean(custom.detail?.dirty));
-    };
-    window.addEventListener('settings:section-dirty', onSectionDirty);
-    return () => window.removeEventListener('settings:section-dirty', onSectionDirty);
-  }, []);
-
-  const getSettingsSnapshot = () => buildSettingsSnapshot();
-
-  const hasChanges = useMemo(() => {
-    if (sectionDirty) return true;
-    if (!initialSnapshot) return false;
-    return getSettingsSnapshot() !== initialSnapshot;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- getSettingsSnapshot and initialSnapshot are excluded so the original form-field and saveRevision changes remain the dirty-check triggers.
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, vatPriceInclusive, storeCountry, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, showPriceOverrideMrp, openCashDrawerOnPending, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, defaultOpeningBalance, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, loyaltyAwardOnPending, billSettings, scrapBillSettings, gstProfitPercentage, gstConversionTaxInclusive, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, purchaseBillPrefix, purchaseBillStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, enablePartyGst, enablePartyEstimate, enableRealPaperStock, showZeroPaperStock, showPaperOnlyProducts, showPaperStockInGst, showPaperStockInEstimate, showProductGstBadge, showPriceTiersInInventory, enableConvertToGst, billingUIConfig, staffDataMaskingConfig, emergencyPanicConfig, shopClosingConfig, saveRevision, sectionDirty]);
+  const hasChanges = saveSession.dirty || Boolean(initialSnapshot && buildSettingsSnapshot() !== initialSnapshot);
 
   useEffect(() => {
     let isMounted = true;
@@ -228,7 +195,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
   }, [setLoading]);
 
   const { handleSave } = useSettingsSave({
-    form, activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix,
+    form, activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix, saveSession,
     returnStartNumber, role, shopDomain, updateDomain,
   });
 
@@ -300,7 +267,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
         </header>
 
         {/* Body Skeleton with Sidebar & Main Content */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex min-h-0 flex-col md:flex-row overflow-hidden">
           {/* Sidebar Skeleton */}
           <div className="w-64 border-r border-border p-4 space-y-6 bg-card/50 shrink-0">
             {[1, 2, 3, 4, 5].map((g) => (
@@ -363,7 +330,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {activeSection !== 'features' && (hasChanges || saving) && (
+          {(hasChanges || saving) && (
             <button
               type="button"
               onClick={handleSave}
@@ -385,12 +352,12 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
       </header>
 
       {/* ── Sidebar + Content ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex min-h-0 flex-col md:flex-row overflow-hidden">
 
         <SettingsSidebar activeSection={activeSection} isAdmin={isAdminRole(role)} onSelect={selectSection} />
 
         {/* ─── Main Content Area ─── */}
-        <main className="flex-1 overflow-y-auto bg-background" style={{ scrollbarGutter: 'stable' }}>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background" style={{ scrollbarGutter: 'stable' }}>
           <div className="w-full p-6 lg:p-8 animate-in fade-in duration-300">
 
             {/* Section Header */}
@@ -414,19 +381,20 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
             )}
 
             {/* Section Content */}
-            <div className="space-y-6">
+            <fieldset disabled={saving} className="min-w-0">
+            <SettingsSaveContext.Provider value={saveContext}>
+            {Array.from(new Set([...visited, activeSection])).map(section => <div key={section} hidden={section !== activeSection}>
               <SettingsSectionContent
-                activeSection={activeSection} featureFlags={featureFlags} fetchPrinters={fetchPrinters}
-                onModulesSaved={flags => {
-                  form.setEnableScrap(flags.scrap); setLoyaltyEnabled(flags.loyalty);
-                  updateSnapshotField(previous => ({ ...previous, features: JSON.stringify(flags), enableScrap: flags.scrap, showCashRegister: flags.cash_register, loyaltyEnabled: flags.loyalty }));
-                }}
+                onFlagsChange={setDraftFeatureFlags} activeSection={activeSection} featureFlags={featureFlags} fetchPrinters={fetchPrinters}
+
                 handleChangePassword={handleChangePassword} handleInstallUpdate={handleInstallUpdate}
                 handleRetryDownload={handleRetryDownload} handleToggleFeatureFlag={handleToggleFeatureFlag}
-                returnPrefix={returnPrefix} returnStartNumber={returnStartNumber} role={role} sectionId={activeSection}
+                returnPrefix={returnPrefix} returnStartNumber={returnStartNumber} role={role} sectionId={section}
                 setActiveSection={setActiveSection} tenantId={tenantId} form={form}
               />
-            </div>
+            </div>)}
+            </SettingsSaveContext.Provider>
+            </fieldset>
 
           </div>
 
@@ -488,7 +456,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
             <button
               type="button"
               onClick={() => {
-                useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, false])) as FeatureFlags));
+                setDraftFeatureFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, false])) as FeatureFlags));
                 setShowCashRegister(false);
                 setConfirmTurnOffAllModalOpen(false);
               }}

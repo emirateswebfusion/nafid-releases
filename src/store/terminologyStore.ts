@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { hasBridge } from '../data/client';
-import { settingsApi } from '../data/settings';
+import { setSetting, settingsApi } from '../data/settings';
 
 export type TerminologyPreset = 'SIMPLE' | 'ACCOUNTING' | 'CASHFLOW' | 'CUSTOM';
 
@@ -116,7 +116,7 @@ function loadStoredCustomLabels(): TerminologyCustomLabels {
   return DEFAULT_CUSTOM_LABELS;
 }
 
-function computeLabels(preset: TerminologyPreset, customLabels: TerminologyCustomLabels): TerminologyLabels {
+export function computeLabels(preset: TerminologyPreset, customLabels: TerminologyCustomLabels): TerminologyLabels {
   if (preset === 'CUSTOM') {
     return {
       receivable: customLabels.receivable || DEFAULT_CUSTOM_LABELS.receivable,
@@ -215,4 +215,14 @@ if (typeof window !== 'undefined') {
   setTimeout(() => {
     hydrateTerminologyFromDB();
   }, 100);
+}
+
+
+/** Commit Settings drafts before publishing new ledger wording to the running app. */
+export async function saveTerminologyPreferences(preset: TerminologyPreset, customLabels: TerminologyCustomLabels) {
+  await setSetting({ tenant_id: 'global', key: STORAGE_KEY_PRESET, value: preset });
+  await setSetting({ tenant_id: 'global', key: STORAGE_KEY_CUSTOM, value: customLabels });
+  localStorage.setItem(STORAGE_KEY_PRESET, preset);
+  localStorage.setItem(STORAGE_KEY_CUSTOM, JSON.stringify(customLabels));
+  useTerminologyStore.setState({ preset, customLabels, labels: computeLabels(preset, customLabels) });
 }

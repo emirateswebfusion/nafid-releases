@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { hasBridge } from '../data/client';
-import { settingsApi } from '../data/settings';
+import { setSetting, settingsApi } from '../data/settings';
 
 const FONT_SCALE_KEY = 'vendora-font-scale';
 const PRIMARY_COLOR_KEY = 'vendora-primary-color';
@@ -665,3 +665,16 @@ applyFontScale(loadFontScale());
 applyPrimaryColor(loadPrimaryColor());
 applyFontFamily(loadFontFamily());
 applyThemeBases(loadLightThemeBase(), loadDarkThemeBase());
+
+
+export type DesignPreferences = Pick<ThemeState, 'theme' | 'fontScale' | 'primaryColor' | 'fontFamily' | 'lightThemeBase' | 'darkThemeBase'>;
+/** Settings drafts persist fully before changing the app's theme or local cache. */
+export async function saveDesignPreferences(preferences: DesignPreferences) {
+  const keys: Record<keyof DesignPreferences, string> = { theme: 'vendora-theme', fontScale: FONT_SCALE_KEY, primaryColor: PRIMARY_COLOR_KEY, fontFamily: FONT_FAMILY_KEY, lightThemeBase: LIGHT_THEME_BASE_KEY, darkThemeBase: DARK_THEME_BASE_KEY };
+  for (const key of Object.keys(keys) as (keyof DesignPreferences)[]) await setSetting({ tenant_id: 'global', key: keys[key], value: preferences[key] });
+  for (const key of Object.keys(keys) as (keyof DesignPreferences)[]) localStorage.setItem(keys[key], String(preferences[key]));
+  document.documentElement.classList.remove('light', 'dark');
+  document.documentElement.classList.add(preferences.theme);
+  applyFontScale(preferences.fontScale); applyPrimaryColor(preferences.primaryColor); applyFontFamily(preferences.fontFamily); applyThemeBases(preferences.lightThemeBase, preferences.darkThemeBase);
+  useThemeStore.setState(preferences);
+}

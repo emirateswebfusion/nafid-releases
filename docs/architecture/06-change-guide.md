@@ -201,8 +201,8 @@ alone do not satisfy this requirement. Record the actual installed-upgrade test 
 
 `src/config/businessProfiles.ts` recommends modules for retail, restaurant, wholesale, clothing, grocery,
 hardware and scrap shops. Categories set initial choices; they do not change tax country or permissions.
-Owners customize accessible checkbox selections and explicitly Save shop modules. This section saves its
-own draft and does not apply uncommitted choices to the running app. Existing shop choices are preserved
+Owners customize accessible checkbox selections and apply them through the main Settings Save Changes button.
+The SettingsManager draft survives section navigation and does not apply uncommitted choices to the running app. Existing shop choices are preserved
 until explicitly saved. Clothing currently recommends existing category/retail features; product size/color
 variant modeling is not implemented by this module-selection change.
 
@@ -253,3 +253,33 @@ For UI acceptance start Vite on port 5184 and run `electron tests/characterizati
 The isolated fixture has no native database or outgoing messages. Unit/service checks prove persistence;
 renderer fixtures alone do not prove installed upgrade behavior. Run the final installer acceptance
 workflow in a disposable Windows runner as required by `release-validation.md` before publication.
+
+
+### Settings: one explicit Save Changes action
+
+All preferences and feature switches in Settings are drafts. Only the header Save Changes action
+persists and applies them. No section may introduce its own Save button or write settings from
+an input/checkbox handler. This includes modules, restaurant setup, printer targets, service charge,
+WhatsApp preferences, theme, ledger terminology, dashboard order, sync engine, pairing keys and UAE
+seller/provider settings. Password changes, device linking, test print/report, updates and other explicit
+operations remain separate actions; they must not silently save edited preferences.
+
+`SettingsManager` owns the main form and feature draft. Visited sections remain mounted but hidden
+so their local drafts survive navigation. Nested setup panes and hardware/WhatsApp preferences also
+retain their draft state. `SettingsSaveSession` collects dirty sections by unique identity;
+`useSettingsSectionSave` registers the latest async callback. The header aggregates all dirty state,
+disables editing during save, awaits every section, and reports success only after completion. A failed
+section rejects to the header and retains its draft for retry. Writes span existing data APIs and are
+not one database transaction: successfully written sections may remain saved when a later section fails.
+Do not report rollback or atomicity. No persistence contracts or sync payloads change.
+
+Restaurant setup edits use `useRestaurantSettingsDraft`, retaining stable IDs for additions and saving
+only changed rows through `restaurantApi`. Table labels and numeric setup values are checked before
+writes; existing server/main-process validation remains authoritative. Theme/terminology/dashboard
+changes are applied to their runtime stores only after persistence succeeds.
+
+Regression checks: `settingsSaveSession.ui`, `businessModules.ui`, `cashRegisterSettings.ui`,
+`filingOnlySettings.ui`, `uaeArabicPrintSetting.ui`, and `timezoneSettingsSave.ui`. Renderer acceptance:
+Vite > `/tests/fixtures/moduleWorkspace.html?settings` uses isolated test shop storage. Check drafts across
+sections, exactly one Save Changes button, unsaved discard on reload, saved persistence on reload,
+and a failing/retried section. It does not prove installed native hardware behavior.

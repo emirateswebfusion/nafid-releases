@@ -27,19 +27,7 @@ export function useShopClosingConfigActions(ctx: UseShopClosingConfigActionsCont
     const updated = { ...closingConfig, enabled };
     setClosingConfig(updated);
 
-    // Auto-persist toggle immediately to database so that even if the page is reopened without pressing Save,
-    // the enabled/disabled state is permanently persisted!
-    try {
-      if (hasBridge('shopClosingSaveConfig')) {
-        await whatsappApi.shopClosingSaveConfig({
-          tenant_id: effectiveTenantId,
-          config: updated,
-          user_role: role as string | undefined,
-        });
-      }
-    } catch (err) {
-      console.error('[WhatsAppSettings] Auto-save toggle error:', err);
-    }
+
   };
 
   const handlePhoneChange = (val: string) => {

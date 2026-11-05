@@ -1,3 +1,4 @@
+import { useSettingsSectionSave } from './hooks/useSettingsSectionSave';
 import { useCallback, useEffect, useState } from 'react';
 import { Building, CloudCog, Loader2 } from 'lucide-react';
 import { getSetting, setSetting } from '../../data/settings';
@@ -31,6 +32,8 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
   const [overview, setOverview] = useState<EinvoiceOverview | null>(null);
   const [cloud, setCloud] = useState({ mode: 'OFF' as EinvoiceMode, provider_id: 'sandbox', environment: 'SANDBOX' as AspEnvironment, start_date: new Date().toISOString().slice(0, 10) });
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [savedSeller, setSavedSeller] = useState('');
+  const [savedCloud, setSavedCloud] = useState('');
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -38,7 +41,8 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
     try {
       const data = await einvoiceCloud.getOverview();
       setOverview(data);
-      setCloud({ mode: data.settings.mode, provider_id: data.settings.provider_id, environment: data.settings.environment, start_date: data.settings.start_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10) });
+      const nextCloud = { mode: data.settings.mode, provider_id: data.settings.provider_id, environment: data.settings.environment, start_date: data.settings.start_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10) };
+      setCloud(nextCloud); setSavedCloud(JSON.stringify(nextCloud));
     } catch (err) {
       setMessage({ text: `Cloud settings unavailable: ${err instanceof Error ? err.message : 'offline'}`, ok: false });
     }
@@ -48,7 +52,7 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
     let active = true;
     const keys = Object.entries(SELLER_SETTING_KEYS) as [keyof SellerForm, string][];
     void Promise.all(keys.map(([, key]) => getSetting({ tenant_id, key }))).then(values => {
-      if (active) setSeller(Object.fromEntries(keys.map(([name], i) => [name, settingText(values[i])])) as SellerForm);
+      if (active) { const next = Object.fromEntries(keys.map(([name], i) => [name, settingText(values[i])])) as SellerForm; setSeller(next); setSavedSeller(JSON.stringify(next)); }
     });
     void loadCloud();
     return () => { active = false; };
@@ -66,19 +70,20 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
     }
   };
 
-  const saveSeller = () => run('seller', async () => {
-    for (const [name, key] of Object.entries(SELLER_SETTING_KEYS) as [keyof SellerForm, string][]) {
-      await setSetting({ tenant_id, key, value: seller[name].trim() });
-    }
-    return 'Seller details saved; they sync to the cloud with the next sync.';
+  useSettingsSectionSave(!!savedSeller && JSON.stringify(seller) !== savedSeller, async () => {
+    for (const [name, key] of Object.entries(SELLER_SETTING_KEYS) as [keyof SellerForm, string][]) await setSetting({ tenant_id, key, value: seller[name].trim() });
+    setSavedSeller(JSON.stringify(seller));
   });
-  const saveCloud = () => run('cloud', async () => {
-    await einvoiceCloud.saveSettings(cloud);
-    await loadCloud();
-    return 'E-invoicing settings saved.';
+  useSettingsSectionSave(!!savedCloud && JSON.stringify(cloud) !== savedCloud, async () => {
+    await einvoiceCloud.saveSettings(cloud); setSavedCloud(JSON.stringify(cloud));
   });
-  const saveCredentials = () => run('credentials', async () => (await einvoiceCloud.saveConnection(cloud.provider_id, cloud.environment, credentials)).message);
+  useSettingsSectionSave(Object.keys(credentials).length > 0, async () => {
+    const result = await einvoiceCloud.saveConnection(cloud.provider_id, cloud.environment, credentials);
+    if (!result.connected) throw new Error(result.message || 'Could not connect to the service provider');
+    setCredentials({});
+  });
   const processNow = () => run('process', async () => {
+    if (JSON.stringify(cloud) !== savedCloud) throw new Error('Save Changes before sending with this configuration.');
     const r = await einvoiceCloud.processNow();
     await loadCloud();
     return `Processed: ${r.built} prepared, ${r.submitted} sent, ${r.checked} status checks, ${r.received} received.`;
@@ -101,7 +106,7 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
               <Input value={seller[name]} onChange={e => setSeller(prev => ({ ...prev, [name]: e.target.value }))} /></div>
           ))}
         </div>
-        <div className="mt-4">{button('seller', () => void saveSeller(), 'Save seller details')}</div>
+
       </SettingsCard>
 
       <SettingsCard icon={CloudCog} title="E-invoicing service" subtitle="Sales to business and government buyers are sent through your Accredited Service Provider. Walk-in consumer sales are not e-invoiced.">
@@ -117,7 +122,7 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
               options={(provider?.environments ?? ['SANDBOX']).map(e => ({ value: e, label: e === 'SANDBOX' ? 'Test (sandbox)' : 'Live' }))} /></div>
         </div>
         {provider && <p className="text-[11px] text-muted-foreground mt-3">{provider.legalEntity}. {provider.notes}</p>}
-        <div className="mt-4 flex gap-3">{button('cloud', () => void saveCloud(), 'Save')}{button('process', () => void processNow(), 'Send now')}</div>
+        <div className="mt-4 flex gap-3">{button('process', () => void processNow(), 'Send now')}</div>
 
         {provider && provider.credentialFields.length > 0 && (
           <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 gap-4">
@@ -126,7 +131,7 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
                 <Input type={f.secret ? 'password' : 'text'} value={credentials[f.key] ?? ''} placeholder={overview?.connection?.masked_config?.[f.key] ?? ''}
                   onChange={e => setCredentials(c => ({ ...c, [f.key]: e.target.value }))} /></div>
             ))}
-            <div className="col-span-2">{button('credentials', () => void saveCredentials(), 'Test and save connection')}</div>
+            <div className="col-span-2"><p className="text-xs text-muted-foreground">Connection details are checked and saved with Save Changes.</p></div>
           </div>
         )}
 

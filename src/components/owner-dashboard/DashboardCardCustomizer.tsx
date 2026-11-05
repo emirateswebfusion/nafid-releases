@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react';
+import { SettingsSaveContext, useSettingsSectionSave } from '../settings/hooks/useSettingsSectionSave';
+import { RestoreDefaultCardsDialog } from './RestoreDefaultCardsDialog';
+import { useState, useMemo, useContext } from 'react';
 import {
   GripVertical,
   ArrowUp,
@@ -14,8 +16,7 @@ import {
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
 import { useFeatureFlagsStore, cashierPageTitle } from '../../config/featureFlags';
-import { useDashboardCardsStore } from '../../store/dashboardCardsStore';
-import { RestoreDefaultCardsDialog } from './RestoreDefaultCardsDialog';
+import { DEFAULT_DASHBOARD_CARDS_ORDER, saveDashboardCardOrder, useDashboardCardsStore } from '../../store/dashboardCardsStore';
 import { ALL_CARD_DEFINITIONS, type CardMetaItem } from './cardDefinitions';
 export type { CardMetaItem };
 
@@ -30,13 +31,23 @@ export function DashboardCardCustomizer({
 }: DashboardCardCustomizerProps) {
   const { tenantId, userId, role } = useAuthStore();
   const { flags: featureFlags } = useFeatureFlagsStore();
-  const { cardOrder, setCardOrder, moveCard } = useDashboardCardsStore();
+  const settingsContext = useContext(SettingsSaveContext);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [cardOrder, setOrder] = useState(() => useDashboardCardsStore.getState().cardOrder);
+  const [savedOrder, setSavedOrder] = useState(cardOrder);
+  const setCardOrder = (order: string[], ..._context: unknown[]) => {
+    setOrder(order);
+    if (!settingsContext) void useDashboardCardsStore.getState().setCardOrder(order, tenantId, userId, role);
+  };
+  useSettingsSectionSave(JSON.stringify(cardOrder) !== JSON.stringify(savedOrder), async () => {
+    await saveDashboardCardOrder(cardOrder, tenantId, userId, role);
+    setSavedOrder(cardOrder);
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null);
   const [saveToast, setSaveToast] = useState(false);
-  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
 
   // Dynamic titles and definitions
   const cardDefinitions = useMemo(() => {
@@ -87,7 +98,11 @@ export function DashboardCardCustomizer({
   };
 
   const handleMove = (id: string, dir: 'up' | 'down' | 'top' | 'bottom') => {
-    moveCard(id, dir, tenantId, userId, role);
+    const current = [...cardOrder];
+    const index = current.indexOf(id);
+    if (index < 0) return;
+    const target = dir === 'top' ? 0 : dir === 'bottom' ? current.length - 1 : dir === 'up' ? Math.max(0, index - 1) : Math.min(current.length - 1, index + 1);
+    current.splice(index, 1); current.splice(target, 0, id); setCardOrder(current);
     notifySaved();
   };
 
@@ -135,7 +150,7 @@ export function DashboardCardCustomizer({
   };
 
   const handleReset = () => {
-    setShowRestoreDialog(true);
+    if (settingsContext) setCardOrder([...DEFAULT_DASHBOARD_CARDS_ORDER]); else setShowRestoreDialog(true);
   };
 
   return (
@@ -152,7 +167,7 @@ export function DashboardCardCustomizer({
             </h3>
             {saveToast && (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full animate-in fade-in">
-                <Check className="w-3 h-3" /> Saved
+                <Check className="w-3 h-3" /> {settingsContext ? 'Pending' : 'Saved'}
               </span>
             )}
           </div>
@@ -341,7 +356,7 @@ export function DashboardCardCustomizer({
       <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground w-full">
         <span className="flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-          <span>Ordering is automatically synchronized with your user profile</span>
+          <span>{settingsContext ? 'Apply your new order with Save Changes' : 'Ordering is automatically synchronized with your user profile'}</span>
         </span>
         {onClose && (
           <button
@@ -353,12 +368,9 @@ export function DashboardCardCustomizer({
         )}
       </div>
 
-      {/* Custom Restore Defaults Confirmation Dialog */}
-      <RestoreDefaultCardsDialog
-        isOpen={showRestoreDialog}
-        onClose={() => setShowRestoreDialog(false)}
-        onSuccess={notifySaved}
-      />
+      {/* Dashboard editing outside Settings retains its explicit reset confirmation. */}
+      {!settingsContext && <RestoreDefaultCardsDialog isOpen={showRestoreDialog} onClose={() => setShowRestoreDialog(false)} onSuccess={() => { setOrder(useDashboardCardsStore.getState().cardOrder); notifySaved(); }} />}
+
     </div>
   );
 }

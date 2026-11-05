@@ -1,3 +1,4 @@
+import { useSettingsSectionSave } from './hooks/useSettingsSectionSave';
 import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -51,15 +52,11 @@ export function FilingOnlySettings({ tenantId }: { tenantId: string | null }) {
   const locked = !loaded || saving;
 
   const stateRef = useRef({ options, b2b, b2c, dashboardSalesMetric, snapshot, loaded });
-  const savedRef = useRef(saved);
 
   useEffect(() => {
     stateRef.current = { options, b2b, b2c, dashboardSalesMetric, snapshot, loaded };
   }, [options, b2b, b2c, dashboardSalesMetric, snapshot, loaded]);
 
-  useEffect(() => {
-    savedRef.current = saved;
-  }, [saved]);
 
   useEffect(() => {
     let active = true;
@@ -92,10 +89,7 @@ export function FilingOnlySettings({ tenantId }: { tenantId: string | null }) {
     return () => { active = false; };
   }, [tenant_id]);
 
-  useEffect(() => {
-    const isDirty = loaded && snapshot !== saved;
-    window.dispatchEvent(new CustomEvent('settings:section-dirty', { detail: { dirty: isDirty } }));
-  }, [loaded, snapshot, saved]);
+
 
   const save = useCallback(async () => {
     setSaving(true); setStatus(null);
@@ -109,21 +103,13 @@ export function FilingOnlySettings({ tenantId }: { tenantId: string | null }) {
         await setSetting({ tenant_id: tid, key: 'dashboard_sales_metric', value: cur.dashboardSalesMetric });
       }
       window.dispatchEvent(new Event('settings:updated'));
-      window.dispatchEvent(new CustomEvent('settings:section-dirty', { detail: { dirty: false } }));
+
       setSaved(cur.snapshot); setStatus({ text: 'Saved', type: 'success' });
-    } catch { setStatus({ text: 'Unable to save billing settings', type: 'error' }); }
+    } catch (error) { setStatus({ text: 'Unable to save billing settings', type: 'error' }); throw error; }
     finally { setSaving(false); }
   }, [tenant_id]);
 
-  useEffect(() => {
-    const handleRequestSave = () => {
-      if (stateRef.current.loaded && stateRef.current.snapshot !== savedRef.current) {
-        void save();
-      }
-    };
-    window.addEventListener('settings:request-save', handleRequestSave);
-    return () => window.removeEventListener('settings:request-save', handleRequestSave);
-  }, [save]);
+  useSettingsSectionSave(loaded && snapshot !== saved, save);
 
   const change = (fn: () => void) => { fn(); setStatus(null); };
 

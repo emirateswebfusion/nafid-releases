@@ -1,6 +1,6 @@
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 import { Button } from '../../ui/Button';
-import { Loader2, Send, Check } from 'lucide-react';
+import { Loader2, Send } from 'lucide-react';
 import type { ShopClosingOverviewConfig } from '../../../utils/time/shopClosingHelper';
 import type { WhatsAppSettingsState } from '../hooks/useWhatsAppSettingsState';
 
@@ -15,9 +15,9 @@ export interface ClosingPreviewPanelProps {
 
 /** Live preview of the shop closing WhatsApp message. */
 export function ClosingPreviewPanel({
-  closingConfig, handleSaveClosingConfig, handleSendTestReport, isAdmin, shopName, wa,
+  closingConfig, handleSendTestReport, shopName, wa,
 }: ClosingPreviewPanelProps) {
-  const { previewLoading, previewText, savingClosing, sendingTest, status } = wa;
+  const { previewLoading, previewText, sendingTest, status } = wa;
   return (
     <div className="p-6 rounded-2xl bg-muted/20 border border-border/80 space-y-4">
       <div className="flex items-center justify-between">
@@ -71,15 +71,7 @@ export function ClosingPreviewPanel({
           {sendingTest ? 'Dispatching Test...' : 'Send Test Report to WhatsApp'}
         </Button>
 
-        <Button
-          onClick={handleSaveClosingConfig}
-          disabled={savingClosing || !isAdmin}
-          variant="outline"
-          className="w-full text-xs font-bold py-2.5 rounded-xl border-border hover:bg-muted text-foreground cursor-pointer flex items-center justify-center gap-2"
-        >
-          {savingClosing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          {savingClosing ? 'Saving Changes...' : 'Save Closing Settings'}
-        </Button>
+<p className="text-xs text-muted-foreground">Apply closing report changes with Save Changes at the top of Settings.</p>
       </div>
     </div>
   );

@@ -289,7 +289,7 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                 </div>
               )}
 
-              {activeHardwareTab === 'card' && <CardTerminalSettings />}
+              <div hidden={activeHardwareTab !== 'card'}><CardTerminalSettings /></div>
             </div>
           </div>
   );

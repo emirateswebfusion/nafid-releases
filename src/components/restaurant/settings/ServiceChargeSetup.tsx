@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '../../ui/Button';
+import { useSettingsSectionSave } from '../../settings/hooks/useSettingsSectionSave';
 import { setSetting } from '../../../data/settings';
 import type { OrderType } from '../../../data/restaurant';
 import { isUaeStore } from '../../../utils/localization/storeProfile';
@@ -17,14 +17,18 @@ const TYPES: { key: OrderType; label: string }[] = [{ key: 'DINE_IN', label: 'Di
 /** Optional service charge, added as a bill line at billing (UAE: standard-rated, VAT 5% applies to it). */
 export function ServiceChargeSetup({ tenantId, value, onChanged, onError }: ServiceChargeSetupProps) {
   const [form, setForm] = useState(value);
+  const [saved, setSaved] = useState(value);
   const save = async () => {
     try {
       await setSetting({ tenant_id: tenantId, key: SERVICE_CHARGE_SETTING_KEY, value: form });
+      setSaved(form);
       onChanged();
     } catch (e) {
       onError((e as Error).message);
+      throw e;
     }
   };
+  useSettingsSectionSave(JSON.stringify(form) !== JSON.stringify(saved), save);
   return (
     <div className="max-w-lg space-y-3">
       <label className="flex items-center gap-2 text-sm font-bold">
@@ -56,7 +60,7 @@ export function ServiceChargeSetup({ tenantId, value, onChanged, onError }: Serv
           ? 'In the UAE a service charge is part of the price of the supply, so VAT is charged on it. It is added automatically as a separate bill line, on the same price basis as your menu prices. The same tax rate applies to the delivery fee.'
           : 'India: under the Central Consumer Protection Authority guidelines (July 2022) a service charge may not be added by default. The order screen shows a "guest agreed" tick; the charge is added only when it is ticked, with GST at the rate above. The same GST rate applies to the delivery fee.'}
       </p>
-      <Button onClick={() => void save()}>Save</Button>
+      <p className="text-xs text-muted-foreground">Apply with Save Changes at the top of Settings.</p>
     </div>
   );
 }
