@@ -1,3 +1,12 @@
+# Nafid POS v2.2.45
+
+## What's New
+
+- **Inventory Product CSV Export & Header Normalization**: CSV product downloads now include Item Code, HSN Code, Tax Rate %, Discount %, Discount Flat, Billing Type, Low Stock, and GST Applicability with fallbacks to custom domain attributes. Header mapping is aligned on upload to prevent unintentional pricing tier creation.
+- **Card Terminal Integration**: Direct hardware/network card terminal payments and platform credentials management for supported card machines.
+- **Restaurant Mode Views & Token Tabs**: Tables & Orders, Takeaway & Delivery, and Kitchen Display integrated seamlessly into the main dashboard, supporting multi-order token tabs and unified billing handover.
+- **Updater Improvements**: Improved download state handling, worker verification, and seamless update status across settings and app startup.
+
 # Nafid POS v2.2.41
 
 ## Update installation and progress
