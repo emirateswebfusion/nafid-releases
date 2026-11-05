@@ -34,7 +34,7 @@ jobs:
       MAC_SIGNED_RELEASE: ${{ inputs.signed && 'true' || 'false' }}
       CSC_LINK: ${{ inputs.signed && secrets.MAC_CSC_LINK || '' }}
       CSC_KEY_PASSWORD: ${{ inputs.signed && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-      APPLE_API_KEY: ${{ inputs.signed && secrets.MAC_APPLE_API_KEY || '' }}
+      MAC_APPLE_API_KEY_B64: ${{ inputs.signed && secrets.MAC_APPLE_API_KEY || '' }}
       APPLE_API_KEY_ID: ${{ inputs.signed && secrets.MAC_APPLE_API_KEY_ID || '' }}
       APPLE_API_ISSUER: ${{ inputs.signed && secrets.MAC_APPLE_API_ISSUER || '' }}
     steps:
@@ -50,10 +50,25 @@ jobs:
         shell: bash
         run: |
           if [[ "$MAC_SIGNED_RELEASE" == true ]]; then
-            for name in CSC_LINK CSC_KEY_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            for name in CSC_LINK CSC_KEY_PASSWORD MAC_APPLE_API_KEY_B64 APPLE_API_KEY_ID APPLE_API_ISSUER; do
               [[ -n "${!name}" ]] || { echo "Missing required signing credential: $name"; exit 1; }
             done
           fi
+      - name: Prepare notarization key
+        if: inputs.signed
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, os
+          path = os.path.join(os.environ['RUNNER_TEMP'], 'nafid-notarization.p8')
+          key = base64.b64decode(os.environ['MAC_APPLE_API_KEY_B64'], validate=True)
+          if b'BEGIN PRIVATE KEY' not in key:
+              raise ValueError('Notarization key must contain a base64 encoded p8 private key')
+          with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as file:
+              file.write(key)
+          with open(os.environ['GITHUB_ENV'], 'a') as file:
+              file.write('APPLE_API_KEY=' + path + '\n')
+          PY
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Prepare native Mac runtime
         run: node scripts/prepare-macos-runtime.cjs '${{ matrix.arch }}'
@@ -68,6 +83,10 @@ jobs:
           fi
       - name: Verify final DMG, native modules, and app startup
         run: node tests/packaged/macos-installer.cjs release '${{ matrix.arch }}'
+      - name: Remove temporary notarization key
+        if: always() && inputs.signed
+        shell: bash
+        run: python3 -c "import os; p = os.path.join(os.environ['RUNNER_TEMP'], 'nafid-notarization.p8'); os.path.exists(p) and os.remove(p)"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
