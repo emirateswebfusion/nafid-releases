@@ -67,13 +67,9 @@ module.exports = {
   ],
   mac: {
     icon: 'build/icon.png',
-    target: [
-      {
-        target: 'dmg',
-        arch: ['x64', 'arm64']
-      }
-    ],
-    artifactName: '${productName}-${version}-mac.${ext}',
+    // CI builds natively on each architecture. ZIP is required by electron-updater on macOS.
+    target: ['dmg', 'zip'],
+    artifactName: '${productName}-${version}-mac-${arch}.${ext}',
     category: 'public.app-category.business',
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',

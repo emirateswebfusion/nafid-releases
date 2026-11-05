@@ -13,7 +13,7 @@
     "rebuild": "node scripts/fix-sqlite.js",
     "package": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win --publish always -c.electronDist=node_modules/electron/dist",
     "package:win": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win -c.electronDist=node_modules/electron/dist",
-    "package:mac": "npm run build && electron-builder build --config electron-builder.config.js --mac",
+    "package:mac": "node scripts/prepare-macos-runtime.cjs && npm run build && electron-builder build --config electron-builder.config.js --mac --publish never",
     "package:all": "npm run rebuild && npm run build && electron-builder build --config electron-builder.config.js --win --mac",
     "lint": "eslint .",
     "lint:ratchet": "node scripts/lint-ratchet.mjs",
