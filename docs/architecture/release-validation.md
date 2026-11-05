@@ -53,3 +53,7 @@ Merge and remove temporary release branches/worktrees after publication. Before 
 ## Incident that motivated this gate
 
 On 4 November 2026, the published v2.2.40 installer was confirmed to omit `app-update.yml` and ship an empty `app.env`. The installed app reported a generic download failure before it could read its update feed, and cloud sync lacked its base URL. v2.2.41's final installer configuration and public feed were verified, and v2.2.40 received a recovery notice. Future releases must validate the packaged configuration, not infer correctness from a successful build or source tests.
+
+## Smart App Control publisher blocks
+
+If an affected shop reports Smart App Control blocking the installed Nafid.exe because its publisher cannot be verified, record the incident separately from download/install success. A progress-only release does not resolve that incident. Obtain a trusted code-signing identity, sign the installed app executable and installer (and other executable components as required), and verify the final build with Smart App Control enforced. Ordinary Windows CI with the policy absent is not evidence that this block is fixed. Do not disable the policy or use a locally trusted/self-signed certificate as a fleet-wide fix. Identity validation and provider eligibility must be completed before claiming a signed release is available.

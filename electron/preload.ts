@@ -171,6 +171,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateStatus: (callback: (status: string) => void) => {
     ipcRenderer.on('update-status', (_event, status) => callback(status));
   },
+  onUpdateVerificationProgress: (callback: (progress: { percent: number }) => void) => {
+    ipcRenderer.on('update-verification-progress', (_event, progress) => callback(progress));
+  },
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => {
     ipcRenderer.on('update-download-progress', (_event, progress) => callback(progress));
   },

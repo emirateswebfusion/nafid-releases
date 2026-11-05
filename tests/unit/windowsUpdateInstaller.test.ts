@@ -42,6 +42,17 @@ it('never executes a changed or truncated installer', async () => {
   expect(await launchWindowsUpdate({ file, sha512 })).toMatchObject({ success: false, installerReady: false, error: expect.stringContaining('verification') });
   expect(fixture.spawn).not.toHaveBeenCalled();
 });
+it('reports byte-based verification progress and completes it only after checksum validation', async () => {
+  const progress: number[] = [];
+  const pending = launchWindowsUpdate({ file, sha512 }, (_phase, percent) => { if (percent !== undefined) progress.push(percent); });
+  await vi.waitFor(() => expect(fixture.spawn).toHaveBeenCalledOnce());
+  expect(progress.at(-1)).toBe(100);
+  expect(progress.slice(0, -1).every(value => value >= 0 && value < 100)).toBe(true);
+  child.emit('spawn'); await pending;
+  progress.length = 0;
+  await launchWindowsUpdate({ file, sha512: 'wrong' }, (_phase, percent) => { if (percent !== undefined) progress.push(percent); });
+  expect(progress).not.toContain(100);
+});
 it('requires a missing installer to be downloaded again', async () => {
   expect(await launchWindowsUpdate({ file: path.join(directory, 'missing.exe'), sha512 })).toMatchObject({ success: false, installerReady: false });
   expect(fixture.spawn).not.toHaveBeenCalled();

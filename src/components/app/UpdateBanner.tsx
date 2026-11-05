@@ -10,7 +10,7 @@ interface UpdateBannerProps {
 }
 
 export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
-  const { updateInfo, updateReady, installUpdate, init, installError, isInstalling, installPhase } = useUpdateStore();
+  const { updateInfo, updateReady, installUpdate, init, installError, isInstalling, installPhase, installPercent } = useUpdateStore();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function UpdateBanner({ onOpenSettings }: UpdateBannerProps) {
 
   return (
     <div className="relative z-40 mx-2 mt-2 mb-0 animate-in slide-in-from-top-2 fade-in duration-300">
-      {isInstalling && <UpdateInstallProgress version={updateInfo?.version} phase={installPhase} />}
+      {isInstalling && <UpdateInstallProgress version={updateInfo?.version} phase={installPhase} percent={installPercent} />}
       <div className={clsx(
         'flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border shadow-sm backdrop-blur-md',
         updateReady

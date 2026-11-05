@@ -39,10 +39,10 @@
         IntOp $R4 $R4 + 1
         IntCmp $R4 480 nafid_start_timeout nafid_wait_ready nafid_start_timeout
       nafid_start_timeout:
-        MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "The update is installed, but Nafid has not finished opening. Retry opening Nafid, or close this window and open Nafid from the desktop." IDRETRY nafid_launch
+        MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Installation is complete, but Nafid has not confirmed it is ready. If Windows showed a Smart App Control or publisher warning, Retry will not resolve that block. Close this window and contact Nafid support for a trusted signed build. Otherwise, retry opening Nafid or open it from the desktop. Do not download the update again." IDRETRY nafid_launch
         !insertmacro quitSuccess
       nafid_launch_failed:
-        MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "The update is installed, but Windows could not open Nafid. Retry, or close this window and contact support. Do not download the update again." IDRETRY nafid_launch
+        MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Installation is complete, but Windows could not open Nafid. If Windows showed a Smart App Control or publisher warning, contact Nafid support for a trusted signed build. Otherwise, retry opening Nafid. Do not download the update again." IDRETRY nafid_launch
         !insertmacro quitSuccess
       nafid_ready:
         Delete "$nafidUpdateMarker"

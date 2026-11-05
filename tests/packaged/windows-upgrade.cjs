@@ -192,6 +192,7 @@ let diagnosticCdp;
   await cdp.evaluate(`process.mainModule.require('electron-updater').autoUpdater.setFeedURL({provider:'generic',url:'http://127.0.0.1:${server.address().port}/'}); true`);
   await until(async () => (await cdp.renderer('window.electronAPI.appCheckForUpdates()')).error !== 'Check already in progress', 'candidate automatic check complete');
   // A verified but non-executable fixture must fail safely in the actual packaged worker.
+  await cdp.renderer("window.verificationSamples=[];window.electronAPI.onUpdateVerificationProgress(p=>window.verificationSamples.push(p.percent)); true");
   const rejected = path.join(os.tmpdir(), 'nafid-invalid-installer.exe');
   fs.writeFileSync(rejected, 'This is a deliberately invalid executable used only by the acceptance test.');
   await cdp.evaluate(`process.mainModule.require('electron-updater').autoUpdater.emit('update-downloaded',{version:${JSON.stringify(version)},downloadedFile:${JSON.stringify(rejected)},files:[{url:'nafid-invalid-installer.exe',sha512:${JSON.stringify(hash(rejected, 'sha512', 'base64'))}}]}); true`);
@@ -200,6 +201,10 @@ let diagnosticCdp;
   await until(async () => /Retry installation/i.test(await cdp.renderer('document.body.innerText')), 'failed launch preserves retry');
   assert.match(await cdp.renderer("document.querySelector('[role=alert]').textContent"), /download is saved/i);
   assert.equal(await cdp.evaluate("process.mainModule.require('electron').BrowserWindow.getAllWindows()[0].isVisible()"), true);
+  const measured = await cdp.renderer('window.verificationSamples');
+  assert.ok(measured.length > 0 && measured.includes(100));
+  assert.ok(measured.every(value => Number.isFinite(value) && value >= 0 && value <= 100));
+  report.checks.measuredVerificationEvents = true;
   report.checks.failedLaunchRetainsAppAndDownload = true;
   const sha512 = hash(path.join(release, exe), 'sha512', 'base64');
   await cdp.evaluate(`process.mainModule.require('electron-updater').autoUpdater.emit('update-downloaded',{version:${JSON.stringify(version)},downloadedFile:${JSON.stringify(path.join(release, exe))},files:[{url:${JSON.stringify(exe)},sha512:${JSON.stringify(sha512)}}]}); true`);

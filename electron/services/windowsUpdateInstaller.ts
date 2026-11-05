@@ -8,18 +8,27 @@ export interface DownloadedWindowsInstaller { file: string; sha512: string }
 export type InstallerLaunchResult = { success: true } | { success: false; error: string; installerReady: boolean };
 
 /** Wait for Windows to accept the installer before allowing the POS to quit. Never elevate or bypass OS policy. */
-export async function launchWindowsUpdate(installer: DownloadedWindowsInstaller, onPhase: (phase: string) => void = () => {}): Promise<InstallerLaunchResult> {
+export async function launchWindowsUpdate(installer: DownloadedWindowsInstaller, onPhase: (phase: string, percent?: number) => void = () => {}): Promise<InstallerLaunchResult> {
   let verified = false;
   try {
     onPhase('verifying-installer');
     if (!path.isAbsolute(installer.file) || path.extname(installer.file).toLowerCase() !== '.exe' || !installer.sha512) {
       throw new Error('The downloaded installer metadata is incomplete. Check for updates again.');
     }
-    if (!(await stat(installer.file)).isFile()) throw new Error('The downloaded installer is missing. Check for updates again.');
+    const file = await stat(installer.file);
+    if (!file.isFile()) throw new Error('The downloaded installer is missing. Check for updates again.');
     const hash = createHash('sha512');
-    for await (const chunk of createReadStream(installer.file)) hash.update(chunk);
+    let read = 0;
+    let reported = -1;
+    for await (const chunk of createReadStream(installer.file)) {
+      hash.update(chunk);
+      read += Buffer.byteLength(chunk);
+      const percent = file.size > 0 ? Math.min(99, Math.floor(read * 100 / file.size)) : 0;
+      if (percent !== reported) { reported = percent; onPhase('verifying-installer', percent); }
+    }
     if (hash.digest('base64') !== installer.sha512) throw new Error('The downloaded installer failed verification. Download the update again.');
     verified = true;
+    onPhase('verifying-installer', 100);
     onPhase('starting-installer');
     await new Promise<void>((resolve, reject) => {
       const child = spawn(installer.file, ['--updated', '--force-run'], { detached: true, stdio: 'ignore', windowsHide: false });

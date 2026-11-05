@@ -7,6 +7,7 @@ export const bridgeEvents = bindEvents({
   onWhatsAppStatusUpdate: 'onWhatsAppStatusUpdate',
   onShopClosingUpdated: 'onShopClosingUpdated',
   onUpdateStatus: 'onUpdateStatus',
+  onUpdateVerificationProgress: 'onUpdateVerificationProgress',
   onUpdateProgress: 'onUpdateProgress',
   onUpdateInfo: 'onUpdateInfo',
   onBarcodeScanned: 'onBarcodeScanned',

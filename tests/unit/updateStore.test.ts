@@ -5,6 +5,7 @@ const fixture = vi.hoisted(() => ({
   checkForUpdates: vi.fn(),
   onUpdateStatus: vi.fn(),
   onUpdateProgress: vi.fn(),
+  onUpdateVerificationProgress: vi.fn(),
   onUpdateInfo: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ vi.mock('../../src/data/events', () => ({
   bridgeEvents: {
     onUpdateStatus: fixture.onUpdateStatus,
     onUpdateProgress: fixture.onUpdateProgress,
+    onUpdateVerificationProgress: fixture.onUpdateVerificationProgress,
     onUpdateInfo: fixture.onUpdateInfo,
   },
 }));
@@ -34,11 +36,22 @@ beforeEach(() => {
     initialized: false,
     installError: null,
     isInstalling: false,
+    installPercent: null,
   });
   fixture.checkForUpdates.mockResolvedValue({ success: true, updateInfo: null });
 });
 
 describe('update store install handling', () => {
+  it('keeps checksum progress separate from downloading and ignores late progress', () => {
+    useUpdateStore.getState().init();
+    const callback = fixture.onUpdateVerificationProgress.mock.calls[0][0] as (progress: { percent: number }) => void;
+    callback({ percent: 30 }); expect(useUpdateStore.getState().installPercent).toBeNull();
+    useUpdateStore.setState({ isInstalling: true });
+    callback({ percent: 37 }); expect(useUpdateStore.getState().installPercent).toBe(37);
+    expect(useUpdateStore.getState().isDownloading).toBe(false);
+    callback({ percent: NaN }); callback({ percent: 101 });
+    expect(useUpdateStore.getState().installPercent).toBe(37);
+  });
   it('reports an install failure without starting a download loop', async () => {
     useUpdateStore.setState({ updateReady: true, updateInfo: { version: '2.2.8' } });
     fixture.installUpdate.mockResolvedValue({ success: false, error: 'No downloaded update is ready to install.' });

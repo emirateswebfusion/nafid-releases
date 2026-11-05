@@ -12,6 +12,7 @@ export interface UpdateState {
   installError: string | null;
   isInstalling: boolean;
   installPhase: 'preparing' | 'verifying-installer' | 'starting-installer';
+  installPercent: number | null;
   init: () => void;
   installUpdate: () => Promise<AppInstallUpdateResult | undefined>;
   checkForUpdates: () => Promise<void>;
@@ -26,6 +27,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   installError: null,
   isInstalling: false,
   installPhase: 'preparing',
+  installPercent: null,
 
   init: () => {
     if (get().initialized || !isDesktopRuntime()) return;
@@ -42,6 +44,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         // so a stale "Restart to update" button must not survive it.
         set({ updateReady: false, isDownloading: false, downloadProgress: null });
       }
+    });
+
+    bridgeEvents.onUpdateVerificationProgress(({ percent }) => {
+      if (get().isInstalling && Number.isFinite(percent) && percent >= 0 && percent <= 100) set({ installPercent: percent });
     });
 
     bridgeEvents.onUpdateProgress((progress) => {
@@ -76,7 +82,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
 
   installUpdate: async () => {
     if (get().isInstalling) return;
-    set({ isInstalling: true, installError: null, installPhase: 'preparing' });
+    set({ isInstalling: true, installError: null, installPhase: 'preparing', installPercent: null });
     try {
       const result = await appApi.installUpdate();
       if (result?.success) return result; // Keep progress visible until the app exits.

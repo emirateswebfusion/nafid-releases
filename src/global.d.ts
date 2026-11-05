@@ -196,6 +196,7 @@ export interface IElectronAPI {
   shopClosingRetry: (params: { report_id: string }) => Promise<{ success: boolean; error?: string }>;
   onShopClosingUpdated: (callback: () => void) => () => void;
   onUpdateStatus: (callback: (status: string) => void) => void;
+  onUpdateVerificationProgress: (callback: (progress: { percent: number }) => void) => void;
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;
   onUpdateInfo: (callback: (info: UpdateInfoPayload) => void) => void;
   onBarcodeScanned: (callback: (code: string) => void) => () => void;

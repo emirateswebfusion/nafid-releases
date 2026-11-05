@@ -24,3 +24,12 @@ it('treats an exit without a result as a launch failure', async () => {
   const pending = launchWindowsUpdate({ file: 'update.exe', sha512: 'sha' }, () => {});
   fixture.worker.emit('exit', 0); expect(await pending).toMatchObject({ success: false });
 });
+it('relays measured verification percentage and drops invalid worker numbers', async () => {
+  const report = vi.fn();
+  const pending = launchWindowsUpdate({ file: 'update.exe', sha512: 'sha' }, report);
+  fixture.worker.emit('message', { phase: 'verifying-installer', percent: 37 });
+  expect(report).toHaveBeenLastCalledWith('verifying-installer', 37);
+  fixture.worker.emit('message', { phase: 'verifying-installer', percent: Infinity });
+  expect(report).toHaveBeenLastCalledWith('verifying-installer', undefined);
+  fixture.worker.emit('message', { result: { success: true } }); await pending;
+});

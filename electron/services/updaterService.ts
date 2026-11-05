@@ -201,9 +201,12 @@ ipcMain.handle('app:installUpdate', async () => {
   if (platform === 'win32') {
     if (!downloadedInstaller) return { success: false, error: 'No verified update installer is ready. Check for updates again.', installerReady: false };
     installInProgress = true;
-    const result = await launchWindowsUpdate(downloadedInstaller, phase => {
+    const result = await launchWindowsUpdate(downloadedInstaller, (phase, percent) => {
       const win = getMainWindow();
-      if (win && !win.isDestroyed()) win.webContents.send('update-status', phase);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('update-status', phase);
+        if (phase === 'verifying-installer' && percent !== undefined) win.webContents.send('update-verification-progress', { percent });
+      }
     });
     if (!result.success) {
       installInProgress = false;

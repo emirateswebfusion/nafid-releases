@@ -211,3 +211,7 @@ NSIS uses the same current-user `$APPDATA\Nafid` root. Do not use TEMP: a shell-
 The service writes only after the main window is visible. Normal startup creates no marker. The NSIS installer keeps
 its Starting Nafid status open until this acknowledgement, with an explicit retry/close prompt after a bounded wait.
 No shop data, sync payload, authentication permission or server endpoint changes.
+
+### Update verification progress
+
+The worker reports measured file bytes through update-verification-progress and the preload/data events catalog onUpdateVerificationProgress. Its percent payload is 0–99 while hashing and 100 only after SHA-512 matches. The install store keeps this separate from download progress and ignores events outside an active install. Windows process creation and app startup remain indeterminate; their duration has no measurable overall percentage. Installer timeout text distinguishes a possible Windows publisher/security block from ordinary slow startup without claiming automatic policy detection.
