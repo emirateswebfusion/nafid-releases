@@ -4,6 +4,9 @@ import { settingsApi } from '../data/settings';
 
 const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'billing',
+  'tables',
+  'takeaway-delivery',
+  'kitchen-display',
   'cashier',
   'inventory',
   'ecommerce',
@@ -52,7 +55,7 @@ function normalizeCardOrder(savedOrder: unknown): string[] {
   }
 
   // Filter only string ids
-  const validSaved = savedOrder.filter((id): id is string => typeof id === 'string');
+  const validSaved = savedOrder.filter((id): id is string => typeof id === 'string' && id !== 'restaurant');
 
   // Maintain unique items from saved
   const orderedList: string[] = [];

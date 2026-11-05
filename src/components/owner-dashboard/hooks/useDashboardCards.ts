@@ -1,5 +1,5 @@
 import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
-import { ShoppingCart, FileText, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw, UtensilsCrossed } from 'lucide-react';
+import { ShoppingCart, FileText, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw, LayoutGrid, ShoppingBag, ChefHat } from 'lucide-react';
 import { cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../../../config/featureFlags';
 import { hasPermission } from '../../../utils/security/permissions';
 import type { FeatureFlags } from '../../../config/featureFlags';
@@ -26,16 +26,12 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
       shortcut: 'F1',
       perm: 'sales.create'
     },
-    {
-      id: 'restaurant',
-      title: 'Restaurant',
-      desc: 'Tables, kitchen tickets, takeaway & delivery and the kitchen display',
-      icon: UtensilsCrossed,
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-500/10',
-      action: () => window.dispatchEvent(new CustomEvent('open-restaurant')),
-      perm: 'restaurant.orders'
-    },
+    ...[
+      { id: 'tables', title: 'Tables & Orders', desc: 'Seating, running orders and kitchen tickets', icon: LayoutGrid, event: 'open-tables' },
+      { id: 'takeaway-delivery', title: 'Takeaway & Delivery', desc: 'Takeaway tokens and delivery orders', icon: ShoppingBag, event: 'open-takeaway-delivery' },
+      { id: 'kitchen-display', title: 'Kitchen Display', desc: 'Preparing, ready and served kitchen tickets', icon: ChefHat, event: 'open-kitchen-display' },
+    ].map(page => ({ ...page, color: 'text-orange-500', bgColor: 'bg-orange-500/10',
+      action: () => window.dispatchEvent(new CustomEvent(page.event)), perm: 'restaurant.orders' })),
     {
       id: 'cashier',
       title: cashierPageTitle(featureFlags),
@@ -265,6 +261,11 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
   const FEATURE_BY_CARD: Record<string, FeatureKey> = {
     'ai-assistant': 'ai_assistant',
     billing: 'billing',
+    tables: 'dining_tables',
+    'takeaway-delivery': 'takeaway_delivery',
+    'kitchen-display': 'kitchen_display',
+    advertisements: 'advertisements',
+    'financial-report': 'financial_reports',
     cashier: 'cash_settlement',
     inventory: 'inventory',
     ecommerce: 'ecommerce',
@@ -286,10 +287,7 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
     'recycle-bin': 'recycle_bin',
   };
 
-  // Sort cards according to user's custom sequence. A saved order from before restaurant mode existed does not list
-  // its card: place it right after Billing (its main screen) instead of last; dragging it still saves a new order.
-  const order = cardOrder.includes('restaurant') || !cardOrder.includes('billing') ? cardOrder
-    : cardOrder.flatMap(id => (id === 'billing' ? [id, 'restaurant'] : [id]));
+  const order = cardOrder;
   const sortedCards = [...cards].sort((a, b) => {
     const indexA = order.indexOf(a.id);
     const indexB = order.indexOf(b.id);
@@ -300,8 +298,9 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
   });
 
   const visibleCards = sortedCards.filter(c => {
+    if (!featureFlags) return false;
     // 1. Feature Flag check (restaurant mode is off unless the shop turned it on, even before flags load)
-    if (c.id === 'restaurant' && !featureFlags?.restaurant_mode) return false;
+    if (['tables', 'takeaway-delivery', 'kitchen-display'].includes(c.id) && !featureFlags?.restaurant_mode) return false;
     if (c.id === 'ai-assistant') {
       if (!isAiAssistantAvailable || (featureFlags && featureFlags.ai_assistant === false)) return false;
     } else if (featureFlags) {

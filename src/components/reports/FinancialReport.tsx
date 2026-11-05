@@ -15,6 +15,10 @@ import { invoicesApi } from '../../data/invoices';
 import { purchasesApi } from '../../data/purchases';
 import { scrapApi } from '../../data/scrap';
 
+import { useFeatureFlagsStore } from '../../config/featureFlags';
+import { RestaurantReportView } from '../restaurant/views/RestaurantReportView';
+import { hasPermission } from '../../utils/security/permissions';
+
 interface FinancialReportProps {
   onClose: () => void;
   isRestricted?: boolean;
@@ -50,6 +54,8 @@ interface FinancialData {
 }
 
 export function FinancialReport({ onClose, isRestricted: _isRestricted }: FinancialReportProps) {
+  const restaurantEnabled = useFeatureFlagsStore(s => s.flags?.restaurant_mode);
+  const { role, permissions } = useAuthStore();
   const { tenantId, shopName } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'custom'>('month');
@@ -646,6 +652,13 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
             </div>
 
           </div>
+          {restaurantEnabled && tenantId && hasPermission({ role, permissions }, 'reports.view') && (
+            <section className="mt-6 rounded-2xl border border-border bg-card" aria-label="Restaurant report">
+              <h2 className="px-5 pt-5 text-lg font-bold">Restaurant sales & operations</h2>
+              <p className="px-5 text-sm text-muted-foreground">Settled bills are included in the sales totals above and in Sales History.</p>
+              <RestaurantReportView tenantId={tenantId} period={{ from: startDate, to: endDate }} />
+            </section>
+          )}
         </div>
 
       </div>

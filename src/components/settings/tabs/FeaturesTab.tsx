@@ -1,86 +1,83 @@
-import React from 'react';
-import { Power, AlertCircle } from 'lucide-react';
-import clsx from 'clsx';
-import { FEATURE_LIST, type FeatureFlags, useFeatureFlagsStore, sanitizeFeatureFlags } from '../../../config/featureFlags';
+import { Store, LayoutGrid, Check, Save, Loader2 } from 'lucide-react';
+import { Button } from '../../ui/Button';
+import { SettingsCard } from '../views/SettingsControls';
+import { useState } from 'react';
+import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../../../config/featureFlags';
+import { BUSINESS_PROFILES, flagsForBusinessProfile, matchingBusinessProfile } from '../../../config/businessProfiles';
+import { useAuthStore } from '../../../store/authStore';
+import { setSetting } from '../../../data/settings';
+import { syncApi } from '../../../data/sync';
 
 export interface FeaturesTabProps {
   featureFlags: FeatureFlags | null;
-  handleToggleFeatureFlag: (key: keyof FeatureFlags, nextVal?: boolean) => void;
+  onSaved?: (flags: FeatureFlags) => void;
+  handleToggleFeatureFlag: (key: FeatureKey, nextVal?: boolean) => void;
   setConfirmTurnOffAllModalOpen: (v: boolean) => void;
   setShowCashRegister: (v: boolean) => void;
 }
 
-/** Features & Modules: turn whole modules on or off. Module-specific rules live on their own settings pages. */
-export const FeaturesTab: React.FC<FeaturesTabProps> = ({
-  featureFlags,
-  handleToggleFeatureFlag,
-  setConfirmTurnOffAllModalOpen,
-  setShowCashRegister,
-}) => {
+/** Category recommendations are a starting selection; owners keep full control of every module. */
+export function FeaturesTab({ featureFlags, setShowCashRegister, onSaved }: FeaturesTabProps) {
+  const tenantId = useAuthStore(s => s.tenantId);
+  const [draft, setDraft] = useState(() => ({ ...DEFAULT_FEATURE_FLAGS, ...featureFlags }));
+  const [category, setCategory] = useState(() => matchingBusinessProfile(featureFlags));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const toggle = (key: FeatureKey, checked: boolean) => {
+    setCategory('custom');
+    setDraft(current => sanitizeFeatureFlags({ ...current, [key]: checked,
+      ...(key === 'cash_register' && checked ? { cash_settlement: true } : {}),
+      ...(['dining_tables', 'takeaway_delivery', 'kitchen_display'].includes(key) && checked ? { restaurant_mode: true } : {}),
+    }));
+    setMessage('');
+  };
+  const save = async () => {
+    if (!tenantId) return;
+    setSaving(true); setMessage('');
+    const flags = sanitizeFeatureFlags(draft);
+    try {
+      await setSetting({ tenant_id: tenantId, key: 'feature_flags', value: flags });
+      // Legacy consumers share these aliases; the feature record remains authoritative.
+      await setSetting({ tenant_id: tenantId, key: 'enable_scrap', value: flags.scrap });
+      await setSetting({ tenant_id: tenantId, key: 'show_cash_register', value: flags.cash_register });
+      useFeatureFlagsStore.getState().setFlags(flags);
+      setShowCashRegister(flags.cash_register);
+      onSaved?.(flags);
+      window.dispatchEvent(new Event('settings:updated'));
+      setMessage('Saved for this shop. Other terminals receive these choices when they sync. Offline terminals update when they reconnect.');
+      void syncApi.runInitialSync().catch(error => console.error('[Features] Sync pending', error));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save modules. Please try again.');
+    } finally { setSaving(false); }
+  };
   return (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
-                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
-                  <Power className="w-4.5 h-4.5" />
-                </div>
-                <span className="text-xs font-black text-primary uppercase tracking-widest">Features &amp; Modules</span>
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setConfirmTurnOffAllModalOpen(true)}
-                    className="px-3 py-1.5 text-[10px] font-bold text-destructive bg-destructive/10 hover:bg-destructive/15 border border-destructive/25 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-                  >
-                    Turn Off All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, f.key === 'restaurant_mode' ? Boolean(useFeatureFlagsStore.getState().flags?.restaurant_mode) : true])) as FeatureFlags)); // restaurant mode changes the shop type: only its own toggle
-                      setShowCashRegister(true);
-                    }}
-                    className="px-3 py-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-                  >
-                    Turn On All
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {FEATURE_LIST.map(def => {
-                  const enabled = featureFlags?.[def.key];
-                  return (
-                    <div
-                      key={def.key}
-                      className={clsx(
-                        'flex items-center justify-between gap-4 p-4.5 rounded-2xl border transition-all duration-300',
-                        enabled ? 'bg-muted/20 dark:bg-muted/10 border-border/60 hover:border-primary/25' : 'bg-background border-border/40 opacity-75 hover:border-destructive/25'
-                      )}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => handleToggleFeatureFlag(def.key)}>{def.label}</label>
-                        <p className="text-[10px] text-muted-foreground/75 mt-0.5 leading-relaxed">{def.desc}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleFeatureFlag(def.key)}
-                        className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enabled ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}
-                        title={enabled ? 'Enabled' : 'Disabled'}
-                      >
-                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enabled ? 'translate-x-5' : 'translate-x-0')} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-6 p-4 bg-blue-500/[0.04] border border-blue-500/20 rounded-2xl flex items-start gap-3">
-                <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-blue-700 dark:text-blue-400 font-medium leading-relaxed">
-                  Disabled features are hidden everywhere — dashboards, billing page buttons, and manager screens. Existing data is never deleted; re-enabling a feature restores it. Changes apply after saving.
-                </p>
-              </div>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <SettingsCard icon={Store} title="Choose what your shop needs" subtitle="Start with your business category, then customize the pages below. Your existing records are kept.">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="group" aria-label="Business category">
+          {BUSINESS_PROFILES.map(profile => <button key={profile.id} type="button" disabled={saving}
+            aria-pressed={category === profile.id}
+            onClick={() => { setCategory(profile.id); setDraft(flagsForBusinessProfile(profile.id)); setMessage(''); }}
+            className={`relative min-h-[104px] rounded-2xl border p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 ${category === profile.id ? 'border-primary/50 bg-primary/5 ring-1 ring-primary/20' : 'border-border bg-background hover:border-primary/30 hover:bg-muted/30'}`}>
+            <span className="flex items-center justify-between gap-2 text-xs font-bold text-foreground">{profile.name}{category === profile.id && <Check className="h-4 w-4 shrink-0 text-primary" />}</span><span className="mt-2 block text-[11px] leading-relaxed text-muted-foreground">{profile.description}</span>
+          </button>)}
+        </div>
+        <p className="mt-4 text-[11px] font-medium text-muted-foreground">{category === 'custom' ? 'Custom selection' : 'Recommended selection'} · {FEATURE_LIST.filter(f => draft[f.key]).length} modules selected</p>
+      </SettingsCard>
+      <SettingsCard icon={LayoutGrid} title="Pages & features" subtitle="Select only the tools your shop uses. You can change these choices at any time.">
+        <div className="grid gap-3 md:grid-cols-2">
+          {FEATURE_LIST.map(def => <label key={def.key} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-colors ${draft[def.key] ? 'border-primary/20 bg-primary/[0.03]' : 'border-border bg-background hover:bg-muted/20'}`}>
+            <input type="checkbox" checked={draft[def.key]} disabled={saving} onChange={e => toggle(def.key, e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary focus-visible:ring-2 focus-visible:ring-primary" />
+            <span><span className="block text-xs font-bold">{def.label}</span><span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{def.desc}</span></span>
+          </label>)}
+        </div>
+      </SettingsCard>
+      <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card/95 p-4 shadow-sm backdrop-blur-sm">
+        <Button type="button" onClick={() => void save()} disabled={saving || !tenantId}>
+          {saving ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-2 h-3.5 w-3.5" />}{saving ? 'Saving…' : 'Save shop modules'}
+        </Button>
+        <span className="text-xs text-muted-foreground">Applies to dashboard, billing and page access.</span>
+        {message && <p role="status" className="w-full text-sm">{message}</p>}
+      </div>
+    </div>
   );
-};
+}

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Utilities to parse and sanitize release notes from GitHub / electron-updater.
  * Supports HTML (GitHub release payload), Markdown, plain text, and multi-version arrays.
  * Transforms raw release notes into rich "What's New" UI cards dynamically.
@@ -56,10 +56,20 @@ export function stripHtmlTags(str: string): string {
   return decodeHtmlEntities(str.replace(/<[^>]*>/g, '').trim());
 }
 
+export function capitalize(str: string): string {
+  const trimmed = str.trim();
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 const FIX_KEYWORDS = /\b(fix|fixes|fixed|bug|bugs|issue|issues|error|errors|resolved|patch|hotfix|revert)\b/i;
 const LINK_KEYWORDS = /\b(changelog|compare|download|release|github|commit)\b/i;
-const SKIP_HEADINGS = /^(what's\s*new|release\s*notes|release\s*highlights|highlights|v?\d+\.\d+\.\d+.*)$/i;
-const TEST_OR_STATUS_LINE = /\b(?:all\s+)?\d+\s+.*tests?\s+pass|tests?\s+pass(ed)?\b|^build\s+#?\d+|^built\s+with\b|^commit\s+[0-9a-f]{7,}/i;
+
+export const SKIP_HEADINGS = /^(what's\s*new|release\s*notes|release\s*highlights|highlights|v?\d+\.\d+\.\d+.*)$/i;
+
+export const INTERNAL_SECTIONS = /\b(verification|technical|build|internal|developer|ci|testing|test results|diagnostics|windows upgrade|upgrade note|upgrade recovery|checksums|sha-?256|release gate)\b/i;
+
+export const INTERNAL_LINE_PATTERN = /\b(?:all\s+)?\d+\s+.*tests?\s+pass|tests?\s+pass(ed)?\b|\b\d+\s+test\s+files\b|\b\d+[\d,]*\s*ipc\s+calls\b|\barchitecture\s+guard\b|\blint:\s*zero\b|\blint\s*ratchet\b|\bdisposable\s*(?:windows\s*)?runner\b|\bwindows\s*acceptance\b|\bsource\s*ci\b|\bupdater\s*handoff\b|\binstaller\s*extraction\b|\bmatches\s+the\s+tested\s+build\b|\binstaller\s*sha-?256\b|\bsha-?512\b|\bsignature\s*status\b|\bnotsigned\b|\bsmart\s*app\s*control\b|\bpublisher\s*block\b|\btrusted\s*windows\s*signing\b|\bpr\s*#\d+\b|^source:\s*\[?pr\s*#\d+|^commit\s+[0-9a-f]{7,}|\bif\s+an\s+older\s+installer/i;
 
 export function formatTitle(str: string): string {
   const cleaned = str.replace(/[:\-–—.,\s]+$/, '').trim();
@@ -67,14 +77,35 @@ export function formatTitle(str: string): string {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+export function cleanDescription(rawDesc: string, title?: string): string {
+  let desc = rawDesc.trim();
+  if (title) {
+    const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const prefixRegex = new RegExp(`^${escapedTitle}(?:\\s*[:\\-–—]\\s*|\\s+)`, 'i');
+    desc = desc.replace(prefixRegex, '').trim();
+  }
+  return capitalize(desc);
+}
+
+export function isInternalContent(text: string, section?: string): boolean {
+  if (section && INTERNAL_SECTIONS.test(section)) return true;
+  return INTERNAL_LINE_PATTERN.test(text);
+}
+
 /**
  * Derives a concise, meaningful title from release note text when no explicit bold/colon title exists.
  */
 export function deriveTitle(description: string): string {
-  const clean = description.replace(/^[-*•\d.]+\s*/, '').trim();
+  const clean = description.replace(/^(?:[-*•]|\d+[.)])\s*/, '').trim();
   if (!clean) return '';
 
-  // 1. Text before parenthetical detail: "Fixed right border not visible on 80mm rolls (was at 77mm...)"
+  // 1. Text before explicit colon: "Cash Register: removes legacy duplicate..." -> "Cash Register"
+  const colonMatch = clean.match(/^([A-Za-z0-9\s&()/-]{2,50}):\s+(.+)$/);
+  if (colonMatch) {
+    return formatTitle(colonMatch[1]);
+  }
+
+  // 2. Text before parenthetical detail: "Fixed right border not visible on 80mm rolls (was at 77mm...)"
   const parenMatch = clean.match(/^([^(]+?)\s*\(([^)]+)\)\.?$/);
   if (parenMatch) {
     const beforeParen = parenMatch[1].trim();
@@ -83,7 +114,7 @@ export function deriveTitle(description: string): string {
     }
   }
 
-  // 2. Text before dash or semicolon: "Print margin adjustment - reduced left padding"
+  // 3. Text before dash or semicolon: "Print margin adjustment - reduced left padding"
   const delimMatch = clean.match(/^([^—–;]+?)\s*[—–;]\s*(.+)$/);
   if (delimMatch) {
     const beforeDelim = delimMatch[1].trim();
@@ -92,21 +123,21 @@ export function deriveTitle(description: string): string {
     }
   }
 
-  // 3. Verb phrase / action prefix:
+  // 4. Verb phrase / action prefix:
   // "Added support for custom barcode scanning" -> "Custom Barcode Scanning"
   const supportMatch = clean.match(/^(?:added\s+)?support\s+for\s+([^,.;]+)/i);
   if (supportMatch) {
     return formatTitle(`${supportMatch[1].trim()} Support`);
   }
 
-  // 4. Action verb + object up to preposition (to, for, with, by, in, on, at, from):
+  // 5. Action verb + object up to preposition (to, for, with, by, in, on, at, from):
   // "Re-calibrated font-size inner width calculation to match new padding geometry."
   const prepMatch = clean.match(/^([A-Za-z0-9-]+\s+[A-Za-z0-9-]+\s+[A-Za-z0-9-]+\s+[A-Za-z0-9-]+(?:\s+[A-Za-z0-9-]+)?)\s+(?:to|for|with|by|in|on|at|from)\s+/i);
   if (prepMatch && prepMatch[1].length <= 55) {
     return formatTitle(prepMatch[1].trim());
   }
 
-  // 5. Short sentence / clause (first 4-6 words, max 50 chars):
+  // 6. Short sentence / clause (first 4-6 words, max 50 chars):
   const words = clean.split(/\s+/);
   if (words.length <= 6 && clean.length <= 50) {
     return formatTitle(clean.replace(/[.,;:]+$/, ''));
@@ -167,7 +198,7 @@ export function parseReleaseNotes(rawNotes: unknown): ParsedReleaseItem[] {
   if (!trimmed) return [];
 
   // Check if content has HTML tags
-  const hasHtml = /<\/?(?:ul|ol|li|p|h[1-6]|div|span|strong|b|a)\b/i.test(trimmed);
+  const hasHtml = /<\/?(?:ul|ol|li|p|h[1-6]|div|span|strong|b|a|details|summary)\b/i.test(trimmed);
 
   if (hasHtml) {
     return parseHtmlReleaseNotes(trimmed);
@@ -185,25 +216,32 @@ function parseHtmlReleaseNotes(html: string): ParsedReleaseItem[] {
   const headerMatch = beforeListMatch.match(/<(?:p|h[1-6])\b[^>]*>([^<]+)<\/(?:p|h[1-6])>/i);
   if (headerMatch) {
     const text = stripHtmlTags(headerMatch[1]).trim();
-    if (/^([A-Za-z0-9\s&()/-]{2,70}):\s*$/.test(text) && !SKIP_HEADINGS.test(text) && !LINK_KEYWORDS.test(text)) {
+    if (/^([A-Za-z0-9\s&()/-]{2,70}):?\s*$/.test(text) && !SKIP_HEADINGS.test(text) && !LINK_KEYWORDS.test(text)) {
       currentSection = text.replace(/[:\s]+$/, '').trim();
     }
   }
 
+  if (INTERNAL_SECTIONS.test(currentSection)) {
+    return [];
+  }
+
+  // Remove <details>...</details> blocks entirely from HTML
+  const cleanedHtml = html.replace(/<details\b[\s\S]*?<\/details>/gi, '');
+
   // Extract all <li>...</li> items
-  const liMatches = [...html.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)];
+  const liMatches = [...cleanedHtml.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)];
   for (let i = 0; i < liMatches.length; i++) {
     const rawInner = liMatches[i][1].trim();
     if (!rawInner) continue;
     const stripped = stripHtmlTags(rawInner);
-    if (TEST_OR_STATUS_LINE.test(stripped)) continue;
+    if (isInternalContent(stripped, currentSection)) continue;
 
     const parsed = parseSingleHtmlBlock(rawInner, `li-${i}`, currentSection);
     if (parsed) items.push(parsed);
   }
 
   // Also check for standalone paragraphs like <p><strong>Download:</strong> <a href="...">...</a></p>
-  const pMatches = [...html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)];
+  const pMatches = [...cleanedHtml.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)];
   for (let i = 0; i < pMatches.length; i++) {
     const rawInner = pMatches[i][1].trim();
     if (!rawInner) continue;
@@ -213,7 +251,7 @@ function parseHtmlReleaseNotes(html: string): ParsedReleaseItem[] {
 
     const stripped = stripHtmlTags(rawInner);
     if (SKIP_HEADINGS.test(stripped)) continue;
-    if (TEST_OR_STATUS_LINE.test(stripped)) continue;
+    if (isInternalContent(stripped, currentSection)) continue;
 
     // Standalone section heading ending in colon
     if (/^([A-Za-z0-9\s&()/-]{2,70}):\s*$/.test(stripped) && !extractLink(rawInner)) {
@@ -238,6 +276,8 @@ function parseHtmlReleaseNotes(html: string): ParsedReleaseItem[] {
 }
 
 function parseSingleHtmlBlock(innerHtml: string, fallbackId: string, section?: string): ParsedReleaseItem | null {
+  if (section && INTERNAL_SECTIONS.test(section)) return null;
+
   // Check for strong/b tag for title
   const strongMatch = innerHtml.match(/<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)>/i);
   let title: string | undefined;
@@ -246,20 +286,30 @@ function parseSingleHtmlBlock(innerHtml: string, fallbackId: string, section?: s
   if (strongMatch) {
     const rawTitle = stripHtmlTags(strongMatch[1]).replace(/[:\-–—\s]+$/, '').trim();
     if (rawTitle && !SKIP_HEADINGS.test(rawTitle)) {
-      title = rawTitle;
+      title = formatTitle(rawTitle);
       remainingHtml = innerHtml.replace(strongMatch[0], '');
     }
   }
 
+  // If no strong/b, check for explicit delimiter "Title: Description" or "Title - Description"
+  if (!title) {
+    const strippedText = stripHtmlTags(innerHtml).trim();
+    const delimMatch = strippedText.match(/^([A-Za-z0-9\s&()/-]{2,50})(?::\s*|\s+[-–—]\s+)(.+)$/);
+    if (delimMatch) {
+      title = formatTitle(delimMatch[1]);
+      remainingHtml = delimMatch[2];
+    }
+  }
+
   const link = extractLink(innerHtml);
-  const cleanDescription = stripHtmlTags(remainingHtml).replace(/^[:\-–—\s]+/, '').trim();
+  const rawDescription = stripHtmlTags(remainingHtml).replace(/^[:\-–—\s]+/, '').trim();
 
   // If both title and description are empty, skip
-  if (!title && !cleanDescription && !link) return null;
+  if (!title && !rawDescription && !link) return null;
 
-  const desc = cleanDescription || (link ? link.text : title || '');
+  const desc = cleanDescription(rawDescription || (link ? link.text : title || ''), title);
   if (SKIP_HEADINGS.test(desc) && !title && !link) return null;
-  if (TEST_OR_STATUS_LINE.test(desc)) return null;
+  if (isInternalContent(desc, section) || isInternalContent(innerHtml, section)) return null;
 
   const combinedText = `${section || ''} ${title || ''} ${desc}`;
   const isFix = FIX_KEYWORDS.test(combinedText);
@@ -282,19 +332,32 @@ function parseMarkdownReleaseNotes(text: string): ParsedReleaseItem[] {
 
   let counter = 0;
   let currentSection = '';
+  let inDetailsBlock = false;
 
   for (const line of lines) {
+    // Check for <details> / </details> blocks
+    if (/<details\b/i.test(line)) {
+      inDetailsBlock = true;
+      continue;
+    }
+    if (/<\/details>/i.test(line)) {
+      inDetailsBlock = false;
+      continue;
+    }
+    if (inDetailsBlock) continue;
+
     // Skip markdown headings like ## What's New
     if (/^#{1,6}\s+/.test(line)) {
       const headingText = line.replace(/^#{1,6}\s+/, '').trim();
-      if (!SKIP_HEADINGS.test(headingText)) {
-        currentSection = headingText.replace(/[:\s]+$/, '').trim();
-      }
+      currentSection = headingText.replace(/[:\s]+$/, '').trim();
       continue;
     }
 
     // Skip horizontal dividers
     if (/^[-*_]{3,}$/.test(line)) continue;
+
+    // If we are in an internal section, skip all lines until next section
+    if (INTERNAL_SECTIONS.test(currentSection)) continue;
 
     // Check if standalone section header ending in colon without bullet
     if (!/^[-*•\d.]+\s*/.test(line) && /^([A-Za-z0-9\s&()/-]{2,70}):\s*$/.test(line)) {
@@ -302,10 +365,10 @@ function parseMarkdownReleaseNotes(text: string): ParsedReleaseItem[] {
       continue;
     }
 
-    // Clean bullet markers
-    const cleaned = line.replace(/^[-*•\d.]+\s*/, '').trim();
+    // Clean bullet markers safely
+    const cleaned = line.replace(/^(?:[-*•]|\d+[.)])\s*/, '').trim();
     if (!cleaned || SKIP_HEADINGS.test(cleaned)) continue;
-    if (TEST_OR_STATUS_LINE.test(cleaned)) continue;
+    if (isInternalContent(cleaned, currentSection)) continue;
 
     // Check if bullet itself is just a header ending in colon
     if (/^([A-Za-z0-9\s&()/-]{2,70}):\s*$/.test(cleaned)) {
@@ -317,16 +380,18 @@ function parseMarkdownReleaseNotes(text: string): ParsedReleaseItem[] {
     let desc = cleaned;
 
     // Check for **Title**: or __Title__: or Title:
-    // Only match hyphen when surrounded by spaces so hyphenated words like "Re-calibrated" are not split
     const titleMatch = cleaned.match(/^(?:\*\*([^*]+)\*\*|__([^_]+)__|([A-Za-z0-9\s&()/-]+?))(?::\s*|\s+[-–—]\s+|\s*[–—]\s*)(.*)$/);
     if (titleMatch) {
       const candidateTitle = (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim();
       const candidateDesc = (titleMatch[4] || '').trim();
       if (candidateTitle.length >= 3 && candidateTitle.length < 50 && candidateDesc.length > 0) {
-        title = candidateTitle;
+        title = formatTitle(candidateTitle);
         desc = candidateDesc;
       }
     }
+
+    desc = cleanDescription(desc, title);
+    if (isInternalContent(desc, currentSection)) continue;
 
     const link = extractLink(desc) || extractLink(cleaned);
     const combinedText = `${currentSection} ${title || ''} ${desc}`;
@@ -372,33 +437,80 @@ export function inferItemTag(title?: string, description?: string, sectionContex
   if (/\b(changelog|compare|download|release|github|commit)\b/i.test(combined)) {
     return { en: 'Resource', ml: 'വിവരങ്ങൾ' };
   }
-  // Check Printing before general Improvement so thermal/receipt fixes get tagged Printing
-  if (/\b(print|printing|printed|printer|thermal|receipt|paper|cutter|tax\s*receipt|roll|rolls|margin|padding|layout|font-size|alignment)\b/i.test(combined)) {
+  // Staff & Attendance & Payroll
+  if (/\b(staff|attendance|payroll|salary|wage|wages|advance|payout|employee|timesheet)\b/i.test(combined)) {
+    return { en: 'Staff', ml: 'ജീവനക്കാർ' };
+  }
+  // Day closing / shop closing
+  if (/\b(shop\s*closing|day\s*end|daily\s*closing|shift\s*closing|gross\s*sales)\b/i.test(combined)) {
+    return { en: 'Closing', ml: 'ക്ലോസിംഗ്' };
+  }
+  // Printing (before billing so thermal tax receipt gets Printing)
+  if (/\b(print|printing|printed|printer|thermal|receipt|paper|cutter|tax\s*receipt|roll|rolls|margin|padding|layout|font-size|alignment|geometry)\b/i.test(combined)) {
     return { en: 'Printing', ml: 'പ്രിന്റിംഗ്' };
   }
-  if (/\b(fix|fixes|fixed|bug|bugs|issue|issues|error|errors|resolved|patch|hotfix|revert)\b/i.test(combined)) {
+  // Security & Authentication
+  if (/\b(sign-?in|login|switch\s*user|remember.*shop|password|credential|pin)\b/i.test(combined)) {
+    return { en: 'Security', ml: 'സെക്യൂരിറ്റി' };
+  }
+  // Sharing & WhatsApp
+  if (/\b(whatsapp|share\s+the\s+checkout|export\s*bill)\b/i.test(combined)) {
+    return { en: 'Sharing', ml: 'ഷെയറിംഗ്' };
+  }
+  // Explicit inventory / tiers
+  if (/\b(inventory|pricing\s*tier|add\s*tier|stock\s*count)\b/i.test(combined)) {
+    return { en: 'Inventory', ml: 'ഇൻവെന്ററി' };
+  }
+  // Bug fixes & Improvements
+  if (FIX_KEYWORDS.test(combined)) {
     return { en: 'Improvement', ml: 'മെച്ചപ്പെടുത്തൽ' };
   }
-  if (/\b(unit|pricing|product|cart|tax|gst|inclusive|exclusive|barcode|item)\b/i.test(combined)) {
-    return { en: 'Billing', ml: 'ബില്ലിംഗ്' };
-  }
-  if (/\b(drawer|register|cash\s*drawer|closing|hardware|scale|scanner)\b/i.test(combined)) {
+  // Hardware / Cash Drawer
+  if (/\b(drawer|cash\s*drawer|register|cash\s*register|hardware|scale|scanner)\b/i.test(combined)) {
     return { en: 'Hardware', ml: 'ഹാർഡ്‌വെയർ' };
   }
+  // Checkout & Net pay
   if (/\b(total|net\s*pay|discount|roundoff|grand\s*total|checkout|tender)\b/i.test(combined)) {
     return { en: 'Checkout', ml: 'ചെക്ക്ഔട്ട്' };
   }
+  // General Billing & Pricing
+  if (/\b(unit|units|pricing|product|cart|tax|gst|inclusive|exclusive|barcode|item|filing)\b/i.test(combined)) {
+    return { en: 'Billing', ml: 'ബില്ലിംഗ്' };
+  }
+  // Sync
   if (/\b(sync|cloud|backup|network|offline|lan|pairing)\b/i.test(combined)) {
     return { en: 'Sync', ml: 'സിങ്ക്' };
   }
+  // Customers & Ledger
   if (/\b(customer|credit|ledger|party|balance)\b/i.test(combined)) {
     return { en: 'Customers', ml: 'കസ്റ്റമേഴ്സ്' };
   }
-  if (/\b(filing|accountant|collection|cash\s*on\s*hand|preference|settings)\b/i.test(combined)) {
+  // Settings
+  if (/\b(preference|settings|config)\b/i.test(combined)) {
     return { en: 'Settings', ml: 'സെറ്റിംഗ്സ്' };
   }
   return { en: 'New Feature', ml: 'പുതിയ ഫീച്ചർ' };
 }
+
+export const MALAYALAM_TITLE_MAP: Record<string, string> = {
+  'cash register': 'ക്യാഷ് രജിസ്റ്റർ',
+  'shop closing': 'കട അടയ്ക്കൽ & ഗ്രോസ് സെയിൽസ്',
+  'gross sales': 'കട അടയ്ക്കൽ & ഗ്രോസ് സെയിൽസ്',
+  'whatsapp bills and pdfs': 'വാട്ട്‌സ്ആപ്പ് & പിഡിഎഫ് ബില്ലുകൾ',
+  'whatsapp & pdf sharing': 'വാട്ട്‌സ്ആപ്പ് & പിഡിഎഫ് ബില്ലുകൾ',
+  'whatsapp': 'വാട്ട്‌സ്ആപ്പ് ബില്ലുകൾ',
+  'staff': 'ജീവനക്കാരുടെ ഹാജരും ശമ്പളവും',
+  'staff attendance': 'ജീവനക്കാരുടെ ഹാജരും ശമ്പളവും',
+  'inventory': 'സ്റ്റോക്കും വില വിവരങ്ങളും',
+  'pricing tiers': 'സ്റ്റോക്കും വില വിവരങ്ങളും',
+  'sign-in': 'ലളിതമായ ലോഗിൻ വിവരങ്ങൾ',
+  'quick shop sign-in': 'ലളിതമായ ലോഗിൻ വിവരങ്ങൾ',
+  'clean thermal tax receipts': 'തെർമൽ ടാക്സ് രസീതുകൾ',
+  'quick product units & pricing': 'യൂണിറ്റുകളും വിലയും',
+  'offline-first security & sync': 'ഓഫ്‌ലൈൻ ബാക്കപ്പും സിങ്കും',
+  'automated system updates': 'ഓട്ടോമാറ്റിക് സിസ്റ്റം അപ്ഡേറ്റുകൾ',
+  'fast retail & gst billing': 'വേഗതയേറിയ ജിഎസ്ടി ബില്ലിംഗ്',
+};
 
 /**
  * Converts dynamic release notes into rich "What's New" cards matching the design system.
@@ -409,7 +521,7 @@ export function releaseNotesToCards(rawNotes: unknown, staticItems?: WhatsNewIte
     const accent = ACCENTS[index % ACCENTS.length];
     const derived = item.title || deriveTitle(item.description);
     const titleEn = derived || (item.link ? item.link.text : 'Improvement');
-    const descEn = item.description || (item.link ? item.link.url : '');
+    const descEn = cleanDescription(item.description || (item.link ? item.link.url : ''), titleEn);
     const inferredTag = inferItemTag(titleEn, descEn, item.section);
 
     // Check if a static item matches to borrow high-quality Malayalam translations
@@ -417,16 +529,23 @@ export function releaseNotesToCards(rawNotes: unknown, staticItems?: WhatsNewIte
       (s) => s.title.en.toLowerCase() === titleEn.toLowerCase()
     );
 
+    const mlLookupKey = titleEn.toLowerCase();
+    const mlMappedTitle = MALAYALAM_TITLE_MAP[mlLookupKey] ||
+      Object.entries(MALAYALAM_TITLE_MAP).find(([k]) => mlLookupKey.includes(k))?.[1];
+
     const title = {
       en: titleEn,
-      ml: matched ? matched.title.ml : titleEn,
+      ml: matched ? matched.title.ml : (mlMappedTitle || titleEn),
     };
 
     const tag = matched ? matched.tag : inferredTag;
 
+    const firstSentence = descEn.split(/(?<=[.!?])\s+/)[0] || '';
     const subtitle = matched
       ? matched.subtitle
-      : (descEn !== titleEn && descEn.length < 80 ? descEn : '');
+      : (firstSentence && firstSentence.length >= 10 && firstSentence.length <= 80 && firstSentence !== descEn
+          ? firstSentence
+          : '');
 
     const text = {
       en: descEn,

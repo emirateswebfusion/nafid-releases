@@ -8,7 +8,7 @@ import { partyConnectCloud } from '../../../data/cloud/partyConnect';
 import { settingsApi, setSetting } from '../../../data/settings';
 import { STAFF_DATA_MASKING_KEY, parseStaffDataMaskingConfig, DEFAULT_STAFF_DATA_MASKING_CONFIG } from '../../../utils/security/staffDataMasking';
 import { EMERGENCY_PANIC_CONFIG_KEY, parseEmergencyPanicConfig, DEFAULT_EMERGENCY_PANIC_CONFIG } from '../../../utils/security/emergencyPurge';
-import { type FeatureFlags, sanitizeFeatureFlags, DEFAULT_FEATURE_FLAGS, FEATURE_LIST, useFeatureFlagsStore, wereFeatureFlagsStored } from '../../../config/featureFlags';
+import { type FeatureFlags, sanitizeFeatureFlags, DEFAULT_FEATURE_FLAGS, resolveFeatureFlags, useFeatureFlagsStore, wereFeatureFlagsStored } from '../../../config/featureFlags';
 import { type CodeType, DEFAULT_CODE_TYPE, CODE_TYPE_CONFIGS } from '../../../config/labelCodeTypes';
 import { setAppTimeFormat, DEFAULT_BILL_SETTINGS } from '../../../utils/print/receiptGenerator';
 import { DEFAULT_BILLING_UI_CONFIG, DEFAULT_HEADER_BUTTON_CONFIG, useBillingUIStore } from '../../../store/billingUIStore';
@@ -278,11 +278,7 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
       let finalFlags: FeatureFlags = sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
       const storedFlags = allSettings['feature_flags'];
       if (storedFlags && typeof storedFlags === 'object' && !Array.isArray(storedFlags)) {
-        for (const def of FEATURE_LIST) {
-          const v = storedFlags[def.key];
-          if (typeof v === 'boolean') finalFlags[def.key] = v;
-        }
-        finalFlags = sanitizeFeatureFlags(finalFlags);
+        finalFlags = resolveFeatureFlags(storedFlags);
         finalScrap = finalFlags.scrap;
         finalCashReg = finalFlags.cash_register;
       } else {
@@ -494,22 +490,20 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         }
       }
 
+      const autoSendVal = allSettings['auto_whatsapp_send'];
+      if (autoSendVal !== undefined && autoSendVal !== null) {
+        const isAuto = autoSendVal === 'true' || autoSendVal === true;
+        ctx.form.setAutoWhatsAppSend(isAuto);
+        try { localStorage.setItem('auto_whatsapp_send', isAuto ? 'true' : 'false'); } catch { /* ignore */ }
+      }
+
       const loadedProfile = loadStoreProfileSettings(allSettings, ctx.form);
 
-      setBarcodePrinter(finalBarcode);
-      setReceiptPrinter(finalReceipt);
-      setA4Printer(finalA4);
-      setScale(finalScaleObj);
-      setPriceCoding(finalCoding);
-      setShopGstin(finalGstin);
-      setShopState(finalState);
-      setShopNameLocal(finalName);
-      setShopAddress(finalAddress);
-      setShopPhone(finalPhone);
-      setShopEmail(finalEmail);
-      setShopWebsite(finalWebsite);
-      setUpiId(finalUpi);
-      setShowUpiQr(finalShowQr);
+      setBarcodePrinter(finalBarcode); setReceiptPrinter(finalReceipt); setA4Printer(finalA4);
+      setScale(finalScaleObj); setPriceCoding(finalCoding); setShopGstin(finalGstin);
+      setShopState(finalState); setShopNameLocal(finalName); setShopAddress(finalAddress);
+      setShopPhone(finalPhone); setShopEmail(finalEmail); setShopWebsite(finalWebsite);
+      setUpiId(finalUpi); setShowUpiQr(finalShowQr);
       setSyncMode(finalSyncMode);
       setLanRole(finalLanRole);
       setLanHostIp(finalLanHostIp);

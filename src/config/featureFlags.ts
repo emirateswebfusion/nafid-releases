@@ -26,7 +26,12 @@ export type FeatureKey =
   | 'ai_assistant'
   | 'recycle_bin'
   | 'gst_reports'
-  | 'restaurant_mode';
+  | 'restaurant_mode'
+  | 'dining_tables'
+  | 'takeaway_delivery'
+  | 'kitchen_display'
+  | 'financial_reports'
+  | 'advertisements';
 
 export type FeatureFlags = Record<FeatureKey, boolean>;
 
@@ -65,7 +70,12 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'gst_reports', label: 'GST Reports & Returns', desc: 'GSTR-1 returns, HSN summaries, and tax return filing export' },
   { key: 'recycle_bin', label: 'Recycle Bin', desc: 'Restore accidentally deleted bills, inventory items, and customer contacts' },
   { key: 'loyalty', label: 'Loyalty Points', desc: 'Earn and redeem loyalty points on purchases' },
-  { key: 'restaurant_mode', label: 'Restaurant / Cafeteria Mode', desc: 'Tables, takeaway and delivery orders, kitchen tickets (KOT), kitchen display and service charge' },
+  { key: 'dining_tables', label: 'Tables & Orders', desc: 'Manage seating, open table orders and send kitchen tickets' },
+  { key: 'takeaway_delivery', label: 'Takeaway & Delivery', desc: 'Manage takeaway tokens and delivery orders' },
+  { key: 'kitchen_display', label: 'Kitchen Display', desc: 'Track preparation, ready and served kitchen tickets' },
+  { key: 'financial_reports', label: 'Financial Reports', desc: 'Sales, payments, profit analysis and business reports' },
+  { key: 'advertisements', label: 'Advertisements & Promotions', desc: 'Create promotional cards and track customer views' },
+  { key: 'restaurant_mode', label: 'Food Orders & Kitchen', desc: 'Tables, takeaway and delivery orders, kitchen tickets (KOT), kitchen display and service charge' },
   ...(isAiAssistantAvailable ? [
     { key: 'ai_assistant' as FeatureKey, label: 'AI Business Assistant', desc: 'Smart AI chatbot for sales analytics, stock alerts, credit reports & commands' }
   ] : []),
@@ -100,13 +110,43 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   ai_assistant: isAiAssistantAvailable,
   recycle_bin: true,
   restaurant_mode: false,
+  dining_tables: false,
+  takeaway_delivery: false,
+  kitchen_display: false,
+  financial_reports: true,
+  advertisements: true,
 };
+
+export function resolveFeatureFlags(stored: unknown): FeatureFlags {
+  const flags = { ...DEFAULT_FEATURE_FLAGS };
+  if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+    const values = stored as Record<string, unknown>;
+    for (const def of FEATURE_LIST) {
+      if (typeof values[def.key] === 'boolean') flags[def.key] = values[def.key] as boolean;
+    }
+    for (const key of ['dining_tables', 'takeaway_delivery', 'kitchen_display'] as const) {
+      if (typeof values[key] !== 'boolean') flags[key] = values.restaurant_mode === true;
+    }
+  }
+  return sanitizeFeatureFlags(flags);
+}
+
+export function isFeatureEnabled(flags: FeatureFlags | null, key: FeatureKey): boolean {
+  if (!flags || flags[key] !== true) return false;
+  if (key === 'dining_tables' || key === 'takeaway_delivery' || key === 'kitchen_display') return flags.restaurant_mode;
+  return true;
+}
 
 export function sanitizeFeatureFlags(flags: FeatureFlags): FeatureFlags {
   const sanitized = { ...flags };
   // If Cash Settlement is turned OFF, Express Cash Register is also turned OFF automatically
   if (sanitized.cash_settlement === false) {
     sanitized.cash_register = false;
+  }
+  if (!sanitized.restaurant_mode) {
+    sanitized.dining_tables = false;
+    sanitized.takeaway_delivery = false;
+    sanitized.kitchen_display = false;
   }
   return sanitized;
 }

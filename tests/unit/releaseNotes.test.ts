@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+﻿import { describe, it, expect } from 'vitest';
 import {
   parseReleaseNotes,
   getReleaseNotesSummary,
@@ -193,5 +193,67 @@ All 35 thermal print tests pass.
     const fallbackItems = getWhatsNewItems(null, undefined);
     expect(fallbackItems).toEqual(DEFAULT_WHATS_NEW);
     expect(fallbackItems.length).toBe(3);
+  });
+
+  it('cleanly parses v2.2.44 release notes excluding developer verification sections and metadata', () => {
+    const v2244Raw = `## Nafid POS 2.2.44
+
+- Cash Register: removes legacy duplicate scrap purchase movements, filters them consistently in history, and immediately updates drawer totals after cleanup. Standalone purchases and named-user cash entries remain intact.
+- Shop closing: enabled Gross Sales is always shown and uses sales value before invoice discounts and scrap/return credit deductions.
+- WhatsApp bills and PDFs: share the checkout item prices, HSN/SAC and tax rates, subtotal, discounts and GST components. History sharing and reprints preserve stored CGST/SGST/IGST cents and keep UAE VAT distinct.
+- Staff: attendance can be marked on every day of an empty month, including holidays; monthly pay statements classify entries in the shop timezone. Salary, advances, purchases, deductions, payouts and ledger balances have integration coverage.
+- Inventory: inline Add Tier prevents duplicate submissions and keeps failed saves editable; Escape cancels the tier entry without closing the product form.
+- Sign-in: remembers the last shop and user on this PC and shows their name/role beside the shop. Switch User / Sign in with Email is available; legacy multi-shop PCs without remembered context require an explicit email login.
+
+### Windows upgrade
+
+If an older installer/updater cannot complete the update, close Nafid normally and run this full installer once. Existing shop data/settings are preserved by the tested upgrade path. Windows publisher/signing restrictions are separate from updater behavior; this release does not claim to remove them.
+
+
+### Verification
+
+- 161 test files / 1,012 tests passed, architecture guard passed, lint: zero errors and warnings.
+- 1,997 IPC calls compared; only the intended closing/session changes remained after per-database identity normalization.
+- Final installer extraction, production updater/runtime configuration, native SQLite, data preservation, measured verification events, launch failure/retry and candidate updater handoff passed in a disposable Windows runner.
+- Source: [PR #63](https://github.com/emirateswebfusion/nafid-pos/pull/63), commit \`21fef20f522c8840aaefde1f93bb1f65fc78f345\`; its tree matches the tested build source \`111a6e6b878234f8af74a4ffa1b34b778c6e0b51\`.
+- [Source CI](https://github.com/emirateswebfusion/nafid-pos/actions/runs/41982737196) and [Windows acceptance](https://github.com/emirateswebfusion/nafid-pos/actions/runs/41982735840).
+- Installer SHA-256: \`c2ccb13248f13a608940301fe73fe2453a828715138f5bd77727d7a5afd1c731\`.
+- Signature status: **NotSigned**. This installer does not resolve a Smart App Control publisher block; trusted Windows signing remains outstanding.
+`;
+    const cards = releaseNotesToCards(v2244Raw);
+
+    // Exactly the 6 user-facing features should be returned
+    expect(cards.length).toBe(6);
+
+    // Titles must be clean and not include colon or trailing sentences
+    expect(cards[0].title.en).toBe('Cash Register');
+    expect(cards[0].text.en).toMatch(/^Removes legacy duplicate scrap purchase movements/);
+    expect(cards[0].title.ml).toBe('ക്യാഷ് രജിസ്റ്റർ');
+
+    expect(cards[1].title.en).toBe('Shop closing');
+    expect(cards[1].tag.en).toBe('Closing');
+    expect(cards[1].title.ml).toBe('കട അടയ്ക്കൽ & ഗ്രോസ് സെയിൽസ്');
+
+    expect(cards[2].title.en).toBe('WhatsApp bills and PDFs');
+    expect(cards[2].tag.en).toBe('Sharing');
+    expect(cards[2].title.ml).toBe('വാട്ട്‌സ്ആപ്പ് & പിഡിഎഫ് ബില്ലുകൾ');
+
+    expect(cards[3].title.en).toBe('Staff');
+    expect(cards[3].tag.en).toBe('Staff');
+    expect(cards[3].title.ml).toBe('ജീവനക്കാരുടെ ഹാജരും ശമ്പളവും');
+
+    expect(cards[4].title.en).toBe('Inventory');
+    expect(cards[4].tag.en).toBe('Inventory');
+    expect(cards[4].title.ml).toBe('സ്റ്റോക്കും വില വിവരങ്ങളും');
+
+    expect(cards[5].title.en).toBe('Sign-in');
+    expect(cards[5].tag.en).toBe('Security');
+    expect(cards[5].title.ml).toBe('ലളിതമായ ലോഗിൻ വിവരങ്ങൾ');
+
+    // No developer metadata or verification text must leak into cards
+    for (const card of cards) {
+      expect(card.title.en).not.toMatch(/1,?997|IPC|SHA|NotSigned|runner|installer extraction|commit|PR #/i);
+      expect(card.text.en).not.toMatch(/1,?997|IPC calls|SHA-256|NotSigned|disposable Windows runner|161 test files/i);
+    }
   });
 });

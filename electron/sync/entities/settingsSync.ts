@@ -50,7 +50,15 @@ export async function syncSettings(token: string, tenantId: string) {
   );
   if (synced.length > 0) {
     const updateStmt = settingsSyncSql.updateSettings2(db);
-    const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
+    const tx = db.transaction((keys: string[]) => {
+      for (const key of keys) {
+        if (key === 'feature_flags') {
+          for (const sent of pending.filter(row => row.key === key)) {
+            settingsSyncSql.acknowledgeFeatureFlags(db).run(sent.tenant_id, sent.value, sent.updated_at);
+          }
+        } else updateStmt.run(key, tenantId);
+      }
+    });
     tx(synced);
   }
 }

@@ -16,7 +16,18 @@ for (const arch of ['arm64', 'x64']) {
   const directory = path.join(input, `macos-build-${arch}`);
   const report = JSON.parse(fs.readFileSync(path.join(directory, 'verification/mac-release.json'), 'utf8'));
   assert.equal(report.version, version); assert.equal(report.arch, arch); assert.ok(!report.error);
+  assert.ok(typeof report.source === 'string' && /^[a-f0-9]{40}$/.test(report.source));
+  if (reports.length) assert.equal(report.source, reports[0].source, 'Mac architectures must come from the same source commit');
   assert.ok(report.checks.finalDmg && report.checks.publicConfiguration && report.checks.nativeSqliteSerialportAndRenderer && report.checks.packagedAppStartup && report.checks.signatureStructure);
+  for (const extension of ['dmg', 'zip']) {
+    const name = `Nafid-${version}-mac-${arch}.${extension}`;
+    const asset = report.assets.find(asset => asset.name === name);
+    assert.ok(asset, `Missing final ${name} evidence`);
+    const binary = path.join(directory, name);
+    assert.equal(fs.statSync(binary).size, asset.size);
+    assert.equal(crypto.createHash('sha256').update(fs.readFileSync(binary)).digest('hex'), asset.sha256);
+    assert.equal(crypto.createHash('sha512').update(fs.readFileSync(binary)).digest('base64'), asset.sha512);
+  }
   reports.push(report);
   const metadata = yaml.load(fs.readFileSync(path.join(directory, 'latest-mac.yml'), 'utf8'));
   assert.equal(metadata.version, version);

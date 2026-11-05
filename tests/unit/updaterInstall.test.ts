@@ -32,7 +32,7 @@ const install = () => fixture.handlers.get('app:installUpdate')?.();
 beforeEach(async () => {
   vi.resetModules(); vi.useFakeTimers(); vi.resetAllMocks(); fixture.handlers.clear(); fixture.listeners.clear(); fixture.platform = 'win32';
   const service = await import('../../electron/services/updaterService');
-  service.setupAutoUpdater(); service.registerUpdaterIpc();
+  service.setupAutoUpdater(); const handlers = await import('../../electron/ipc/updaterHandlers'); handlers.registerUpdaterIpc();
 });
 afterEach(() => vi.useRealTimers());
 

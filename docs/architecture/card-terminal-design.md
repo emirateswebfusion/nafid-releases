@@ -1,6 +1,21 @@
 # Card terminal integration (ECR) — design
 
-**Status:** implemented 3 Nov 2026 on `feat/card-terminal`, off by default. Built: the interface, the training
+**Current status (4 Nov 2026):** the production registry no longer installs the simulated adapter. Legacy enabled
+MOCK settings become disabled / UNCONFIGURED on read. MockTerminal remains a test fixture only. The Super Admin
+console has a Card terminals setup panel: provider, TEST/LIVE environment, HTTPS endpoint and encrypted platform
+credentials. Shop Hardware → Card Terminal saves provider, merchant ID, terminal ID and USB/LAN details, but cannot
+enable automatic charging until a verified provider connector is shipped. Manual card billing is unchanged.
+
+`/api/card-terminal/platform` GET/PUT is SUPER_ADMIN-only. The central database owns provider credentials
+(migration 093); neither POS settings nor sync carries them. `/api/card-terminal/readiness` returns only status
+and messages to authenticated shops. Its `ready` remains false in this build even with credentials saved.
+Credential writes require a server-only 64-hex-character `CARD_TERMINAL_VAULT_KEY`; there is no default/fallback key.
+AES-256-GCM binds ciphertext to provider/environment. Blank credential fields preserve existing keys; explicit
+removal clears them. No endpoint is called by Save or readiness checks. API keys alone cannot install a provider
+protocol: provider documentation, connector implementation and terminal verification remain required.
+Tests: `cardTerminalProduction.test.ts`, `cardTerminalSetup.ui.test.tsx`, server `cardTerminalPlatform.test.ts`.
+
+**Original implementation (3 Nov 2026):** built on `feat/card-terminal`: the interface, the training
 (simulated) adapter, journal (migration 015), IPC, checkout step, cashier dialog, void on failed save / bill delete,
 refund on card returns, the Hardware → Card Terminal settings panel and tests (`cardTerminalService.test.ts`,
 `cardTerminalStep.test.ts`). **Not built:** a real acquirer adapter. No UAE acquirer publishes its ECR message format

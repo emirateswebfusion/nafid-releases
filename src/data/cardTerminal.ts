@@ -1,7 +1,7 @@
 import { bindBridge, hasBridge } from './client';
 
 /** Bank card machine (ECR) shapes returned by the main process. Mirrors electron/hardware/cardTerminal/types.ts. */
-export type CardTerminalProvider = 'MOCK';
+export type CardTerminalProvider = 'UNCONFIGURED' | 'NETWORK' | 'MAGNATI' | 'GEIDEA' | 'NEOPAY' | 'PINE_LABS' | 'MOCK';
 export type CardTerminalOutcome = 'APPROVED' | 'DECLINED' | 'CANCELLED' | 'TIMEOUT' | 'ERROR' | 'UNKNOWN';
 
 export type CardTerminalConnection =
@@ -15,6 +15,8 @@ export interface CardTerminalConfig {
   connection: CardTerminalConnection;
   timeoutSeconds: number;
   allowManualFallback: boolean;
+  merchantId?: string;
+  terminalId?: string;
 }
 
 export interface CardTerminalStatus {
@@ -60,6 +62,12 @@ export interface CardTerminalBillDetails {
 }
 
 export const CARD_TERMINAL_PROVIDER_LABELS: Record<CardTerminalProvider, string> = {
+  UNCONFIGURED: 'Choose your bank / provider',
+  NETWORK: 'Network / N-Genius',
+  MAGNATI: 'Magnati',
+  GEIDEA: 'Geidea',
+  NEOPAY: 'NEOPAY',
+  PINE_LABS: 'Pine Labs',
   MOCK: 'Training terminal (simulated, no real charge)',
 };
 

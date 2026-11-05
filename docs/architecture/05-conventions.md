@@ -1,4 +1,4 @@
-# 5. Conventions
+﻿# 5. Conventions
 
 ## 5.1 Enforced by `npm run check:arch` (`scripts/check-architecture.mjs`)
 
@@ -54,6 +54,7 @@ only in a deliberate maintenance change after debt went **down**.
 - Cross-screen state → Zustand store in `src/store/`; screen-local state stays in the component.
 - Stores call `src/data/*`, never the bridge, never components.
 - Persisted state: namespace keys (`nafid-*`), exclude PII with `partialize`, clear carts/tabs on logout.
+- Device-specific hardware/workflow flags with critical-path synchronous checkout reads (e.g. `auto_whatsapp_send`) are persisted in SQLite `settings` table as the durable source of truth, loaded into `localStorage` on initial app startup (`useSettingsLoader`), and auto-healed on cache miss.
 
 ## 5.5 Naming
 

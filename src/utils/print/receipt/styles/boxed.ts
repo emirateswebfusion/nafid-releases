@@ -1,4 +1,5 @@
 import { getEffectiveBillSettings, formatPrintItem, shouldShowItemMrp, numberToIndianWords, getDocumentTitle } from '../receiptCore';
+import { splitTaxAmount } from '../../../pricing/checkoutLines';
 import type { ReceiptTextContext } from '../receiptText';
 
 /** Thermal receipt style "boxed": BILL — Boxed receipt matching reference: strict alignment, columnar table */
@@ -320,14 +321,19 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
   text += B_MID();
 
   // ── Tax Breakup ───────────────────────────────────────────────────────────
-  if (data.tax > 0) {
+  const isGst = data.invoiceType === 'GST' || Boolean(data.isB2B);
+  const showBreakup = isGst || data.billSettings?.showBosTaxBreakup !== false;
+  if (data.tax > 0 && showBreakup) {
     let taxCols: string[];
     let taxWidths: number[];
     let taxValues: string[];
     let taxAligns: ('left' | 'right' | 'center')[];
 
     const hasIgst = Boolean(data.igst && data.igst > 0);
-    const hasCgstSgst = Boolean((data.cgst && data.cgst > 0) || (data.sgst && data.sgst > 0));
+    const split = splitTaxAmount(data.tax);
+    const effectiveCgst = (data.cgst && data.cgst > 0) ? data.cgst : (!hasIgst ? split.cgst : 0);
+    const effectiveSgst = (data.sgst && data.sgst > 0) ? data.sgst : (!hasIgst ? split.sgst : 0);
+    const hasCgstSgst = Boolean(effectiveCgst > 0 || effectiveSgst > 0);
     const taxableVal = (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05 ? data.subtotal : Math.max(0, data.grandTotal - data.tax)).toFixed(2);
 
     if (charsPerLine >= 42) {
@@ -341,7 +347,7 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
           taxWidths = [wTaxable, wIgst, wTotal];
           taxCols = ['Taxable', 'IGST', 'Total'];
           taxAligns = ['right', 'right', 'right'];
-          taxValues = [taxableVal, (data.igst || 0).toFixed(2), data.tax.toFixed(2)];
+          taxValues = [taxableVal, (data.igst || data.tax).toFixed(2), data.tax.toFixed(2)];
         } else {
           // 4 columns: Taxable, CGST, SGST, Total (Clean Kerala Intra-State standard)
           const taxSum = charsPerLine - 5;
@@ -352,7 +358,7 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
           taxWidths = [wTaxable, wCgst, wSgst, wTotal];
           taxCols = ['Taxable', 'CGST', 'SGST', 'Total'];
           taxAligns = ['right', 'right', 'right', 'right'];
-          taxValues = [taxableVal, (data.cgst || 0).toFixed(2), (data.sgst || 0).toFixed(2), data.tax.toFixed(2)];
+          taxValues = [taxableVal, effectiveCgst.toFixed(2), effectiveSgst.toFixed(2), data.tax.toFixed(2)];
         }
       } else {
         // 5 columns when both IGST and CGST exist (Inter-state mixed)
@@ -362,7 +368,7 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
         taxWidths = [tw, tw, tw, tw, twLast];
         taxCols = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total'];
         taxAligns = ['right', 'right', 'right', 'right', 'right'];
-        taxValues = [taxableVal, (data.cgst || 0).toFixed(2), (data.sgst || 0).toFixed(2), (data.igst || 0).toFixed(2), data.tax.toFixed(2)];
+        taxValues = [taxableVal, effectiveCgst.toFixed(2), effectiveSgst.toFixed(2), (data.igst || 0).toFixed(2), data.tax.toFixed(2)];
       }
     } else if (hasIgst) {
       // 3 columns for Inter-State on narrow thermal printer
@@ -374,8 +380,8 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
       taxCols = ['Taxable', 'IGST', 'Total GST'];
       taxAligns = ['right', 'right', 'right'];
       taxValues = [
-        (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05 ? data.subtotal : Math.max(0, data.grandTotal - data.tax)).toFixed(2),
-        data.igst ? data.igst.toFixed(2) : '0.00',
+        taxableVal,
+        (data.igst || data.tax).toFixed(2),
         data.tax.toFixed(2),
       ];
     } else {
@@ -389,9 +395,9 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
       taxCols = ['Taxable', 'CGST', 'SGST', 'Total'];
       taxAligns = ['right', 'right', 'right', 'right'];
       taxValues = [
-        (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05 ? data.subtotal : Math.max(0, data.grandTotal - data.tax)).toFixed(2),
-        data.cgst ? data.cgst.toFixed(2) : '0.00',
-        data.sgst ? data.sgst.toFixed(2) : '0.00',
+        taxableVal,
+        effectiveCgst.toFixed(2),
+        effectiveSgst.toFixed(2),
         data.tax.toFixed(2),
       ];
     }

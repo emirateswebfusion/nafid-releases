@@ -9,6 +9,10 @@ This is the canonical release gate for Nafid POS. It applies to every agent, dev
 - Supply the approved production settings before both renderer compilation and packaging. Do not package with missing, blank, development, localhost, or placeholder cloud URLs. Renderer build-time settings and main-process runtime settings must agree.
 - Keep credentials on the build machine. `scripts/runtime-env.cjs` owns the public runtime allow-list; do not expand it to include tokens or signing secrets. Preserve configured signing credentials instead of erasing them.
 
+## Platform scope
+
+The EXE/blockmap/`latest.yml` checks below are the Windows gate. Mac releases additionally follow [macOS distribution](macos-distribution.md): native Intel and Apple Silicon DMG/ZIP validation, trusted Developer ID signing, notarization/Gatekeeper checks, same-source reports and one combined `latest-mac.yml`. Ad-hoc CI artifacts are test-only and must not become public production downloads. Neither a GitHub Verified badge nor Marketplace publisher verification replaces OS code signing.
+
 ## 2. Inspect the final installer
 
 Extract and inspect the exact final EXE that will be uploaded, as well as its unpacked output. A development app, a copied `app.asar`, or the unpacked directory alone is not release proof.

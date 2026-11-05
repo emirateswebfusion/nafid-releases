@@ -1,3 +1,4 @@
+import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { Fragment } from 'react';
@@ -8,7 +9,7 @@ import { ScrollText } from '../../ui/ScrollText';
 import { type Product } from '../inventoryUtils';
 
 export interface InventoryTableViewProps {
-  view: 'list' | 'add' | 'edit';
+  view: 'list' | 'add' | 'edit' | 'variants';
   isAllSelected: boolean;
   isSomeSelected: boolean;
   handleToggleSelectAll: () => void;
@@ -84,6 +85,7 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
   stockFilter,
   setStockFilter,
 }) => {
+  const tiersEnabled = useFeatureFlagsStore(s => s.flags?.pricing_tiers === true);
   return (
       <div className={`flex-1 px-4 sm:px-6 pb-6 pt-3 bg-muted/[0.02] w-full select-none flex flex-col min-h-0 bg-background${view !== 'list' ? ' hidden' : ''}`}>
         <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
@@ -237,7 +239,7 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                               )}
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
-                              {showPriceTiersInInventory && allProductPricingMap[p.product_id] && Object.entries(allProductPricingMap[p.product_id]).map(([tid, tPrice]) => {
+                              {tiersEnabled && showPriceTiersInInventory && allProductPricingMap[p.product_id] && Object.entries(allProductPricingMap[p.product_id]).map(([tid, tPrice]) => {
                                 const tier = activePricingTiers.find(t => t.pricing_tier_id === tid);
                                 if (!tier) return null;
                                 return (

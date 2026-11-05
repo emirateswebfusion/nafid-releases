@@ -11,7 +11,7 @@ import { registerSyncEcommerceHandlers } from './syncEcommerceHandlers.js';
 import { registerCardTerminalHandlers } from './cardTerminalHandlers.js';
 import { registerEinvoiceHandlers } from './einvoiceHandlers.js';
 import { registerRestaurantHandlers } from './restaurantHandlers.js';
-import { registerUpdaterIpc } from '../services/updaterService.js';
+import { registerUpdaterIpc } from './updaterHandlers.js';
 import { reconcileCashDrawer } from '../services/cashDrawerService.js';
 import { getStoreTimezoneSetting } from '../services/storeTime.js';
 import { initWhatsAppIpc } from '../whatsapp/whatsappService.js';

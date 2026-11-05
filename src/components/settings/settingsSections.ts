@@ -16,6 +16,7 @@ export interface SettingsSection {
   ownerOnly?: boolean;
   /** Shown only for shops in these countries (default: all). */
   countries?: StoreCountry[];
+  feature?: 'restaurant_mode';
 }
 
 export interface SettingsGroup {
@@ -51,6 +52,9 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     category: 'Billing & Sales',
     icon: ShoppingCart,
     items: [
+      { id: 'restaurant', label: 'Tables, Kitchen & Food Orders', icon: Store, ownerOnly: true, feature: 'restaurant_mode',
+        description: 'Tables, seating areas, kitchen printers, add-ons and service charges.',
+        keywords: 'restaurant cafeteria kot kitchen tables takeaway delivery modifiers service charge' },
       { id: 'billing', label: 'Billing Rules', icon: Receipt, ownerOnly: true,
         description: 'Price override display, purchase cost visibility, biller PIN, sales staff tracking and Convert to GST.',
         keywords: 'mrp override purchase cost pin biller sales staff commission convert gst staff credit' },
@@ -149,7 +153,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     items: [
       { id: 'features', label: 'Features & Modules', icon: Power, ownerOnly: true,
         description: 'Turn individual modules on or off across the app — dashboards, billing, and managers hide disabled features.',
-        keywords: 'modules enable disable turn on off' },
+        keywords: 'modules enable disable turn on off category restaurant retail wholesale clothing scrap' },
     ],
   },
 ];

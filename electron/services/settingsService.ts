@@ -130,6 +130,7 @@ export function get({ tenant_id, key, tenant_only }: { tenant_id: string; key: s
     return null;
   } catch (error) {
     console.error('[settings:get]', error);
+    if (key === 'feature_flags') throw error;
     return null;
   }
 }

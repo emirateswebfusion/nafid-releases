@@ -46,6 +46,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
       // Validate and persist country first, before launching any other writes.
       await setSetting({ tenant_id: tenantId || 'global', key: 'store_country', value: storeCountry });
       await setSetting({ tenant_id: tenantId || 'global', key: 'vat_price_inclusive', value: vatPriceInclusive });
+      await setSetting({ tenant_id: tenantId || 'global', key: 'auto_whatsapp_send', value: ctx.form.autoWhatsAppSend ? 'true' : 'false' });
       if (localDomain !== shopDomain && isAdminRole(role)) {
         const res = await updateDomain(localDomain);
         if (!res.success) throw new Error(res.error);

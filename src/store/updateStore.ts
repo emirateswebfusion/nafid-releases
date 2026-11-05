@@ -7,7 +7,10 @@ export interface UpdateState {
   updateInfo: UpdateInfoPayload | null;
   updateReady: boolean;
   isDownloading: boolean;
-  downloadProgress: { percent: number; transferred: number; total: number } | null;
+  downloadProgress: { percent: number; transferred: number; total: number; bytesPerSecond?: number } | null;
+  isChecking: boolean;
+  checkError: string | null;
+  lastChecked: Date | null;
   initialized: boolean;
   installError: string | null;
   isInstalling: boolean;
@@ -23,6 +26,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   updateReady: false,
   isDownloading: false,
   downloadProgress: null,
+  isChecking: false,
+  checkError: null,
+  lastChecked: null,
   initialized: false,
   installError: null,
   isInstalling: false,
@@ -36,13 +42,13 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     bridgeEvents.onUpdateStatus((status: string) => {
       if (status === 'verifying-installer' || status === 'starting-installer') { set({ installPhase: status }); return; }
       if (status === 'ready-to-install' || status === 'downloaded') {
-        set({ updateReady: true, isDownloading: false });
+        set({ updateReady: true, isDownloading: false, downloadProgress: null, checkError: null });
       } else if (status === 'downloading') {
         set({ isDownloading: true });
       } else if (status === 'error') {
         // The main process only reports 'error' when there is no installable update,
         // so a stale "Restart to update" button must not survive it.
-        set({ updateReady: false, isDownloading: false, downloadProgress: null });
+        set({ updateReady: false, isDownloading: false, downloadProgress: null, checkError: 'Update download failed' });
       }
     });
 
@@ -77,7 +83,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       }
     });
 
-    appApi.checkForUpdates().catch(() => {});
+    void get().checkForUpdates();
   },
 
   installUpdate: async () => {
@@ -97,15 +103,19 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   },
 
   checkForUpdates: async () => {
+    if (get().isChecking) return;
+    set({ isChecking: true, checkError: null });
     try {
       const res = await appApi.checkForUpdates();
       if (res && res.success) {
         set(res.updateInfo
           ? { updateInfo: res.updateInfo }
-          : { updateInfo: null, updateReady: false, isDownloading: false, downloadProgress: null });
-      }
+          : get().updateReady
+            ? { isDownloading: false, downloadProgress: null }
+            : { updateInfo: null, updateReady: false, isDownloading: false, downloadProgress: null });
+      } else if (res && !res.success) set({ checkError: res.error });
     } catch (_) {
-      set({ isDownloading: false });
-    }
+      set({ isDownloading: false, checkError: 'Could not check for updates' });
+    } finally { set({ isChecking: false, lastChecked: new Date() }); }
   },
 }));

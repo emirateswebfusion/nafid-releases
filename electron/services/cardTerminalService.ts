@@ -55,21 +55,25 @@ export function getConfig(): CardTerminalConfig {
   } catch { /* unreadable setting: defaults */ }
   const connection = record(saved.connection);
   const timeout = Number(saved.timeoutSeconds);
+  const selected = ['NETWORK', 'MAGNATI', 'GEIDEA', 'NEOPAY', 'PINE_LABS'].includes(String(saved.provider))
+    || INSTALLED_PROVIDERS.includes(saved.provider as CardTerminalConfig['provider']);
+  const provider = selected ? saved.provider as CardTerminalConfig['provider'] : DEFAULT_CARD_TERMINAL_CONFIG.provider;
   return {
-    enabled: saved.enabled === true,
-    provider: INSTALLED_PROVIDERS.includes(saved.provider as CardTerminalConfig['provider'])
-      ? saved.provider as CardTerminalConfig['provider'] : DEFAULT_CARD_TERMINAL_CONFIG.provider,
+    enabled: saved.enabled === true && INSTALLED_PROVIDERS.includes(provider),
+    provider,
     connection: connection.type === 'TCP'
       ? { type: 'TCP', host: String(connection.host || ''), port: Number(connection.port) || 0 }
       : { type: 'SERIAL', path: String(connection.path || 'COM3'), baudRate: Number(connection.baudRate) || 9600 },
     timeoutSeconds: Number.isFinite(timeout) && timeout >= 30 && timeout <= 300 ? timeout : DEFAULT_CARD_TERMINAL_CONFIG.timeoutSeconds,
     allowManualFallback: saved.allowManualFallback !== false,
+    merchantId: typeof saved.merchantId === 'string' ? saved.merchantId.trim().slice(0, 128) : '',
+    terminalId: typeof saved.terminalId === 'string' ? saved.terminalId.trim().slice(0, 128) : '',
   };
 }
 
 /** IPC `cardTerminal:getStatus`: configuration, installed adapters, and whether a request is running. */
 export function getStatus() {
-  return { config: getConfig(), providers: INSTALLED_PROVIDERS, busy: Boolean(active) };
+  return { config: getConfig(), providers: ['NETWORK', 'MAGNATI', 'GEIDEA', 'NEOPAY', 'PINE_LABS'] as CardTerminalConfig['provider'][], busy: Boolean(active) };
 }
 
 function terminalFor(config: CardTerminalConfig): PaymentTerminal {
@@ -230,6 +234,7 @@ export function resolve(payload: unknown): { success: boolean; error?: string } 
 /** IPC `cardTerminal:test`: proves the adapter and the cable / IP answer. */
 export async function testConnection(): Promise<{ ok: boolean; message: string }> {
   const config = getConfig();
+  if (!INSTALLED_PROVIDERS.includes(config.provider)) return { ok: false, message: 'Setup pending: a verified bank connector is not available yet. Manual card payments remain available.' };
   try {
     if (config.provider !== 'MOCK') {
       const link = await checkConnection(config.connection);

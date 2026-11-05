@@ -1,3 +1,4 @@
+import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import type * as B from '../billingTypes';
 import React, { useCallback, useEffect } from 'react';
 import { useCartStore } from '../../../store/cartStore';
@@ -19,9 +20,10 @@ export interface UsePricingTierContext {
  * per-product tier price map has loaded), and picking a matched party's tier (or the default tier) for a customer.
  */
 export function usePricingTier(ctx: UsePricingTierContext) {
+  const tiersEnabled = useFeatureFlagsStore(s => s.flags?.pricing_tiers !== false);
   const { findMatchingParty, pricingTiers, productPricingMap, productPricingMapLoaded, selectedTierId, setSelectedTierId, syncActiveSnapshot } = ctx;
   const getTierPriceForProduct = (product: Pick<B.BillingProduct, 'product_id' | 'tier_prices'>): number | undefined => {
-    if (!selectedTierId || !product) return undefined;
+    if (!tiersEnabled || !selectedTierId || !product) return undefined;
     if (!pricingTiers.some(t => t.pricing_tier_id === selectedTierId)) return undefined;
     const v = productPricingMap[product.product_id]?.[selectedTierId]
       ?? product.tier_prices?.[selectedTierId];
@@ -30,6 +32,7 @@ export function usePricingTier(ctx: UsePricingTierContext) {
   };
 
   const applyPricingTierToCart = useCallback((tierId: string) => {
+    if (!tiersEnabled) return;
     const tier = pricingTiers.find(t => t.pricing_tier_id === tierId);
     let itemsChanged = false;
     const nextItems = useCartStore.getState().items.map(item => {
@@ -92,12 +95,13 @@ export function usePricingTier(ctx: UsePricingTierContext) {
       useCartStore.setState({ items: nextItems });
       syncActiveSnapshot();
     }
-  }, [pricingTiers, productPricingMap, syncActiveSnapshot]);
+  }, [tiersEnabled, pricingTiers, productPricingMap, syncActiveSnapshot]);
 
   const handlePricingTierChange = useCallback((tierId: string) => {
+    if (!tiersEnabled) return;
     setSelectedTierId(tierId);
     applyPricingTierToCart(tierId);
-  }, [applyPricingTierToCart, setSelectedTierId]);
+  }, [tiersEnabled, applyPricingTierToCart, setSelectedTierId]);
 
   useEffect(() => {
     if (productPricingMapLoaded) {
@@ -109,7 +113,7 @@ export function usePricingTier(ctx: UsePricingTierContext) {
     const defaultTier = pricingTiers.find(t => t.is_default === 1 || t.is_default === true || t.is_default === '1');
     const defaultTierId = defaultTier ? defaultTier.pricing_tier_id : '';
     if (!name && !phone) {
-      if (!selectedTierId) handlePricingTierChange(defaultTierId);
+      if (!tiersEnabled || !selectedTierId) handlePricingTierChange(defaultTierId);
       return;
     }
     const match = findMatchingParty(name, phone);

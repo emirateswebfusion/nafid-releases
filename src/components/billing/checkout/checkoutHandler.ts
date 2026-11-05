@@ -15,7 +15,7 @@ import { formatWhatsAppBillMessage } from '../../../utils/print/whatsappBillHelp
 import { parsePrintFormat, formatPrinterError } from '../../../utils/print/printFormatHelper';
 import { useTabStore } from '../../../store/tabStore';
 import { useFeatureFlagsStore } from '../../../config/featureFlags';
-import { buildCheckoutLines, buildReceiptLines, resolveSupplyType } from '../../../utils/pricing/checkoutLines';
+import { buildCheckoutLines, buildReceiptLines, resolveSupplyType, splitTaxAmount } from '../../../utils/pricing/checkoutLines';
 import { cashierApi } from '../../../data/cashier';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';
@@ -321,9 +321,9 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         billerName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
         items: receiptItems,
         subtotal, tax: totalTax,
-        cgst: invoiceType === 'GST' ? cgst : (billSettings.showBosTaxBreakup ? cgst : undefined),
-        sgst: invoiceType === 'GST' ? sgst : (billSettings.showBosTaxBreakup ? sgst : undefined),
-        igst: invoiceType === 'GST' ? igst : (billSettings.showBosTaxBreakup ? igst : undefined),
+        cgst: totalTax > 0 ? (cgst > 0 ? cgst : (_supplyType !== 'INTER' ? splitTaxAmount(totalTax).cgst : 0)) : 0,
+        sgst: totalTax > 0 ? (sgst > 0 ? sgst : (_supplyType !== 'INTER' ? splitTaxAmount(totalTax).sgst : 0)) : 0,
+        igst: totalTax > 0 ? (igst > 0 ? igst : (_supplyType === 'INTER' ? totalTax : 0)) : 0,
         discount, discountType: state.discountType,
         discountValue: state.discountValue, grandTotal: grandTotalBeforeScrap,
         pointsEarned: pointsEarned > 0 ? pointsEarned : undefined,
@@ -613,7 +613,16 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       setCheckoutSuccess(saveOnly || !printSuccess ? 'saved' : 'printed');
 
       // ── Send Bill via WhatsApp (Automatic if enabled & phone present) ──
-      const isAutoWhatsApp = localStorage.getItem('auto_whatsapp_send') === 'true';
+      let isAutoWhatsApp = localStorage.getItem('auto_whatsapp_send') === 'true';
+      if (!isAutoWhatsApp) {
+        try {
+          const dbAuto = await getSetting<string | boolean>({ tenant_id: tenantId || 'global', key: 'auto_whatsapp_send' });
+          if (dbAuto === 'true' || dbAuto === true) {
+            isAutoWhatsApp = true;
+            localStorage.setItem('auto_whatsapp_send', 'true');
+          }
+        } catch { /* ignore */ }
+      }
       const custPhone = (customerPhone || activeTab?.customerPhone || '').trim();
       if (isAutoWhatsApp && custPhone && hasBridge('whatsappSendInvoice')) {
         try {

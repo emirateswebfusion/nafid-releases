@@ -1,4 +1,5 @@
 import { getStoreLocale } from '../../localization/storeProfile';
+import { splitTaxAmount } from '../../pricing/checkoutLines';
 import { getStoreTimezone } from '../../time/timezoneHelper';
 
 export interface ReceiptItem {
@@ -491,6 +492,9 @@ export function formatTaxBreakupSection(
   if (!isGst && data.billSettings?.showBosTaxBreakup === false) return '';
 
   const hasIgst = Boolean(data.igst && data.igst > 0);
+  const split = splitTaxAmount(data.tax);
+  const effectiveCgst = (data.cgst && data.cgst > 0) ? data.cgst : (!hasIgst ? split.cgst : 0);
+  const effectiveSgst = (data.sgst && data.sgst > 0) ? data.sgst : (!hasIgst ? split.sgst : 0);
   const rawTaxable = (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05)
     ? data.subtotal
     : Math.max(0, data.grandTotal - data.tax);
@@ -509,9 +513,9 @@ export function formatTaxBreakupSection(
     const headers = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total GST'];
     const values = [
       taxableVal,
-      data.cgst ? data.cgst.toFixed(2) : '0.00',
-      data.sgst ? data.sgst.toFixed(2) : '0.00',
-      data.igst ? data.igst.toFixed(2) : '0.00',
+      effectiveCgst.toFixed(2),
+      effectiveSgst.toFixed(2),
+      (data.igst || 0).toFixed(2),
       totalTaxVal,
     ];
     out += headers.map((h, i) => padLeft(h, widths[i])).join('') + '\n';
@@ -524,7 +528,7 @@ export function formatTaxBreakupSection(
     const headers = ['Taxable', 'IGST', 'Total GST'];
     const values = [
       taxableVal,
-      data.igst ? data.igst.toFixed(2) : '0.00',
+      (data.igst || data.tax).toFixed(2),
       totalTaxVal,
     ];
     out += headers.map((h, i) => padLeft(h, widths[i])).join('') + '\n';
@@ -536,8 +540,8 @@ export function formatTaxBreakupSection(
     const headers = ['Taxable', 'CGST', 'SGST', 'Total'];
     const values = [
       taxableVal,
-      data.cgst ? data.cgst.toFixed(2) : '0.00',
-      data.sgst ? data.sgst.toFixed(2) : '0.00',
+      effectiveCgst.toFixed(2),
+      effectiveSgst.toFixed(2),
       totalTaxVal,
     ];
     out += headers.map((h, i) => padLeft(h, widths[i])).join('') + '\n';

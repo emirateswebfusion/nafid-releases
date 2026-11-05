@@ -29,19 +29,19 @@ export function RestaurantSetupView({ tenantId, data, categories, onChanged, onE
   const [tab, setTab] = useState<SetupTab>('tables');
   const current = TABS.find(t => t.key === tab)!;
   return (
-    <div className="flex min-h-0 gap-5 p-5">
-      <aside className="w-64 shrink-0 space-y-1">
+    <div className="flex min-h-0 flex-col gap-5 lg:flex-row">
+      <aside className="grid shrink-0 grid-cols-2 gap-2 lg:block lg:w-56 lg:space-y-1">
         {TABS.map(t => (
           <button key={t.key} type="button" onClick={() => setTab(t.key)}
             className={`flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition ${tab === t.key ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-muted'}`}>
             <t.icon className={`mt-0.5 h-5 w-5 shrink-0 ${tab === t.key ? 'text-primary' : 'text-muted-foreground'}`} />
-            <span><span className="block text-sm font-bold">{t.label}</span><span className="block text-xs text-muted-foreground">{t.hint}</span></span>
+            <span><span className="block text-xs font-bold">{t.label}</span><span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{t.hint}</span></span>
           </button>
         ))}
       </aside>
-      <section className="min-w-0 flex-1 rounded-3xl border border-border/70 bg-card p-6">
-        <h2 className="text-lg font-black">{current.label}</h2>
-        <p className="mb-5 text-sm text-muted-foreground">{current.hint}</p>
+      <section className="min-w-0 flex-1 rounded-[28px] border border-border bg-card p-5 shadow-sm sm:p-6">
+        <h2 className="text-sm font-bold">{current.label}</h2>
+        <p className="mb-5 mt-1 text-xs text-muted-foreground">{current.hint}</p>
         {tab === 'tables' && <TablesSetup tenantId={tenantId} tables={data.setup.tables} onChanged={onChanged} onError={onError} />}
         {tab === 'stations' && <StationsSetup tenantId={tenantId} stations={data.setup.stations} categories={categories} onChanged={onChanged} onError={onError} onInfo={onInfo} />}
         {tab === 'modifiers' && <ModifiersSetup tenantId={tenantId} groups={data.setup.modifierGroups} modifiers={data.setup.modifiers} categories={categories} onChanged={onChanged} onError={onError} />}

@@ -1,3 +1,4 @@
+import { useFeatureFlagsStore } from '../../../../config/featureFlags';
 import { localizeTaxText } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import React, { useState, useRef, useEffect } from 'react';
@@ -21,6 +22,7 @@ export function PricingSection({
   activePricingTiers, enableRealPaperStock, formData, handleDomainAttrChange, handleInputChange, setTierPrices,
   tierPrices, onAddPricingTier,
 }: PricingSectionProps) {
+  const tiersEnabled = useFeatureFlagsStore(s => s.flags?.pricing_tiers === true);
   const [isAddingTier, setIsAddingTier] = useState(false);
   const [newTierName, setNewTierName] = useState('');
   const [isSavingTier, setIsSavingTier] = useState(false);
@@ -242,7 +244,7 @@ export function PricingSection({
           </div>
         )}
       </div>
-      <div className="mt-5 pt-4 border-t border-border space-y-3">
+      {tiersEnabled && <div className="mt-5 pt-4 border-t border-border space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
@@ -330,7 +332,7 @@ export function PricingSection({
             No custom pricing tiers configured. Click &quot;Add Tier&quot; above to create Wholesale, VIP, or other custom price levels.
           </p>
         )}
-      </div>
+      </div>}
     </section>
   );
 }

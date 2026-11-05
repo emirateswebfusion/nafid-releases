@@ -9,8 +9,10 @@ import { DiscountSection } from './form/DiscountSection';
 import { PricingSection } from './form/PricingSection';
 import { CoreSection } from './form/CoreSection';
 
+import { VariantsSection, type ProductVariantItem } from './form/VariantsSection';
+
 export interface InventoryFormViewProps {
-  view: 'list' | 'add' | 'edit';
+  view: 'list' | 'add' | 'edit' | 'variants';
   loading: boolean;
   handleFormKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   firstInputRef: React.RefObject<HTMLInputElement | null>;
@@ -67,6 +69,8 @@ export interface InventoryFormViewProps {
   handleSave: () => void;
   setView: import('../hooks/useInventoryState').InventoryState['setView'];
   onAddPricingTier?: (name: string) => Promise<{ success: boolean; pricing_tier_id?: string; error?: string }>;
+  variants: ProductVariantItem[];
+  setVariants: React.Dispatch<React.SetStateAction<ProductVariantItem[]>>;
 }
 
 export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
@@ -126,6 +130,8 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
   printBarcode,
   handleSave,
   onAddPricingTier,
+  variants,
+  setVariants,
 }) => {
   const shopDomain = useCartStore((state) => state.shopDomain);
   return (
@@ -163,6 +169,17 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
             {/* Section 4: Stock */}
             <StockSection
               formData={formData} handleInputChange={handleInputChange}
+            />
+
+            {/* Section: Product Variants & Sizes */}
+            <VariantsSection
+              variants={variants}
+              setVariants={setVariants}
+              enableRealPaperStock={enableRealPaperStock}
+              defaultBasePrice={formData.base_price}
+              defaultPurchasePrice={formData.purchase_price}
+              defaultPaperMrp={typeof formData.domain_attributes?.paper_mrp === 'number' || typeof formData.domain_attributes?.paper_mrp === 'string' ? formData.domain_attributes.paper_mrp : ''}
+              defaultPaperPurchasePrice={typeof (formData.domain_attributes as Record<string, unknown>)?.paper_purchase_price === 'number' || typeof (formData.domain_attributes as Record<string, unknown>)?.paper_purchase_price === 'string' ? String((formData.domain_attributes as Record<string, unknown>).paper_purchase_price) : ''}
             />
 
             {/* Section 4: Domain Attributes */}

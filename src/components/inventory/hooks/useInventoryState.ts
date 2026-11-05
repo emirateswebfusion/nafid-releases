@@ -7,7 +7,7 @@ import { type CodeType, DEFAULT_CODE_TYPE } from '../../../config/labelCodeTypes
  * suppliers, tier prices, stock adjustment, barcode printing and dialog flags.
  */
 export function useInventoryState() {
-  const [view, setView] = useState<'list' | 'add' | 'edit'>('list');
+  const [view, setView] = useState<'list' | 'add' | 'edit' | 'variants'>('list');
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -65,6 +65,7 @@ export function useInventoryState() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [variants, setVariants] = useState<import('../views/form/VariantsSection').ProductVariantItem[]>([]);
 
   return {
     view, setView, loading, setLoading, isFetching, setIsFetching, products, setProducts, searchQuery,
@@ -86,6 +87,7 @@ export function useInventoryState() {
     setSelectedNameIndex, highlightedProductId, setHighlightedProductId, offset, setOffset, hasMore, setHasMore,
     totalCount, setTotalCount, selectedProductIds, setSelectedProductIds, showBulkDeleteConfirm,
     setShowBulkDeleteConfirm, isBulkDeleting, setIsBulkDeleting,
+    variants, setVariants,
   };
 }
 

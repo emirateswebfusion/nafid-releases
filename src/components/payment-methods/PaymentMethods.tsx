@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { getUpiPageConfig } from '../../utils/print/upiConfig';
@@ -51,9 +51,17 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     loadSources();
   }, [loadSources]);
 
+  const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    };
+  }, []);
+
   const showMessage = (text: string, type: 'success' | 'error' = 'success') => {
     setStatusMessage({ text, type });
-    setTimeout(() => setStatusMessage(null), 4000);
+    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    msgTimerRef.current = setTimeout(() => setStatusMessage(null), 4000);
   };
 
   const { handleToggleUpiPage, copyToClipboard, openAdd, openEdit, saveSource, toggleSourceDefault, toggleSourceEnabled, deleteSource, confirmDeleteSource } = usePaymentSourceActions({

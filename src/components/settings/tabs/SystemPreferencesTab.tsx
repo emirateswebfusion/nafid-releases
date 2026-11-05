@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+﻿import React, { useMemo, useEffect } from 'react';
 import { Download, RotateCcw, AlertCircle, CheckCircle2, Loader2, Bell, Globe, RefreshCw, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import { formatTimeAgo, formatBytes } from '../settingsUtils';
@@ -227,6 +227,8 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                         <div className="flex items-center justify-between mt-2"><p className="text-[10px] font-bold text-muted-foreground/80">{Math.round(downloadProgress.percent)}%</p><p className="text-[10px] font-bold text-muted-foreground/80 font-mono">{formatBytes(downloadProgress.transferred)} / {formatBytes(downloadProgress.total)}</p></div>
                       </div>
                     )}
+                  </div>
+                )}
                     {updateReady && (
                       <div className="p-5 bg-gradient-to-t from-primary/5 to-transparent">
                         <button type="button" onClick={handleInstallUpdate} className="flex items-center justify-center gap-2.5 w-full h-12 rounded-2xl font-bold text-xs bg-primary text-primary-foreground hover:brightness-110 transition-all duration-200 active:scale-95 cursor-pointer shadow-md">
@@ -234,8 +236,6 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                         </button>
                       </div>
                     )}
-                  </div>
-                )}
                 {updateStatus === 'Download failed' && (
                   <div className="rounded-2xl border border-red-500/20 bg-gradient-to-br from-red-500/[0.04] to-transparent overflow-hidden shadow-sm">
                     <div className="flex items-center gap-4.5 px-5 py-4.5">

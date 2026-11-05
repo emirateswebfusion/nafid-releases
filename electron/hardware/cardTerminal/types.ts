@@ -5,7 +5,7 @@
  */
 
 /** Adapters installed in this build. Add an acquirer by adding its adapter in `adapters/` and its id here. */
-export type TerminalProvider = 'MOCK';
+export type TerminalProvider = 'UNCONFIGURED' | 'NETWORK' | 'MAGNATI' | 'GEIDEA' | 'NEOPAY' | 'PINE_LABS' | 'MOCK';
 
 export type TerminalOutcome = 'APPROVED' | 'DECLINED' | 'CANCELLED' | 'TIMEOUT' | 'ERROR' | 'UNKNOWN';
 
@@ -20,6 +20,8 @@ export interface CardTerminalConfig {
   connection: TerminalConnection;
   timeoutSeconds: number;
   allowManualFallback: boolean;
+  merchantId?: string;
+  terminalId?: string;
 }
 
 export interface TerminalRequest {
@@ -61,7 +63,7 @@ export interface PaymentTerminal {
 
 export const DEFAULT_CARD_TERMINAL_CONFIG: CardTerminalConfig = {
   enabled: false,
-  provider: 'MOCK',
+  provider: 'UNCONFIGURED',
   connection: { type: 'SERIAL', path: 'COM3', baudRate: 9600 },
   timeoutSeconds: 120,
   allowManualFallback: true,

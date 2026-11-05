@@ -1,3 +1,4 @@
+import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
@@ -44,6 +45,7 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
   resetPartyForm,
   fieldCls,
 }) => {
+  const tiersEnabled = useFeatureFlagsStore(s => s.flags?.pricing_tiers !== false);
   return (
         <form onSubmit={(e) => { e.preventDefault(); handleSaveParty(); }} className="flex flex-col flex-1 min-h-0 bg-background" onKeyDown={handleFormKeyDown as unknown as React.KeyboardEventHandler<HTMLFormElement>}>
           <div className="flex-1 overflow-y-auto p-5 space-y-4" data-enter-nav>
@@ -328,7 +330,7 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                 {/* Pricing Tier & Credit Limit Side-by-Side Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Default Pricing Tier Card */}
-                  <div className="p-4 rounded-2xl bg-muted/20 border border-border/70 flex flex-col justify-between">
+                  {tiersEnabled && <div className="p-4 rounded-2xl bg-muted/20 border border-border/70 flex flex-col justify-between">
                     <div>
                       <label className="block text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
                         <Layers className="w-3.5 h-3.5 text-violet-500" />
@@ -355,7 +357,7 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                         Standard MRP (Configure custom tiers in <span className="font-semibold text-foreground">Settings &gt; Pricing Tiers</span>).
                       </div>
                     )}
-                  </div>
+                  </div>}
 
                   {/* Credit Limit Card */}
                   <div className="p-4 rounded-2xl bg-muted/20 border border-border/70 flex flex-col justify-between">

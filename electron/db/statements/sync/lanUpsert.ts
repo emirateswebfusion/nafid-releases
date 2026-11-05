@@ -97,6 +97,9 @@ export function upsertRows(db: Db, tableName: string, allCols: string[], pkCols:
       return `${c} = EXCLUDED.${c}`;
     });
     sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateClauses.join(', ')}`;
+  } else if (tableName === 'settings' && pkCols.length > 0 && updateCols.length > 0) {
+    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}
+      WHERE EXCLUDED.key != 'feature_flags' OR julianday(EXCLUDED.updated_at) >= julianday(settings.updated_at)`;
   } else if (pkCols.length > 0 && updateCols.length > 0) {
     sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
   } else if (pkCols.length > 0) {

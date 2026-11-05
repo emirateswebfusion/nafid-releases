@@ -29,7 +29,8 @@ and update every caller in the same change.
 | UAE Form VAT 201 Return, FTA Audit File (FAF), and filing lifecycle | `electron/services/vatReportService.ts`, `vatFilingService.ts`, `src/utils/export/ftaAuditFileExporter.ts` | `tests/unit/vatReportService.test.ts`, `vat201JsonSerializer.test.ts`, `vatDashboardCard.test.ts` |
 | Restaurant mode: order-time menu price, service charge (UAE: standard-rated, VAT on top of / inside it like any line), add-on limits, order → billing cart lines, guest check totals | `src/components/restaurant/restaurantRules.ts`, `guestCheck.ts` (reuse `linePricing`, `checkoutLines`) | `tests/unit/restaurantRules.test.ts` |
 | Restaurant mode: KOT station routing and ticket text; orders, voids, merge / split, billing claim, settlement inside checkout; forward-only statuses | `electron/services/restaurantKot.ts`, `restaurantOrderService.ts`, migration `016-restaurant.ts` triggers | `tests/unit/restaurantOrders.test.ts`, `restaurantRules.test.ts` |
-| Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts`, `receiptCore.ts`, `styles/boxed.ts` | `tests/unit/thermalPrint.test.ts`, `printGenerators.characterization.test.ts` |
+| Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts`, `receiptCore.ts`, `styles/boxed.ts` | `tests/unit/thermalPrint.test.ts`, `printGenerators.characterization.test.ts`, `thermalBillTaxBreakup.test.ts` |
+| Inventory product CSV export formatting & bulk upload header normalization | `src/components/inventory/hooks/useInventoryExports.ts` (`buildInventoryCsvRow`), `src/components/data-upload/dataUploadTypes.ts` (`PRODUCT_HEADER_MAP`, `resolveDynamicTierName`) | `tests/unit/inventoryCsvExport.test.ts` |
 
 Sales History date filters and dashboard sales use invoice creation instants in the store timezone. The shared `electron/db/statements/invoiceDates.ts` predicate parses legacy UTC space-separated timestamps and ISO timestamps numerically; later settlement does not move a sale to another date. Tests: `invoiceDateFilters.test.ts`.
 
@@ -230,9 +231,13 @@ Tests: `tests/unit/filingRevenue.test.ts`, `tests/unit/filingOnlySettings.ui.tes
 ## 4.2 Known duplication (do not extend, consolidate when touched)
 
 - Intra-state tax amounts use `splitTaxAmount` from `src/utils/pricing/checkoutLines.ts`: CGST is rounded first and SGST is
-  the rounded remainder, so both add up to the tax. Existing invoice rows are not rewritten. Renderer summaries and
-  historical fallbacks reuse this helper; the main-process Bill-of-Supply conversion uses the same rule in
-  `electron/utils/taxSplit.ts` to keep the process boundary intact.
+  the rounded remainder, so both add up to the tax. Existing invoice rows are not rewritten. Renderer summaries, cart totals
+  (`cartStore.ts`), checkout payload line builders (`checkoutHandler.ts`), thermal receipt renderers (`receiptCore.ts`, `boxed.ts`),
+  and WhatsApp bill messages (`whatsappBillHelper.ts`) reuse this canonical helper whenever `tax > 0` on intra-state sales
+  (including Bill of Supply with tax enabled or legacy documents where `cgst` and `sgst` are zero), guaranteeing consistent
+  non-zero CGST and SGST and eliminating 0.00 tax rows. Supply type resolution is strictly owned by `resolveSupplyType` from
+  `src/utils/pricing/checkoutLines.ts`. Tests: `tests/unit/checkoutLines.test.ts`, `tests/unit/thermalBillTaxBreakup.test.ts`.
+  The main-process Bill-of-Supply conversion uses the same rule in `electron/utils/taxSplit.ts` to keep the process boundary intact.
 - `nafid-server/src/utils/cashierSettlement.ts` and `electron/utils/cashierSettlement.ts`, and the permission conversion in
   `src/utils/security/permissions.ts` vs `nafid-server/src/services/permissions.ts`, are **cross-app copies of one rule**.
   They must stay behaviourally identical until a shared package exists; change both with tests.

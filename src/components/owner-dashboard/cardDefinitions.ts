@@ -1,5 +1,5 @@
 import {
-  ShoppingCart,
+  ShoppingCart, LayoutGrid, ShoppingBag, ChefHat,
   Banknote,
   Package,
   Globe,
@@ -45,6 +45,9 @@ export const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
     bgColor: 'bg-emerald-500/10',
     shortcut: 'F1',
   },
+  tables: { title: 'Tables & Orders', desc: 'Seating, running orders and kitchen tickets', icon: LayoutGrid, color: 'text-orange-500', bgColor: 'bg-orange-500/10' },
+  'takeaway-delivery': { title: 'Takeaway & Delivery', desc: 'Takeaway tokens and delivery orders', icon: ShoppingBag, color: 'text-orange-500', bgColor: 'bg-orange-500/10' },
+  'kitchen-display': { title: 'Kitchen Display', desc: 'Preparing, ready and served kitchen tickets', icon: ChefHat, color: 'text-orange-500', bgColor: 'bg-orange-500/10' },
   cashier: {
     title: 'Cashier Settlement',
     desc: 'Settle pending bills, manage cash drawer, and day-end closing',

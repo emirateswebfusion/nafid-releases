@@ -81,7 +81,10 @@ export function useInventorySave(ctx: UseInventorySaveContext) {
       reorder_level: Number(formData.reorder_level) || 0,
       is_gst_applicable: formData.is_gst_applicable || String(formData.hsn_sac_code || '').trim() !== '' ? 1 : 0,
       domain_attributes: (() => {
-        const da = { ...formData.domain_attributes };
+        const da: Record<string, unknown> = {
+          ...formData.domain_attributes,
+          ...(ctx.inv.variants && ctx.inv.variants.length > 0 ? { has_variants: true, is_parent: true } : {}),
+        };
         const rawPcs = Number(da?.pcs !== undefined ? da.pcs : da?.pcs_stock) || 0;
         const rawStock = userEnteredStock;
         if (rawPcs > 0) {
@@ -191,6 +194,44 @@ export function useInventorySave(ctx: UseInventorySaveContext) {
             product_id: payload.product_id,
             pricing: tierRows,
           });
+        }
+
+        // Persist child variants if configured
+        if (ctx.inv.variants && ctx.inv.variants.length > 0) {
+          for (const v of ctx.inv.variants) {
+            const variantDa: Record<string, unknown> = {
+              parent_product_id: payload.product_id,
+              variant_name: v.variant_name,
+              paper_stock: v.paper_stock !== '' && v.paper_stock !== undefined ? Number(v.paper_stock) : undefined,
+              paper_mrp: v.paper_mrp !== '' && v.paper_mrp !== undefined ? Number(v.paper_mrp) : undefined,
+              paper_purchase_price: v.paper_purchase_price !== '' && v.paper_purchase_price !== undefined ? Number(v.paper_purchase_price) : undefined,
+            };
+            const variantPayload = {
+              product_id: v.product_id || uuidv4(),
+              tenant_id: tenantId || 'global',
+              name: `${payload.name} (${v.variant_name})`,
+              sku_barcode: v.sku_barcode,
+              item_code: payload.item_code,
+              category: payload.category,
+              brand_manufacturer: payload.brand_manufacturer,
+              uom: payload.uom,
+              purchase_price: v.purchase_price !== '' ? Number(v.purchase_price) : Number(payload.purchase_price),
+              base_price: v.base_price !== '' ? Number(v.base_price) : Number(payload.base_price),
+              offer_price: v.offer_price !== '' ? Number(v.offer_price) : (payload.offer_price !== null ? Number(payload.offer_price) : null),
+              current_stock: Number(v.current_stock) || 0,
+              reorder_level: v.reorder_level !== undefined && v.reorder_level !== '' ? Number(v.reorder_level) : Number(payload.reorder_level),
+              is_gst_applicable: payload.is_gst_applicable,
+              hsn_sac_code: payload.hsn_sac_code,
+              tax_rate_percent: payload.tax_rate_percent,
+              domain_attributes: JSON.stringify(variantDa),
+              pricing_mode: 'FIXED_PRICE' as const,
+            };
+            if (v.product_id) {
+              await updateProduct(variantPayload);
+            } else {
+              await createProduct(variantPayload);
+            }
+          }
         }
 
         // Auto-register custom categories in the Categories & Grades page so they can be managed there

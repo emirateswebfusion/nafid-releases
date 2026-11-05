@@ -33,6 +33,7 @@ export const CardTerminalSettings: React.FC = () => {
 
   const load = useCallback(async () => {
     if (!available) return;
+    try {
     const [status, portList, recent, open] = await Promise.all([
       cardTerminalApi.getStatus(), cardTerminalApi.listPorts(),
       cardTerminalApi.listTransactions({ tenant_id: tenantId, limit: 20 }), cardTerminalApi.listUnresolved({ tenant_id: tenantId }),
@@ -42,19 +43,20 @@ export const CardTerminalSettings: React.FC = () => {
     setPorts(portList.map(p => p.path));
     setRows(recent);
     setUnresolved(open);
+    } catch { setMessage({ ok: false, text: 'Could not load terminal settings. Reopen this page to try again.' }); }
   }, [available, tenantId]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- load() sets state only after awaiting the bridge (mount fetch).
   useEffect(() => { void load(); }, [load]);
 
   if (!available) return <p className="text-sm text-muted-foreground">Card terminals need the desktop app.</p>;
-  if (!config) return <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />;
+  if (!config) return message ? <p role="alert" className="text-sm text-red-600">{message.text}</p> : <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />;
 
   const update = (patch: Partial<CardTerminalConfig>) => setConfig({ ...config, ...patch });
   const save = async () => {
     setBusy(true);
     try {
-      await setSetting({ tenant_id: tenantId, key: 'card_terminal_config', value: config });
+      await setSetting({ tenant_id: tenantId, key: 'card_terminal_config', value: { ...config, enabled: false } });
       setMessage({ ok: true, text: 'Card terminal settings saved for this computer.' });
     } catch (err) {
       setMessage({ ok: false, text: (err as Error).message });
@@ -66,6 +68,7 @@ export const CardTerminalSettings: React.FC = () => {
       await setSetting({ tenant_id: tenantId, key: 'card_terminal_config', value: config });
       const res = await cardTerminalApi.test();
       setMessage({ ok: res.ok, text: res.message });
+    } catch { setMessage({ ok: false, text: 'Could not check terminal setup. Please try again.' });
     } finally { setBusy(false); }
   };
   const resolve = async (row: CardTerminalTransaction, outcome: 'APPROVED' | 'DECLINED') => {
@@ -81,17 +84,20 @@ export const CardTerminalSettings: React.FC = () => {
         <span className="text-xs font-black uppercase tracking-widest text-foreground">Card Terminal (bank card machine)</span>
       </div>
 
-      <label className="flex items-center gap-3 text-sm font-semibold">
-        <input type="checkbox" checked={config.enabled} onChange={e => update({ enabled: e.target.checked })} className="w-4 h-4" />
-        Send card amounts to the card terminal at checkout
-      </label>
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-2" role="status">
+        <p className="text-sm font-bold text-amber-600">Setup pending · Automatic card terminal payments are under integration</p>
+        <p className="text-sm text-muted-foreground">Your Super Admin configures the bank/provider connection. Save this shop's merchant and terminal details below. Automatic payments become available after the bank connector is installed and verified.</p>
+        <p className="text-sm text-muted-foreground">Continue taking payments on the card machine and recording Card in billing as usual.</p>
+      </div>
 
       <div className="grid grid-cols-2 gap-5">
         <div className="space-y-2">
           <label className={LABEL}>Terminal type</label>
           <Select value={config.provider} onChange={v => update({ provider: v as CardTerminalProvider })}
-            options={providers.map(p => ({ value: p, label: CARD_TERMINAL_PROVIDER_LABELS[p] || p }))} />
+            options={['UNCONFIGURED' as const, ...providers.filter(p => p !== 'MOCK' && p !== 'UNCONFIGURED')].map(p => ({ value: p, label: CARD_TERMINAL_PROVIDER_LABELS[p] || p }))} />
         </div>
+        <label className="space-y-2"><span className={LABEL}>Merchant ID</span><Input value={config.merchantId || ''} maxLength={128} onChange={e => update({ merchantId: e.target.value })} className={INPUT} /></label>
+        <label className="space-y-2"><span className={LABEL}>Terminal ID</span><Input value={config.terminalId || ''} maxLength={128} onChange={e => update({ terminalId: e.target.value })} className={INPUT} /></label>
         <div className="space-y-2">
           <label className={LABEL}>Connection</label>
           <Select value={config.connection.type} onChange={v => update({ connection: v === 'TCP' ? { type: 'TCP', host: '', port: 0 } : { type: 'SERIAL', path: ports[0] || 'COM3', baudRate: 9600 } })}
@@ -130,13 +136,10 @@ export const CardTerminalSettings: React.FC = () => {
           Allow manual card entry when the terminal is not reachable
         </label>
       </div>
-      {config.provider === 'MOCK' && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">Training terminal: nothing is charged. Amounts ending in .51 decline, .52 never answer, .53 fail, .54 lose the answer.</p>
-      )}
 
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy} onClick={save} className={clsx(BUTTON, 'bg-primary text-primary-foreground border-primary')}>Save</button>
-        <button type="button" disabled={busy} onClick={test} className={BUTTON}>{busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}Save and test connection</button>
+        <button type="button" disabled={busy} onClick={test} className={BUTTON}>{busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}Check setup status</button>
         <button type="button" onClick={() => void load()} className={BUTTON}><RefreshCw className="w-3.5 h-3.5" />Refresh</button>
       </div>
       {message && <p className={clsx('text-sm font-semibold', message.ok ? 'text-emerald-600' : 'text-red-600')}>{message.text}</p>}

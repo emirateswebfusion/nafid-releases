@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ManagedGspModal } from './views/ManagedGspModal';
+import { CardTerminalPlatformModal } from './views/CardTerminalPlatformModal';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { Store, Wrench, Gem, ShoppingBag } from 'lucide-react';
@@ -20,6 +21,7 @@ import { SuperDashboardHeader } from './views/SuperDashboardHeader';
 export default function SuperDashboard() {
   const { userName, logout } = useAuthStore();
   const [managedGspModalOpen, setManagedGspModalOpen] = useState(false);
+  const [cardTerminalModalOpen, setCardTerminalModalOpen] = useState(false);
   const { theme, toggleTheme } = useThemeStore();
   const sd = useSuperDashboardState();
   const {
@@ -152,6 +154,7 @@ export default function SuperDashboard() {
       <SuperDashboardHeader
         handleLogout={handleLogout} theme={theme} toggleTheme={toggleTheme} userName={userName}
         onOpenManagedGsp={() => setManagedGspModalOpen(true)}
+        onOpenCardTerminals={() => setCardTerminalModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -206,6 +209,7 @@ export default function SuperDashboard() {
         isOpen={managedGspModalOpen}
         onClose={() => setManagedGspModalOpen(false)}
       />
+      {cardTerminalModalOpen && <CardTerminalPlatformModal onClose={() => setCardTerminalModalOpen(false)} />}
       </main>
     </div>
   );

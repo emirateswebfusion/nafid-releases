@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSettingsUpdater } from './useSettingsUpdater';
 import { getStoreCountry, getStoreVatInclusive, type StoreCountry } from '../../../utils/localization/storeProfile';
 import { type PrinterConfig, type OsPrinterRow, type ServiceChargeProductRow } from '../settingsTypes';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
@@ -16,6 +17,7 @@ import type { EffectiveCloudState } from '../../../data/sync';
  * update status). Loaded by useSettingsLoader and saved by useSettingsSave.
  */
 export function useSettingsFormState() {
+  const updater = useSettingsUpdater();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
@@ -32,12 +34,6 @@ export function useSettingsFormState() {
   const [activeProductsTab, setActiveProductsTab] = useState<'coding' | 'bulk'>('coding');
   const [activeWhatsAppTab, setActiveWhatsAppTab] = useState<'qr' | 'settings' | 'closing'>('qr');
   const [whatsNewLang, setWhatsNewLang] = useState<'ml' | 'en'>(() => (localStorage.getItem('nafid_whats_new_lang') as 'ml' | 'en') || 'ml');
-  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
-  const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
-  const [updateReady, setUpdateReady] = useState(false);
-  const [lastChecked, setLastChecked] = useState<Date | null>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState<{ percent: number; bytesPerSecond: number; transferred: number; total: number } | null>(null);
   const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
   const [showOldPass, setShowOldPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
@@ -153,9 +149,7 @@ export function useSettingsFormState() {
     setShowBulkSheet, barcodePrinter, setBarcodePrinter, receiptPrinter, setReceiptPrinter, a4Printer, setA4Printer,
     scale, setScale, osPrinters, setOsPrinters, printersLoading, setPrintersLoading, activeHardwareTab,
     setActiveHardwareTab, autoWhatsAppSend, setAutoWhatsAppSend, activeProductsTab, setActiveProductsTab,
-    activeWhatsAppTab, setActiveWhatsAppTab, whatsNewLang, setWhatsNewLang, updateStatus, setUpdateStatus,
-    updateInfo, setUpdateInfo, updateReady, setUpdateReady, lastChecked, setLastChecked, isDownloading,
-    setIsDownloading, downloadProgress, setDownloadProgress, pass, setPass, showOldPass, setShowOldPass, showNewPass,
+    activeWhatsAppTab, setActiveWhatsAppTab, whatsNewLang, setWhatsNewLang, ...updater, pass, setPass, showOldPass, setShowOldPass, showNewPass,
     setShowNewPass, showConfirmPass, setShowConfirmPass, changingPass, setChangingPass, confirmTurnOffAllModalOpen,
     setConfirmTurnOffAllModalOpen, appVersion, setAppVersion, priceCoding, setPriceCoding, shopGstin, setShopGstin,
     shopState, setShopState, shopNameLocal, setShopNameLocal, shopAddress, setShopAddress, shopPhone, setShopPhone,

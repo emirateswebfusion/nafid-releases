@@ -1,4 +1,4 @@
-import { Database, Sun, Moon, LogOut, Landmark } from 'lucide-react';
+import { Database, Sun, Moon, LogOut, Landmark, CreditCard } from 'lucide-react';
 
 export interface SuperDashboardHeaderProps {
   handleLogout: () => void;
@@ -6,11 +6,12 @@ export interface SuperDashboardHeaderProps {
   toggleTheme: () => void;
   userName: string | null;
   onOpenManagedGsp?: () => void;
+  onOpenCardTerminals?: () => void;
 }
 
 /** Header bar: title, signed-in user, theme toggle and logout. */
 export function SuperDashboardHeader({
-  handleLogout, theme, toggleTheme, userName, onOpenManagedGsp,
+  handleLogout, theme, toggleTheme, userName, onOpenManagedGsp, onOpenCardTerminals,
 }: SuperDashboardHeaderProps) {
   return (
     <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
@@ -28,6 +29,7 @@ export function SuperDashboardHeader({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {onOpenCardTerminals && <button type="button" onClick={onOpenCardTerminals} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs font-bold" title="Card terminal provider setup"><CreditCard className="w-4 h-4" />Card terminals</button>}
           <div className="text-right hidden sm:block">
             <span className="text-[11px] font-bold text-foreground block leading-tight">{userName || 'Platform Admin'}</span>
             <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">Platform Admin</span>

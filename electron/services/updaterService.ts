@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { autoUpdater, type UpdateDownloadedEvent } from 'electron-updater';
 import log from 'electron-log/main';
 import { getMainWindow } from './windowRegistry.js';
@@ -190,9 +190,7 @@ export function setupAutoUpdater(): void {
 
 }
 
-export function registerUpdaterIpc(): void {
-ipcMain.handle('app:installUpdate', async () => {
-  if (updaterState !== 'downloaded') {
+export async function installUpdate() {  if (updaterState !== 'downloaded') {
     log.warn(`[Updater] Install requested without a downloaded update (state: ${updaterState})`);
     return { success: false, error: 'No downloaded update is ready to install.' };
   }
@@ -244,9 +242,9 @@ ipcMain.handle('app:installUpdate', async () => {
     return { success: false, error: message };
   }
   return { success: true };
-});
+}
 
-ipcMain.handle('app:downloadUpdate', async () => {
+export async function downloadUpdate() {
   try {
     if (updaterState === 'downloading' || updaterState === 'downloaded') {
       log.warn('[Updater] Download already in progress or completed');
@@ -262,9 +260,9 @@ ipcMain.handle('app:downloadUpdate', async () => {
     setUpdaterState('error');
     return { success: false, error: (error as Error).message || 'Operation failed' };
   }
-});
+}
 
-ipcMain.handle('app:checkForUpdates', async () => {
+export async function checkForUpdates() {
   if (downloadedUpdateReady()) { setUpdaterState('downloaded'); return { success: true, updateInfo: downloadedInfo ? { version: downloadedInfo.version, releaseDate: downloadedInfo.releaseDate, releaseNotes: downloadedInfo.releaseNotes } : null }; }
   try {
     // For manual checks, bypass the state machine throttling but still prevent concurrent checks
@@ -332,7 +330,4 @@ ipcMain.handle('app:checkForUpdates', async () => {
   } finally {
     isUpdateCheckInProgress = false;
   }
-});
-
-
 }

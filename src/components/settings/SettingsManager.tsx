@@ -29,7 +29,7 @@ import { SettingsSidebar } from './views/SettingsSidebar';
 import { findSettingsSection } from './settingsSections';
 import type { PrinterConfig } from './settingsTypes';
 
-export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+export function SettingsManager({ onClose, initialSection, isRestricted: _isRestricted }: { onClose: () => void; initialSection?: string; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
   const { role, updateDomain, tenantId } = useAuthStore();
   const form = useSettingsFormState();
@@ -37,7 +37,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     loading, setLoading, saving, message, setMessage,
     showBulkSheet, setShowBulkSheet, setBarcodePrinter, setReceiptPrinter,
     setOsPrinters, setPrintersLoading, setActiveHardwareTab, setActiveProductsTab,
-    setUpdateStatus, setUpdateInfo, setUpdateReady, setLastChecked, setIsDownloading, setDownloadProgress,
     pass, setPass, setChangingPass, confirmTurnOffAllModalOpen, setConfirmTurnOffAllModalOpen, appVersion,
     shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, showProductOffers, receiptFont, billSettings,
     a5Orientation, printWidth,
@@ -54,7 +53,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     }, 4000);
     return () => clearTimeout(timer);
   }, [message, setMessage]);
-  const [activeSection, setActiveSection] = useState(isAdminRole(role) ? 'store' : 'hardware');
+  const [activeSection, setActiveSection] = useState(isAdminRole(role) ? (initialSection || 'store') : 'hardware');
   const selectSection = (id: string) => {
     setActiveSection(id);
     if (id === 'hardware') setActiveHardwareTab('receipt');
@@ -228,64 +227,17 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSettings is a render-local loader; this effect intentionally performs the settings load only on mount.
   }, [setLoading]);
 
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-    if (hasBridge('onUpdateStatus')) {
-      bridgeEvents.onUpdateStatus((status: string) => {
-        if (status === 'ready-to-install') { setUpdateReady(true); setIsDownloading(false); setDownloadProgress(null); setUpdateStatus('Update ready'); }
-        else if (status === 'update-available') { setUpdateStatus('Update available'); }
-        else if (status === 'error') { setIsDownloading(false); setUpdateStatus('Download failed'); }
-        else { setUpdateStatus(status); }
-      });
-    }
-    if (hasBridge('onUpdateProgress')) {
-      bridgeEvents.onUpdateProgress((progress) => { setDownloadProgress(progress); });
-    }
-    if (hasBridge('onUpdateInfo')) {
-      bridgeEvents.onUpdateInfo((info) => {
-        if (info) {
-          setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
-          // The main process already starts the download automatically when update-available fires.
-          // Do NOT call appDownloadUpdate() here — that would start a second concurrent download,
-          // causing a race condition that leaves slow machines stuck at 100% indefinitely.
-          setIsDownloading(true);
-          setUpdateStatus('Downloading...');
-        }
-      });
-    }
-    appApi.checkForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
-  }, [setDownloadProgress, setIsDownloading, setLastChecked, setUpdateInfo, setUpdateReady, setUpdateStatus]);
-
   const { handleSave } = useSettingsSave({
     form, activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix,
     returnStartNumber, role, shopDomain, updateDomain,
   });
 
   const handleInstallUpdate = async () => {
-    setUpdateStatus('Starting installer...');
-    try {
-      const res = await useUpdateStore.getState().installUpdate();
-      if (!res || res.success) return;
-      setUpdateReady(res.installerReady === true);
-      setIsDownloading(false);
-      setDownloadProgress(null);
-      setUpdateStatus(res.installerReady === true ? 'Installation failed — retry' : 'Download failed');
-      setMessage({ type: 'error', text: res.error || 'Could not start the installer. Please retry.' });
-    } catch {
-      setIsDownloading(false);
-      setUpdateStatus('Installation failed — retry');
-    }
+    const result = await useUpdateStore.getState().installUpdate();
+    if (result && !result.success) setMessage({ type: 'error', text: result.error || 'Could not start the installer. Please retry.' });
   };
 
-  const handleRetryDownload = () => {
-    if (!isDesktopRuntime()) return;
-    setUpdateStatus(null);
-    setUpdateInfo(null);
-    setIsDownloading(false);
-    setDownloadProgress(null);
-    setUpdateReady(false);
-    appApi.checkForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
-  };
+  const handleRetryDownload = () => { void useUpdateStore.getState().checkForUpdates(); };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -411,7 +363,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {(hasChanges || saving) && (
+          {activeSection !== 'features' && (hasChanges || saving) && (
             <button
               type="button"
               onClick={handleSave}
@@ -465,6 +417,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             <div className="space-y-6">
               <SettingsSectionContent
                 activeSection={activeSection} featureFlags={featureFlags} fetchPrinters={fetchPrinters}
+                onModulesSaved={flags => {
+                  form.setEnableScrap(flags.scrap); setLoyaltyEnabled(flags.loyalty);
+                  updateSnapshotField(previous => ({ ...previous, features: JSON.stringify(flags), enableScrap: flags.scrap, showCashRegister: flags.cash_register, loyaltyEnabled: flags.loyalty }));
+                }}
                 handleChangePassword={handleChangePassword} handleInstallUpdate={handleInstallUpdate}
                 handleRetryDownload={handleRetryDownload} handleToggleFeatureFlag={handleToggleFeatureFlag}
                 returnPrefix={returnPrefix} returnStartNumber={returnStartNumber} role={role} sectionId={activeSection}

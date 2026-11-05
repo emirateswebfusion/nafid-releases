@@ -163,6 +163,9 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
 The adapter renders receipt text through the existing hardware receipt renderer, then generates a receipt-width PDF.
 Existing HTML and text payloads retain their behavior; PDF rendering failures return a failed result.
 
+- **Dynamic thermal PDF sizing:** In `electron/whatsapp/whatsappService.ts`, thermal mode dynamically measures the rendered receipt DOM height (`document.body.scrollHeight`), calculates exact millimeter length (`pageHeightMm = Math.max(40, Math.ceil(heightPx * 25.4 / 96 + 3))`), injects matching `@page { size: ${widthMm}mm ${pageHeightMm}mm !important; margin: 0 !important; }`, and invokes Electron `webContents.printToPDF` with custom paper roll dimensions `{ width: widthMm / 25.4, height: pageHeightMm / 25.4 }` and `preferCSSPageSize: true`. This prevents thermal receipt PDFs sent via WhatsApp from displaying on an oversized A4 canvas with excessive blank white space.
+- **Automatic checkout dispatch persistence:** The checkout auto-send toggle (`auto_whatsapp_send`) is saved to the SQLite `settings` table via `setSetting` on change and settings save, synchronized to `localStorage` during initial startup via `useSettingsLoader`, and auto-healed from SQLite in `checkoutHandler.ts` if `localStorage` was cleared.
+
 
 ### Shop localization settings
 
@@ -215,6 +218,28 @@ No shop data, sync payload, authentication permission or server endpoint changes
 ### Update verification progress
 
 The worker reports measured file bytes through update-verification-progress and the preload/data events catalog onUpdateVerificationProgress. Its percent payload is 0–99 while hashing and 100 only after SHA-512 matches. The install store keeps this separate from download progress and ignores events outside an active install. Windows process creation and app startup remain indeterminate; their duration has no measurable overall percentage. Installer timeout text distinguishes a possible Windows publisher/security block from ordinary slow startup without claiming automatic policy detection.
+
+### Updater IPC ownership
+
+`electron/ipc/updaterHandlers.ts` owns the three one-line install/download/check registrations.
+`electron/services/updaterService.ts` owns the state machine and exported use-cases; it does not register IPC.
+Channel names and result payloads are unchanged. The IPC equivalence harness compares baseline/candidate
+registration and local behavior; updater-specific state/launch behavior is covered by `updaterInstall.test.ts`.
+
+### Shared update state in Settings
+
+`useUpdateStore` owns the update event subscriptions, check response, download progress and ready/install state for every screen. Settings reads its current snapshot through `useSettingsUpdater` using Zustand selectors and derives its display status without mirroring store fields in local state. It immediately receives updates that finished before Settings opened. Do not add a second screen-specific bridge subscription or discard the `checkForUpdates` response: a downloaded update may only replay its ready status, with metadata returned by that response. The ready action must remain available even when release metadata is absent. Regression tests: `updateStore.test.ts` and `settingsUpdater.ui.test.tsx`.
+
+### Feature settings consistency (5 November 2026)
+
+`feature_flags` remains a shared per-tenant JSON setting through existing settings sync. A cloud pull cannot
+overwrite a PENDING local selection. A push acknowledgement clears only the exact value/timestamp sent,
+so edits during upload remain pending. Non-pending cloud snapshots and LAN upserts compare parsed dates
+for feature_flags; a stale snapshot cannot rewind these module choices. Server settings upsert likewise
+rejects older feature_flags timestamps. Other settings keep their existing conflict rules. Renderer reloads
+on sync data events. Disconnected terminals receive changes after reconnection/sync, not instantaneously.
+Contract coverage: tests/unit/featureSettingsSync.test.ts and server tests/featureSettingsSync.test.ts;
+server golden change is limited to the feature_flags conflict condition.
 
 ### Last terminal session (v2.2.44)
 

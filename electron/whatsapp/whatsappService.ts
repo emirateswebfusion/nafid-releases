@@ -248,10 +248,11 @@ async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): 
   const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
   const isLandscape = htmlContent.includes('content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent) || isHalfA4;
 
+  const widthMm = thermal ? (/@page\s*\{[^}]*58mm/i.test(htmlContent) || /width:\s*58mm/i.test(htmlContent) ? 58 : 80) : 80;
   const printWindow = new BrowserWindow({
     show: false,
-    width: isHalfA4 ? 794 : (isA5 ? (isLandscape ? 794 : 560) : (isLandscape ? 1123 : 794)),
-    height: isHalfA4 ? 560 : (isA5 ? (isLandscape ? 560 : 794) : (isLandscape ? 794 : 1123)),
+    width: thermal ? Math.max(300, Math.ceil(widthMm * (96 / 25.4)) + 20) : (isHalfA4 ? 794 : (isA5 ? (isLandscape ? 794 : 560) : (isLandscape ? 1123 : 794))),
+    height: thermal ? 800 : (isHalfA4 ? 560 : (isA5 ? (isLandscape ? 560 : 794) : (isLandscape ? 794 : 1123))),
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,
@@ -291,20 +292,51 @@ async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): 
   };
 
   return new Promise<Buffer>((resolve, reject) => {
+    let finished = false;
     const timer = setTimeout(() => {
       cleanup();
       reject(new Error('PDF generation timed out (30s)'));
     }, 30000);
 
-    ipcMain.once(`print-ready-${winId}`, async () => {
+    const triggerPdf = async (reportedHeight?: number) => {
+      if (finished) return;
+      finished = true;
       try {
-        const data = await printWindow.webContents.printToPDF({
+        let heightPx = typeof reportedHeight === 'number' && reportedHeight > 0 ? reportedHeight : 0;
+        if (thermal && heightPx <= 0 && typeof printWindow.webContents.executeJavaScript === 'function') {
+          const jsHeight: unknown = await printWindow.webContents.executeJavaScript(`(async () => {
+            if (document.fonts) await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 600))]);
+            return document.body?.scrollHeight || document.documentElement?.scrollHeight || null;
+          })()`).catch(() => null);
+          if (typeof jsHeight === 'number' && jsHeight > 0) heightPx = jsHeight;
+        }
+
+        const pageHeightMm = Math.max(40, Math.ceil((heightPx > 0 ? heightPx : 400) * 25.4 / 96 + 3));
+
+        if (thermal && typeof printWindow.webContents.executeJavaScript === 'function') {
+          await printWindow.webContents.executeJavaScript(`(() => {
+            const s = document.createElement('style');
+            s.textContent = '@page { size: ${widthMm}mm ${pageHeightMm}mm !important; margin: 0 !important; }';
+            document.head.appendChild(s);
+          })()`).catch(() => {});
+        }
+
+        const pdfOpts: Electron.PrintToPDFOptions = {
           printBackground: true,
-          pageSize: 'A4',
-          landscape: false,
           preferCSSPageSize: thermal,
           margins: { marginType: 'none' },
-        });
+        };
+        if (thermal) {
+          pdfOpts.pageSize = {
+            width: Number((widthMm / 25.4).toFixed(4)),
+            height: Number((pageHeightMm / 25.4).toFixed(4)),
+          };
+        } else {
+          pdfOpts.pageSize = isA5 ? 'A5' : 'A4';
+          pdfOpts.landscape = isLandscape;
+        }
+
+        const data = await printWindow.webContents.printToPDF(pdfOpts);
         clearTimeout(timer);
         cleanup();
         resolve(data);
@@ -313,7 +345,19 @@ async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): 
         cleanup();
         reject(err);
       }
+    };
+
+    ipcMain.once(`print-ready-${winId}`, (height?: unknown) => {
+      void triggerPdf(typeof height === 'number' ? height : undefined);
     });
+
+    if (thermal && typeof printWindow.webContents.once === 'function') {
+      printWindow.webContents.once('did-finish-load', () => {
+        setTimeout(() => {
+          void triggerPdf();
+        }, 1200);
+      });
+    }
   });
 }
 

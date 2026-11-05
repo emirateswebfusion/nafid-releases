@@ -1,3 +1,4 @@
+import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React from 'react';
@@ -188,6 +189,7 @@ export function BillingWorkspace({
   splitTotal, splitUpiInputRef, startEditingTotal, subtotal, tenantId, totalInputRefs, totalKgs,
   totalOverrideInputRef, totalPcs, totalProducts, totalTax, uiConfig, updateActiveTab, upiPageConfig, upiSources,
 }: BillingWorkspaceProps) {
+  const tiersEnabled = useFeatureFlagsStore(s => s.flags?.pricing_tiers !== false);
   return (
     <div 
       className={clsx(
@@ -235,7 +237,7 @@ export function BillingWorkspace({
         uiConfig={uiConfig}
         isLoadingEditBill={isLoadingEditBill}
         productPricingMap={productPricingMap}
-        pricingTiers={pricingTiers}
+        pricingTiers={tiersEnabled ? pricingTiers : []}
         searchBarSection={searchBarSection}
         customerDetailsSection={<BillingCustomerDetails
           activeTab={activeTab}
@@ -263,7 +265,7 @@ export function BillingWorkspace({
           loyaltyEnabled={loyaltyEnabled}
           onGstSeriesChange={(series) => { void reserveGstSeriesNumber({ tenantId, getActiveTab, updateActiveTab }, series); }}
           paymentMethod={paymentMethod}
-          pricingTiers={pricingTiers}
+          pricingTiers={tiersEnabled ? pricingTiers : []}
           receivedAmount={receivedAmount}
           selectedTierId={selectedTierId}
           setCustomerState={setCustomerState}

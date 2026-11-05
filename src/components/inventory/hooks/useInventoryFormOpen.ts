@@ -20,7 +20,7 @@ export interface UseInventoryFormOpenContext {
  */
 export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
   const { lastInteractedProductId: lastInteractedProductIdRef, listScrollRef, savedScrollTop: savedScrollTopRef, tenantId } = ctx;
-  const { grades, setEditingProduct, setFormData, setTierPrices, setView } = ctx.inv;
+  const { grades, setEditingProduct, setFormData, setTierPrices, setView, setVariants } = ctx.inv;
   const openAdd = async () => {
     let nextBarcode = '';
     if (isDesktopRuntime()) {
@@ -50,6 +50,7 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
     setFormData({ ...DEFAULT_FORM, sku_barcode: nextBarcode, tax_rate_percent: isUaeStore() ? 5 : 0, is_gst_applicable: isUaeStore() });
     setEditingProduct(null);
     setTierPrices({});
+    setVariants([]);
     setView('add');
   };
 
@@ -188,6 +189,42 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
         }).catch(console.error);
       }
     }
+
+    const children = ctx.inv.products.filter(p => {
+      const cda = (() => {
+        try {
+          const parsed = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+          return (parsed || {}) as unknown as Record<string, unknown>;
+        } catch { return {}; }
+      })();
+      return cda.parent_product_id === product.product_id;
+    });
+    if (children.length > 0) {
+      setVariants(children.map(c => {
+        const cda = (() => {
+          try {
+            const parsed = typeof c.domain_attributes === 'string' ? JSON.parse(c.domain_attributes) : c.domain_attributes;
+            return (parsed || {}) as unknown as Record<string, unknown>;
+          } catch { return {}; }
+        })();
+        return {
+          id: c.product_id,
+          product_id: c.product_id,
+          variant_name: String(cda.variant_name || c.name.replace(product.name, '').trim() || 'Variant'),
+          sku_barcode: c.sku_barcode || '',
+          purchase_price: c.purchase_price ?? '',
+          base_price: c.base_price ?? '',
+          offer_price: c.offer_price ?? '',
+          current_stock: c.current_stock ?? 0,
+          paper_stock: c.paper_stock ?? (cda.paper_stock as number | string | undefined) ?? '',
+          paper_mrp: (cda.paper_mrp as number | string | undefined) ?? '',
+          paper_purchase_price: (cda.paper_purchase_price as number | string | undefined) ?? '',
+        };
+      }));
+    } else {
+      setVariants([]);
+    }
+
     setView('edit');
   };
 

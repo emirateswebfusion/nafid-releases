@@ -66,20 +66,20 @@ export function TokenOrdersView({ active, onNew, onOpenOrder }: TokenOrdersViewP
   const column = (type: OrderType, title: string, Icon: typeof Bike) => {
     const orders = active.orders.filter(o => o.order_type === type);
     return (
-      <section className="flex min-h-0 flex-col rounded-3xl border border-border/60 bg-muted/30 p-3">
+      <section className="flex min-h-0 flex-col rounded-[20px] border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between px-1">
-          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest"><Icon className="h-4 w-4 text-primary" />{title}<span className="rounded-full bg-primary/10 px-2 text-primary">{orders.length}</span></h2>
+          <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider"><Icon className="h-4 w-4 text-primary" />{title}<span className="rounded-full bg-primary/10 px-2 text-primary">{orders.length}</span></h2>
           <button type="button" onClick={() => onNew(type)} className="flex items-center gap-1 rounded-xl bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground active:scale-95"><Plus className="h-3.5 w-3.5" />New</button>
         </div>
         <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3 overflow-y-auto">
           {orders.map(o => <OrderCard key={o.order_id} order={o} active={active} onOpenOrder={onOpenOrder} />)}
-          {orders.length === 0 && <div className="col-span-full rounded-2xl border-2 border-dashed border-border p-8 text-center text-sm text-muted-foreground">No open {title.toLowerCase()} orders</div>}
+          {orders.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-border bg-muted/20 px-5 py-12 text-center text-sm text-muted-foreground">No open {title.toLowerCase()} orders</div>}
         </div>
       </section>
     );
   };
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-4 p-5 lg:grid-cols-2">
+    <div className="grid min-h-full grid-cols-1 gap-5 p-4 sm:p-6 lg:grid-cols-2">
       {column('TAKEAWAY', 'Takeaway', ShoppingBag)}
       {column('DELIVERY', 'Delivery', Bike)}
     </div>

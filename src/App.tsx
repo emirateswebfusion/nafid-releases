@@ -21,6 +21,7 @@ import { EmergencyWipePrompt } from './components/app/EmergencyWipePrompt';
 import { isDesktopRuntime } from './data/client';
 import { useSyncStatus } from './components/app/hooks/useSyncStatus';
 import { useScreenEvents } from './components/app/hooks/useScreenEvents';
+import { useFeatureFlagsRefresh } from './components/app/hooks/useFeatureFlagsRefresh';
 import { SYNC_QUOTES } from './components/owner-dashboard/syncQuotes';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
   const panic = useEmergencyPanicTrigger();
 
   const { tenantId, isAuthenticated, isLoading, checkAuth, role, isCloudSyncPaused } = useAuthStore();
+  useFeatureFlagsRefresh(tenantId, isAuthenticated);
   const profileReady = useStoreProfile(tenantId, isAuthenticated);
   useStartupReady(!isLoading && (!isAuthenticated || profileReady));
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
@@ -62,10 +64,24 @@ function App() {
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
   const [showRestaurant, setShowRestaurant] = useState(false);
+  const [restaurantView, setRestaurantView] = useState<'floor' | 'tokens' | 'kitchen'>('floor');
+  const [settingsInitialSection, setSettingsInitialSection] = useState<string | undefined>();
   useEffect(() => {
-    const open = () => { if (featureFlagsRef.current?.restaurant_mode) setShowRestaurant(true); };
-    window.addEventListener('open-restaurant', open);
-    return () => window.removeEventListener('open-restaurant', open);
+    const openPage = (view: 'floor' | 'tokens' | 'kitchen', key: 'dining_tables' | 'takeaway_delivery' | 'kitchen_display') => () => {
+      if (!featureFlagsRef.current?.restaurant_mode || !featureFlagsRef.current[key]) return;
+      setRestaurantView(view); setShowRestaurant(true);
+    };
+    const floor = openPage('floor', 'dining_tables');
+    const tokens = openPage('tokens', 'takeaway_delivery');
+    const kitchen = openPage('kitchen', 'kitchen_display');
+    const setup = () => {
+      if (!featureFlagsRef.current?.restaurant_mode) return;
+      setShowRestaurant(false); setSettingsInitialSection('restaurant'); setShowSettingsManager(true);
+    };
+    const dashboard = () => setShowRestaurant(false);
+    const events: [string, () => void][] = [['open-restaurant', floor], ['open-tables', floor], ['open-takeaway-delivery', tokens], ['open-kitchen-display', kitchen], ['open-restaurant-setup', setup], ['open-dashboard', dashboard], ['open-billing-page', dashboard]];
+    events.forEach(([name, fn]) => window.addEventListener(name, fn));
+    return () => events.forEach(([name, fn]) => window.removeEventListener(name, fn));
   }, []);
   const [showReturnManager, setShowReturnManager] = useState(false);
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
@@ -154,15 +170,15 @@ function App() {
 
       <Suspense fallback={<ScreenLoading />}>
       {showRestaurant ? (
-        <PermissionGuard permission="restaurant.orders" onBack={() => setShowRestaurant(false)}>
-          <RestaurantPage onClose={() => setShowRestaurant(false)} />
+        <PermissionGuard feature={restaurantView === 'floor' ? 'dining_tables' : restaurantView === 'tokens' ? 'takeaway_delivery' : 'kitchen_display'} permission="restaurant.orders" onBack={() => setShowRestaurant(false)}>
+          <RestaurantPage key={restaurantView} view={restaurantView} onClose={() => setShowRestaurant(false)} />
         </PermissionGuard>
       ) : showComboManager ? (
-        <PermissionGuard permission="combos.view" onBack={() => setShowComboManager(false)}>
+        <PermissionGuard feature="combo_offers" permission="combos.view" onBack={() => setShowComboManager(false)}>
           <ComboManager onClose={() => setShowComboManager(false)} />
         </PermissionGuard>
       ) : showPartyManager ? (
-        <PermissionGuard permission="customers.view" onBack={() => {
+        <PermissionGuard feature="parties" permission="customers.view" onBack={() => {
           setShowPartyManager(false);
           setPartyTarget(undefined);
           if (cameFromCustomers) {
@@ -189,19 +205,19 @@ function App() {
           />
         </PermissionGuard>
       ) : showCashierSettlement ? (
-        <PermissionGuard permission="cash_register.view" onBack={() => setShowCashierSettlement(false)}>
+        <PermissionGuard feature="cash_settlement" permission="cash_register.view" onBack={() => setShowCashierSettlement(false)}>
           <CashierSettlement onClose={() => setShowCashierSettlement(false)} />
         </PermissionGuard>
       ) : showScrapManager ? (
-        <PermissionGuard permission="scrap.view" onBack={() => setShowScrapManager(false)}>
+        <PermissionGuard feature="scrap" permission="scrap.view" onBack={() => setShowScrapManager(false)}>
           <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as import('./components/scrap/scrapTypes').View} />
         </PermissionGuard>
       ) : showQuotationManager ? (
-        <PermissionGuard permission="quotations.view" onBack={() => setShowQuotationManager(false)}>
+        <PermissionGuard feature="quotations" permission="quotations.view" onBack={() => setShowQuotationManager(false)}>
           <QuotationManager onClose={() => setShowQuotationManager(false)} />
         </PermissionGuard>
       ) : showReturnManager ? (
-        <PermissionGuard permission="sales.refund" onBack={() => {
+        <PermissionGuard feature="returns" permission="sales.refund" onBack={() => {
           setShowReturnManager(false);
           useCartStore.getState().setReturnMode(false);
           useTabStore.getState().updateActiveTab({
@@ -231,15 +247,15 @@ function App() {
           }} />
         </PermissionGuard>
       ) : showWarrantyManager ? (
-        <PermissionGuard permission="warranties.view" onBack={() => setShowWarrantyManager(false)}>
+        <PermissionGuard feature="warranties" permission="warranties.view" onBack={() => setShowWarrantyManager(false)}>
           <WarrantyManager onClose={() => setShowWarrantyManager(false)} />
         </PermissionGuard>
       ) : showPurchaseBillManager ? (
-        <PermissionGuard permission="purchases.view" onBack={() => setShowPurchaseBillManager(false)}>
+        <PermissionGuard feature="purchase_bills" permission="purchases.view" onBack={() => setShowPurchaseBillManager(false)}>
           <PurchaseBillManager onClose={() => setShowPurchaseBillManager(false)} />
         </PermissionGuard>
       ) : showCustomersPage ? (
-        <PermissionGuard permission="customers.view" onBack={() => {
+        <PermissionGuard feature="customers" permission="customers.view" onBack={() => {
           setShowCustomersPage(false);
           setCustomerTarget(undefined);
         }}>
@@ -259,27 +275,27 @@ function App() {
           />
         </PermissionGuard>
       ) : showPaymentsPage ? (
-        <PermissionGuard permission="settings.view" onBack={() => setShowPaymentsPage(false)}>
+        <PermissionGuard feature="payments" permission="settings.view" onBack={() => setShowPaymentsPage(false)}>
           <PaymentMethods onClose={() => setShowPaymentsPage(false)} />
         </PermissionGuard>
       ) : showStaffManager ? (
-        <PermissionGuard permission="users.view" onBack={() => setShowStaffManager(false)}>
+        <PermissionGuard feature="staff" permission="users.view" onBack={() => setShowStaffManager(false)}>
           <StaffManager onClose={() => setShowStaffManager(false)} />
         </PermissionGuard>
       ) : showSettingsManager ? (
         <PermissionGuard permission="settings.view" onBack={() => setShowSettingsManager(false)}>
-          <SettingsManager onClose={() => setShowSettingsManager(false)} />
+          <SettingsManager initialSection={settingsInitialSection} onClose={() => { setShowSettingsManager(false); setSettingsInitialSection(undefined); }} />
         </PermissionGuard>
       ) : showSettingsGrades ? (
-        <PermissionGuard permission="products.view" onBack={() => setShowSettingsGrades(false)}>
+        <PermissionGuard feature="categories_grades" permission="products.view" onBack={() => setShowSettingsGrades(false)}>
           <SettingsGrades onClose={() => setShowSettingsGrades(false)} />
         </PermissionGuard>
       ) : showSettingsPricingTiers ? (
-        <PermissionGuard permission="combos.view" onBack={() => setShowSettingsPricingTiers(false)}>
+        <PermissionGuard feature="pricing_tiers" permission="combos.view" onBack={() => setShowSettingsPricingTiers(false)}>
           <PricingTiers onClose={() => setShowSettingsPricingTiers(false)} />
         </PermissionGuard>
       ) : showRecycleBin ? (
-        <PermissionGuard permission="sales.view" onBack={() => setShowRecycleBin(false)}>
+        <PermissionGuard feature="recycle_bin" permission="sales.view" onBack={() => setShowRecycleBin(false)}>
           <RecycleBin
             initialCategory={recycleBinCategory}
             onClose={() => setShowRecycleBin(false)}
@@ -290,39 +306,39 @@ function App() {
           />
         </PermissionGuard>
       ) : showSalesHistory ? (
-        <PermissionGuard permission="sales.view" onBack={() => setShowSalesHistory(false)}>
+        <PermissionGuard feature="sales_history" permission="sales.view" onBack={() => setShowSalesHistory(false)}>
           <SalesHistory onClose={() => setShowSalesHistory(false)} />
         </PermissionGuard>
       ) : showInventoryManager ? (
-        <PermissionGuard permission="products.view" onBack={() => setShowInventoryManager(false)}>
+        <PermissionGuard feature="inventory" permission="products.view" onBack={() => setShowInventoryManager(false)}>
           <InventoryManager onClose={() => setShowInventoryManager(false)} />
         </PermissionGuard>
       ) : showStockReport ? (
-        <PermissionGuard permission="reports.view" onBack={() => setShowStockReport(false)}>
+        <PermissionGuard feature="stock_report" permission="reports.view" onBack={() => setShowStockReport(false)}>
           <StockReport onClose={() => setShowStockReport(false)} />
         </PermissionGuard>
       ) : showFinancialReport ? (
-        <PermissionGuard permission="reports.financial" onBack={() => setShowFinancialReport(false)}>
+        <PermissionGuard feature="financial_reports" permission="reports.financial" onBack={() => setShowFinancialReport(false)}>
           <FinancialReport onClose={() => setShowFinancialReport(false)} />
         </PermissionGuard>
       ) : showVatReports ? (
-        <PermissionGuard permission="reports.view" onBack={() => setShowVatReports(false)}>
+        <PermissionGuard feature="gst_reports" permission="reports.view" onBack={() => setShowVatReports(false)}>
           <VatReportScreen onBack={() => setShowVatReports(false)} />
         </PermissionGuard>
       ) : showGstReports ? (
-        <PermissionGuard permission="reports.view" onBack={() => setShowGstReports(false)}>
+        <PermissionGuard feature="gst_reports" permission="reports.view" onBack={() => setShowGstReports(false)}>
           <GstReportScreen onBack={() => setShowGstReports(false)} />
         </PermissionGuard>
       ) : showEcommercePortal ? (
-        <PermissionGuard permission="products.view" onBack={() => setShowEcommercePortal(false)}>
+        <PermissionGuard feature="ecommerce" permission="products.view" onBack={() => setShowEcommercePortal(false)}>
           <EcommercePortal onClose={() => setShowEcommercePortal(false)} />
         </PermissionGuard>
       ) : showAdsManager ? (
-        <AdsManager onClose={() => setShowAdsManager(false)} />
+        <PermissionGuard feature="advertisements" onBack={() => setShowAdsManager(false)}><AdsManager onClose={() => setShowAdsManager(false)} /></PermissionGuard>
       ) : (showAiAssistant && isAiAssistantAvailable) ? (
-        <AiAssistant onClose={() => setShowAiAssistant(false)} />
+        <PermissionGuard feature="ai_assistant" onBack={() => setShowAiAssistant(false)}><AiAssistant onClose={() => setShowAiAssistant(false)} /></PermissionGuard>
       ) : restrictedActivePage === 'BILLING' ? (
-        <PermissionGuard permission="sales.create" onBack={() => setRestrictedActivePage('')}>
+        <PermissionGuard feature="billing" permission="sales.create" onBack={() => setRestrictedActivePage('')}>
           <BillingPage />
         </PermissionGuard>
       ) : (

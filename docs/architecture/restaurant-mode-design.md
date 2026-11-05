@@ -358,3 +358,21 @@ Restaurant mode is not country-specific (same flag). India-specific behaviour, f
   (sales, bills, guests, per guest, voided), quick ranges and bars per order type / app and waiter.
 - Checked in the app on a data copy in dark and light themes (floor, order screen, board, kitchen display, setup,
   reports, dashboard card, bill hand-over).
+
+### Shared reporting navigation (5 November 2026)
+
+The restaurant rail opens the existing Sales History and Financial Report screens, respecting their permissions
+and the sales-history feature flag. The restaurant workspace keeps tables, orders, kitchen and setup.
+Financial Report includes the restaurant breakdown (order type/channel, waiter and voids) when restaurant mode
+and reports.view are enabled, using the parent financial date range. Settled orders already use normal checkout
+and invoices, so shared sales totals and Sales History include them without a second sales ledger.
+
+### Dashboard-based workspace (5 November 2026)
+
+The nested Restaurant workspace/rail is removed. Tables & Orders, Takeaway & Delivery and Kitchen Display
+open directly from the main dashboard, with independent `dining_tables`, `takeaway_delivery`, and
+`kitchen_display` module choices under the existing `restaurant_mode` capability. Existing shops with
+restaurant mode enabled inherit the child pages only when those new keys are absent; explicit false wins.
+Configuration lives in Settings > Tables, Kitchen & Food Orders and requires restaurant.manage.
+Billing uses the existing Billing page and order handover; sales remain ordinary invoices in Sales History,
+Financial Report and tax reports. No invoice, order or payment contract changes.

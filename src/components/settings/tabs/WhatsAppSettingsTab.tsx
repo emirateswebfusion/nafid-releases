@@ -2,6 +2,7 @@ import React from 'react';
 import { QrCode, Settings, Store } from 'lucide-react';
 import clsx from 'clsx';
 import { WhatsAppSettings } from '../../whatsapp/WhatsAppSettings';
+import { setSetting } from '../../../data/settings';
 import type { ShopClosingOverviewConfig } from '../../../utils/time/shopClosingHelper';
 
 export interface WhatsAppSettingsTabProps {
@@ -64,7 +65,8 @@ export const WhatsAppSettingsTab: React.FC<WhatsAppSettingsTabProps> = ({
           onClosingConfigChange={setShopClosingConfig}
           onAutoSendChange={(val) => {
             setAutoWhatsAppSend(val);
-            localStorage.setItem('auto_whatsapp_send', val ? 'true' : 'false');
+            try { localStorage.setItem('auto_whatsapp_send', val ? 'true' : 'false'); } catch { /* ignore */ }
+            void setSetting({ tenant_id: tenantId || 'global', key: 'auto_whatsapp_send', value: val ? 'true' : 'false' });
           }}
         />
       </div>

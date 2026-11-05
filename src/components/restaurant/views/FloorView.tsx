@@ -22,7 +22,7 @@ function TableTile({ table, active, unsentOrderIds, onFreeTable, onOpenOrder }: 
   if (!first) {
     return (
       <button type="button" onClick={() => onFreeTable(table)}
-        className={`group relative flex min-h-[132px] flex-col overflow-hidden rounded-2xl border-2 p-4 text-left transition-all active:scale-[0.97] ${style.tile}`}>
+        className={`group relative flex min-h-[132px] flex-col overflow-hidden rounded-2xl border p-4 text-left transition-all active:scale-[0.97] ${style.tile}`}>
         <div className="flex items-start justify-between">
           <span className="text-3xl font-black tracking-tight text-foreground/80">{table.label}</span>
           <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground"><Users className="h-3 w-3" />{table.seats}</span>
@@ -36,7 +36,7 @@ function TableTile({ table, active, unsentOrderIds, onFreeTable, onOpenOrder }: 
   const covers = orders.reduce((s, o) => s + o.covers, 0);
   return (
     <button type="button" onClick={() => onOpenOrder(first)}
-      className={`relative flex min-h-[132px] flex-col overflow-hidden rounded-2xl border-2 p-4 pt-5 text-left shadow-sm transition-all active:scale-[0.97] ${style.tile}`}>
+      className={`relative flex min-h-[132px] flex-col overflow-hidden rounded-2xl border p-4 pt-5 text-left shadow-sm transition-all active:scale-[0.97] ${style.tile}`}>
       <span className={`absolute inset-x-0 top-0 h-1.5 ${style.stripe}`} />
       <div className="flex items-start justify-between gap-2">
         <span className="text-3xl font-black tracking-tight">{table.label}</span>
@@ -63,7 +63,7 @@ export function FloorView({ tables, active, unsentOrderIds, onFreeTable, onOpenO
   const [area, setArea] = useState<string>('');
   if (visible.length === 0) {
     return (
-      <div className="m-auto flex max-w-sm flex-col items-center gap-3 p-10 text-center">
+      <div className="mx-auto my-12 flex max-w-sm flex-col items-center gap-3 p-10 text-center">
         <div className="rounded-3xl bg-primary/10 p-5 text-primary"><Users className="h-10 w-10" /></div>
         <h2 className="text-lg font-black">No tables yet</h2>
         <p className="text-sm text-muted-foreground">Add your tables once (for example T1 to T12, by area) and they appear here for the waiters.</p>
@@ -75,7 +75,7 @@ export function FloorView({ tables, active, unsentOrderIds, onFreeTable, onOpenO
   const shown = area ? visible.filter(t => (t.area || 'Main') === area) : visible;
   const groups = area ? [area] : areas;
   return (
-    <div className="space-y-5 p-5">
+    <div className="space-y-5 p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-3">
         {areas.length > 1 && (
           <div className="flex rounded-xl border border-border bg-card p-1">
@@ -94,7 +94,7 @@ export function FloorView({ tables, active, unsentOrderIds, onFreeTable, onOpenO
       {groups.map(g => (
         <section key={g}>
           {groups.length > 1 && <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">{g}</h3>}
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
             {shown.filter(t => (t.area || 'Main') === g).map(table => (
               <TableTile key={table.table_id} table={table} active={active} unsentOrderIds={unsentOrderIds} onFreeTable={onFreeTable} onOpenOrder={onOpenOrder} />
             ))}

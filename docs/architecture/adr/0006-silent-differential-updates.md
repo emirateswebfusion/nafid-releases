@@ -1,4 +1,4 @@
-# ADR 0006: Silent differential auto-updates (delta updates)
+﻿# ADR 0006: Silent differential auto-updates (delta updates)
 
 Status: accepted
 
@@ -62,7 +62,7 @@ All update actions, including Settings, use the shared store action. `UpdateInst
 
 Installer verification and Windows CreateProcess run in `windowsInstallerWorker` through `windowsInstallerLauncher`,
 so a slow OS launch cannot freeze Electron's main thread. Real verifying/starting phases use the existing update-status
-event; progress is indeterminate. The worker and its built-in-only launcher helper are explicitly unpacked for Worker.
+event. SHA-512 verification reports measured bytes (0–99%, then 100% only after the digest matches); OS process creation and application startup remain indeterminate. The worker and its built-in-only launcher helper are explicitly unpacked for Worker.
 `build/installer.nsh` prevents the default HideWindow-before-StartApp gap: the installer changes to Starting Nafid,
 launches the new app with a numeric readiness token, and stays visible until the painted, visible main renderer replies.
 Updated installs also override an older updater's silent flag to retain progress. A 120-second readiness timeout shows

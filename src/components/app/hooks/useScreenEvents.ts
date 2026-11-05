@@ -294,9 +294,9 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       setRestrictedActivePage('');
     };
 
-    const handleOpenComboManager = () => setShowComboManager(true);
-    const handleOpenAdsManager = () => setShowAdsManager(true);
-    const handleOpenFinancialReport = () => setShowFinancialReport(true);
+    const handleOpenComboManager = () => { if (canOpen('combo_offers')) setShowComboManager(true); };
+    const handleOpenAdsManager = () => { if (canOpen('advertisements')) setShowAdsManager(true); };
+    const handleOpenFinancialReport = () => { if (canOpen('financial_reports')) setShowFinancialReport(true); };
     const handleOpenAiAssistant = () => {
       if (isAiAssistantAvailable && canOpen('ai_assistant')) {
         setShowAiAssistant(true);
@@ -316,6 +316,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     window.addEventListener('open-vat-reports', handleOpenVatReports);
     window.addEventListener('open-sales-history', handleOpenHistory);
     const handleOpenRecycleBin = (e?: Event) => {
+      if (!canOpen('recycle_bin')) return;
       const ce = e as CustomEvent;
       if (ce?.detail?.initialCategory) {
         setRecycleBinCategory(ce.detail.initialCategory);
@@ -380,6 +381,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       window.removeEventListener('open-inventory-manager', handleOpenInv);
       window.removeEventListener('open-combo-manager', handleOpenComboManager);
       window.removeEventListener('open-ads-manager', handleOpenAdsManager);
+      window.removeEventListener('open-financial-report', handleOpenFinancialReport);
       window.removeEventListener('open-stock-report', handleOpenStockReport);
       window.removeEventListener('open-gst-reports', handleOpenGstReports);
       window.removeEventListener('open-vat-reports', handleOpenVatReports);

@@ -1,12 +1,90 @@
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { printingApi } from '../../../data/printing';
-import { type Product, toInventoryProducts } from '../inventoryUtils';
+import { type Product, toInventoryProducts, isGstProduct } from '../inventoryUtils';
 import { useAuthStore } from '../../../store/authStore';
 import { listProducts, getProductPricing } from '../../../data/products';
 import { listPricingTiers } from '../../../data/pricingTiers';
 import Papa from 'papaparse';
 import type { InventoryState } from './useInventoryState';
+
+export interface BuildInventoryCsvRowArgs {
+  product: Product;
+  grades: Array<{ grade_id: string; rate?: number | string | null; purchase_price?: number | string | null }>;
+  activeTiers: Array<{ pricing_tier_id: string; name: string }>;
+  pricingMap: Record<string, Record<string, number>>;
+}
+
+export function buildInventoryCsvRow(args: BuildInventoryCsvRowArgs): Record<string, unknown> {
+  const { product: p, grades, activeTiers, pricingMap } = args;
+
+  const da: Record<string, unknown> = (() => {
+    try {
+      if (typeof p.domain_attributes === 'string') {
+        return (JSON.parse(p.domain_attributes) as Record<string, unknown>) || {};
+      }
+      if (p.domain_attributes && typeof p.domain_attributes === 'object') {
+        return (p.domain_attributes as unknown as Record<string, unknown>) || {};
+      }
+      return {};
+    } catch {
+      return {};
+    }
+  })();
+
+  const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+  const displayPurchasePrice = appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined 
+    ? Number(appliedGrade.purchase_price) 
+    : Number(p.purchase_price);
+  const displayMrp = appliedGrade && p.pricing_mode === 'GRADE_RATE' 
+    ? Number(appliedGrade.rate) 
+    : Number(p.base_price);
+
+  const itemCode = (p.item_code && String(p.item_code).trim() !== '')
+    ? String(p.item_code).trim()
+    : (da.item_code ? String(da.item_code).trim() : (da.itemCode ? String(da.itemCode).trim() : ''));
+
+  const hsnCode = (p.hsn_sac_code && String(p.hsn_sac_code).trim() !== '')
+    ? String(p.hsn_sac_code).trim()
+    : (da.hsn_sac_code ? String(da.hsn_sac_code).trim() : (da.hsn_code ? String(da.hsn_code).trim() : (da.hsn ? String(da.hsn).trim() : '')));
+
+  const taxRate = p.tax_rate_percent != null
+    ? Number(p.tax_rate_percent)
+    : (da.tax_rate_percent != null ? Number(da.tax_rate_percent) : 0);
+
+  const row: Record<string, unknown> = {
+    'Name': p.name || '',
+    'Item Code': itemCode,
+    'Barcode': p.sku_barcode || '',
+    'HSN Code': hsnCode,
+    'Category': p.category || '',
+    'Brand': p.brand_manufacturer || '',
+    'UOM': p.uom || '',
+    'Purchase Price': displayPurchasePrice || 0,
+    'Paper Purchase': Number((p as typeof p).gst_purchase_price || 0),
+    'MRP': displayMrp || 0,
+    'Paper MRP': Number((p as typeof p).paper_mrp || 0),
+  };
+
+  // Dynamically add tier columns with their names
+  for (const tier of activeTiers) {
+    const tierPrice = pricingMap[p.product_id]?.[tier.pricing_tier_id];
+    row[tier.name] = tierPrice != null ? tierPrice : '';
+  }
+
+  row['Tax Rate %'] = taxRate;
+  row['Discount %'] = p.discount_percent != null ? Number(p.discount_percent) : 0;
+  row['Discount Flat'] = p.discount_flat != null ? Number(p.discount_flat) : 0;
+  row['Offer Price'] = p.offer_price != null ? Number(p.offer_price) : '';
+  row['Real Stock'] = p.current_stock || 0;
+  row['Paper Stock'] = p.paper_stock || 0;
+  row['Low Stock'] = p.reorder_level != null ? Number(p.reorder_level) : 0;
+  row['Billing Type'] = p.billing_type || 'PIECE';
+  row['GST Applicable'] = isGstProduct(p) || hsnCode !== '' ? 'YES' : 'NO';
+  row['Added Date'] = p.created_at || '';
+
+  return row;
+}
 
 export interface UseInventoryExportsContext {
   stockFilterRef: React.RefObject<"all" | "in_stock" | "low_stock" | "out_of_stock" | "no_barcode">;
@@ -191,42 +269,9 @@ export function useInventoryExports(ctx: UseInventoryExportsContext) {
           }
         }
 
-        const dataToExport = result.map(p => {
-          const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-          const displayPurchasePrice = appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined 
-            ? Number(appliedGrade.purchase_price) 
-            : Number(p.purchase_price);
-          const displayMrp = appliedGrade && p.pricing_mode === 'GRADE_RATE' 
-            ? Number(appliedGrade.rate) 
-            : Number(p.base_price);
-
-          const row: Record<string, unknown> = {
-            'Name': p.name || '',
-            'Item Code': p.item_code || '',
-            'Barcode': p.sku_barcode || '',
-            'Category': p.category || '',
-            'Brand': p.brand_manufacturer || '',
-            'UOM': p.uom || '',
-            'Purchase Price': displayPurchasePrice || 0,
-            'Paper Purchase': Number((p as typeof p).gst_purchase_price || 0),
-            'MRP': displayMrp || 0,
-            'Paper MRP': Number((p as typeof p).paper_mrp || 0),
-          };
-
-          // Dynamically add tier columns with their names
-          for (const tier of activeTiers) {
-            const tierPrice = pricingMap[p.product_id]?.[tier.pricing_tier_id];
-            row[tier.name] = tierPrice != null ? tierPrice : '';
-          }
-
-          row['Discount Percentage'] = p.discount_percent || 0;
-          row['Offer Price'] = p.offer_price || 0;
-          row['Real Stock'] = p.current_stock || 0;
-          row['Paper Stock'] = p.paper_stock || 0;
-          row['Added Date'] = p.created_at || '';
-
-          return row;
-        });
+        const dataToExport = result.map(p =>
+          buildInventoryCsvRow({ product: p, grades, activeTiers, pricingMap })
+        );
 
         const csvContent = Papa.unparse(dataToExport);
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

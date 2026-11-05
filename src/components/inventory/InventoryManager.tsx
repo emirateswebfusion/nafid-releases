@@ -19,6 +19,7 @@ import { AdjustStockModal } from './modals/AdjustStockModal';
 import { BarcodePrintModal } from './modals/BarcodePrintModal';
 import { DeleteProductModal } from './modals/DeleteProductModal';
 import { BulkDeleteProductsModal } from './modals/BulkDeleteProductsModal';
+import { VariantsManager } from '../variants/VariantsManager';
 import { getProductPricing } from '../../data/products';
 import { pricingTiersApi, listPricingTiers } from '../../data/pricingTiers';
 import { isDesktopRuntime } from '../../data/client';
@@ -53,6 +54,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     newSupplierPhone, setNewSupplierPhone, newSupplierAddress, setNewSupplierAddress, selectedNameIndex, setSelectedNameIndex,
     highlightedProductId, offset, setOffset, hasMore, totalCount, selectedProductIds,
     setSelectedProductIds, showBulkDeleteConfirm, setShowBulkDeleteConfirm, isBulkDeleting,
+    variants, setVariants,
   } = inv;
   const firstInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -572,6 +574,26 @@ return (
           setView={setView}
           setFormData={setFormData}
           onAddPricingTier={handleAddPricingTier}
+          variants={variants}
+          setVariants={setVariants}
+        />
+      )}
+
+      {/* ── VARIANTS VIEW ──────────────────────────────────────────────── */}
+      {view === 'variants' && (
+        <VariantsManager
+          onClose={() => setView('list')}
+          enableRealPaperStock={enableRealPaperStock}
+          onOpenInventoryForm={(productId) => {
+            if (productId) {
+              const prod = products.find(p => p.product_id === productId);
+              if (prod) {
+                openEdit(prod);
+                return;
+              }
+            }
+            openAdd();
+          }}
         />
       )}
 

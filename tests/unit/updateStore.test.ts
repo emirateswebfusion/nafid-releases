@@ -37,11 +37,38 @@ beforeEach(() => {
     installError: null,
     isInstalling: false,
     installPercent: null,
+    isChecking: false,
+    checkError: null,
+    lastChecked: null,
   });
   fixture.checkForUpdates.mockResolvedValue({ success: true, updateInfo: null });
 });
 
 describe('update store install handling', () => {
+  it('preserves a replayed ready action when cached release metadata is absent', async () => {
+    fixture.checkForUpdates.mockImplementation(async () => {
+      const status = fixture.onUpdateStatus.mock.calls[0][0] as (status: string) => void;
+      status('ready-to-install');
+      return { success: true, updateInfo: null };
+    });
+    useUpdateStore.getState().init();
+    await flush();
+    expect(useUpdateStore.getState().updateReady).toBe(true);
+    expect(useUpdateStore.getState().updateInfo).toBeNull();
+  });
+  it('hydrates cached update metadata when ready status arrived before Settings opens', async () => {
+    fixture.checkForUpdates.mockImplementation(async () => {
+      const status = fixture.onUpdateStatus.mock.calls[0][0] as (status: string) => void;
+      status('ready-to-install');
+      return { success: true, updateInfo: { version: '2.2.44', releaseNotes: 'Update improvements' } };
+    });
+    useUpdateStore.getState().init();
+    await flush();
+    expect(useUpdateStore.getState().updateReady).toBe(true);
+    expect(useUpdateStore.getState().updateInfo?.version).toBe('2.2.44');
+    expect(useUpdateStore.getState().isChecking).toBe(false);
+    expect(useUpdateStore.getState().lastChecked).toBeInstanceOf(Date);
+  });
   it('keeps checksum progress separate from downloading and ignores late progress', () => {
     useUpdateStore.getState().init();
     const callback = fixture.onUpdateVerificationProgress.mock.calls[0][0] as (progress: { percent: number }) => void;

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, isAiAssistantAvailable, type FeatureFlags, type FeatureKey, sanitizeFeatureFlags } from '../config/featureFlags';
+import { DEFAULT_FEATURE_FLAGS, type FeatureFlags, type FeatureKey, sanitizeFeatureFlags, resolveFeatureFlags } from '../config/featureFlags';
 import { isDesktopRuntime } from '../data/client';
 import { settingsApi } from '../data/settings';
 
@@ -7,88 +7,49 @@ interface FeatureFlagsState {
   flags: FeatureFlags | null;
   loaded: boolean;
   tenantId: string | null;
-
-  loadFlags: (tenantId: string) => Promise<void>;
+  loadFlags: (tenantId: string, force?: boolean) => Promise<void>;
   setFlag: (key: FeatureKey, value: boolean) => void;
   setFlags: (flags: FeatureFlags) => void;
   reset: () => void;
 }
-
-let loadPromise: Promise<void> | null = null;
+let revision = 0;
 let cacheStored = false;
+let pending: { tenantId: string; promise: Promise<void> } | null = null;
 
 export const useFeatureFlagsStore = create<FeatureFlagsState>()((set, get) => ({
-  flags: null,
-  loaded: false,
-  tenantId: null,
-
-  loadFlags: async (tenantId: string) => {
-    const { flags, loaded, tenantId: currentTenantId } = get();
-    if (loaded && currentTenantId === tenantId && flags) return;
-
-    if (loadPromise) {
-      await loadPromise;
+  flags: null, loaded: false, tenantId: null,
+  loadFlags: async (tenantId, force = false) => {
+    if (!force && get().loaded && get().tenantId === tenantId) return;
+    if (pending?.tenantId === tenantId) {
+      await pending.promise;
+      if (force) return get().loadFlags(tenantId, true);
       return;
     }
-
-    loadPromise = (async () => {
-      if (!isDesktopRuntime()) {
-        set({ flags: sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS }), loaded: true, tenantId });
-        return;
-      }
+    const request = ++revision;
+    if (get().tenantId !== tenantId) set({ flags: null, loaded: false, tenantId });
+    const promise = (async () => {
       try {
-        const stored = await settingsApi.get({ tenant_id: tenantId, key: 'feature_flags' });
-        let loadedFlags: FeatureFlags;
-        if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-          loadedFlags = { ...DEFAULT_FEATURE_FLAGS };
-          for (const def of FEATURE_LIST) {
-            const v = (stored as Record<string, unknown>)[def.key];
-            if (typeof v === 'boolean') loadedFlags[def.key] = v;
-          }
-          if (isAiAssistantAvailable && typeof (stored as Record<string, unknown>)['ai_assistant'] !== 'boolean') {
-            loadedFlags.ai_assistant = true;
-          }
-          loadedFlags = sanitizeFeatureFlags(loadedFlags);
-          cacheStored = true;
-        } else {
-          loadedFlags = sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS });
-          cacheStored = false;
-        }
-        set({ flags: loadedFlags, loaded: true, tenantId });
-      } catch {
-        set({ flags: sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS }), loaded: true, tenantId });
-        cacheStored = false;
-      } finally {
-        loadPromise = null;
+        const stored = isDesktopRuntime()
+          ? await settingsApi.get({ tenant_id: tenantId, key: 'feature_flags', tenant_only: true }) : null;
+        if (request !== revision) return;
+        cacheStored = !!stored && typeof stored === 'object' && !Array.isArray(stored);
+        set({ flags: resolveFeatureFlags(stored), loaded: true, tenantId });
+      } catch (error) {
+        // Keep this shop's last confirmed choices; a failed read must never turn disabled modules back on.
+        console.error('[Features] Could not refresh shop modules', error);
       }
     })();
-
-    await loadPromise;
+    pending = { tenantId, promise };
+    try { await promise; } finally { if (pending?.promise === promise) pending = null; }
   },
-
-  setFlag: (key: FeatureKey, value: boolean) => {
-    set((state) => ({
-      flags: state.flags ? sanitizeFeatureFlags({ ...state.flags, [key]: value }) : sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS, [key]: value }),
-    }));
+  setFlag: (key, value) => {
+    ++revision;
+    set({ flags: sanitizeFeatureFlags({ ...DEFAULT_FEATURE_FLAGS, ...get().flags, [key]: value }) });
   },
-
-  setFlags: (flags: FeatureFlags) => {
-    set({ flags: sanitizeFeatureFlags(flags), loaded: true });
-  },
-
-  reset: () => {
-    set({ flags: null, loaded: false, tenantId: null });
-    loadPromise = null;
-  },
+  setFlags: flags => { ++revision; set({ flags: sanitizeFeatureFlags(flags), loaded: true }); },
+  reset: () => { ++revision; cacheStored = false; pending = null; set({ flags: null, loaded: false, tenantId: null }); },
 }));
-
-export function wereFeatureFlagsStored(): boolean {
-  return cacheStored;
-}
-
+export function wereFeatureFlagsStored(): boolean { return cacheStored; }
 export function cashierPageTitle(flags: FeatureFlags | null): string {
-  if (!flags) return 'Cash Settlement';
-  if (flags.cash_settlement && flags.cash_register) return 'Cashier Settlement';
-  if (flags.cash_settlement) return 'Cash Settlement';
-  return 'Cash Settlement';
+  return flags?.cash_settlement && flags.cash_register ? 'Cashier Settlement' : 'Cash Settlement';
 }

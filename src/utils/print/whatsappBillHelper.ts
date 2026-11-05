@@ -1,6 +1,7 @@
 import { getStoreLocale } from '../localization/storeProfile';
-import { getCurrencyPrefix, getStoreProfile, isUaeStore } from '../localization/storeProfile';
+import { getCurrencyPrefix, isUaeStore } from '../localization/storeProfile';
 import { UAE_LABELS as L, bilingualText, getUaeArabicPrint, uaeDocumentTitle, uaePaymentMethod, type BilingualLabel } from './uaeLabels';
+import { splitTaxAmount } from '../pricing/checkoutLines';
 import { formatPurchaseLedgerMessage } from './whatsappSharing';
 import { withNafidFooter } from './messageFooter';
 
@@ -84,9 +85,17 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
       const igstFmt = Number(data.igst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       paymentText += `\n🏛️ *IGST:* ${getCurrencyPrefix()}${igstFmt}`;
     } else if (Number(data.tax) > 0) {
-      const taxLabel = uae ? t(L.vat) : getStoreProfile().taxName || 'Tax';
-      const taxFmt = Number(data.tax || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      paymentText += `\n🏛️ *${taxLabel}:* ${getCurrencyPrefix()}${taxFmt}`;
+      if (!uae) {
+        const split = splitTaxAmount(Number(data.tax));
+        const cgstFmt = split.cgst.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const sgstFmt = split.sgst.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        paymentText += `\n🏛️ *CGST:* ${getCurrencyPrefix()}${cgstFmt}`;
+        paymentText += `\n🏛️ *SGST:* ${getCurrencyPrefix()}${sgstFmt}`;
+      } else {
+        const taxLabel = t(L.vat);
+        const taxFmt = Number(data.tax || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        paymentText += `\n🏛️ *${taxLabel}:* ${getCurrencyPrefix()}${taxFmt}`;
+      }
     }
   }
 

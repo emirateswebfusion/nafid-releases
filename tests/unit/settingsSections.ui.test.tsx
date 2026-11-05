@@ -38,7 +38,7 @@ const EXPECTED: Record<string, RegExp> = {
   products: /Stock Report Default View/,
   account: /Update Password/,
   system: /System Updates/,
-  features: /Turn On All/,
+  features: /Choose what your shop needs/,
 };
 
 describe('settings pages', () => {

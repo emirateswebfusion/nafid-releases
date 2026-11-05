@@ -89,7 +89,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
   );
 
   return (
-    <div className="flex h-full min-h-0 gap-4 p-4">
+    <div className="flex min-h-full flex-col gap-4 p-4 sm:p-6 xl:h-full xl:flex-row">
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={onBack} className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold hover:bg-muted"><ArrowLeft className="h-4 w-4" />{order.order_type === 'DINE_IN' ? 'Tables' : 'Orders'}</button>
@@ -112,7 +112,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
         ) : <MenuGrid products={menu} modifierGroups={data.setup.modifierGroups} draftCounts={draftCounts} onPick={pick} />}
       </div>
 
-      <aside className="flex w-[400px] min-h-0 flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+      <aside className="flex w-full xl:w-[380px] xl:shrink-0 min-h-0 flex-col overflow-hidden rounded-[20px] border border-border bg-card shadow-sm">
         <div className="border-b border-border/70 bg-muted/30 p-4">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-primary/10 p-2.5 text-primary"><Icon className="h-6 w-6" /></div>

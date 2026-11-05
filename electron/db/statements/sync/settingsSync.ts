@@ -12,5 +12,11 @@ export const insertSettings = (db: Db) => db.prepare(`
       value = excluded.value,
       sync_status = 'SYNCED',
       updated_at = excluded.updated_at
-    WHERE settings.sync_status != 'PENDING' OR excluded.updated_at >= settings.updated_at
+    WHERE (settings.sync_status != 'PENDING' OR excluded.updated_at >= settings.updated_at)
+      AND (settings.key != 'feature_flags' OR (settings.sync_status != 'PENDING'
+        AND julianday(excluded.updated_at) >= julianday(settings.updated_at)))
   `);
+
+/** A push acknowledgement cannot clear a module choice edited while that push was in flight. */
+export const acknowledgeFeatureFlags = (db: Db) => db.prepare(`UPDATE settings SET sync_status = 'SYNCED'
+  WHERE tenant_id = ? AND key = 'feature_flags' AND value = ? AND updated_at = ?`);

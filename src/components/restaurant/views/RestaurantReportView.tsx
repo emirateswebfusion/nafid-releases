@@ -6,21 +6,18 @@ import { channelStyle } from '../ui/restaurantStyle';
 
 interface RestaurantReportViewProps {
   tenantId: string;
+  period: { from: string; to: string };
 }
 
 const TYPE_LABEL: Record<string, string> = { DINE_IN: 'Dine-in', TAKEAWAY: 'Takeaway', DELIVERY: 'Delivery' };
-const today = () => new Date().toLocaleDateString('en-CA');
-const RANGES: { label: string; days: number }[] = [{ label: 'Today', days: 0 }, { label: '7 days', days: 6 }, { label: '30 days', days: 29 }];
-
 /** Settled restaurant sales by order type / delivery app and by waiter, and voids by reason, for business dates. */
-export function RestaurantReportView({ tenantId }: RestaurantReportViewProps) {
-  const [from, setFrom] = useState(today());
-  const [to, setTo] = useState(today());
-  const [range, setRange] = useState('Today');
+export function RestaurantReportView({ tenantId, period }: RestaurantReportViewProps) {
   const [report, setReport] = useState<RestaurantReport>({ byType: [], byWaiter: [], voids: [] });
+  const reportFrom = period.from;
+  const reportTo = period.to;
   useEffect(() => {
-    restaurantApi.report({ tenant_id: tenantId, from, to }).then(setReport).catch(() => undefined);
-  }, [tenantId, from, to]);
+    restaurantApi.report({ tenant_id: tenantId, from: reportFrom, to: reportTo }).then(setReport).catch(() => undefined);
+  }, [tenantId, reportFrom, reportTo]);
 
   const sales = report.byType.reduce((s, r) => s + r.total, 0);
   const orders = report.byType.reduce((s, r) => s + r.orders, 0);
@@ -38,18 +35,6 @@ export function RestaurantReportView({ tenantId }: RestaurantReportViewProps) {
 
   return (
     <div className="space-y-4 p-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-xl border border-border bg-card p-1">
-          {RANGES.map(r => (
-            <button key={r.label} type="button"
-              onClick={() => { setFrom(new Date(Date.now() - r.days * 86_400_000).toLocaleDateString('en-CA')); setTo(today()); setRange(r.label); }}
-              className={`rounded-lg px-3 py-1.5 text-sm font-bold ${range === r.label ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{r.label}</button>
-          ))}
-        </div>
-        <label className="text-xs font-bold text-muted-foreground">From <input type="date" className="ml-1 rounded-lg border border-border bg-card px-2 py-1.5 text-foreground" value={from} onChange={e => { setFrom(e.target.value); setRange(''); }} /></label>
-        <label className="text-xs font-bold text-muted-foreground">To <input type="date" className="ml-1 rounded-lg border border-border bg-card px-2 py-1.5 text-foreground" value={to} onChange={e => { setTo(e.target.value); setRange(''); }} /></label>
-      </div>
-
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         {tile('Sales', formatCurrency(sales), Wallet, 'bg-primary/10 text-primary')}
         {tile('Bills', String(orders), Receipt, 'bg-sky-500/10 text-sky-600')}

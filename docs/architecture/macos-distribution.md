@@ -6,7 +6,7 @@ Mac installers share the public `emirateswebfusion/nafid-releases` repository wi
 
 Use `.github/workflows/macos-installers.yml`: native `macos-15` (Apple Silicon/arm64) and `macos-15-intel` (Intel/x64) runners each have independent dependencies. `scripts/prepare-macos-runtime.cjs` installs the matching Electron runtime and rebuilds SQLite/serialport for Electron's ABI. Never run the Windows-only `fix-sqlite.js` to prepare a Mac package. `pnpm run package:mac` is for the current Mac architecture; use CI for the complete two-architecture set.
 
-Assets use `Nafid-<version>-mac-<arch>.dmg` and `.zip`. ZIP is required for `electron-updater`; DMG is for initial installation. Separate names prevent the two jobs overwriting each other. `scripts/merge-macos-metadata.cjs` validates both asset sets and combines their entries into a single update feed. The installed updater prefers arm64 files on Apple Silicon (including Rosetta) and excludes arm64 files on Intel.
+Assets use `Nafid-<version>-mac-<arch>.dmg` and `.zip`. ZIP is required for `electron-updater`; DMG is for initial installation. Separate names prevent the two jobs overwriting each other. `scripts/merge-macos-metadata.cjs` validates both asset sets and combines their entries into a single update feed. Both verification reports must identify the same source commit; final DMG and ZIP sizes and SHA-256/SHA-512 digests are rechecked before combining. `tests/unit/macosMetadata.test.ts` covers mixed-source and tampered-DMG rejection. The installed updater prefers arm64 files on Apple Silicon (including Rosetta) and excludes arm64 files on Intel.
 
 ## Signing and public readiness
 

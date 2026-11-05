@@ -179,9 +179,11 @@ export const PRODUCT_HEADER_MAP: Record<string, string> = {
   'hsn': 'hsn_sac_code',
   'hsn code': 'hsn_sac_code',
   'hsn/sac': 'hsn_sac_code',
+  'hsn/sac code': 'hsn_sac_code',
 
   'discount %': 'discount_percent',
   'discount percent': 'discount_percent',
+  'discount percentage': 'discount_percent',
   'discount': 'discount_percent',
 
   'discount flat': 'discount_flat',
@@ -191,6 +193,14 @@ export const PRODUCT_HEADER_MAP: Record<string, string> = {
   'offer price': 'offer_price',
   'sale price': 'offer_price',
   'offer': 'offer_price',
+
+  'real stock': 'current_stock',
+  'paper stock': 'paper_stock',
+  'paper purchase': 'gst_purchase_price',
+  'paper mrp': 'paper_mrp',
+  'billing type': 'billing_type',
+  'gst applicable': 'is_gst_applicable',
+  'added date': 'created_at',
 };
 
 // ─── Dynamic Tier Header Matcher (Zero Hardcoding) ───────────────────────────

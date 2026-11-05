@@ -169,6 +169,6 @@ describe('cardTerminalService', () => {
 
   it('falls back to defaults for a broken setting', () => {
     raw.prepare("INSERT OR REPLACE INTO settings (tenant_id, key, value) VALUES ('global', 'card_terminal_config', '{bad')").run();
-    expect(service.getConfig()).toMatchObject({ enabled: false, provider: 'MOCK', timeoutSeconds: 120, allowManualFallback: true });
+    expect(service.getConfig()).toMatchObject({ enabled: false, provider: 'UNCONFIGURED', timeoutSeconds: 120, allowManualFallback: true });
   });
 });
