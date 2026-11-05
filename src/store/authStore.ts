@@ -301,7 +301,9 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       useCartStore.getState().resetDomainConfirmation();
       const baseUrl = apiBase.replace(/\/$/, '');
       const res = await authCloud.login(baseUrl, email, password);
-      const data = await res.json();
+      // Guard: server may return a non-JSON body (e.g. a hosting-provider gateway error such as
+      // HTTP 402 "Payment required"). Parse gracefully so the UI always shows a readable message.
+      const data = await res.json().catch(() => null as null);
 
       if (!res.ok) {
         if (res.status === 403 || res.status === 401) {
@@ -319,7 +321,11 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
             return { success: false, error: (offlineAuth as { error: string }).error };
           }
         }
-        return { success: false, error: formatError(data?.error || data, 'Login failed') };
+        return { success: false, error: formatError(data?.error || data, 'Server is temporarily unavailable. Please try again later.') };
+      }
+
+      if (data === null) {
+        return { success: false, error: 'Server returned an unexpected response. Please try again.' };
       }
 
       let roleVal = (data.role || '') as NonNullable<AuthState['role']>;
