@@ -135,6 +135,22 @@ Dependency direction: `main → ipc → services → db/statements`, `sync → s
 builders (`getProductsStatement`, `getInvoicesStatement`, `deltaRowsQuery`, …, returning `{ statement, params }`), lives in
 `db/statements`, `db/statements/sync/*` or `db/statements/main.ts`. Services resolve inputs such as store-day UTC ranges first.
 
+### Cloud recovery ownership
+
+Desktop email/password transport uses `data/cloud/authCloud.ts` → `authApi.loginCloud` → `cloudLoginService.ts`;
+main chooses the configured endpoint and preserves HTTP errors. `authStorage.ts` is also the sync auth-file reader.
+`AuthErrorToast` adapts auth-store failures to the shared notification component. See
+[authentication lifecycle](auth-session-lifecycle.md) for PIN/password/logout states and verified incident findings.
+
+
+`store/authStore.ts` owns POS entry and startup identity restore; `store/cloudSyncRecovery.ts` owns cloud-only
+reconnection without changing the local user/cart. `components/app/SessionExpiredModal.tsx` provides the closable
+form. `utils/security/authToken.ts` owns renderer JWT parsing/expiry and is re-exported by the auth store for existing
+callers. The typed `auth:resumeCloudSession` path is `data/auth.ts` → preload → registration-only `authHandlers.ts`
+→ `services/cloudSessionRecoveryService.ts` → `authSessionService` / `authStorage`. Cloud credential persistence and
+local identity persistence remain separate; the reconnect use-case validates tenant and expected local user first.
+See [cloud session recovery](03-data-access.md#cloud-session-recovery).
+
 ## Size budgets
 
 - Components: **800 lines**, 20 `useState`, 20 props. Oversized legacy files are listed in `arch-baseline.json`

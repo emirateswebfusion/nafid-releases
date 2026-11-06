@@ -15,6 +15,7 @@ vi.mock('../../src/data/auth', () => ({ authApi: {
   getTerminalConfig: async () => ({ isConfigured: true, shop_name: 'Test shop' }),
   loginOffline: fixture.offline,
   getToken: fixture.stored,
+  saveOfflineSession: async () => ({ success: true }),
 } }));
 vi.mock('../../src/data/cloud/authCloud', () => ({ authCloud: { login: fixture.login } }));
 vi.mock('../../src/data/events', () => ({ bridgeEvents: {
@@ -28,17 +29,20 @@ beforeEach(() => {
   useAuthStore.setState({ isAuthenticated: false, token: null, tenantId: 'shop', userId: 'staff', isCloudSyncPaused: true });
 });
 afterEach(cleanup);
-it('keeps cloud recovery on email login in StrictMode and shows the server failure without entering offline mode', async () => {
+it('allows password-only users to enter the POS offline when cloud login is unavailable', async () => {
+  // A previous release's recovery flag must no longer force online-only POS entry.
   sessionStorage.setItem('auth_prefer_email', 'true');
   fixture.login.mockResolvedValue(new Response(JSON.stringify({ error: 'Cloud service unavailable' }), { status: 503 }));
+  fixture.offline.mockResolvedValue({ success: true, user: { tenant_id: 'shop', user_id: 'staff', role: 'STAFF', name: 'Staff', permissions: ['sales.create'] } });
   render(<StrictMode><LoginScreen /></StrictMode>);
-  await screen.findByRole('button', { name: /Back to Quick PIN/ });
+  await screen.findByRole('button', { name: /Switch User/ });
+  fireEvent.click(screen.getByRole('button', { name: /Switch User/ }));
   fireEvent.change(screen.getByPlaceholderText('you@yourshop.com'), { target: { value: 'owner@example.test' } });
   fireEvent.change(screen.getByPlaceholderText('Your password'), { target: { value: 'test-password' } });
   fireEvent.click(screen.getByRole('button', { name: /^Sign in$/i }));
-  await screen.findByText('Cloud service unavailable');
-  expect(fixture.offline).not.toHaveBeenCalled(); expect(useAuthStore.getState().isAuthenticated).toBe(false);
-  expect(sessionStorage.getItem('auth_prefer_email')).toBe('true');
+  await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(true));
+  expect(useAuthStore.getState()).toMatchObject({ token: null, isCloudSyncPaused: true });
+  expect(fixture.offline).toHaveBeenCalledExactlyOnceWith({ email: 'owner@example.test', password: 'test-password' });
 });
 function subscribe() {
   const context = new Proxy({} as ScreenEventsContext, { get: (_target, key) => {

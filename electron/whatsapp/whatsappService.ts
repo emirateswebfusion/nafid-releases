@@ -470,7 +470,7 @@ export function initWhatsAppIpc(): void {
               const width = payload.receiptWidthMm === 58 ? 58 : 80;
               html = await buildReceiptHtml(payload.receiptText, width);
               // Digital receipts get breathing room without changing physical printer geometry.
-              html = html.replace('</head>', '<style>body { width: calc(100% - 6mm) !important; margin-left: 3mm !important; margin-right: 3mm !important; }</style></head>');
+              html = html.replace('</head>', '<style>#receipt-root { width: calc(100% - 8mm) !important; max-width: calc(100% - 8mm) !important; margin-left: 4mm !important; margin-right: 4mm !important; box-sizing: border-box !important; }</style></head>');
               html = html.replace('@page {', `@page { size: ${width}mm 297mm;`);
             }
             pdfBuf = await generatePdfBufferFromHtml(html, Boolean(payload.receiptText));

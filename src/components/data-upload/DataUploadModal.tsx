@@ -67,7 +67,7 @@ export function DataUploadModal({
   const showTabs = !hideEntityTabs && allowedEntities.length > 1;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="5xl" title="DATA IMPORT CENTER">
+    <Modal isOpen={isOpen} onClose={() => { if (!importing && !du.loading) onClose(); }} size="5xl" title="DATA IMPORT CENTER">
       <div className="space-y-5 p-1 text-slate-900 dark:text-slate-100 font-sans">
 
         {/* ── Top Bar Header & Entity Switcher ── */}
@@ -142,7 +142,8 @@ export function DataUploadModal({
 
         {/* ── Footer Actions ── */}
         <DataUploadFooter
-          importing={importing}
+          importing={importing || du.loading}
+          blocked={entityType === 'products' && invalidCount > 0}
           onCancel={onClose}
           onImport={handleImport}
           validCount={validCount}

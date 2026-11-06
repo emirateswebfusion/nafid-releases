@@ -12,7 +12,7 @@ import type { PurchaseBillItemWithProduct, PurchaseSearchProduct } from './data/
 import type { ScrapInvoiceByNumberResult, ScrapInvoiceListResult, ScrapTransactionWithCategory } from './data/scrap';
 import type { PricingTier } from './data/pricingTiers';
 import type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } from './data/recycleBin';
-import type { OfflineLoginResult, PinLoginResult, TerminalConfigResult, RejectedCloudSession } from './data/auth';
+import type { OfflineLoginResult, PinLoginResult, TerminalConfigResult, RejectedCloudSession, CloudSessionResumeRequest, CloudLoginReply } from './data/auth';
 import type { EffectiveCloudState } from './data/sync';
 import type { BulkPrintItem } from './data/printing';
 import type { CardTerminalPayment, CardTerminalStatus, CardTerminalTransaction } from './data/cardTerminal';
@@ -122,8 +122,10 @@ export interface IElectronAPI {
   getSyncProgress: () => Promise<SyncProgress | null>;
   testNetworkConnection?: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number; lanPairingKey?: string }) => Promise<{ ok: boolean; route?: string; fallback?: boolean; message?: string; error?: string }>;
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean }) => Promise<{ success: boolean; error?: string }>;
+  authLoginCloud: (payload: { email: string; password: string }) => Promise<CloudLoginReply>;
+  authResumeCloudSession: (payload: CloudSessionResumeRequest) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean } | null>;
-  authSaveOfflineSession: (payload: { tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] }) => Promise<{ success: boolean; error?: string }>;
+  authSaveOfflineSession: (payload: { tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] }) => Promise<{ success: boolean; error?: string; cloud_sync_ready?: boolean }>;
   authGetOfflineSession: () => Promise<{ tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
   authSaveLocalUser: (payload: unknown) => Promise<{ success: boolean; error?: string }>;

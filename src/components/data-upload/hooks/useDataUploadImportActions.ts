@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { hasBridge } from '../../../data/client';
 import { partiesApi } from '../../../data/parties';
@@ -21,20 +22,32 @@ export function useDataUploadImportActions(ctx: UseDataUploadImportActionsContex
   const { du, entityType, onClose, onImportSuccess, tenantId, userId, userName } = ctx;
   const { parsedRows, setImporting, setMessage, setParsedRows } = du;
 
+  const inFlight = useRef(false);
+
   // ─── Execute Import ─────────────────────────────────────────────────────────
 
   const handleImport = async () => {
+    if (inFlight.current || du.loading || du.importing) return;
+    if (!tenantId) {
+      setMessage({ type: 'error', text: 'Sign in to a shop before importing.' });
+      return;
+    }
+    if (entityType === 'products' && parsedRows.some(r => !r.isValid)) {
+      setMessage({ type: 'error', text: 'Correct the marked product rows first. Nothing was imported.' });
+      return;
+    }
     const validRows = parsedRows.filter(r => r.isValid);
     if (validRows.length === 0) {
       setMessage({ type: 'error', text: 'No valid rows found to import.' });
       return;
     }
 
+    inFlight.current = true;
     setImporting(true);
     setMessage(null);
 
     try {
-      const tid = tenantId || 'global';
+      const tid = tenantId;
 
       if (entityType === 'opening_balances') {
         if (!du.openingAsOf) {
@@ -89,8 +102,8 @@ export function useDataUploadImportActions(ctx: UseDataUploadImportActionsContex
           tax_rate_percent: r.data.tax_rate_percent || 0,
           uom: r.data.uom || 'Pcs',
           hsn_sac_code: r.data.hsn_sac_code || null,
-          domain_attributes: '{}',
-          billing_type: ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(r.data.uom) ? 'WEIGHT' : 'PIECE',
+          domain_attributes: JSON.stringify({ paper_stock: r.data.paper_stock, gst_purchase_price: r.data.gst_purchase_price, paper_mrp: r.data.paper_mrp }),
+          billing_type: r.data.billing_type === 'WEIGHT' || r.data.billing_type === 'PIECE' ? r.data.billing_type : ['kg', 'kgs', 'g', 'gram', 'grams', 'm', 'mtr', 'mtrs', 'meter', 'metre', 'l', 'ltr', 'ltrs', 'litre', 'liter'].includes(r.data.uom.toLowerCase()) ? 'WEIGHT' : 'PIECE',
           pricing_mode: 'FIXED_PRICE',
           discount_percent: r.data.discount_percent != null ? Number(r.data.discount_percent) : null,
           discount_flat: r.data.discount_flat != null ? Number(r.data.discount_flat) : null,
@@ -102,6 +115,7 @@ export function useDataUploadImportActions(ctx: UseDataUploadImportActionsContex
           const res = await productsApi.bulkImportProducts(payload);
           if (res.success) {
             setMessage({ type: 'success', text: `Successfully imported ${payload.length} products!` });
+            setParsedRows([]);
             if (onImportSuccess) onImportSuccess(payload.length, 'products');
             setTimeout(() => { onClose(); }, 1200);
           } else {
@@ -197,6 +211,7 @@ export function useDataUploadImportActions(ctx: UseDataUploadImportActionsContex
       console.error('Import error:', err);
       setMessage({ type: 'error', text: (err as Error).message || 'An error occurred during import.' });
     } finally {
+      inFlight.current = false;
       setImporting(false);
     }
   };

@@ -13,6 +13,7 @@ import { setAppTimeFormat } from './utils/print/receiptGenerator';
 import { useStoreProfile } from './hooks/useStoreProfile';
 import { CashDrawerAutoCloseWatcher } from './components/cashier/CashDrawerAutoCloseWatcher';
 import { SessionExpiredModal } from './components/app/SessionExpiredModal';
+import { AuthErrorToast } from './components/app/AuthErrorToast';
 import { CardTerminalDialog } from './components/app/CardTerminalDialog';
 import { useFeatureFlagsStore, isAiAssistantAvailable } from './config/featureFlags';
 import { SplashScreen } from './components/app/SplashScreen';
@@ -155,7 +156,7 @@ function App() {
   }
 
   if (!isAuthenticated) {
-    return <LoginScreen />;
+    return <><LoginScreen /><AuthErrorToast /></>;
   }
 
   if (role === 'SUPER_ADMIN') {
@@ -359,16 +360,12 @@ function App() {
       </Suspense>
       <SessionExpiredModal
         isOpen={showSessionExpiredModal}
-        onConfirm={() => {
-          setShowSessionExpiredModal(false);
-          try { sessionStorage.setItem('auth_prefer_email', 'true'); } catch { /* ignore */ }
-          useAuthStore.getState().logout();
-        }}
         onClose={() => {
           setShowSessionExpiredModal(false);
         }}
       />
 
+      <AuthErrorToast />
       <CardTerminalDialog />
       <EmergencyWipePrompt panic={panic} />
     </div>

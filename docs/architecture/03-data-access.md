@@ -101,25 +101,46 @@ Main → renderer events follow the same path with `bindEvents` in `src/data/eve
 Before adding a cloud call, confirm the route is mounted in `nafid-server/src/index.ts` (the REST contract is documented
 in `nafid-server/docs/architecture/02-http-api.md`).
 
+### Desktop authentication transport
+
+`authCloud.login` uses the typed `auth:loginCloud` bridge on desktop, registered through `handle` to
+`cloudLoginService`. Main sends only email/password to its configured sync API address, with timeout and no redirects;
+the renderer cannot supply a destination. `CloudLoginReply` carries transport completion, HTTP status and parsed JSON,
+not a claim of successful authentication. Browser/older-bridge surfaces retain `cloudRequest`. No server CORS policy
+is loosened. See [authentication lifecycle](auth-session-lifecycle.md) for state transitions and evidence.
+
 ### Cloud session recovery
 
-`LoginScreen` retains the `auth_prefer_email` recovery intent across StrictMode effects and failed retries.
-It calls `authStore.login(..., { requireCloud: true })` (fourth argument): recovering cloud sync requires an online
-login and successful `authApi.saveToken`; it cannot silently succeed through cached offline credentials.
-Ordinary login may still fall back for network/provider outages (including hosting HTTP 402), but never for
-invalid login input, a credential/account denial or rate limiting (HTTP 400/401/403/429). Local-authentication
-failures return an error so the login form remains retryable.
-Missing/expired tokens and persistence failures remain on the login screen. A later domain-confirmation cache failure
-must not replace the saved online session with an offline one.
+POS entry and cloud authentication are independent. `LoginScreen` calls ordinary `authStore.login`: network/provider
+outages (including HTTP 402) can use cached email/password without a PIN. HTTP 400/401/403/429 denials never silently
+fall back; an explicit offline-password action is available after failure on a configured desktop. It calls the same
+local password/account checks (`offlineOnly`) and persists a paused offline session. First use on a PC without cached
+credentials requires online login. The obsolete `auth_prefer_email` flag no longer forces cloud-only POS entry.
 
-The sync transport handles cloud HTTP 401 responses using the token and route of the individual request.
-It compares the rejected token with the current persisted token before pausing; LAN pairing errors and stale
-responses cannot pause a replacement session. `onTokenExpired` optionally carries `{ token }` through the preload,
-`global.d.ts` and `bridgeEvents`; the renderer ignores mismatched/signed-out events and honors matching server
-rejections even when JWT expiry is in the future. Payload-free events from older main processes retain their expiry
-check. PIN users compare the stored terminal credential for their tenant without adopting its owner JWT;
-a user/session change during that read cancels the stale prompt. Reauthentication restarts a cancelled background
-timer once. REST/sync payloads and persisted business rows are unchanged. Regression coverage: `cloudRelogin.ui`, `reloginScreen.ui`, `syncReauthentication`, `syncResumeTimer`.
+`SessionExpiredModal` is now a closable cloud-login form inside the authenticated POS. It calls
+`store/cloudSyncRecovery.ts:resumeCloudSync`, never `logout`, ordinary `login` or cart/domain resets. Recovery requires
+an online response and successful persistence; it never falls back offline. The modal shows failures inline, supports
+retry, cancels pending network work on close/unmount and prevents duplicate submits. A 15-second timeout keeps a
+stalled request retryable. Non-JSON errors include HTTP status without rendering provider HTML or credentials.
+
+The local IPC channel `auth:resumeCloudSession` is registered through `handle` →
+`services/cloudSessionRecoveryService.ts`. Its renderer DTO (`CloudSessionResumeRequest`, `data/auth.ts`) carries
+`expected_tenant_id`, `expected_user_id`, and typed cloud `credentials`. Preload and `global.d.ts` agree with
+`authApi.resumeCloudSession`. Main compares expected identity against persisted local and remembered terminal
+sessions, rejects another shop, and calls `authSessionService.saveToken(credentials, localSession)`. The cloud user
+is cached normally; the active user's identity/permissions are preserved separately in `offline-auth.enc` and terminal
+context. Cloud recovery cannot switch the local cashier or raise their permissions. Startup restores that local user
+and independently checks the same tenant's cloud credential. Renderer token auto-recovery never adopts another
+user's stored JWT. JWT parsing/expiry is shared in `utils/security/authToken.ts`, re-exported by `authStore` for callers.
+
+The sync transport processes cloud 401s for the request token/route only. Stale responses and LAN pairing errors
+cannot pause replacement credentials. `onTokenExpired` optionally carries `{ token }`; the renderer checks it against
+the active or same-tenant stored terminal credential, ignoring signed-out/mismatched events. Matching server denial
+is honored before JWT expiry; payload-free older events retain the expiry check. Recovery restarts a cancelled
+scheduler once. REST/sync envelopes, business rows and server endpoints are unchanged.
+
+Coverage: `cloudRelogin.ui`, `cloudSyncRecovery.ui`, `cloudSyncDialog.ui`, `reloginScreen.ui`, `sessionUnauthorized.ui`,
+`syncReauthentication`, `syncResumeTimer`, `quickPinLogin`; IPC equivalence plus sync login/no-login and LAN harnesses.
 
 ## 3.3 Main-process data layer
 

@@ -3,6 +3,7 @@ import { getDb } from '../db/localDb.js';
 import { parseCleanDate, getUtcRangeForStoreDateRange, localTimestamp } from './storeTime.js';
 import { resolveGstApplicability } from '../utils/gst.js';
 import crypto from 'node:crypto';
+import { validateBulkProducts } from './bulkProductValidation.js';
 import * as productsSql from '../db/statements/products.js';
 
 /** UTC bounds of the store days from `filterDate` to `filterDateEnd` (or the same day). */
@@ -268,6 +269,7 @@ export function bulkDeleteProducts(productIds: string[]) {
 /** IPC `db:bulkImportProducts` */
 export function bulkImportProducts(products: ProductInput[]) {
   try {
+    validateBulkProducts(products);
     const db = getDb();
     
     if (!products.length) return { success: true };
@@ -296,9 +298,7 @@ export function bulkImportProducts(products: ProductInput[]) {
           if (
             cleanName === cleanTier ||
             cleanName === `${cleanTier}price` ||
-            cleanName === `${cleanTier}rate` ||
-            cleanTier.includes(cleanName) ||
-            cleanName.includes(cleanTier)
+            cleanName === `${cleanTier}rate`
           ) {
             tierNameToId.set(normalized, t.pricing_tier_id);
             return t.pricing_tier_id;
@@ -343,8 +343,11 @@ export function bulkImportProducts(products: ProductInput[]) {
           const row = findExistingByBarcode.get(tenantId, cleanBarcode) as ProductRow | undefined;
           if (row?.product_id) existingId = row.product_id;
         }
-        if (!existingId && cleanItemCode) {
+        if (cleanItemCode) {
           const row = findExistingByItemCode.get(tenantId, cleanItemCode) as ProductRow | undefined;
+          if (existingId && row?.product_id && row.product_id !== existingId) {
+            throw new Error(`Conflicting barcode and item code for ${cleanName}. Nothing was imported.`);
+          }
           if (row?.product_id) existingId = row.product_id;
         }
         if (!existingId && cleanName) {

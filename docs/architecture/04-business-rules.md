@@ -244,14 +244,16 @@ Tests: `tests/unit/filingRevenue.test.ts`, `tests/unit/filingOnlySettings.ui.tes
 - Per-bill credit outstanding: `electron/services/customerCreditService.ts` (with `invoiceCreditTerms`) and
   `nafid-server/src/db/repositories/customerCredit.ts` are cross-app copies of one rule (`tests/unit/creditLedger.test.ts`,
   `nafid-server/tests/customerCredit.test.ts`).
-- `electron/sync/syncWorker.ts` has private copies of the auth-file reader and date parsing that also exist in
-  `electron/services/{authStorage,storeTime}.ts`. Consolidate only together with sync characterization tests.
+- `electron/sync/syncConfig.ts` still has date parsing also present in `electron/services/storeTime.ts`.
+  Consolidate only together with sync characterization tests. Auth-file reading is shared through
+  `electron/services/authStorage.ts`; services and sync must use that canonical reader.
 
 ## 4.3 Authentication and authorization (POS side)
 
 | Concern | Where |
 |---|---|
-| Online login, password reset/change, tenant domain | `src/store/authStore.ts` → `nafid-server` `/auth/*` |
+| Online login | `authStore` → `authCloud.login` → scoped main `cloudLoginService` on desktop → server `/auth/login`; browser surfaces retain direct HTTP |
+| Password reset/change, tenant domain | `src/store/authStore.ts` → server `/auth/*` |
 | Offline login (no network) | `authApi.loginOffline` → `electron/ipc/authHandlers.ts` (`localAuthenticateUser`, against users cached locally by sync) |
 | Token persistence | `authApi.saveToken/getToken` → `electron/services/authStorage.ts` (Electron `safeStorage`, `auth.enc`) |
 | Session state, role, permissions | `useAuthStore` (`role`, `permissions`, `isAuthenticated`) |
@@ -270,19 +272,24 @@ checks on both sides. Add a new permission key in **both** `src/utils/security/p
 
 ### Cloud recovery and offline access
 
-`authStore.login` owns online/offline login decisions and token-save result handling. Recovery from the expiry
-modal passes `{ requireCloud: true }` as the fourth argument: only a valid online response and successful token
-persistence complete recovery. Ordinary login may fall back for network/provider outages (including hosting HTTP
-402), never invalid input, denied credentials/accounts or rate limiting (HTTP 400/401/403/429). Failed local auth
-remains retryable. A domain-confirmation cache failure does not replace a saved online session with an offline one.
+`authStore.login` owns POS entry and offline fallback. Cached email/password works without a PIN during provider
+outages; explicit offline entry uses the same account/password checks after failure. A terminal without cached
+credentials still requires an online login once. HTTP 400/401/403/429 must never silently bypass the cloud denial.
 
-`syncTransport` owns cloud 401 handling for the request token/route. Stale rejections and LAN pairing errors cannot
-pause replacement credentials. The typed `onTokenExpired` event can carry `{ token }`; the renderer checks it against
-the active credential, or the tenant's stored terminal credential for a PIN session, without adopting the owner JWT.
-A server rejection is meaningful even before JWT expiry. Reauthentication restarts the cancelled scheduler once.
-See [data access](03-data-access.md#cloud-session-recovery) for backward compatibility and implementation details.
-Tests: `cloudRelogin.ui`, `reloginScreen.ui`, `sessionUnauthorized.ui`, `syncReauthentication`, `syncResumeTimer`;
-server credential-version rules and coverage live in its HTTP API guide and `credentialVersion.test.ts`.
+Cloud recovery belongs to the closable `SessionExpiredModal` → `store/cloudSyncRecovery.ts` →
+`authApi.resumeCloudSession` → `cloudSessionRecoveryService`. It stays inside the authenticated POS and never clears
+the cart, resets the domain, logs out or switches the local user. Only an online credential for the current shop may
+restore sync. Main rechecks the expected local session before saving, retaining local identity/permissions separately
+from the cloud user; an owner reconnecting sync cannot turn the active cashier into an administrator. Restart
+restores the local user and independently restores cloud availability. Failed/cancelled recovery leaves offline work
+available with Re-Login Needed visible. A domain-confirmation cache failure must not demote an online POS login.
+
+`syncTransport` owns request-specific cloud 401 handling. Stale rejections and LAN pairing errors cannot pause
+replacement credentials; renderer events are matched to current/terminal credentials. Reauthentication restarts the
+cancelled scheduler once. Token parsing/expiry lives in `utils/security/authToken.ts`.
+See [data access](03-data-access.md#cloud-session-recovery) for the typed local IPC and compatibility contract.
+Tests: `cloudRelogin.ui`, `cloudSyncRecovery.ui`, `cloudSyncDialog.ui`, `reloginScreen.ui`, `sessionUnauthorized.ui`,
+`syncReauthentication`, `syncResumeTimer`, `quickPinLogin`. Server credential-version rules remain in its HTTP guide.
 
 ## 4.4 Domain glossary
 
@@ -489,9 +496,9 @@ Returns > Record credit note uses `returns/creditNote.ts` and canonical returnPr
   this PC. Login and logout update it without storing a PIN or granting access. A legacy multi-shop
   PC without remembered context requires email login instead of selecting an arbitrary first tenant.
 - Quick PIN login preserves an existing valid cloud session for the same shop/tenant. Local PIN
-  authentications update user and permission state without wiping terminal cloud credentials, preventing
+  authentications persist the local user separately without rewriting the cloud account or its cached password, preventing
   spurious "token expired" alerts while keeping background sync connected. An offline PIN login sets
-  `isCloudSyncPaused: true` without cloud calls. Resuming expired cloud sync prioritizes the Email/Password login view.
+  `isCloudSyncPaused: true` without a usable terminal cloud token. Main returns `cloud_sync_ready` for both PIN and cached-password entry; renderer must use it rather than infer readiness from local login success. Resuming cloud sync opens the closable cloud-only login dialog without signing out.
 
 Coverage: `scrapCashReconciliation`, `shopClosingGrossAmount`, `quickPinLogin`, `releaseFixes.ui`,
 `whatsappBillBreakdown`, `whatsappTaxBreakdown`, `staffPayStatement`, and print characterization.
@@ -561,3 +568,9 @@ The root architecture's application-wide time contract applies to every module, 
 ### Shared invoice tax-breakup presentation
 
 `src/utils/print/receipt/receiptCore.ts:resolveTaxBreakup` owns the shared tax-breakup visibility, taxable base and CGST/SGST rounding used by thermal receipts and invoice HTML. `invoiceHtml/taxBreakup.ts:renderTaxBreakup` only formats the result; the five Indian invoice styles call it rather than calculating tax independently. `showBosTaxBreakup` controls non-GST documents; zero-tax documents omit the section. UAE documents retain their separate existing VAT layout. Coverage: `pdfTaxBreakup`, `thermalBillTaxBreakup` and `printGenerators.characterization`.
+
+### Inventory bulk product import
+
+`components/data-upload/productFile.ts` owns product-file parsing and validation. CSV and Excel retain displayed identifier zeros, formatted money, percentage points, discounts, paper prices/stock and billing type. Malformed numeric values, repeated product identities and invalid tier prices block the whole product file. File replacement clears stale preview rows; parsing and saving block concurrent submission. Tier matching uses exact normalized names or explicit tier headings, never substring/typo guesses.
+
+`electron/services/bulkProductValidation.ts` validates typed batches before `productsService.bulkImportProducts` starts its transaction. All rows must belong to one shop. Conflicting barcode/item-code identities roll the transaction back; an existing or deleted matching product keeps its ID. Product, tier and tier-price writes remain atomic, PENDING, and covered by the existing stock-counter/outbox triggers. Tests: `productFile.test.ts`, `productImport.ui.test.tsx`, `bulkProducts.test.ts`, plus `inventoryCsvExport.test.ts`. The 11,032-row regression checks initial import and repeat import. This does not bypass cloud authentication or make stale terminals safe to reconnect.

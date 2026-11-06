@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCoreTables } from '../../electron/db/schemaCoreTables';
 import { createExtendedTables } from '../../electron/db/schemaExtendedTables';
@@ -23,11 +24,15 @@ import {
   hashStaffPin,
   getTerminalConfig,
   localAuthenticatePin,
+  localAuthenticateUser,
 } from '../../electron/services/localAuthService';
 vi.mock('../../electron/sync/syncWorker', () => ({setSyncActive: vi.fn()}));
 vi.mock('../../electron/services/syncService', () => ({isLanSyncConfigured: () => false}));
 import { saveToken, saveOfflineSession, clearToken, loginWithPin } from '../../electron/services/authSessionService';
+import { resumeCloudSession } from '../../electron/services/cloudSessionRecoveryService';
+import { readOfflineSession, readAuthPayload } from '../../electron/services/authStorage';
 import { saveStaff } from '../../electron/services/staffService';
+import { setSyncActive } from '../../electron/sync/syncWorker';
 
 describe('Quick PIN Login & Staff Security', () => {
   let raw: DatabaseSync | undefined;
@@ -60,6 +65,23 @@ describe('Quick PIN Login & Staff Security', () => {
     fs.rmSync(state.directory, {recursive:true,force:true});
   });
 
+  it('reconnects owner cloud credentials while preserving the authenticated cashier on disk', () => {
+    saveOfflineSession({ tenant_id: 'shop', user_id: 'cashier', role: 'STAFF', user_name: 'Cashier', shop_name: 'Shop', permissions: ['sales.create'] });
+    const token = `h.${Buffer.from(JSON.stringify({ exp: 4102444800, tenant_id: 'shop', user_id: 'owner' })).toString('base64url')}.s`;
+    expect(resumeCloudSession({ expected_tenant_id: 'shop', expected_user_id: 'cashier', credentials: {
+      tenant_id: 'shop', user_id: 'owner', role: 'ADMIN', jwt_token: token, shop_name: 'Shop', user_name: 'Owner', permissions: ['*'],
+    } })).toEqual({ success: true });
+    expect(readOfflineSession()).toMatchObject({ user_id: 'cashier', role: 'STAFF', permissions: ['sales.create'] });
+    expect(readAuthPayload()).toMatchObject({ jwt_token: token, user_id: 'owner' });
+    expect(getTerminalConfig()).toMatchObject({ user_id: 'cashier', role: 'STAFF' });
+  });
+  it('rejects recovery for a different shop or a stale local session before writing credentials', () => {
+    saveOfflineSession({ tenant_id: 'shop', user_id: 'cashier', role: 'STAFF', permissions: ['sales.create'] });
+    const credentials = { tenant_id: 'other-shop', user_id: 'owner', role: 'ADMIN', jwt_token: 'jwt' };
+    expect(resumeCloudSession({ expected_tenant_id: 'shop', expected_user_id: 'cashier', credentials }).success).toBe(false);
+    expect(resumeCloudSession({ expected_tenant_id: 'shop', expected_user_id: 'old-user', credentials: { ...credentials, tenant_id: 'shop' } }).success).toBe(false);
+    expect(readAuthPayload()).toBeNull(); expect(readOfflineSession()).toMatchObject({ user_id: 'cashier' });
+  });
   it('generates deterministic PIN hashes scoped to tenant_id', () => {
     const hash1 = hashStaffPin('1234', 'tenant-a');
     const hash2 = hashStaffPin('1234', 'tenant-a');
@@ -261,7 +283,26 @@ describe('Quick PIN Login & Staff Security', () => {
     expect(fs.existsSync(configPath)).toBe(true);
     const saved = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     expect(saved.jwt_token).toBe('valid.jwt.token');
-    expect(saved.user_name).toBe('Cashier');
+    expect(saved.user_name).toBe('Shop Owner');
+    expect(readOfflineSession()).toMatchObject({ user_name: 'Cashier', role: 'STAFF' });
+  });
+  it('does not change the owner email/password record when an unlinked cashier signs in with PIN', () => {
+    const password = 'owner-password';
+    saveToken({ tenant_id: 'shop', user_id: 'owner', email: 'owner@example.test', user_name: 'Owner', role: 'ADMIN',
+      jwt_token: 'valid.jwt.token', password_hash: bcrypt.hashSync(password, 4) });
+    raw!.prepare("INSERT INTO staff (staff_id,tenant_id,staff_code,name,role_designation,biller_pin_hash,status,is_deleted) VALUES ('cashier','shop','C1','Cashier','STAFF',?,'ACTIVE',0)").run(hashStaffPin('1234', 'shop'));
+    const original = fs.readFileSync(path.join(state.directory, 'config.json'), 'utf8');
+    expect(loginWithPin({ pin: '1234', tenant_id: 'shop' }).success).toBe(true);
+    expect(localAuthenticateUser('owner@example.test', password)).toMatchObject({ success: true, user: { user_id: 'owner', role: 'ADMIN' } });
+    expect(fs.readFileSync(path.join(state.directory, 'config.json'), 'utf8')).toBe(original);
+    expect(readOfflineSession()).toMatchObject({ user_id: 'cashier', role: 'STAFF' });
+  });
+  it('keeps usable terminal cloud credentials active for cached password login too', () => {
+    saveToken({ tenant_id: 'shop', user_id: 'owner', role: 'ADMIN', jwt_token: 'valid.jwt.token' });
+    vi.mocked(setSyncActive).mockClear();
+    expect(saveOfflineSession({ tenant_id: 'shop', user_id: 'cashier', role: 'STAFF', permissions: ['sales.create'] }))
+      .toMatchObject({ success: true, cloud_sync_ready: true });
+    expect(setSyncActive).toHaveBeenLastCalledWith(true);
   });
 
 });

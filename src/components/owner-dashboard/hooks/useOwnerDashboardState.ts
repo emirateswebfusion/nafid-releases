@@ -11,8 +11,8 @@ export function useOwnerDashboardState() {
     const [totalSalesBeforeDeductions, setTotalSalesBeforeDeductions] = useState(0);
     const [dashboardSalesMetric, setDashboardSalesMetric] = useState<'GROSS_SALES' | 'NET_REVENUE'>('GROSS_SALES');
     const [invoiceCount, setInvoiceCount] = useState(0);
-    const [isOnline, setIsOnline] = useState(true);
-    const [activeRoute, setActiveRoute] = useState<'LAN' | 'CLOUD' | 'NONE' | null>(null);
+    const [isOnline, setIsOnline] = useState(false);
+    const [activeRoute, setActiveRoute] = useState<'LAN' | 'CLOUD' | 'NONE' | null>('NONE');
     const [, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('CLOUD');
     const [enableScrap, setEnableScrap] = useState(false);
     const [gridMode, setGridMode] = useState<'2COL' | '3COL'>('2COL');

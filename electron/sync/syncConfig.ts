@@ -1,6 +1,5 @@
-import fs from 'fs';
-import path from 'path';
-import { app, safeStorage } from 'electron';
+import { readAuthPayload, readOfflineSession } from '../services/authStorage.js';
+export { readAuthPayload, getConfigPath, getEncryptedPath, getOfflineSessionPath, decrypt } from '../services/authStorage.js';
 import { getDb } from '../db/localDb.js';
 import { LAN_PLACEHOLDER_TOKEN } from './syncAuth.js';
 import { getTotalPendingRecords } from './syncProgress.js';
@@ -41,47 +40,11 @@ export function parseCleanDate(dStr: unknown): string {
   return str.slice(0, 10);
 }
 
-export const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
-
-export const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
-
-export const getOfflineSessionPath = () => path.join(app.getPath('userData'), 'offline-auth.enc');
-
-export function decrypt(data: Buffer): string | null {
-  if (!safeStorage.isEncryptionAvailable()) return data.toString('utf-8');
-  try {
-    return safeStorage.decryptString(data);
-  } catch {
-    return null;
-  }
-}
-
-export function readAuthPayload(): { jwt_token?: string; tenant_id?: string } | null {
-  const encPath = getEncryptedPath();
-  if (fs.existsSync(encPath)) {
-    const raw = fs.readFileSync(encPath);
-    const decrypted = decrypt(raw);
-    if (decrypted) return JSON.parse(decrypted);
-  }
-  const p = getConfigPath();
-  if (!fs.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch {
-    return null;
-  }
-}
-
 export function readOfflineSessionSafe(): { tenant_id?: string } | null {
-  try {
-    const offlinePath = getOfflineSessionPath();
-    if (!fs.existsSync(offlinePath)) return null;
-    const decrypted = decrypt(fs.readFileSync(offlinePath));
-    if (!decrypted) return null;
-    return JSON.parse(decrypted);
-  } catch {
-    return null;
-  }
+  const value = readOfflineSession();
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  return { tenant_id: typeof row.tenant_id === 'string' ? row.tenant_id : undefined };
 }
 
 export function getTenantIdFromDb(): string | null {

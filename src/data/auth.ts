@@ -1,5 +1,16 @@
 import { bindBridge } from './client';
 
+export type CloudLoginReply = { success: true; status: number; data: unknown } | { success: false; error: string };
+
+export interface CloudCredentials {
+  jwt_token: string; tenant_id: string; user_id: string; role: string; shop_name: string;
+  user_name?: string; domain_type?: string; restricted_page?: string; password_hash?: string;
+  email?: string; permissions?: string[]; login_enabled?: boolean;
+}
+export interface CloudSessionResumeRequest {
+  expected_tenant_id: string; expected_user_id: string; credentials: CloudCredentials;
+}
+
 /** Identifies the cloud session rejected by the sync worker, so delayed events cannot reject a newer login. */
 export interface RejectedCloudSession { token: string }
 
@@ -31,7 +42,7 @@ export interface PinAuthenticatedUser {
 }
 
 export type PinLoginResult =
-  | { success: true; user: PinAuthenticatedUser }
+  | { success: true; user: PinAuthenticatedUser; cloud_sync_ready?: boolean }
   | { success: false; error: string };
 
 export interface TerminalConfigResult {
@@ -46,6 +57,8 @@ export interface TerminalConfigResult {
 /** Session token and offline-login persistence. Channel catalog — the only way UI code reaches these IPC channels. */
 export const authApi = bindBridge({
   saveToken: 'authSaveToken',
+  loginCloud: 'authLoginCloud',
+  resumeCloudSession: 'authResumeCloudSession',
   getToken: 'authGetToken',
   saveOfflineSession: 'authSaveOfflineSession',
   getOfflineSession: 'authGetOfflineSession',

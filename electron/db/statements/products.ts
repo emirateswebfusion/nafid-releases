@@ -121,9 +121,9 @@ export const insertPricingTier = (db: Db) => db.prepare(`
 
 export const findProductsBySkuBarcodeProductId2 = (db: Db) => db.prepare(`SELECT product_id FROM products WHERE tenant_id = ? AND sku_barcode = ?`);
 
-export const findProductsByItemCode = (db: Db) => db.prepare(`SELECT product_id FROM products WHERE tenant_id = ? AND item_code = ?`);
+export const findProductsByItemCode = (db: Db) => db.prepare(`SELECT product_id FROM products WHERE tenant_id = ? AND item_code = ? ORDER BY is_deleted ASC, updated_at DESC LIMIT 1`);
 
-export const findProducts = (db: Db) => db.prepare(`SELECT product_id FROM products WHERE tenant_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND COALESCE(brand_manufacturer, '') = COALESCE(?, '')`);
+export const findProducts = (db: Db) => db.prepare(`SELECT product_id FROM products WHERE tenant_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND COALESCE(brand_manufacturer, '') = COALESCE(?, '') ORDER BY is_deleted ASC, updated_at DESC LIMIT 1`);
 
 export const insertProduct3 = (db: Db) => db.prepare(`
         INSERT INTO products (

@@ -122,6 +122,12 @@ export const STAFF_COLUMN_SPECS: ColumnSpec[] = [
 // ─── Header Normalizers ─────────────────────────────────────────────────────
 
 export const PRODUCT_HEADER_MAP: Record<string, string> = {
+  'base price': 'base_price',
+  'sku barcode': 'sku_barcode',
+  'brand manufacturer': 'brand_manufacturer',
+  'hsn sac code': 'hsn_sac_code',
+  'tax rate percent': 'tax_rate_percent',
+  'is gst applicable': 'is_gst_applicable',
   'product name': 'name',
   'product': 'name',
   'item name': 'name',
@@ -230,39 +236,11 @@ export function resolveDynamicTierName(
     }
   }
 
-  // 2. Fuzzy match against existing tiers (e.g. contains root or edit distance <= 1)
-  for (const t of existingTiers) {
-    if (!t?.name) continue;
-    const tClean = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (clean.includes(tClean) || tClean.includes(clean)) {
-      return t.name;
-    }
-    // Minor typo tolerance (edit distance <= 1, e.g. 'wholsale' vs 'wholesale')
-    if (Math.abs(clean.length - tClean.length) <= 1) {
-      let diff = 0;
-      let i = 0, j = 0;
-      while (i < clean.length && j < tClean.length) {
-        if (clean[i] !== tClean[j]) {
-          diff++;
-          if (clean.length > tClean.length) i++;
-          else if (tClean.length > clean.length) j++;
-          else { i++; j++; }
-        } else {
-          i++; j++;
-        }
-      }
-      diff += (clean.length - i) + (tClean.length - j);
-      if (diff <= 1) {
-        return t.name;
-      }
-    }
-  }
-
-  // 3. Header explicitly prefixed with tier (e.g. "Tier: VIP", "Price Tier: Dealer")
-  const prefixMatch = raw.match(/^(?:tier|price\s*tier)\s*[:\-_]?\s*(.+)$/i);
-  if (prefixMatch && prefixMatch[1]) {
-    return prefixMatch[1].trim();
-  }
+  // Explicit tier headings and guide headings must not merge distinct tiers by substring or typo.
+  const prefixMatch = raw.match(/^(?:tier|price\s*tier)\s*[:\-_]\s*(.+)$/i);
+  if (prefixMatch?.[1]) return prefixMatch[1].trim();
+  const suffixMatch = raw.match(/^(.+?)\s*\(Tier Price\)$/i);
+  if (suffixMatch?.[1]) return suffixMatch[1].trim();
 
   // 4. Any other non-standard column title is dynamically considered a tier
   return raw;

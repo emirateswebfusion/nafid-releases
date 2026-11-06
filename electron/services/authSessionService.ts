@@ -3,6 +3,7 @@ import { localSaveUser, localAuthenticatePin } from './localAuthService.js';
 import { setSyncActive } from '../sync/syncWorker.js';
 import * as syncService from './syncService.js';
 import { cloudTokenUnusable } from '../sync/syncAuth.js';
+import { syncState } from '../sync/syncState.js';
 import {
   getConfigPath,
   getEncryptedPath,
@@ -15,11 +16,16 @@ import {
 
 import { rememberTerminalSession } from './terminalSession.js';
 
-export function saveToken(value: unknown) {
+export function saveToken(value: unknown, localSession?: Record<string, unknown>) {
     if (!value || typeof value !== 'object') return { success: false, error: 'Incomplete session' };
     const payload = value as Record<string, unknown>;
     try {
       const plaintext = JSON.stringify(payload);
+      if (localSession) {
+        const localEncrypted = encrypt(JSON.stringify(localSession));
+        if (!localEncrypted) return { success: false, error: 'Could not preserve the local session' };
+        fs.writeFileSync(getOfflineSessionPath(), localEncrypted);
+      }
       fs.writeFileSync(getConfigPath(), plaintext, 'utf-8');
       const encrypted = encrypt(plaintext);
       if (encrypted) {
@@ -39,8 +45,8 @@ export function saveToken(value: unknown) {
           login_enabled: typeof payload.login_enabled === 'boolean' ? payload.login_enabled : undefined,
         });
       }
-      rememberTerminalSession(payload);
-      clearOfflineSession();
+      rememberTerminalSession(localSession || payload);
+      if (!localSession) clearOfflineSession();
       setSyncActive(true);
       return { success: true };
     } catch {
@@ -78,17 +84,13 @@ export function saveOfflineSession(value: unknown) {
         if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
       }
 
-      // Keep sync worker alive if terminal is configured for LAN or HYBRID peer sync
-      try {
-        if (syncService.isLanSyncConfigured()) {
-          setSyncActive(true);
-        } else {
-          setSyncActive(false);
-        }
-      } catch {
-        setSyncActive(false);
-      }
-      return { success: true };
+      const cloudReady = Boolean(existingAuth?.tenant_id === session.tenant_id && existingAuth?.jwt_token
+        && !cloudTokenUnusable(existingAuth.jwt_token) && !syncState.authExpiredNotified);
+      // PIN and cached-password entry preserve the same usable terminal cloud credential.
+      let lanReady = false;
+      try { lanReady = syncService.isLanSyncConfigured(); } catch { /* remain local */ }
+      setSyncActive(cloudReady || lanReady);
+      return { success: true, cloud_sync_ready: cloudReady };
     } catch (error) {
       return { success: false, error: (error as Error).message || 'Failed to save offline session' };
     }
@@ -98,13 +100,6 @@ export function loginWithPin(payload: Parameters<typeof localAuthenticatePin>[0]
     try {
       const res = localAuthenticatePin(payload);
       if (res.success && res.user) {
-        const existing = readAuthPayload();
-        const hasValidCloudToken = Boolean(
-          existing?.jwt_token &&
-          existing?.tenant_id === res.user.tenant_id &&
-          !cloudTokenUnusable(existing.jwt_token)
-        );
-
         const session = {
           tenant_id: res.user.tenant_id,
           user_id: res.user.user_id,
@@ -115,21 +110,11 @@ export function loginWithPin(payload: Parameters<typeof localAuthenticatePin>[0]
           permissions: res.user.permissions,
         };
 
-        if (hasValidCloudToken && existing) {
-          const updatedPayload = {
-            ...existing,
-            user_id: res.user.user_id,
-            user_name: res.user.name,
-            role: res.user.role,
-            permissions: res.user.permissions,
-          };
-          saveToken(updatedPayload);
-          setSyncActive(true);
-          return { ...res, token: existing.jwt_token };
-        }
-
         const saved = saveOfflineSession(session);
         if (!saved.success) return saved;
+        const cloud = readAuthPayload();
+        return { ...res, cloud_sync_ready: saved.cloud_sync_ready === true,
+          ...(saved.cloud_sync_ready && cloud?.jwt_token ? { token: cloud.jwt_token } : {}) };
       }
       return res;
     } catch (error) {
@@ -138,6 +123,8 @@ export function loginWithPin(payload: Parameters<typeof localAuthenticatePin>[0]
 }
 
 export function clearToken() {
+    // Stop cloud work even if a locked credential file prevents completing sign-out.
+    setSyncActive(false);
     try {
       rememberTerminalSession(readOfflineSession() || readAuthPayload());
       const encPath = getEncryptedPath();
