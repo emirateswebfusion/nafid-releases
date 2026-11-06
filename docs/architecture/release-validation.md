@@ -19,6 +19,42 @@ This is the canonical release gate for Nafid POS. It applies to every agent, dev
 
 The EXE/blockmap/`latest.yml` checks below are the Windows gate. Mac releases additionally follow [macOS distribution](macos-distribution.md): native Intel and Apple Silicon DMG/ZIP validation, trusted Developer ID signing, notarization/Gatekeeper checks, same-source reports and one combined `latest-mac.yml`. Ad-hoc CI artifacts are test-only and must not become public production downloads. Neither a GitHub Verified badge nor Marketplace publisher verification replaces OS code signing.
 
+## Backend changes and endpoint migrations
+
+This checklist is mandatory after a backend deployment/account/URL change and before releasing a POS update.
+
+1. **Classify the change.** A backward-compatible server-only fix at the same URL does not require reinstalling POS.
+   Keep deployed API/schema contracts compatible with installed clients. A changed client contract or embedded API
+   URL requires a newly versioned POS build; changing hosting/dashboard settings cannot rewrite installed clients.
+2. **Confirm the destination.** Record the approved production hostname and verify that it serves the intended
+   central/tenant databases, account identities and authentication configuration. A 200 health response alone does
+   not prove that this is the same shop's backend. Never switch hosts just because an unrelated host is healthy.
+   Never delete a shop's local database as an endpoint-migration procedure.
+3. **Update every build input together.** Change `PRODUCTION_CLOUD_API` / its validation in `scripts/runtime-env.cjs`,
+   both platform workflows' `VITE_CLOUD_API` and `VENDORA_CLOUD_API`, the build machine's private production env,
+   and endpoint regression tests. Verify renderer compilation, packaged `resources/app.env` and any network-origin
+   allow-list/CORS configuration agree. Do not commit env files or credentials. Changing only a developer's local
+   production env is insufficient when CI supplies its own environment.
+4. **Probe before packaging.** Test the approved health route and credential-free login validation, then use an
+   authorized synthetic test account/tenant for authentication and representative sync checks when needed. Record
+   statuses without customer passwords/tokens. Treat HTTP 401 authorization separately from HTTP 402 /
+   `DEPLOYMENT_DISABLED` hosting failures; repeated password entry cannot restore a disabled deployment.
+5. **Keep update discovery independent.** Cloud login/sync use the API URL; app updates use the public GitHub feed
+   in `app-update.yml` / `UPDATES_REPO_URL`. An API-host migration does not by itself require changing that feed.
+   Verify installed older clients can discover the new version even when their old cloud API is unavailable. Check
+   Settings > Updates as well as the downloaded-update action; document the full-installer fallback if discovery or
+   installation fails. Normal update must replace code and packaged settings while preserving local data.
+6. **Validate the exact installer and publish a new version.** Apply the final-artifact and installed-upgrade gates
+   below, including compiled renderer/runtime endpoint checks, same-source identity, data/settings preservation,
+   native runtime and matching EXE/blockmap/feed hashes. Record the tested starting version and any legacy failure.
+   Source changes, login success and green unit tests alone are not evidence of a working installed update.
+7. **Check public delivery and recovery.** Publish only the verified draft asset set under a new version; never
+   replace old published assets. Verify anonymous latest-feed and installer downloads against the tested hashes,
+   confirm the installed version/new endpoint on a disposable profile, and provide affected older releases with a
+   recovery notice. Prefer normal update; if it fails, close Nafid normally and run the full installer once without
+   uninstalling or deleting shop data. Keep the old endpoint available during a migration when feasible; any redirect
+   strategy must be compatible with the desktop login transport's no-redirect policy.
+
 ## 2. Inspect the final installer
 
 Extract and inspect the exact final EXE that will be uploaded, as well as its unpacked output. A development app, a copied `app.asar`, or the unpacked directory alone is not release proof.

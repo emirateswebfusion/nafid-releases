@@ -9,6 +9,7 @@
 | A dialog | `components/<feature>/modals/` | Use `ui/Modal` |
 | A reusable visual primitive | `components/ui/` | No business logic |
 | State shared by several screens | `src/store/<name>Store.ts` | Selectors only in consumers |
+| Backend deployment, production API URL or hosting-account migration | [Release validation: backend changes](release-validation.md#backend-changes-and-endpoint-migrations) | Confirm the intended tenant data/auth configuration; align renderer/runtime/workflow settings, preserve the independent update feed, validate the final installer and publish a new version when client inputs change. Never delete shop data for an endpoint migration |
 | A calculation (money, tax, pricing, numbering, permission) | `src/utils/<topic>.ts` + `tests/unit/<topic>.test.ts` | Check [04-business-rules](04-business-rules.md) first — it may already exist |
 | State + effects + handlers for one section of a big screen | `components/<feature>/hooks/use<Section>.ts`; pure matching/lookup rules it uses in `components/<feature>/<topic>.ts` + a unit test | Hand views the hook's result as one prop (`customerFields={customerFields}`), not its members. Feature-specific, so not `src/hooks/` |
 | A use-case combining data calls + a rule (e.g. "find scrap credit") | `components/<feature>/<useCase>.ts` | Calls `src/data/*`; tested with `vi.mock` |

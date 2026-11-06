@@ -28,5 +28,5 @@ it('releases every dashboard sync listener when the session screen closes', () =
     const od = useOwnerDashboardState();
     useOwnerDashboardEffects({ od, tenantId: 'shop', userId: 'cashier', role: 'STAFF', lastSyncTime: null, loadCardOrder: async () => [], loadFlags: async () => {}, menuRef: { current: null }, setLastSyncTime: () => {} });
   });
-  expect(fixture.subscriptions.size).toBe(3); hook.unmount(); expect(fixture.subscriptions.size).toBe(0);
+  expect(fixture.subscriptions.size).toBe(2); hook.unmount(); expect(fixture.subscriptions.size).toBe(0);
 });

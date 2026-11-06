@@ -36,7 +36,7 @@ src/
                          trialShopDetails validation); receipt / A4 / barcode print views
     ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, ScrollText, …)
   data/                   THE data-access layer (one module per domain; see 03-data-access.md)
-  store/                  Zustand stores shared across screens (auth, cart, tabs, theme, flags, …)
+  store/                  Zustand stores shared across screens (auth, cart, tabs, theme, flags, sync connection, …)
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)
   utils/                  pure rules and generators, grouped (folders only, guard R15):
     pricing/              money, line pricing, checkout lines, pricing tiers, invoice numbering, sales-history amounts/tax

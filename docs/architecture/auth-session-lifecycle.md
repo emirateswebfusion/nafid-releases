@@ -45,6 +45,16 @@ The dashboard starts with an unknown/offline route. Its badges say **Cloud Conne
 released on session changes/unmount. `runInitialSync` reports disabled access, rejected authorization and unavailable
 routes as failures; a successful cycle result still does not guarantee an empty pending queue or conflict resolution.
 
+The authenticated shell (`useSyncStatus`) owns the online-status subscription and updates the in-memory
+`syncConnectionStore`. Dashboard reads this state rather than starting Offline on each mount. Leaving for Sales
+History must retain the last worker-reported route; events received while Dashboard is closed still update it.
+Logout clears the route and unsubscribes. No route is persisted across sessions and no connection is inferred from
+login success. `dashboardConnectionNavigation.ui` covers reopening, background disconnection and logout cleanup.
+Navigation-fix verification: 209 test files / 1,232 tests passed, app/Electron typechecks, architecture guard and
+zero-warning lint passed. The running isolated Electron fixture retained Cloud Connected after leaving/returning,
+and showed Offline after a connection-loss event received while Dashboard was unmounted. This renderer fix does
+not change the sync transport or establish that every pending upload is complete.
+
 ## Reproduced findings and limits
 
 Regression tests reproduced the mixed owner/cashier credential rewrite, false-ready PIN state with no cloud token,

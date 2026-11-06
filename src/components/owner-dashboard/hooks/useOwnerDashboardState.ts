@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSyncConnectionStore } from '../../../store/syncConnectionStore';
 
 /**
  * State of the owner dashboard: menu, clock label, today's sales and invoice count, online / sync route, scrap flag,
@@ -11,8 +12,8 @@ export function useOwnerDashboardState() {
     const [totalSalesBeforeDeductions, setTotalSalesBeforeDeductions] = useState(0);
     const [dashboardSalesMetric, setDashboardSalesMetric] = useState<'GROSS_SALES' | 'NET_REVENUE'>('GROSS_SALES');
     const [invoiceCount, setInvoiceCount] = useState(0);
-    const [isOnline, setIsOnline] = useState(false);
-    const [activeRoute, setActiveRoute] = useState<'LAN' | 'CLOUD' | 'NONE' | null>('NONE');
+    const isOnline = useSyncConnectionStore(state => state.isOnline);
+    const activeRoute = useSyncConnectionStore(state => state.activeRoute);
     const [, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('CLOUD');
     const [enableScrap, setEnableScrap] = useState(false);
     const [gridMode, setGridMode] = useState<'2COL' | '3COL'>('2COL');
@@ -23,7 +24,7 @@ export function useOwnerDashboardState() {
 
   return {
     menuOpen, setMenuOpen, displayTime, setDisplayTime, totalSales, setTotalSales, totalSalesBeforeDeductions, setTotalSalesBeforeDeductions, dashboardSalesMetric, setDashboardSalesMetric, invoiceCount, setInvoiceCount,
-    isOnline, setIsOnline, activeRoute, setActiveRoute, setSyncMode, enableScrap, setEnableScrap, gridMode,
+    isOnline, activeRoute, setSyncMode, enableScrap, setEnableScrap, gridMode,
     setGridMode, showCustomizeModal, setShowCustomizeModal, showRestoreDialog, setShowRestoreDialog,
     draggedDashboardCardId, setDraggedDashboardCardId, dragOverDashboardCardId, setDragOverDashboardCardId,
   };

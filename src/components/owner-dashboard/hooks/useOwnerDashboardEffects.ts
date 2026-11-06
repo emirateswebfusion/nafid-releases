@@ -20,7 +20,7 @@ export interface UseOwnerDashboardEffectsContext {
 
 export function useOwnerDashboardEffects(ctx: UseOwnerDashboardEffectsContext) {
   const { lastSyncTime, loadCardOrder, loadFlags, menuRef, role, setLastSyncTime, tenantId, userId } = ctx;
-  const { setActiveRoute, setDisplayTime, setEnableScrap, setInvoiceCount, setIsOnline, setMenuOpen, setSyncMode, setTotalSales, setTotalSalesBeforeDeductions, setDashboardSalesMetric } = ctx.od;
+  const { setDisplayTime, setEnableScrap, setInvoiceCount, setMenuOpen, setSyncMode, setTotalSales, setTotalSalesBeforeDeductions, setDashboardSalesMetric } = ctx.od;
   useEffect(() => {
     loadCardOrder(tenantId, userId, role);
   }, [tenantId, userId, role, loadCardOrder]);
@@ -117,22 +117,6 @@ export function useOwnerDashboardEffects(ctx: UseOwnerDashboardEffectsContext) {
     return () => { clearInterval(interval); subscriptions.forEach(unsubscribe => unsubscribe()); };
   }, [setLastSyncTime, loadStats, setDisplayTime]);
 
-  useEffect(() => {
-    if (hasBridge('onOnlineStatus')) {
-      return bridgeEvents.onOnlineStatus((online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => {
-        setIsOnline(online);
-        setActiveRoute(online ? route || null : 'NONE');
-      });
-    }
-    setIsOnline(navigator.onLine);
-    const handler = () => setIsOnline(navigator.onLine);
-    window.addEventListener('online', handler);
-    window.addEventListener('offline', handler);
-    return () => {
-      window.removeEventListener('online', handler);
-      window.removeEventListener('offline', handler);
-    };
-  }, [setActiveRoute, setIsOnline]);
 
   useEffect(() => {
     if (!lastSyncTime) return;

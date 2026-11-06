@@ -3,6 +3,7 @@ import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { bridgeEvents } from '../../../data/events';
 import { syncApi } from '../../../data/sync';
 import { SYNC_QUOTES } from '../../owner-dashboard/syncQuotes';
+import { useSyncConnectionStore } from '../../../store/syncConnectionStore';
 
 /** Sync progress bar and quotes for the shell: starts the initial sync after sign-in, follows progress / cycle events
  * from the main process, resets on sign-out and rotates the quotes while syncing. Moved verbatim from App.tsx. */
@@ -14,6 +15,18 @@ export function useSyncStatus({ isAuthenticated, isCloudSyncPaused }: { isAuthen
 
   const [shuffledQuotes, setShuffledQuotes] = useState<number[]>([]);
   const [quoteIndex, setQuoteIndex] = useState(0);
+
+  // The authenticated shell outlives Sales History and Dashboard. Keep listening while either is open.
+  useEffect(() => {
+    const connection = useSyncConnectionStore.getState();
+    if (!isAuthenticated) { connection.reset(); return; }
+    if (hasBridge('onOnlineStatus')) return bridgeEvents.onOnlineStatus(connection.setConnection);
+    const update = () => connection.setConnection(navigator.onLine);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
+  }, [isAuthenticated]);
 
   // Fisher-Yates shuffle
   function shuffleArray(arr: number[]): number[] {
