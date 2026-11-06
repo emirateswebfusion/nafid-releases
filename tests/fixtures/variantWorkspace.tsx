@@ -11,6 +11,12 @@ const products: ProductWritePayload[] = [
   { product_id: 'shirt', tenant_id: 'variant-test', name: 'Cotton Shirt', category: 'Clothing', uom: 'Pcs', sku_barcode: 'SHIRT', base_price: 100, purchase_price: 50, current_stock: 7, domain_attributes: JSON.stringify({ has_variants: true }) },
   { product_id: 'shirt-s', tenant_id: 'variant-test', name: 'Cotton Shirt (S)', category: 'Clothing', uom: 'Pcs', sku_barcode: 'SHIRT-S', base_price: 100, purchase_price: 50, current_stock: 12, domain_attributes: JSON.stringify({ parent_product_id: 'shirt', variant_name: 'S' }) },
 ];
+// A second size and product exercise catalog-wide scanning and combined filters.
+products.push(
+  { ...products[1], product_id: 'shirt-xl', name: 'Cotton Shirt (XL)', sku_barcode: 'SHIRT-XL', base_price: 120, offer_price: 110, current_stock: 4, domain_attributes: JSON.stringify({ parent_product_id: 'shirt', variant_name: 'XL' }) },
+  { ...products[0], product_id: 'work', name: 'Work Shirt', category: 'Uniforms', sku_barcode: 'WORK' },
+  { ...products[1], product_id: 'work-s', name: 'Work Shirt (S)', category: 'Uniforms', sku_barcode: 'WORK-S', current_stock: 0, domain_attributes: JSON.stringify({ parent_product_id: 'work', variant_name: 'S' }) },
+);
 const prices: { product_id: string; pricing_tier_id: string; price: number | null }[] = [{ product_id: 'shirt-s', pricing_tier_id: 'wholesale', price: 80 }];
 const bridge = new Proxy({}, { get: (_target, method: string) => {
   if (method.startsWith('on')) return () => () => {};

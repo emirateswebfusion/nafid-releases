@@ -14,7 +14,7 @@ describe('GST Reports Dashboard Card Integration', () => {
   it('defines metadata for gst-reports in DashboardCardCustomizer', () => {
     expect(ALL_CARD_DEFINITIONS['gst-reports']).toBeDefined();
     expect(ALL_CARD_DEFINITIONS['gst-reports'].title).toBe('GST Reports');
-    expect(ALL_CARD_DEFINITIONS['gst-reports'].badge).toBe('NEW');
+    expect(ALL_CARD_DEFINITIONS['gst-reports'].badge).toBeUndefined();
   });
 
   it('renders the gst-reports card in useDashboardCards and dispatches open-gst-reports on click', () => {

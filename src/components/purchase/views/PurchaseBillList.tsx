@@ -47,9 +47,9 @@ export function PurchaseBillList({
   return (
     <>
     <div className="w-full px-4 sm:px-6 pt-6 select-none shrink-0">
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 select-none">
+      <div className="flex flex-wrap lg:flex-nowrap gap-3 items-center bg-card border border-border rounded-[28px] shadow-sm p-4 sm:px-6 select-none">
         {/* Search */}
-      <div className="relative w-full sm:max-w-xs">
+      <div className="relative min-w-[180px] w-full sm:w-auto flex-1">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
         <input
           type="text"
@@ -68,58 +68,39 @@ export function PurchaseBillList({
         )}
       </div>
 
-      {/* Filter Pills */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* Type Filter */}
-        <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none">
+      {/* Bill type and date filters */}
+      <div className="flex shrink-0 items-center gap-3 flex-wrap">
+        <select
+          aria-label="Bill type"
+          value={filterType}
+          onChange={e => {
+            const type = e.target.value;
+            if (type === 'ALL' || type === 'GST' || type === 'ESTIMATE' || type === 'PAPER') setFilterType(type);
+          }}
+          className="h-10 rounded-xl border border-input bg-background px-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 cursor-pointer"
+        >
           {(['ALL', 'GST', 'ESTIMATE', 'PAPER'] as const).map(type => {
-            const count = type === 'ALL'
-              ? bills.length
-              : type === 'PAPER'
+            const count = type === 'ALL' ? bills.length : type === 'PAPER'
               ? bills.filter(b => billSummaries[b.purchase_bill_id]?.hasPaper).length
               : bills.filter(b => b.bill_type === type).length;
-            const active = filterType === type;
-            return (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setFilterType(active ? 'ALL' : type)}
-                className={clsx(
-                  "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
-                  active
-                    ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                {type === 'ALL' ? 'All Type' : type === 'GST' ? 'GST Only' : type === 'ESTIMATE' ? 'Estimate Only' : '📄 Paper Only'}
-                {!loading && (
-                  <span className={clsx(
-                    "text-[10px] px-1.5 py-0.5 rounded-md font-black min-w-[18px] text-center ml-1.5",
-                    active
-                      ? "bg-primary/25 text-primary"
-                      : "bg-muted-foreground/15 text-muted-foreground"
-                  )}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
+            const label = type === 'ALL' ? 'All Types' : type === 'GST' ? 'GST Only' : type === 'ESTIMATE' ? 'Estimate Only' : 'Paper Only';
+            return <option key={type} value={type}>{label}{loading ? '' : ` (${count})`}</option>;
           })}
-        </div>
+        </select>
 
-        <DateRangeFilter startDate={dateFrom} endDate={dateTo} onChange={(s, e) => { setDateFrom(s); setDateTo(e); }} />
+        <DateRangeFilter triggerClassName="h-10 px-3 whitespace-nowrap text-xs bg-background" startDate={dateFrom} endDate={dateTo} onChange={(s, e) => { setDateFrom(s); setDateTo(e); }} />
 
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
         {onResyncPurchases && (
           <button
             onClick={onResyncPurchases}
             disabled={isResyncing}
             title="Force refresh / download purchase bills from cloud"
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-4 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-xs rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-4 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <RefreshCw className={clsx("w-4 h-4", isResyncing && "animate-spin text-primary")} />
+            <RefreshCw className={clsx("w-4 h-4 shrink-0", isResyncing && "animate-spin text-primary")} />
             <span className="hidden sm:inline">{isResyncing ? 'Syncing...' : 'Re-sync'}</span>
           </button>
         )}
@@ -129,9 +110,9 @@ export function PurchaseBillList({
             onClick={handleExportCSV}
             disabled={isExporting}
             title={`Export ${filteredBills.length} filtered bill${filteredBills.length !== 1 ? 's' : ''} to CSV`}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-xs rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-4 h-4 shrink-0" />
             <span>Export</span>
           </button>
         )}
@@ -139,9 +120,9 @@ export function PurchaseBillList({
         {/* New Bill Button */}
         <button
           onClick={() => { setShowAddForm(true); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); }}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-xs rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <Plus className="w-4 h-4" /> New Bill
+          <Plus className="w-4 h-4 shrink-0" /> New Bill
         </button>
       </div>
     </div>

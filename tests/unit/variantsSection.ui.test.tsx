@@ -29,3 +29,20 @@ it('does not expose creation with edit-only access', () => {
   render(<Form />);
   expect(screen.queryByText('Add Variant')).toBeNull();
 });
+
+it('creates compact editable barcodes and independent discount sections', () => {
+  useAuthStore.setState({ role: 'ADMIN', permissions: ['*'] });
+  render(<Form />);
+  fireEvent.click(screen.getByText('Add Variant'));
+  fireEvent.click(screen.getByText('Add Variant'));
+  const first = within(screen.getByRole('group', { name: 'Variant 1' }));
+  const second = within(screen.getByRole('group', { name: 'Variant 2' }));
+  const barcode = screen.getByLabelText('Variant 1 barcode') as HTMLInputElement;
+  expect(barcode.value).toMatch(/^[A-F0-9]{12}$/);
+  expect(barcode.value).not.toBe((screen.getByLabelText('Variant 2 barcode') as HTMLInputElement).value);
+  expect(first.getByText('3. Discount & Offers')).toBeTruthy();
+  fireEvent.change(first.getAllByRole('spinbutton')[0], { target: { value: '10' } });
+  expect((second.getAllByRole('spinbutton')[0] as HTMLInputElement).value).toBe('');
+  fireEvent.change(barcode, { target: { value: '12345' } });
+  expect(barcode.value).toBe('12345');
+});

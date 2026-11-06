@@ -17,7 +17,7 @@ vi.mock('../../electron/sync/syncWorker', () => ({ runInitialSync: async () => {
 import { settlePayment } from '../../electron/services/cashierService';
 import { checkout, recentCheckoutsCache } from '../../electron/services/invoiceCheckoutService';
 import { applyInvoiceDiscount, deleteInvoice, updateInvoice, updateInvoicePayment } from '../../electron/services/invoiceEditService';
-import { adjustCustomerLoyaltyPoints, recalculateCustomerLoyaltyPoints } from '../../electron/services/customersService';
+import { createCustomer, updateCustomer, getCustomers, adjustCustomerLoyaltyPoints, recalculateCustomerLoyaltyPoints } from '../../electron/services/customersService';
 import { createReturn, deleteReturn } from '../../electron/services/returnsService';
 let raw: DatabaseSync;
 beforeEach(() => {
@@ -163,4 +163,44 @@ it('refuses ambiguous legacy opening points instead of erasing them on recalcula
   expect(adjustCustomerLoyaltyPoints({ customer_id: 'c', tenant_id: 't', points: 5 }).success).toBe(true);
   expect(recalculateCustomerLoyaltyPoints({ tenant_id: 't' }).success).toBe(false);
   expect(balance()).toBe(15);
+});
+
+ it('keeps repeated edit snapshots consistent with the selected tax basis', () => {
+  sale();
+  raw.prepare("UPDATE invoices SET subtotal = 2500, tax_total = 100, grand_total = 2600 WHERE invoice_id = 'i'").run();
+  raw.prepare("UPDATE settings SET value = ? WHERE tenant_id = 't' AND key = 'loyalty_config'").run(JSON.stringify({ enabled: true, earningRate: 100, includeTax: false }));
+  for (const discount of [0, 100, 0, 0]) {
+    expect(applyInvoiceDiscount({ invoice_id: 'i', discount_type: 'FIXED', discount_value: discount, role: 'ADMIN' }).success).toBe(true);
+    const row = raw.prepare("SELECT points_earned, previous_points_balance, remaining_points_balance FROM invoices WHERE invoice_id = 'i'").get() as { points_earned: number; previous_points_balance: number; remaining_points_balance: number };
+    expect(row.points_earned).toBe(discount ? 24 : 25);
+    expect(row.remaining_points_balance).toBe(balance());
+    expect(row.previous_points_balance + row.points_earned).toBe(row.remaining_points_balance);
+  }
+});
+
+it('never awards a non-revenue document when its payment changes', () => {
+  sale(0);
+  raw.prepare("UPDATE invoices SET counts_in_revenue = 0 WHERE invoice_id = 'i'").run();
+  expect(applyInvoiceDiscount({ invoice_id: 'i', discount_type: 'FIXED', discount_value: 0, role: 'ADMIN' }).success).toBe(true);
+  expect(balance()).toBe(10);
+  expect((raw.prepare("SELECT points_earned FROM invoices WHERE invoice_id = 'i'").get() as { points_earned: number }).points_earned).toBe(0);
+});
+
+it('recovers zero directory counters from recorded earnings without awarding twice', () => {
+  expect(checkout({ invoice_id: 'repair', user_id: 'u', tenant_id: 't', invoice_number: 'REPAIR', invoice_type: 'ESTIMATE', subtotal: 2500, tax_total: 0, discount_total: 0, grand_total: 2500, payment_method: 'CASH', customer_id: 'c', items: [] }).success).toBe(true);
+  raw.prepare("UPDATE customers SET total_points_earned = 0, total_points_redeemed = 0, current_points_balance = 0 WHERE customer_id = 'c'").run();
+  const customer = getCustomers({ tenant_id: 't' }).find(row => row.customer_id === 'c');
+  expect(customer?.current_points_balance).toBe(25);
+  expect(customer?.total_points_earned).toBe(25);
+  getCustomers({ tenant_id: 't' });
+  expect(balance()).toBe(25);
+});
+
+it('blocks duplicate customer names and formatted phones on create and edit', () => {
+  raw.prepare("UPDATE customers SET name = 'Example Shop', phone = '+91 94468 55246' WHERE customer_id = 'c'").run();
+  expect(createCustomer({ tenant_id: 't', name: ' Example   Shop ' }).success).toBe(false);
+  expect(createCustomer({ tenant_id: 't', name: 'Different label', phone: '9446855246' }).success).toBe(false);
+  raw.prepare("INSERT INTO customers (customer_id, tenant_id, name) VALUES ('other', 't', 'Other')").run();
+  expect(updateCustomer({ customer_id: 'other', tenant_id: 't', name: 'Other', phone: '(94468) 55246' }).success).toBe(false);
+  expect((raw.prepare("SELECT COUNT(*) AS count FROM customers WHERE tenant_id = 't'").get() as { count: number }).count).toBe(2);
 });

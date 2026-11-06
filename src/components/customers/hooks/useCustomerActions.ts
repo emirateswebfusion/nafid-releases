@@ -16,7 +16,6 @@ export interface UseCustomerActionsContext {
   onClose: () => void;
   onOpenParty: ((partyIdOrQuery?: string, customerIdOrQuery?: string) => void) | undefined;
   selectedCustomer: Customer | null;
-  setCleaningDuplicates: React.Dispatch<React.SetStateAction<boolean>>;
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   setCustomerToDelete: React.Dispatch<React.SetStateAction<Customer | null>>;
   setDeleteModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -35,11 +34,11 @@ export interface UseCustomerActionsContext {
 }
 
 /**
- * Customer actions of the customers screen: delete, clean duplicates, recalculate points, open an invoice, edit a bill
+ * Customer actions of the customers screen: delete, recalculate points, open an invoice, edit a bill
  * and go to the linked party. (No React state of its own.)
  */
 export function useCustomerActions(ctx: UseCustomerActionsContext) {
-  const { customerToDelete, invoiceItems, loadCustomers, matchedParty, onClose, onOpenParty, selectedCustomer, setCleaningDuplicates, setCustomers, setCustomerToDelete, setDeleteModalOpen, setDeleteSaving, setInvoiceItems, setItemsLoading, setLoyaltyTxs, setMatchedPartyToDelete, setRecalculatingPoints, setSelectedCustomer, setView, setViewingInvoice, showStatus, tenantId, viewingInvoice } = ctx;
+  const { customerToDelete, invoiceItems, loadCustomers, matchedParty, onClose, onOpenParty, selectedCustomer, setCustomers, setCustomerToDelete, setDeleteModalOpen, setDeleteSaving, setInvoiceItems, setItemsLoading, setLoyaltyTxs, setMatchedPartyToDelete, setRecalculatingPoints, setSelectedCustomer, setView, setViewingInvoice, showStatus, tenantId, viewingInvoice } = ctx;
   const handleConfirmDeleteCustomer = async () => {
     if (!customerToDelete || !tenantId || !hasBridge('dbDeleteCustomer')) return;
     setDeleteSaving(true);
@@ -65,24 +64,6 @@ export function useCustomerActions(ctx: UseCustomerActionsContext) {
       showStatus('Failed to delete customer', 'error');
     } finally {
       setDeleteSaving(false);
-    }
-  };
-
-  const handleCleanDuplicates = async () => {
-    if (!tenantId || !hasBridge('dbDeduplicateCustomers')) return;
-    try {
-      setCleaningDuplicates(true);
-      const res = await customersApi.deduplicateCustomers(tenantId);
-      if (res.success) {
-        showStatus(`Merged ${res.merged_customers || 0} duplicate customer(s) & ${res.merged_parties || 0} duplicate ledger record(s)`, 'success');
-        await loadCustomers(false);
-      } else {
-        showStatus(res.error || 'Failed to merge duplicates', 'error');
-      }
-    } catch {
-      showStatus('Failed to merge duplicates', 'error');
-    } finally {
-      setCleaningDuplicates(false);
     }
   };
 
@@ -174,5 +155,5 @@ export function useCustomerActions(ctx: UseCustomerActionsContext) {
     }
   };
 
-  return { handleConfirmDeleteCustomer, handleCleanDuplicates, handleRecalculateCustomerPoints, handleOpenInvoiceDetail, handleEditBillFromCustomerModal, handleNavigateToParty };
+  return { handleConfirmDeleteCustomer, handleRecalculateCustomerPoints, handleOpenInvoiceDetail, handleEditBillFromCustomerModal, handleNavigateToParty };
 }

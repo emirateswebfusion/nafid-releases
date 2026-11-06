@@ -185,6 +185,10 @@ db/statements/returns.ts  export const listReturns = (db: Db) => db.prepare(`SEL
   `WHERE sync_status != 'PENDING'` so unsynced local edits are not overwritten. Do not add an `updated_at` tiebreak:
   local `CURRENT_TIMESTAMP` (`2026-10-27 12:00:00`) and server ISO strings (`…T12:00:00Z`) compare as text, so the
   server always looked newer and pulls overwrote pending party phone edits (`tests/unit/partyPhoneSyncProtection.test.ts`).
+- **Cash drawer pull:** a received `CLOSED` row retains its status, closing metadata and frozen totals even when
+  the receiving terminal still has an open drawer or higher local balances. Balance protection applies only to
+  non-closed incoming rows; an opening balance alone cannot reopen a received close. Payloads and endpoints are
+  unchanged. Regression: `tests/unit/cashDrawerCloseSync.test.ts` (same ID and same-day alternate ID).
 - **LAN**: the primary terminal serves a subset of the sync API to other terminals (`localHostServer.ts`). Every
   endpoint except `/health` requires the **shop pairing key** in the `X-Nafid-Lan-Key` header (401 otherwise). The
   primary generates the key on first start of its LAN server; it is shown in Settings → Network (copy/regenerate)
@@ -293,3 +297,7 @@ preserves an existing valid cloud session for the same tenant instead of wiping 
 updating the session user and keeping background sync active (`isCloudSyncPaused: false`). Offline-only
 PIN login sets `isCloudSyncPaused: true` without raising false expiry errors. Clicking resume sync
 prioritizes the email/password login tab. No cloud/LAN payload changes.
+
+### Saved invoice line order
+
+`db:getInvoiceItems` reads SQLite insertion order (`ii.rowid ASC`), matching checkout/edit writes and receipt arrays. Invoice push reads the same order. Legacy cloud responses carry no explicit line position: invoice pull preserves surviving local item-id order before replacing rows, removes absent lines, and appends new lines in incoming order. First-time imports retain incoming order; an original order already lost before this change cannot be reconstructed. No wire fields change. Regression coverage: `invoiceItemOrder.test.ts`, `preserveInvoiceItemOrder.test.ts`, `stockSnapshotSync.test.ts`.

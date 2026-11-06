@@ -10,6 +10,7 @@ import { getGuaranteedNextInvoiceNumber } from './invoiceNumberService.js';
 import { formatStoreMoney, getStoreCountrySetting, storeMoneyProfile } from './storeCountryService.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { localTimestamp, localDate } from './storeTime.js';
+import { calculateLoyaltyPoints } from '../utils/loyalty.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
 import { RestaurantSettleError, settleInTransaction } from './restaurantOrderService.js';
@@ -191,7 +192,7 @@ export function checkout(payload: CheckoutPayload) {
     }
     const shouldEarn = config.enabled && customerId && pm !== 'HOLD' && (pm !== 'PENDING' || config.awardPointsOnPending)
       && policy.counts_in_revenue === 1;
-    const ptsEarned = shouldEarn ? Math.floor(Math.max(0, Number(invoice.grand_total) || 0) / Math.max(1, Number(config.earningRate) || 100)) : 0;
+    const ptsEarned = shouldEarn ? calculateLoyaltyPoints(invoice.grand_total, invoice.tax_total, config) : 0;
 
     const remainingPointsBal = previousPointsBal - ptsRedeemed + ptsEarned;
 

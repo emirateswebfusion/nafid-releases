@@ -202,7 +202,7 @@ export function renderStandardReceipt(ctx: ReceiptTextContext): string {
   }
 
   // ── Instructions ──
-  text = appendInstructions(text);
+  text = ctx.appendLoyaltyBlock(appendInstructions(text));
 
   // ── Footer ──
   text += centerText('Thank you for your visit!', charsPerLine) + '\n';

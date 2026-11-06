@@ -61,7 +61,6 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
       bgColor: 'bg-sky-500/10',
       action: () => window.dispatchEvent(new CustomEvent('open-ecommerce-portal')),
       perm: 'products.view',
-      badge: 'NEW'
     },
     {
       id: 'advertisements',
@@ -71,7 +70,6 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
       color: 'text-amber-500',
       bgColor: 'bg-amber-500/10',
       action: () => window.dispatchEvent(new CustomEvent('open-ads-manager')),
-      badge: 'NEW'
     },
     ...(isAiAssistantAvailable ? [{
       id: 'ai-assistant',
@@ -81,7 +79,6 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
       color: 'text-indigo-500',
       bgColor: 'bg-indigo-500/10',
       action: () => window.dispatchEvent(new CustomEvent('open-ai-assistant')),
-      badge: 'NEW',
     }] : []),
     {
       id: 'grades',
@@ -124,7 +121,6 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
       bgColor: 'bg-amber-500/10',
       action: () => window.dispatchEvent(new CustomEvent(isUaeStore() ? 'open-vat-reports' : 'open-gst-reports')),
       perm: 'reports.view',
-      badge: 'NEW',
     },
     {
       id: 'financial-report',

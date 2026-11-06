@@ -44,14 +44,14 @@ export function WhatsAppSettingsHeader({
             Connected (+{phone || 'Ready'})
           </span>
         ) : status === 'syncing' ? (
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-500 border border-blue-500/20">
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             Syncing Session...
           </span>
         ) : status === 'connecting' ? (
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            Waiting for Scan...
+            Connecting...
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border">

@@ -1,9 +1,11 @@
+import { readReceiptPointRows, receiptPaymentPanelHtml, type ReceiptPointRow } from '../../utils/print/receiptPaymentPanel';
 import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { localizeCurrencyText } from '../../utils/localization/storeProfile';
 import { useState, useMemo, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { UPI_QR_OPTIONS } from '../../utils/print/upiQr';
 import Barcode from 'react-barcode';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type ReceiptData, type ReceiptItem } from '../../utils/print/receiptGenerator';
 import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../../utils/print/invoiceHtmlGenerator';
@@ -42,7 +44,8 @@ function createSampleReceiptData(
     bankIfsc: shopInfo?.bankIfsc,
     bankBranch: shopInfo?.bankBranch,
     upiId: 'nafid@upi',
-    showUpiQr: false,
+    showUpiQr: true,
+    pointsEarned: 9.86, pointsRedeemed: 10, pointsRedeemedDiscount: 5, remainingPointsBalance: 149.86,
     showProductOffers,
     invoiceNumber: 'INV-001',
     date: storeDate(new Date(), getStoreLocale()),
@@ -137,7 +140,7 @@ const FONT_MAP: Record<string, string> = {
 
 type ReceiptRow =
   | { type: 'text'; value: string; lhMultiplier: number }
-  | { type: 'qr'; payload: string }
+  | { type: 'qr'; payload: string; points: ReceiptPointRow[] }
   | { type: 'prominent'; value: string }
   | { type: 'barcode'; payload: string };
 
@@ -158,11 +161,15 @@ function parseReceiptToRows(input: string): ReceiptRow[] {
 
   const activeLines = lines.slice(startIdx, endIdx + 1);
 
-  activeLines.forEach((line) => {
+  let consumedUntil = -1;
+  activeLines.forEach((line, index) => {
+    if (index <= consumedUntil) return;
     if (line.includes('[[QR:')) {
       const match = line.match(/\[\[QR:([^\]]+)\]\]/);
       if (match) {
-        rows.push({ type: 'qr', payload: match[1] });
+        const points = readReceiptPointRows(activeLines, index);
+        consumedUntil = index + points.length;
+        rows.push({ type: 'qr', payload: match[1], points });
         return;
       }
     }
@@ -284,9 +291,7 @@ export function PaperPreviewModal({
     Promise.all(
       qrPayloads.map(async (payload) => {
         const url = await QRCode.toDataURL(payload, {
-          width: 360,
-          margin: 2,
-          errorCorrectionLevel: 'M',
+          ...UPI_QR_OPTIONS,
           color: { dark: '#000000', light: '#ffffff' },
         });
         return [payload, url] as const;
@@ -537,49 +542,7 @@ export function PaperPreviewModal({
                     );
                   }
 
-                  const qrSrc = qrImages[row.payload];
-                  return qrSrc ? (
-                    <div
-                      key={`qr-${index}`}
-                      style={{
-                        width: '100%',
-                        padding: '4px 0 6px',
-                        textAlign: 'center',
-                        display: 'flex',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <img
-                        src={qrSrc}
-                        alt="UPI QR"
-                        style={{
-                          width: '92%',
-                          maxWidth: '220px',
-                          height: 'auto',
-                          imageRendering: 'pixelated',
-                          display: 'block',
-                          margin: '0 auto',
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <pre
-                      key={`qr-fallback-${index}`}
-                      className="font-mono whitespace-pre overflow-hidden select-text"
-                      style={{
-                        margin: '0 auto',
-                        padding: 0,
-                        fontSize: '12px',
-                        fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
-                        color: '#000',
-                        fontWeight: 700,
-                        lineHeight: thermalStyle === 'boxed' ? 1.05 : 1.3,
-                        textAlign: 'left',
-                      }}
-                    >
-                      [QR LOADING]
-                    </pre>
-                  );
+                          return <div key={`qr-${index}`} dangerouslySetInnerHTML={{ __html: receiptPaymentPanelHtml(qrImages[row.payload] || null, row.points) }} />;
                 })}
               </div>
             </div>

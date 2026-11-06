@@ -10,6 +10,8 @@ export interface ProductVariantItem {
   purchase_price: number | string;
   base_price: number | string;
   offer_price: number | string;
+  discount_percent?: number | string;
+  discount_flat?: number | string;
   current_stock: number | string;
   reorder_level?: number | string;
   paper_purchase_price?: number | string;
@@ -49,7 +51,7 @@ export function validateVariants(variants: ProductVariantItem[], parentBarcode =
     const barcode = variant.sku_barcode.trim();
     if (barcode && barcodes.has(barcode)) return 'The product and each variant need different barcodes.';
     if (barcode) barcodes.add(barcode);
-    for (const value of [variant.purchase_price, variant.base_price, variant.offer_price, variant.paper_mrp, variant.paper_purchase_price, ...Object.values(variant.tierPrices)]) {
+    for (const value of [variant.purchase_price, variant.base_price, variant.offer_price, variant.discount_percent, variant.discount_flat, variant.paper_mrp, variant.paper_purchase_price, ...Object.values(variant.tierPrices)]) {
       if (value !== '' && value !== undefined && (!Number.isFinite(Number(value)) || Number(value) < 0)) return 'Variant prices must be valid non-negative numbers.';
     }
     for (const value of [variant.current_stock, variant.paper_stock, variant.reorder_level]) {
@@ -68,6 +70,7 @@ export async function loadProductVariants(tenantId: string, parentId: string): P
     return { originalProduct: product, id: product.product_id, product_id: product.product_id,
       variant_name: String(attributes.variant_name || product.name), sku_barcode: product.sku_barcode || '',
       purchase_price: product.purchase_price ?? '', base_price: product.base_price ?? '', offer_price: product.offer_price ?? '',
+      discount_percent: product.discount_percent ?? '', discount_flat: product.discount_flat ?? '',
       current_stock: product.current_stock ?? 0, reorder_level: product.reorder_level ?? '', uom: product.uom || undefined,
       paper_stock: product.paper_stock ?? scalar(attributes.paper_stock), paper_mrp: scalar(attributes.paper_mrp),
       paper_purchase_price: scalar(attributes.paper_purchase_price ?? attributes.gst_purchase_price), domain_attributes: attributes,
@@ -88,6 +91,8 @@ export async function saveProductVariants(parent: ProductWritePayload, variants:
       item_code: parent.item_code, category: parent.category, brand_manufacturer: parent.brand_manufacturer,
       uom: variant.uom || parent.uom, purchase_price: optional(variant.purchase_price) ?? Number(parent.purchase_price),
       base_price: optional(variant.base_price) ?? Number(parent.base_price), offer_price: optional(variant.offer_price) ?? null,
+      discount_percent: variant.discount_percent === undefined ? variant.originalProduct?.discount_percent : optional(variant.discount_percent) ?? null,
+      discount_flat: variant.discount_flat === undefined ? variant.originalProduct?.discount_flat : optional(variant.discount_flat) ?? null,
       current_stock: Number(variant.current_stock) || 0, reorder_level: optional(variant.reorder_level) ?? Number(parent.reorder_level),
       is_gst_applicable: parent.is_gst_applicable, hsn_sac_code: parent.hsn_sac_code, tax_rate_percent: parent.tax_rate_percent,
       domain_attributes: JSON.stringify(attributes), pricing_mode: variant.originalProduct?.pricing_mode || 'FIXED_PRICE' };

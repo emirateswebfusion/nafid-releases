@@ -1,5 +1,6 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import clsx from 'clsx';
+import { DateRangeFilter } from '../../ui/DateRangeFilter';
 import { TYPE_CONFIG, QUICK_CATEGORIES, formatDateTime } from '../paymentMethodsTypes';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { PlusCircle, ArrowDownToLine, ArrowUpFromLine, Search, X, History } from 'lucide-react';
@@ -193,13 +194,16 @@ export function PaymentTransactionsView({
       )}
 
       {/* Transactions Log & Table */}
-      <div className="bg-card/80 border border-border/80 rounded-3xl overflow-hidden shadow-sm backdrop-blur-md">
+      <div className="bg-card/80 border border-border/80 rounded-3xl relative z-20 shadow-sm backdrop-blur-md">
         <div className="p-4 border-b border-border/60 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wider">Transaction History</h3>
             <span className="text-xs text-muted-foreground font-semibold">({filteredTransactions.length} entries)</span>
           </div>
 
+          <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap sm:justify-end">
+      <DateRangeFilter align="right" startDate={pmState.startDate} endDate={pmState.endDate}
+        onChange={(start, end) => { pmState.setStartDate(start); pmState.setEndDate(end); }} />
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50 pointer-events-none" />
             <input
@@ -217,6 +221,7 @@ export function PaymentTransactionsView({
                 <X className="w-3 h-3" />
               </button>
             )}
+          </div>
           </div>
         </div>
 

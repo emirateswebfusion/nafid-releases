@@ -137,7 +137,7 @@ export class CustomerIdentityService {
           existingCustomer = db.prepare<unknown[], IdentityRow>(`
             SELECT * FROM customers 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-              AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
+              AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE ?
             LIMIT 1
           `).get(tenantId, `%${last10}`);
         }
@@ -146,7 +146,7 @@ export class CustomerIdentityService {
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
-              AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
+              AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE ?
             ORDER BY created_at ASC
             LIMIT 1
           `).get(tenantId, `%${last10}`);
@@ -195,7 +195,7 @@ export class CustomerIdentityService {
             SELECT * FROM parties 
             WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
               AND (party_type LIKE '%CUSTOMER%' OR party_type IS NULL)
-              AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?
+              AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE ?
             ORDER BY created_at ASC
             LIMIT 1
           `).get(tenantId, `%${cClean.slice(-10)}`);
@@ -299,7 +299,7 @@ export class CustomerIdentityService {
             WHERE tenant_id = ? AND (
               customer_id = ? 
               OR (phone IS NOT NULL AND phone = ?)
-              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?)
+              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE ?)
               OR (name IS NOT NULL AND LOWER(TRIM(name)) = LOWER(TRIM(?)))
             ) LIMIT 1
           `).get(tenantId, finalCustomerId, phone, phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', phoneClean.length >= 7 ? `%${phoneClean.slice(-10)}` : '', name) as IdentityRow);
@@ -372,7 +372,7 @@ export class CustomerIdentityService {
             WHERE tenant_id = ? AND (
               party_id = ? 
               OR (LOWER(TRIM(name)) = LOWER(TRIM(?)) AND (phone = ? OR (phone IS NULL AND ? IS NULL)))
-              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE ?)
+              OR (? != '' AND phone IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE ?)
               OR (LOWER(TRIM(name)) = LOWER(TRIM(?)))
             )
             ORDER BY 

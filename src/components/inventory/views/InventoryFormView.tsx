@@ -160,15 +160,17 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
               onAddPricingTier={onAddPricingTier}
             />
 
-            <VariantsSection variants={variants} setVariants={setVariants} formData={formData}
-              enableRealPaperStock={enableRealPaperStock} activePricingTiers={activePricingTiers}
-              onAddPricingTier={onAddPricingTier} />
+
 
             {/* Section 3: Discount & Offers */}
             <DiscountSection
               formData={formData} handleDiscountFlatChange={handleDiscountFlatChange}
               handleDiscountPercentChange={handleDiscountPercentChange} handleOfferPriceChange={handleOfferPriceChange}
             />
+
+            <VariantsSection variants={variants} setVariants={setVariants} formData={formData}
+              enableRealPaperStock={enableRealPaperStock} activePricingTiers={activePricingTiers}
+              onAddPricingTier={onAddPricingTier} />
 
             {/* Section 4: Stock */}
             <StockSection

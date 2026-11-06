@@ -230,3 +230,5 @@ export function updateCustomerProfile(db: Db, columns: readonly CustomerProfileC
           pricing_tier_id = ?
     ${columns.map((c) => `, ${c} = ?`).join('')}, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`);
 }
+
+export const customerIdentityCandidates = (db: Db) => db.prepare("SELECT customer_id, name, phone FROM customers WHERE tenant_id = ? AND COALESCE(is_deleted, 0) = 0");

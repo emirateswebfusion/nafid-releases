@@ -182,13 +182,13 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
             const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as Record<string, unknown>;
             if (existing) {
               const targetId = existing.drawer_id;
-              // For open drawers or drawers pending push, preserve local sales & cash balance if cloud is lower
+              // A remote close freezes its counted totals; local balance protection must never reopen it.
               const localSales = Number(existing.cash_sales) || 0;
               const localCurrent = Number(existing.current_cash) || 0;
               const cloudSales = Number(drawerData.cash_sales) || 0;
               const cloudCurrent = Number(drawerData.current_cash) || 0;
               
-              if (existing.status === 'OPEN' || existing.sync_status === 'PENDING' || localSales > cloudSales || localCurrent > cloudCurrent) {
+              if (drawerData.status !== 'CLOSED' && (existing.status === 'OPEN' || existing.sync_status === 'PENDING' || localSales > cloudSales || localCurrent > cloudCurrent)) {
                 const localOpening = Number(existing.opening_balance) || 0;
                 const cloudOpening = Number(drawerData.opening_balance) || 0;
                 drawerData.opening_balance = Math.max(cloudOpening, localOpening);

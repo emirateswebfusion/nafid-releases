@@ -75,6 +75,9 @@ export function useCustomerData(ctx: UseCustomerDataContext) {
       }
 
       setCustomers(cleanCusts);
+      setSelectedCustomer(previous => previous
+        ? cleanCusts.find(customer => customer.customer_id === previous.customer_id) ?? previous
+        : previous);
       if (partyData !== null && Array.isArray(partyData)) {
         setParties(partyData);
         partiesRef.current = partyData;
@@ -85,7 +88,7 @@ export function useCustomerData(ctx: UseCustomerDataContext) {
       setLoading(false);
       setFilterLoading(false);
     }
-  }, [tenantId, debouncedSearchQuery, filterActive, filterCredit, filterPricingTier, filterOverdue, partiesRef, setCustomers, setFilterLoading, setLoading, setParties, showStatus]);
+  }, [tenantId, debouncedSearchQuery, filterActive, filterCredit, filterPricingTier, filterOverdue, partiesRef, setCustomers, setFilterLoading, setLoading, setParties, setSelectedCustomer, showStatus]);
 
   const loadCustomerDetails = async (customer: Customer) => {
     lastInteractedCustomerIdRef.current = customer.customer_id;
@@ -111,7 +114,7 @@ export function useCustomerData(ctx: UseCustomerDataContext) {
 
     if (!isDesktopRuntime()) return;
     try {
-      const [invData, loyaltyData] = await Promise.all([
+      const [invData, loyaltyData, freshCustomers] = await Promise.all([
         customersApi.getCustomerInvoices({
           customer_id: customer.customer_id,
           tenant_id: tenantId as string,
@@ -119,7 +122,11 @@ export function useCustomerData(ctx: UseCustomerDataContext) {
           name: customer.name,
         }),
         customersApi.getCustomerLoyaltyTransactions({ customer_id: customer.customer_id, tenant_id: tenantId as string }),
+        customersApi.getCustomers({ tenant_id: tenantId as string, search: customer.name }),
       ]);
+      if (lastInteractedCustomerIdRef.current !== customer.customer_id) return;
+      const fresh = Array.isArray(freshCustomers) ? freshCustomers.find(row => row.customer_id === customer.customer_id) : undefined;
+      if (fresh) setSelectedCustomer(previous => previous?.customer_id === customer.customer_id ? fresh : previous);
       setInvoices(Array.isArray(invData) ? invData : []);
       setLoyaltyTxs(Array.isArray(loyaltyData) ? loyaltyData : []);
     } catch {

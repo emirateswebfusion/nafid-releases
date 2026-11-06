@@ -42,7 +42,13 @@ export function buildProductSearchResults(
     item_code: c.sku_barcode || '',
     base_price: c.combo_price,
     purchase_price: 0,
-    current_stock: 999,
+    current_stock: Array.isArray(c.items) && c.items.length > 0
+      ? Math.min(...c.items.map((item: { product_stock?: number | null; quantity?: number }) => {
+        const stock = Number(item.product_stock);
+        const quantity = Number(item.quantity);
+        return Number.isFinite(stock) && Number.isFinite(quantity) && quantity > 0
+          ? Math.max(0, Math.floor(stock / quantity)) : 0;
+      })) : 0,
     uom: 'Combo',
     billing_type: 'PIECE',
     isCombo: true,

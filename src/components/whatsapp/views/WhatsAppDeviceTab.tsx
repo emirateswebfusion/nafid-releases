@@ -1,4 +1,5 @@
-import { Smartphone, Check, PowerOff, CheckCircle2, WifiSync, RefreshCw, QrCode } from 'lucide-react';
+import { useState } from 'react';
+import { Smartphone, Check, PowerOff, CheckCircle2, Loader2, RefreshCw, X, QrCode } from 'lucide-react';
 import { Button } from '../../ui/Button';
 import type { WhatsAppSettingsState } from '../hooks/useWhatsAppSettingsState';
 
@@ -13,6 +14,7 @@ export function WhatsAppDeviceTab({
   handleConnect, handleTabSelect, wa,
 }: WhatsAppDeviceTabProps) {
   const { loading, phone, qrCode, setShowConfirmDisconnect, status } = wa;
+  const [qrHidden, setQrHidden] = useState(false);
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-200">
       {status === 'connected' ? (
@@ -90,22 +92,22 @@ export function WhatsAppDeviceTab({
             </div>
           </div>
         </div>
-      ) : status === 'syncing' ? (
-        <div className="py-16 rounded-2xl bg-muted/20 border border-border/80 flex flex-col items-center justify-center text-center space-y-4 w-full">
-          <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border-2 border-blue-500 text-blue-500 flex items-center justify-center mx-auto">
-            <WifiSync className="w-10 h-10 animate-spin" />
+      ) : status === 'syncing' || (status === 'connecting' && !qrCode) ? (
+        <div role="status" aria-live="polite" aria-busy="true" className="py-12 px-6 rounded-2xl bg-muted/10 border border-border/60 flex flex-col items-center justify-center text-center space-y-4 w-full">
+          <div className="w-14 h-14 rounded-full bg-primary/5 text-primary flex items-center justify-center mx-auto">
+            <Loader2 aria-hidden="true" className="w-7 h-7 animate-spin motion-reduce:animate-none" />
           </div>
           <div className="space-y-1 max-w-md">
-            <h4 className="text-base font-bold text-foreground">Synchronizing WhatsApp Session</h4>
+            <h4 className="text-base font-bold text-foreground">Connecting to WhatsApp</h4>
             <p className="text-xs text-muted-foreground">
-              Device authenticated successfully. Initializing encryption keys and session cache&hellip;
+              Please wait while WhatsApp establishes the connection&hellip;
             </p>
             <p className="text-[11px] text-muted-foreground/80 mt-1">
-              Please keep the app open. This takes only a few seconds.
+              Keep Nafid open until the connection is ready.
             </p>
           </div>
         </div>
-      ) : qrCode ? (
+      ) : qrCode && !qrHidden ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center p-6 md:p-8 rounded-2xl bg-muted/20 border border-border/80 w-full">
           <div className="lg:col-span-5 flex flex-col items-center text-center space-y-4">
             <div className="p-4 bg-white rounded-3xl shadow-lg border border-border/80 inline-block">
@@ -120,6 +122,10 @@ export function WhatsAppDeviceTab({
             >
               <RefreshCw className={`w-3.5 h-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh QR Code
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setQrHidden(true)}>
+              <X aria-hidden="true" className="w-4 h-4 mr-2" />
+              Close QR Code
             </Button>
           </div>
 
@@ -173,12 +179,12 @@ export function WhatsAppDeviceTab({
           </div>
           <div className="pt-2">
             <Button
-              onClick={handleConnect}
-              disabled={loading || status === 'connecting'}
+              onClick={() => { setQrHidden(false); if (!qrCode) void handleConnect(); }}
+              disabled={!qrCode && (loading || status === 'connecting')}
               className="text-xs font-bold px-7 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-sm"
             >
               <QrCode className="w-4 h-4 mr-2" />
-              {loading
+              {qrCode ? 'Show QR Code' : loading
                 ? 'Initializing...'
                 : status === 'connecting'
                 ? 'Please Wait...'

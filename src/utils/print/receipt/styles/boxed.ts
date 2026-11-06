@@ -439,6 +439,35 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
     text += B_MID();
   }
 
+  // ── QR Code ───────────────────────────────────────────────────────────────
+  if (data.upiId && data.showUpiQr) {
+    try {
+      const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${Math.max(0, netTotal).toFixed(2)}&cu=INR`;
+      text += '[[QR:' + upiUrl + ']]\n';
+    } catch { /* ignore */ }
+  }
+
+  // ── Loyalty Points ────────────────────────────────────────────────────────
+  const hasPoints =
+    (data.pointsEarned != null && data.pointsEarned > 0) ||
+    (data.previousPointsBalance != null && data.previousPointsBalance !== 0) ||
+    (data.pointsRedeemed != null && data.pointsRedeemed > 0) ||
+    (data.remainingPointsBalance != null && data.remainingPointsBalance !== 0);
+  if (hasPoints) {
+    const ptRow = (l: string, v: string) => {
+      const effVW = Math.max(amtW, 8, v.length);
+      const effLW = INNER - effVW - 1;
+      const label = l.length > effLW ? l.substring(0, effLW) : l.padEnd(effLW);
+      const val = v.padStart(effVW);
+      return B_LINE(label + '│' + val);
+    };
+    text += ptRow('Bill Points', (data.pointsEarned || 0).toFixed(2));
+    text += ptRow('Used Point', String(data.pointsRedeemed || 0));
+    text += ptRow('Used Amt', data.pointsRedeemedDiscount ? data.pointsRedeemedDiscount.toFixed(2) : '0');
+    text += ptRow('Balance Points', (data.remainingPointsBalance || 0).toFixed(2));
+    text += B_MID();
+  }
+
   // ── Authorised Signatory & For Shop Name ──────────────────────────────────
   if ((selectedBillSettings.showForShopName !== false && data.shopName) || selectedBillSettings.showAuthorisedSignatory !== false) {
     text += B_LINE('');
@@ -469,35 +498,6 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
   // ── Footer ────────────────────────────────────────────────────────────────
   text += B_LINE(centerText('Thank You... Visit Again !', INNER));
   text += B_MID();
-
-  // ── QR Code ───────────────────────────────────────────────────────────────
-  if (data.upiId && data.showUpiQr) {
-    try {
-      const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${Math.max(0, netTotal).toFixed(2)}&cu=INR`;
-      text += '[[QR:' + upiUrl + ']]\n';
-    } catch { /* ignore */ }
-  }
-
-  // ── Loyalty Points ────────────────────────────────────────────────────────
-  const hasPoints =
-    (data.pointsEarned != null && data.pointsEarned > 0) ||
-    (data.previousPointsBalance != null && data.previousPointsBalance > 0) ||
-    (data.pointsRedeemed != null && data.pointsRedeemed > 0) ||
-    (data.remainingPointsBalance != null && data.remainingPointsBalance > 0);
-  if (hasPoints) {
-    const ptRow = (l: string, v: string) => {
-      const effVW = Math.max(amtW, 8, v.length);
-      const effLW = INNER - effVW - 1;
-      const label = l.length > effLW ? l.substring(0, effLW) : l.padEnd(effLW);
-      const val = v.padStart(effVW);
-      return B_LINE(label + '│' + val);
-    };
-    text += ptRow('Bill Points', (data.pointsEarned || 0).toFixed(2));
-    text += ptRow('Used Point', String(data.pointsRedeemed || 0));
-    text += ptRow('Used Amt', data.pointsRedeemedDiscount ? data.pointsRedeemedDiscount.toFixed(2) : '0');
-    text += ptRow('Balance Points', (data.remainingPointsBalance || 0).toFixed(2));
-    text += B_MID();
-  }
 
   text += B_BOT();
   return text;

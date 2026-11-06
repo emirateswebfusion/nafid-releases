@@ -3,7 +3,9 @@ import * as sql from '../db/statements/loyalty.js';
 import { localTimestamp } from './storeTime.js';
 import crypto from 'node:crypto';
 
-type Config = { enabled?: boolean; earningRate?: number; redemptionRate?: number; awardPointsOnPending?: boolean };
+import { calculateLoyaltyPoints } from '../utils/loyalty.js';
+
+type Config = { includeTax?: boolean; enabled?: boolean; earningRate?: number; redemptionRate?: number; awardPointsOnPending?: boolean };
 export function loyaltyEnabled(config: unknown, flags: unknown): boolean {
   const c = config as Config | null;
   const f = flags as { loyalty?: boolean } | null;
@@ -39,13 +41,17 @@ export function captureInvoicePoints(db: Db, id: string) {
 }
 
 export function refreshInvoiceEarnings(db: Db, id: string) {
-  const inv = sql.invoice(db).get(id) as { tenant_id: string; payment_method: string; grand_total: number; converted_from_invoice_id: string } | undefined;
+  const inv = sql.invoice(db).get(id) as { tenant_id: string; payment_method: string; grand_total: number; tax_total: number; counts_in_revenue: number; converted_from_invoice_id: string } | undefined;
   if (!inv || inv.converted_from_invoice_id) return;
   const config = readLoyaltyConfig(db, inv.tenant_id);
-  if (!config.enabled) return;
+  if (!config.enabled) {
+    reconcileInvoicePoints(db, id);
+    return;
+  }
+  captureInvoicePoints(db, id);
   const pm = (inv.payment_method || 'PENDING').toUpperCase();
-  const earn = pm !== 'HOLD' && (pm !== 'PENDING' || config.awardPointsOnPending);
-  const points = earn ? Math.floor(Math.max(0, inv.grand_total) / Math.max(1, Number(config.earningRate) || 100)) : 0;
+  const earn = inv.counts_in_revenue === 1 && pm !== 'HOLD' && (pm !== 'PENDING' || config.awardPointsOnPending);
+  const points = earn ? calculateLoyaltyPoints(inv.grand_total, inv.tax_total, config) : 0;
   sql.updateEarned(db).run(points, id);
   reconcileInvoicePoints(db, id);
 }
@@ -67,7 +73,11 @@ export function reconcileInvoicePoints(db: Db, id: string) {
   const applied = sql.applied(db).get(id, inv.customer_id, inv.tenant_id) as { count: number; earned: number; redeemed: number };
   const diffEarned = earned - (applied.count ? applied.earned : Number(inv.points_earned) || 0);
   const diffRedeemed = redeemed - (applied.count ? applied.redeemed : Number(inv.points_redeemed) || 0);
-  if (!diffEarned && !diffRedeemed) return;
+  if (!diffEarned && !diffRedeemed) {
+    const balance = Number(cust.current_points_balance) || 0;
+    sql.updateBalance(db).run(balance, balance, localTimestamp(), id);
+    return;
+  }
   const now = localTimestamp();
   let balance = Number(cust.current_points_balance) || 0;
   for (const [type, delta] of [['ADJUSTED', diffEarned], ['REDEEMED', -diffRedeemed]] as const) {
@@ -76,7 +86,7 @@ export function reconcileInvoicePoints(db: Db, id: string) {
     balance += delta;
   }
   sql.updateCustomer(db).run(diffEarned, diffRedeemed, balance, now, inv.customer_id, inv.tenant_id);
-  sql.updateBalance(db).run(balance, now, id);
+  sql.updateBalance(db).run(balance, balance, now, id);
 }
 
 /** Validate edits against the saved customer contribution before any invoice fields are changed. */
@@ -97,5 +107,17 @@ export function validateInvoicePointsEdit(db: Db, id: string, customerId: string
     if (redeemed > Math.max(0, (Number(cust?.current_points_balance) || 0) + previous)) throw new Error('Insufficient points balance; refresh the bill');
     const expected = Math.round(redeemed * Math.max(0.01, Number(config.redemptionRate) || 1) * 100) / 100;
     if (Math.abs(value - expected) > 0.001) throw new Error('Points discount changed; refresh the bill');
+  }
+}
+
+/** Recover erased customer counters only from recorded movements, never from today's earning rate.
+ * A nonzero opening/manual balance is deliberately left for explicit review. */
+export function repairZeroLoyaltyCounters(db: Db, tenant: string) {
+  const totals = sql.ledgerTotals(db).all(tenant) as { customer_id: string; earned: number; redeemed: number; balance: number }[];
+  for (const total of totals) {
+    const customer = sql.customer(db).get(total.customer_id, tenant) as { total_points_earned: number; total_points_redeemed: number; current_points_balance: number } | undefined;
+    if (!customer || Number(customer.total_points_earned) || Number(customer.total_points_redeemed) || Number(customer.current_points_balance)) continue;
+    if (!total.earned && !total.redeemed && !total.balance) continue;
+    sql.replaceTotals(db).run(total.earned, total.redeemed, total.balance, localTimestamp(), total.customer_id, tenant);
   }
 }

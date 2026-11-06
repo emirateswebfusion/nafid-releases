@@ -219,7 +219,7 @@ export const findInvoiceItemsByInvoiceId2 = (db: Db) => db.prepare(`
              p.tax_rate_percent AS product_tax_rate_percent
       FROM invoice_items ii
       LEFT JOIN products p ON ii.product_id = p.product_id
-      WHERE ii.invoice_id = ?
+      WHERE ii.invoice_id = ? ORDER BY ii.rowid ASC
     `);
 
 export const findUsersByUserId = (db: Db) => db.prepare('SELECT role, permissions FROM users WHERE user_id = ?');

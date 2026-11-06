@@ -238,8 +238,9 @@ export function generateWhatsAppClosingMessage(
     }
     if (checklist.sales) {
       if (checklist.grossSales !== false) {
-        lines.push(`• Gross Sales: ${formatCurrency(data.grossSales)}`);
+        lines.push(`• Gross Sales (before discounts): ${formatCurrency(data.grossSales)}`);
       }
+      lines.push(`• Sales Today: *${formatCurrency(Math.max(0, data.grossSales - data.totalDiscount))}*`);
       if (checklist.totalDiscount !== false && data.totalDiscount > 0) {
         lines.push(`• Total Discount: -${formatCurrency(data.totalDiscount)}`);
       }

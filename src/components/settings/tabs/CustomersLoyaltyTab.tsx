@@ -12,6 +12,7 @@ export interface CustomersLoyaltyTabProps {
   enablePartyEstimate: boolean; setEnablePartyEstimate: (v: boolean) => void;
   enablePartyGst: boolean; setEnablePartyGst: (v: boolean) => void;
   showFullyPaidCashInLedger: boolean; setShowFullyPaidCashInLedger: (v: boolean) => void;
+  loyaltyIncludeTax?: boolean; setLoyaltyIncludeTax?: (v: boolean) => void;
   loyaltyAwardOnPending: boolean; setLoyaltyAwardOnPending: (v: boolean) => void;
   loyaltyEarningRate: number | string; setLoyaltyEarningRate: SettingsForm['setLoyaltyEarningRate'];
   loyaltyRedemptionRate: number | string; setLoyaltyRedemptionRate: SettingsForm['setLoyaltyRedemptionRate'];
@@ -24,7 +25,7 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
   enablePartyEstimate, setEnablePartyEstimate,
   enablePartyGst, setEnablePartyGst,
   showFullyPaidCashInLedger, setShowFullyPaidCashInLedger,
-  loyaltyAwardOnPending, setLoyaltyAwardOnPending,
+  loyaltyIncludeTax = true, setLoyaltyIncludeTax, loyaltyAwardOnPending, setLoyaltyAwardOnPending,
   loyaltyEarningRate, setLoyaltyEarningRate,
   loyaltyRedemptionRate, setLoyaltyRedemptionRate,
   onOpenFeatures,
@@ -226,6 +227,12 @@ export const CustomersLoyaltyTab: React.FC<CustomersLoyaltyTabProps> = ({
                           className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono"
                         />
                         <span className="text-xs font-bold text-muted-foreground shrink-0">= 1 Pt</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span>{localizeTaxText('Without GST')}</span>
+                        <button type="button" role="switch" aria-label="Include tax in loyalty earnings" aria-checked={loyaltyIncludeTax} onClick={() => setLoyaltyIncludeTax?.(!loyaltyIncludeTax)} className={clsx('relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors', loyaltyIncludeTax ? 'bg-primary' : 'bg-muted-foreground/30')}><span className={clsx('h-5 w-5 rounded-full bg-white shadow transition-transform mt-0.5', loyaltyIncludeTax ? 'translate-x-5' : 'translate-x-0.5')} /></button>
+                        <span>{localizeTaxText('With GST')}</span>
+                        <button type="button" aria-label="Points calculation example" title={`At 100 per point: 2500 before tax + 100 tax = 2600. With tax: 26 points. Without tax: 25 points.`}>?</button>
                       </div>
                       <p className="text-[10px] text-muted-foreground/70 mt-1">Customer earns 1 point per {getCurrencyPrefix()}{loyaltyEarningRate} spent.</p>
                     </div>

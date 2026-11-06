@@ -1,3 +1,4 @@
+import { discountChange } from './productDiscounts';
 import { FloatToast } from '../ui/FloatToast';
 import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
@@ -375,35 +376,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted, initial
       : Number(data.base_price) || 0;
   };
 
-  const handleDiscountPercentChange = (val: string) => {
-    if (val === '') {
-      setFormData(prev => ({ ...prev, discount_percent: '', discount_flat: '' }));
-      return;
-    }
-    const percent = parseFloat(val);
-    const base = getEffectiveMrp();
-    const flat = base && !isNaN(percent) ? ((base * percent) / 100).toFixed(2) : '';
-    setFormData(prev => ({ ...prev, discount_percent: val, discount_flat: flat, offer_price: '' }));
-  };
-
-  const handleDiscountFlatChange = (val: string) => {
-    if (val === '') {
-      setFormData(prev => ({ ...prev, discount_percent: '', discount_flat: '' }));
-      return;
-    }
-    const flat = parseFloat(val);
-    const base = getEffectiveMrp();
-    const percent = base && !isNaN(flat) ? ((flat / base) * 100).toFixed(2) : '';
-    setFormData(prev => ({ ...prev, discount_percent: percent, discount_flat: val, offer_price: '' }));
-  };
-
-  const handleOfferPriceChange = (val: string) => {
-    if (val === '') {
-      setFormData(prev => ({ ...prev, offer_price: '' }));
-      return;
-    }
-    setFormData(prev => ({ ...prev, offer_price: val, discount_percent: '', discount_flat: '' }));
-  };
+  const handleDiscountPercentChange = (val: string) => setFormData(prev => ({ ...prev, ...discountChange(getEffectiveMrp(prev), 'discount_percent', val) }));
+  const handleDiscountFlatChange = (val: string) => setFormData(prev => ({ ...prev, ...discountChange(getEffectiveMrp(prev), 'discount_flat', val) }));
+  const handleOfferPriceChange = (val: string) => setFormData(prev => ({ ...prev, ...discountChange(getEffectiveMrp(prev), 'offer_price', val) }));
 
   const { printBarcode, printProductLabel, downloadCsv } = useInventoryExports({
     inv, stockFilterRef, tenantId,

@@ -56,3 +56,14 @@ describe('product variants', () => {
   });
   it('rejects malformed attributes safely', () => { expect(variantAttributes('[]')).toEqual({}); expect(variantAttributes('{bad')).toEqual({}); });
 });
+
+it('persists and reloads independent variant discounts and permits clearing them', async () => {
+  await saveProductVariants({ product_id: 'parent', tenant_id: 'tenant', name: 'Shirt' }, [draft({ discount_percent: '10', discount_flat: '5' })], vi.fn());
+  expect(createProduct).toHaveBeenCalledWith(expect.objectContaining({ discount_percent: 10, discount_flat: 5 }));
+  vi.mocked(listProducts).mockResolvedValue([{ product_id: 'child', discount_percent: 10, discount_flat: 5, domain_attributes: JSON.stringify({ parent_product_id: 'parent', variant_name: 'S' }) } as Product]);
+  vi.mocked(getProductPricing).mockResolvedValue([]);
+  const [loaded] = await loadProductVariants('tenant', 'parent');
+  expect(loaded).toMatchObject({ discount_percent: 10, discount_flat: 5 });
+  await saveProductVariants({ product_id: 'parent', tenant_id: 'tenant', name: 'Shirt' }, [{ ...loaded, discount_percent: '', discount_flat: '' }], vi.fn());
+  expect(updateProduct).toHaveBeenCalledWith(expect.objectContaining({ discount_percent: null, discount_flat: null }));
+});

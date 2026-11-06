@@ -1,4 +1,5 @@
-import { readLoyaltyConfig, captureInvoicePoints, reconcileInvoicePoints } from './loyaltyService.js';
+import { customerNameKey, customerPhoneKey } from '../utils/customerIdentityKey.js';
+import { repairZeroLoyaltyCounters, readLoyaltyConfig, captureInvoicePoints, reconcileInvoicePoints } from './loyaltyService.js';
 import * as loyaltySql from '../db/statements/loyalty.js';
 import type { CreditInvoice, CustomerCreditRow, CustomerInput } from './typesB.js';
 import { getDb } from '../db/localDb.js';
@@ -9,6 +10,13 @@ import { localTimestamp } from './storeTime.js';
 import * as customersSql from '../db/statements/customers.js';
 /** customers use-cases for the main process (called by electron/ipc handlers). */
 
+
+function duplicateCustomer(db: ReturnType<typeof getDb>, c: CustomerInput) {
+  const rows = customersSql.customerIdentityCandidates(db).all(c.tenant_id) as { customer_id: string; name: string; phone: string | null }[];
+  const name = customerNameKey(c.name), phone = customerPhoneKey(c.phone);
+  return rows.find(row => row.customer_id !== c.customer_id && ((name && customerNameKey(row.name) === name) || (phone && customerPhoneKey(row.phone) === phone)));
+}
+
 const customerCreateCache = new Map<string, number>();
 
 /** IPC `db:getCustomers` */
@@ -16,6 +24,7 @@ export function getCustomers({ tenant_id, active, credit, pricing_tier_id, searc
   try {
     const db = getDb();
     if (!tenant_id) return [];
+    db.transaction(() => repairZeroLoyaltyCounters(db, tenant_id))();
 
     // Single LEFT JOIN to best-matching party (CUSTOMER-type preferred, highest absolute balance)
     // resolves all 6 party fields in one pass instead of 6 correlated subqueries
@@ -81,6 +90,7 @@ export function createCustomer(c: CustomerInput) {
       return { success: false, error: 'Duplicate request blocked. Please wait.' };
     }
 
+    if (duplicateCustomer(db, c)) return { success: false, error: 'A customer with this name or phone already exists. Open the existing customer.' };
     const nameClean = (c.name || '').trim().toLowerCase();
     const existingSameName = customersSql.findCustomers(db).get(c.tenant_id, nameClean);
     if (existingSameName) {
@@ -215,6 +225,7 @@ export function updateCustomer(c: CustomerInput) {
     const db = getDb();
     if (!c.customer_id || !c.tenant_id) return { success: false, error: 'Customer ID and Tenant ID are required' };
 
+    if (duplicateCustomer(db, c)) return { success: false, error: 'A customer with this name or phone already exists. Open the existing customer.' };
     const hasCreditLimit = c.credit_limit !== undefined;
     const hasCreditPeriodEnabled = c.credit_period_enabled !== undefined;
     const hasCreditPeriodDays = c.credit_period_days !== undefined;

@@ -269,12 +269,22 @@ Use `inventory/variantProducts.ts` for validation and complete variant product/t
 Use `inventory/views/form/VariantsSection.tsx` to repeat `PricingSection`; do not create a second
 pricing implementation or restore the inventory toolbar Variants subpage. Dashboard event
 `open-product-variants` opens `variants/VariantsManager.tsx` under inventory/products.view.
-The page opens `InventoryManager` with `initialProduct` to reuse the canonical form.
+The page offers Add Variant through `views/VariantProductPicker.tsx`, which selects an existing
+non-variant product (including products without children). `views/VariantEditor.tsx` loads sibling
+variants, pricing tiers and the paper-stock preference, reuses `VariantsSection` in single-variant
+mode and saves only that child through `saveProductVariants`. No parent product write occurs.
+`inventory/variantDrafts.ts` owns parent defaults and compact-barcode draft creation shared by both
+entry points. A partial tier failure retains the assigned child ID for retry. `variants/variantCatalog.ts` builds and filters individual rows;
+`views/VariantPriceTable.tsx` renders one catalog-wide price list with a sticky header.
+Search, product/category selectors and named variant chips combine; counters show visible/total
+variants. Children whose parent is unavailable stay visible with an explicit label and disabled
+edit action. Selling prices use canonical `resolveLinePrice`, including catalog discounts.
 
 Manual acceptance uses only in-memory test data: start `pnpm exec vite --host 127.0.0.1 --port 5189`,
 then `pnpm exec electron tests/characterization/variant-workspace.cjs`.
-Open Product Variants, manage Cotton Shirt, confirm S stock 12 / Wholesale 80, add XL, set its
-independent pricing/tier, save, reopen, and confirm S and parent stock remain unchanged.
+Open Product Variants, choose Add Variant, select Cotton Shirt and create another size with its
+independent pricing/tier. Save, edit that child directly, and confirm S stock 12 / Wholesale 80
+and parent stock remain unchanged. Cancelled drafts and failed loads must not write products.
 
 Variant acceptance evidence: full `pnpm run verify` passed (177 files / 1,063 tests),
 `pnpm run lint:ratchet` passed with zero errors/warnings, and architecture guard passed.
@@ -356,3 +366,7 @@ Architecture review validation (6 November 2026): app and Electron typechecks pa
 The default online invoice-number allocation deadline in electron/services/invoiceNumberService.ts is 750 ms (previously 3000 ms). Checkout still awaits allocation and uses the existing local allocator on failure; this is a bounded network wait, not a guarantee of total print latency. Explicit caller deadlines (BOS conversion: 1500 ms) remain authoritative. Regression: uaeNumbering.characterization.test.ts exercises an actual abort and confirms sequential local fallback numbers; thermalPrint.test.ts covers readiness and single-job printing.
 
 Sales History payment collection closes its dialog immediately after confirmed persistence and reports success through the existing shared toast adapter. Do not add a presentation-only delay before the next action. Existing list refresh and cashier notification remain in place. No numbering payload, database schema, permission or sync contract changed. Physical printer and live WhatsApp timing still require runtime acceptance.
+
+### Thermal UPI QR size
+
+`electron/utils/upiQr.ts` owns the 25 mm square thermal receipt QR size (including a four-module white border) and generation options. Renderer receipt and Settings previews use its re-export in `src/utils/print/upiQr.ts`; keep these aligned with `hardware/receiptHtml.ts`. `electron/utils/receiptPaymentPanel.ts` groups the four boxed loyalty rows immediately following a QR marker into one panel (QR left, points right), shared by the USB HTML and both previews through a renderer re-export. The boxed generator puts this panel before the signature/footer. Plain text keeps all four rows for network output; QR-off retains the regular points table. A4 invoice layouts are separate. Physical printer/phone scanning must be checked on the shop hardware.

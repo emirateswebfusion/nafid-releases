@@ -68,7 +68,6 @@ export const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
     icon: Globe,
     color: 'text-sky-500',
     bgColor: 'bg-sky-500/10',
-    badge: 'NEW',
   },
   advertisements: {
     title: 'Advertisements & Promotions',
@@ -76,7 +75,6 @@ export const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
     icon: Megaphone,
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/10',
-    badge: 'NEW',
   },
   'ai-assistant': {
     title: 'AI Business Assistant',
@@ -84,7 +82,6 @@ export const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
     icon: Bot,
     color: 'text-indigo-500',
     bgColor: 'bg-indigo-500/10',
-    badge: 'NEW',
   },
   grades: {
     title: 'Categories & Grades',
@@ -108,7 +105,6 @@ export const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
     icon: FileText,
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/10',
-    badge: 'NEW',
   },
   'financial-report': {
     title: 'Financial Report',

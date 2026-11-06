@@ -51,8 +51,9 @@ export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof impo
     }
     if (checklist.sales) {
       if (checklist.grossSales !== false) {
-        lines.push(`• Gross Sales: ${formatCurrency((summaryData.grossSales as number | null | undefined))}`);
+        lines.push(`• Gross Sales (before discounts): ${formatCurrency((summaryData.grossSales as number | null | undefined))}`);
       }
+      lines.push(`• Sales Today: *${formatCurrency(Math.max(0, summaryData.grossSales - summaryData.totalDiscount))}*`);
       if (checklist.totalDiscount !== false && summaryData.totalDiscount > 0) {
         lines.push(`• Total Discount: -${formatCurrency((summaryData.totalDiscount as number | null | undefined))}`);
       }

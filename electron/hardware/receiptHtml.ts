@@ -1,4 +1,6 @@
+import { readReceiptPointRows, receiptPaymentPanelHtml } from '../utils/receiptPaymentPanel.js';
 import QRCode from 'qrcode';
+import { UPI_QR_OPTIONS } from '../utils/upiQr.js';
 
 /** Thermal receipt rendering: the plain-text receipt as HTML (borders, dividers, QR and Code 128 barcodes).
  * Pure function, no printer state. The page geometry is driven by @page (width fixed, height set after
@@ -127,12 +129,13 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
     if (line.includes('[[QR:')) {
       const match = line.match(/\[\[QR:([^\]]+)\]\]/);
       if (match) {
+        const pointRows = readReceiptPointRows(activeLines, i);
+        let dataUrl: string | null = null;
         try {
-          const dataUrl = await QRCode.toDataURL(match[1], { width: 280, margin: 1, errorCorrectionLevel: 'M' });
-          rowsHtml += `<div style="width:100%;text-align:center;margin:6px 0;"><img src="${dataUrl}" style="max-width:min(180px,100%);height:auto;display:inline-block;" /></div>`;
-        } catch {
-          rowsHtml += `<pre style="margin:0;text-align:center;">[QR CODE]</pre>`;
-        }
+          dataUrl = await QRCode.toDataURL(match[1], UPI_QR_OPTIONS);
+        } catch { /* Keep the point values visible even if QR generation fails. */ }
+        rowsHtml += receiptPaymentPanelHtml(dataUrl, pointRows);
+        i += pointRows.length;
         continue;
       }
     }
