@@ -12,6 +12,7 @@ export interface SelectOption {
 }
 
 export interface SelectProps {
+  'aria-label'?: string;
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
@@ -25,7 +26,7 @@ export interface SelectProps {
 }
 
 export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
-  ({ value, onChange, options = [], placeholder = 'Select...', className, disabled = false, searchable = false, size = 'default', triggerClassName, renderOption }, _ref) => {
+  ({ 'aria-label': ariaLabel, value, onChange, options = [], placeholder = 'Select...', className, disabled = false, searchable = false, size = 'default', triggerClassName, renderOption }, _ref) => {
     const [open, setOpen] = React.useState(false);
     const [search, setSearch] = React.useState('');
     const [focusedIndex, setFocusedIndex] = React.useState(-1);
@@ -128,6 +129,8 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       <div ref={containerRef} className={twMerge('relative', className)} onKeyDown={handleKeyDown}>
         <button
           type="button"
+          aria-label={ariaLabel}
+          aria-expanded={open}
           data-select-trigger
           disabled={disabled}
           onClick={() => !disabled && setOpen(prev => !prev)}

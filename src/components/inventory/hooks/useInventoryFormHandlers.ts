@@ -1,3 +1,4 @@
+import { recalculateProductDiscount } from '../../../utils/pricing/productDiscounts';
 import { type Product } from '../inventoryUtils';
 import { isDesktopRuntime } from '../../../data/client';
 import { adjustStock } from '../../../data/products';
@@ -103,12 +104,8 @@ export function useInventoryFormHandlers(ctx: UseInventoryFormHandlersContext) {
         next.gst_purchase_quantity = next.current_stock;
       }
 
-      if ((field === 'base_price' || field === 'grade_id') && next.discount_percent !== undefined && next.discount_percent !== '') {
-        const pct = parseFloat(next.discount_percent as string);
-        if (!isNaN(pct)) {
-          const base = getEffectiveMrp(next);
-          next.discount_flat = base ? ((base * pct) / 100).toFixed(2) : '';
-        }
+      if (field === 'base_price' || field === 'grade_id') {
+        Object.assign(next, recalculateProductDiscount(getEffectiveMrp(next), next.discount_percent));
       }
       return next;
     });

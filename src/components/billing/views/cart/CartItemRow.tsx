@@ -137,58 +137,57 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
       )}
     >
       <div className="flex grow shrink-0 w-max min-w-0 max-w-full items-center gap-3">
-      <span className="text-xs font-black text-primary/80 dark:text-primary-foreground/90 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1 flex items-center justify-center shrink-0 min-w-[2.25rem] h-8 select-none shadow-2xs">
-        #{idx + 1}
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="min-w-0 font-bold text-sm leading-snug text-foreground [overflow-wrap:anywhere]">
-            <span>{item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
-            {/\s*\((GST|EST|Estimate)\)$/i.test(item.name) && (
-              <span className={clsx(
-                "inline-block align-middle ml-1.5 text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none",
-                item.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-              )}>
-                {item.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
+        <span className="text-xs font-black text-primary/80 dark:text-primary-foreground/90 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1 flex items-center justify-center shrink-0 min-w-[2.25rem] h-8 select-none shadow-2xs">
+          #{idx + 1}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="min-w-0 font-bold text-sm leading-snug text-foreground [overflow-wrap:anywhere]">
+              <span>{item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
+              {/\s*\((GST|EST|Estimate)\)$/i.test(item.name) && (
+                <span className={clsx(
+                  "inline-block align-middle ml-1.5 text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none",
+                  item.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                )}>
+                  {item.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
+                </span>
+              )}
+            </span>
+            {item.isCombo && (
+              <span className="text-[9px] font-bold text-purple-600 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">
+                COMBO OFFER
               </span>
             )}
-          </span>
-          {item.isCombo && (
-            <span className="text-[9px] font-bold text-purple-600 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">
-              COMBO OFFER
-            </span>
-          )}
-        </div>
-        {item.isCombo && item.combo_items && (
-          <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
-            Includes: {item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
           </div>
-        )}
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 mt-0.5 flex-wrap">
-          {item.sku_barcode ? (
-            <span className="font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
-              {item.sku_barcode}
-            </span>
-          ) : item.item_code ? (
-            <span className="font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
-              Code: {item.item_code}
-            </span>
-          ) : (
-            <span className="italic">No barcode</span>
+          {item.isCombo && item.combo_items && (
+            <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
+              Includes: {item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
+            </div>
           )}
-          {pricePerPiece !== null && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-mono font-bold">
-              {formatCurrency(pricePerPiece)}/pc
-            </span>
-          )}
-          {item.brand_manufacturer && (
-            <span className="font-medium">&middot; {item.brand_manufacturer}</span>
-          )}
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 mt-0.5 flex-wrap">
+            {item.sku_barcode ? (
+              <span className="font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
+                {item.sku_barcode}
+              </span>
+            ) : item.item_code ? (
+              <span className="font-mono px-1.5 py-0.2 rounded bg-muted text-foreground font-semibold border border-border">
+                Code: {item.item_code}
+              </span>
+            ) : (
+              <span className="italic">No barcode</span>
+            )}
+            {pricePerPiece !== null && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-mono font-bold">
+                {formatCurrency(pricePerPiece)}/pc
+              </span>
+            )}
+            {item.brand_manufacturer && (
+              <span className="font-medium">&middot; {item.brand_manufacturer}</span>
+            )}
+          </div>
         </div>
-      </div>
-
       </div>
       <div className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
         {isPiecesWeight ? (

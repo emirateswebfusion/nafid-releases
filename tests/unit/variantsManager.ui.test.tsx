@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { within, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, within, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useAuthStore } from '../../src/store/authStore';
 import { VariantsManager } from '../../src/components/variants/VariantsManager';
@@ -109,4 +109,14 @@ it('shows the canonical discounted selling price in the variant list', async () 
   vi.mocked(loadVariantCatalog).mockResolvedValue([catalog[0], { ...catalog[1], discount_flat: 10 }]);
   render(<VariantsManager onClose={vi.fn()} />);
   expect(await screen.findByRole('cell', { name: /90\.00/ })).toBeTruthy();
+});
+
+it('discards the previous tenant editor when the authenticated tenant changes', async () => {
+  render(<VariantsManager onClose={vi.fn()} />);
+  await screen.findByText('Showing 1 of 1 variants');
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Cotton Shirt (S)' }));
+  expect(screen.getByText('Editing Cotton Shirt (S)')).toBeTruthy();
+  act(() => useAuthStore.setState({ tenantId: 'another-tenant' }));
+  expect(screen.queryByText('Editing Cotton Shirt (S)')).toBeNull();
+  await waitFor(() => expect(loadVariantCatalog).toHaveBeenCalledWith('another-tenant'));
 });

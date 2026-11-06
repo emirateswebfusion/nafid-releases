@@ -65,7 +65,7 @@ export function useInventoryState() {
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [variants, setVariants] = useState<import('../views/form/VariantsSection').ProductVariantItem[]>([]);
+  const [variants, setVariants] = useState<import('../variantProducts').ProductVariantItem[]>([]);
 
   return {
     view, setView, loading, setLoading, isFetching, setIsFetching, products, setProducts, searchQuery,

@@ -177,3 +177,15 @@ Their legacy push / pull is `electron/sync/entities/restaurantSync.ts`, run only
 is on, so retail sync requests are unchanged (`sync-run.mts`, `lan-run.mts` and the IPC harness compared HEAD vs
 candidate on 3 Nov 2026: identical apart from per-run random ids). Migration 015 also adds `BEFORE UPDATE ... RAISE(IGNORE)`
 triggers so no writer (local, LAN ingest, cloud pull) can take an order, line or kitchen status back.
+
+## 7.8 Legacy invoice line-order compatibility
+
+Legacy invoice pull preserves the surviving line order already saved on the receiving terminal via
+`invoiceItemOrder.ts`. Push and local invoice reads explicitly use SQLite row order. This changes neither
+payload fields nor server endpoints, and does not introduce a schema migration or a shared line-position
+contract. The current server can return items without their original position. First imports, LAN ingest
+and beta/outbox row application do not gain a global order guarantee from this helper. A future guarantee
+across terminals requires a coordinated POS/server position contract and migrations, not a UI sort or a
+timestamp heuristic. Existing order already lost cannot be reconstructed. The local rule and tests are
+documented in [data access](03-data-access.md#saved-invoice-line-order) and
+[business rules](04-business-rules.md#saved-bill-line-order).

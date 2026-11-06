@@ -1,5 +1,5 @@
 /** Isolated renderer acceptance fixture. No shop database, real account, hardware or external network. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../../src/index.css';
 import { SessionExpiredModal } from '../../src/components/app/SessionExpiredModal';
@@ -38,6 +38,11 @@ function FixtureHeader() {
 export function Fixture() {
   const [open, setOpen] = useState(false);
   const [dashboard, setDashboard] = useState(true);
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener('open-session-expired-modal', show);
+    return () => window.removeEventListener('open-session-expired-modal', show);
+  }, []);
   const paused = useAuthStore(state => state.isCloudSyncPaused);
   const name = useAuthStore(state => state.userName);
   useSyncStatus({ isAuthenticated: true, isCloudSyncPaused: true });

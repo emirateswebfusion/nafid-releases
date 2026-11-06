@@ -3,7 +3,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { useAuthStore } from '../../src/store/authStore';
-import { VariantsSection, type ProductVariantItem } from '../../src/components/inventory/views/form/VariantsSection';
+import { VariantsSection } from '../../src/components/inventory/views/form/VariantsSection';
+import type { ProductVariantItem } from '../../src/components/inventory/variantProducts';
 import { DEFAULT_FORM } from '../../src/components/inventory/inventoryUtils';
 vi.mock('../../src/components/inventory/views/form/PricingSection', () => ({ PricingSection: ({ tierPrices, setTierPrices }: { tierPrices: Record<string, string>; setTierPrices: (prices: Record<string, string>) => void }) => <input aria-label="Wholesale price" value={tierPrices.wholesale || ''} onChange={event => setTierPrices({ wholesale: event.target.value })} /> }));
 afterEach(cleanup);

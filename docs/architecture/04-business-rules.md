@@ -4,11 +4,21 @@ Rules that decide money, numbers, tax or access must have **exactly one implemen
 Before writing a calculation, look for it here. If you change a rule, change the canonical module, extend its test,
 and update every caller in the same change.
 
+### Combo availability
+
+`src/utils/pricing/comboStock.ts` owns complete-combo availability for billing search.
+Use component `product_stock` from the combo API, divide by the required quantity,
+and take the lowest whole result. Repeated product requirements are combined first.
+Empty or invalid requirements and negative availability return zero. Thus 12 and 11
+pieces at one each yield 11 combos; two pieces of the first yield 6.
+Tests: `productSearch.test.ts`, `comboStock.test.ts`. No IPC or sync contract changes.
+
 ## 4.1 Canonical rule modules (renderer)
 
 | Rule | Module | Tests |
 |---|---|---|
 | Line unit rate: list/grade rate → catalog offer/discount → ad-hoc cashier adjustment; scrap lines invert discounts | `src/utils/pricing/linePricing.ts` (`listRate`, `resolveLinePrice`) | `tests/unit/linePricing.test.ts` (incl. 5,000-case equivalence with the legacy rule) |
+| Product/variant draft discount conversion, offer exclusivity and MRP recalculation | `src/utils/pricing/productDiscounts.ts` (`changeProductDiscount`, `recalculateProductDiscount`) | `tests/unit/productDiscounts.test.ts`, `discountSection.ui.test.tsx` |
 | Checkout payload lines, CGST/SGST/IGST split, Bill-of-Supply tax, receipt lines, quotation lines, supply type | `src/utils/pricing/checkoutLines.ts` | `tests/unit/checkoutLines.test.ts` |
 | Return source discounts, fractional quantities, stored invoice tax, rounded line/header totals | `src/utils/pricing/returnPricing.ts` (reuses `resolveLinePrice`; invoice rates already include line discounts) | `tests/unit/returnPricing.test.ts`, `returnSelection.test.ts`, `billingScreen.ui.test.tsx` |
 | Live cart totals (subtotal, tax, scrap, discounts) | `src/store/cartStore.ts` (`useCartTotals`, uses `resolveLinePrice`) | via `linePricing` tests |
@@ -36,6 +46,17 @@ Sales History date filters and dashboard sales use invoice creation instants in 
 
 Main-process rules live in `electron/services/` (document numbering, party ledger, cash drawer reconciliation, store time)
 and `electron/utils/` (ids, cashier settlement math).
+
+### Saved bill line order
+
+Checkout and bill edits insert lines in submitted cart/receipt order. Invoice reads and legacy invoice push use
+explicit SQLite row order in `electron/db/statements/invoices.ts` and `statements/sync/salesDocsSync.ts`.
+`electron/sync/invoiceItemOrder.ts` is the single legacy-pull ordering rule: preserve surviving local item-id
+order, omit removed items, append new items in incoming order, and leave caller arrays unchanged. The existing
+divergent-PENDING-edit guard runs first. This is local compatibility behavior, not a persisted cross-terminal
+position contract. First imports retain incoming order; previously lost original positions cannot be recovered.
+See [data access](03-data-access.md#saved-invoice-line-order). Tests: `invoiceItemOrder.test.ts`,
+`preserveInvoiceItemOrder.test.ts`, `stockSnapshotSync.test.ts`.
 
 ### Customer credit ledger (`electron/services/partyLedgerService.ts`)
 
@@ -103,6 +124,11 @@ and `electron/utils/` (ids, cashier settlement math).
 
 ### Cash drawer sessions (`electron/services/cashDrawerSession.ts`)
 
+- Legacy cash-drawer pull (`electron/sync/entities/cashSync.ts`) accepts a received `CLOSED` status and its
+  closing metadata/totals without applying the local open-balance maximums. A nonzero opening balance cannot
+  reopen a received close. Same-day alternate drawer IDs use the existing matching path. This is a receiving
+  terminal fix, not a change to the wire contract or a guarantee about server/LAN conflict resolution.
+  Regression: `tests/unit/cashDrawerCloseSync.test.ts`.
 - Timestamps are stored in UTC; the store timezone setting decides business dates and wall-clock times
   (`storeTime.ts`: `localDate`, `storeWallClockToUtc`).
 - A drawer's **session** runs from the close of the previous drawer (else the start of its business date in the store
@@ -254,8 +280,8 @@ Tests: `tests/unit/filingRevenue.test.ts`, `tests/unit/filingOnlySettings.ui.tes
 |---|---|
 | Online login | `authStore` → `authCloud.login` → scoped main `cloudLoginService` on desktop → server `/auth/login`; browser surfaces retain direct HTTP |
 | Password reset/change, tenant domain | `src/store/authStore.ts` → server `/auth/*` |
-| Offline login (no network) | `authApi.loginOffline` → `electron/ipc/authHandlers.ts` (`localAuthenticateUser`, against users cached locally by sync) |
-| Token persistence | `authApi.saveToken/getToken` → `electron/services/authStorage.ts` (Electron `safeStorage`, `auth.enc`) |
+| Offline login (no network) | `authApi.loginOffline` → IPC registration → `electron/services/localAuthService.ts:localAuthenticateUser` (against users cached locally by sync) |
+| Token persistence | `authApi.saveToken` → `electron/services/authSessionService.ts`; reads/encryption through canonical `authStorage.ts` (Electron `safeStorage`, `auth.enc`) |
 | Session state, role, permissions | `useAuthStore` (`role`, `permissions`, `isAuthenticated`) |
 | UI permission checks | `hasPermission(user, 'sales.create')` from `src/utils/security/permissions.ts`; `<PermissionGuard>` component |
 | Biller PIN (quick user switch) | `BillerPinModal` → `staffApi.verifyBillerPin` |
@@ -320,6 +346,14 @@ Tests: `whatsappSharing`, `whatsappSendFlows`, `whatsappPurchaseRegression`, `wh
 
 ## Loyalty points
 
+Loyalty earning basis: `electron/utils/loyalty.ts` is shared by checkout, edit/settlement and renderer receipt preparation. `loyalty_config.includeTax` defaults to true for compatibility; false subtracts tax from the eligible total before flooring points. The preference uses the main Settings Save Changes draft. Reconciliation refreshes invoice opening and closing point snapshots after an edit.
+
+Loyalty review (6 November 2026): payment/edit refresh respects `counts_in_revenue`, and disabled earning still reconciles historical contributions. Customer detail summaries refresh from the stored customer alongside invoice/activity reads; stale detail responses cannot replace another customer. Receipt point balances preserve zero and negative values. Regression coverage: `customerPointsRefresh.ui`, `loyaltyReceipt`, `loyaltyPersistence`.
+
+Zero-counter recovery: customer directory reads transactionally restore all-three-zero customer loyalty counters from the recorded loyalty ledger, marking repaired rows PENDING through the existing repository. Nonzero counters are preserved; no invoice-based re-award, rate change, or inferred opening balance occurs. Recovery is tenant-scoped and idempotent (`loyaltyPersistence`).
+
+Customer directory create/edit rejects another active customer with the same whitespace/case-normalized name or normalized phone (existing last-ten-digit convention). The manual Merge Duplicates header action is removed; historical startup/sync identity reconciliation remains internal. Tests: `loyaltyPersistence` duplicate create/edit regression.
+
 `electron/services/loyaltyService.ts` is the main-process authority for enabling loyalty, settlement/edit earnings,
 return and cancellation adjustments. Both `loyalty_config.enabled` and `feature_flags.loyalty` must permit loyalty:
 an explicit false wins; if neither setting exists, loyalty is off. Disabled shops cannot newly earn, redeem,
@@ -327,7 +361,7 @@ manually adjust or recalculate points; historical invoice money remains unchange
 correct the stored balance. Renderer visibility is read by `src/hooks/useLoyaltyEnabled.ts` (billing also reloads
 its earning/redemption rates on `settings:updated`).
 
-Checkout calculates earnings from saved net grand total and validates whole-point redemption against the actual
+Checkout calculates earnings from the saved eligible net grand total (subtracting tax when `includeTax` is false) and validates whole-point redemption against the actual
 customer balance and configured redemption value. HOLD never earns/redeems; PENDING earns only if its existing
 setting permits it. Payment, discount and edit entry points capture the old contribution and reconcile to the
 new one. Ledger balance differences carry the direction of ADJUSTED and reversal rows; `points` remains absolute.
@@ -355,7 +389,8 @@ backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test
 - **Receipt typography and vertical spacing**: 80mm thermal receipts use an `11.5px` font size (dynamically clamped by DOM canvas character budget if lines exceed printable width), `1.22` line height for clear row distinction, `font-weight: 800` with `-webkit-text-stroke: 0.25px #000` to ensure solid, high-density black strokes on 203 DPI thermal heads without gray dithering, `2px` vertical margins around horizontal divider rules (`<hr>`) to prevent text from touching dividers, and `4px 3px` inner padding inside the 2px border.
 - **Roll margin balance and centering**: Thermal printers differ across manufacturers in their hardware origin (Epson/TVS/Bixolon align flush at ~0-2mm, while Xprinter/POS-80 series have an internal rightward offset). Rather than querying or recalculating on every transaction during high-volume checkout, the recommended left margin offset is automatically profiled once when the printer is selected in Settings (0mm for flush models like Epson/TVS; -3.5mm for offset models like Xprinter/POS-80) and stored in local printer configuration. The `#receipt-root` applies this stored `leftMarginOffsetMm` directly (`margin-left: ${marginOffsetMm}mm`), ensuring zero clipping on flush printers and balanced ~8mm margins on offset printers with 0 runtime overhead per bill.
 - **Continuous roll printing**: Always render with `usePrinterDefaultPageSize: true` and CSS `@page { size: auto; margin: 0 !important; }`. Custom micro-heights or dynamic page sizes cause Windows GDI thermal drivers to fall back to centered multi-page cuts with top empty voids (~40mm) and cut-offs. Cutter mode in Windows driver settings must be configured to "Document Cut" (end of job) rather than "Page Cut" to guarantee continuous single-piece receipts regardless of item count.
-- Tests: `tests/unit/thermalPrint.test.ts`, `tests/unit/printGenerators.characterization.test.ts`.
+- **UPI QR and points**: `electron/utils/upiQr.ts` owns the 25 mm thermal QR size and four-module white border; `receiptPaymentPanel.ts` derives the four points-row heights from that size and renders escaped HTML. The boxed generator emits the QR and four loyalty rows before the signature/footer. USB printing and both previews share the panel through renderer re-exports in `src/utils/print/`; no Electron APIs or Node dependencies may enter these pure modules. Group only a complete adjacent boxed points table; otherwise keep existing text rows. QR-off preserves the points table; a QR generation failure retains point values and displays a fallback. Network ESC/POS retains its existing text-only points behavior; A4 layouts are unchanged.
+- Tests: `tests/unit/thermalPrint.test.ts`, `tests/unit/receiptPaymentPanel.test.ts`, `tests/unit/printGenerators.characterization.test.ts`. Digital 58/80 mm PDF layout was visually verified; this does not certify phone scanning or physical hardware.
 
 
 ### India / UAE shop profile
@@ -455,10 +490,10 @@ reads the `uae_arabic_print` setting. India printing never calls it. Tests: `pri
 
 ### Shop Closing Gross Sales reconciliation (`electron/whatsapp/shopClosingSummary.ts`)
 
-- In `buildShopClosingSummaryData`, `grossSales` is strictly calculated as `netSales + totalDiscount` (`gTotal + disc`), matching the ground truth in `FinancialReport.tsx`.
-- Bill-level scrap deductions (`scrap_deduction`) and return deductions (`return_deduction`) are accounted for in their dedicated summary sections, never added into `grossSales`.
-- In the closing WhatsApp message (`shopClosingMessage.ts` and `shopClosingHelper.ts`), `Gross Sales` and `Total Discount` are displayed before `Net Sales` whenever discounts exist.
-- Tests: `tests/unit/shopClosingGrossAmount.test.ts`.
+- In `buildShopClosingSummaryData`, gross sales uses stored subtotal plus tax before discounts and credit deductions; net sales uses stored grand totals.
+- Scrap and return credits reduce net sales; gross sales is derived from the original sales value, not reconstructed from net sales.
+- Both closing formatters use the pure `electron/utils/closingSales.ts` rule for Sales Today (gross less discounts, floored at zero). Gross Sales is labelled before discounts; Net Sales retains stored grand totals after credits. Different report windows can still produce different totals.
+- Tests: `tests/unit/shopClosingGrossAmount.test.ts`, `tests/unit/salesHistoryReports.test.ts`.
 
 ### Inline Pricing Tier Creation (`src/components/inventory/views/form/PricingSection.tsx`, `InventoryManager.tsx`)
 
@@ -522,12 +557,16 @@ Removing an unsaved section removes only the draft; saved variants use the expli
 flow on the standalone Product Variants page.
 
 The dashboard page follows inventory/products.view and gates create/edit/delete using existing
-products permissions. It searches/filter groups across the complete catalog and delegates edits
-to the same product form. It replaces the inventory toolbar Variants button/subview.
+products permissions. It searches and filters individual variant rows across the complete catalog and delegates edits
+to the shared single-variant Modal through `variants/hooks/useVariantEditor.ts`. Add Variant
+selects an existing non-variant product; saving writes only the selected child and its tiers. It replaces the inventory toolbar Variants button/subview.
 Coverage: variantProducts, variantsSection.ui and variantPersistence (real SQLite/service roundtrip,
 independent tiers, preserved parent/sibling stock and tenant isolation).
 `inventoryVariantSave.ui` proves failure/retry retains parent and child IDs; `variantsManager.ui`
-proves search, parent-form delegation, read-only access, deletion confirmation and refresh recovery.
+proves search, selected-child editing, existing-product selection, read-only access, deletion
+confirmation and refresh recovery. `variantEditor.ui` covers sibling validation and partial-save
+retry; `variantCatalogLoad.ui` covers stale-read and tenant isolation. Zero offers remain visible
+and exclude competing discounts. No new bridge, schema or sync contract is introduced.
 
 
 ### Settings: one explicit Save Changes action
@@ -575,14 +614,14 @@ The root architecture's application-wide time contract applies to every module, 
 
 `electron/services/bulkProductValidation.ts` validates typed batches before `productsService.bulkImportProducts` starts its transaction. All rows must belong to one shop. Conflicting barcode/item-code identities roll the transaction back; an existing or deleted matching product keeps its ID. Product, tier and tier-price writes remain atomic, PENDING, and covered by the existing stock-counter/outbox triggers. Tests: `productFile.test.ts`, `productImport.ui.test.tsx`, `bulkProducts.test.ts`, plus `inventoryCsvExport.test.ts`. The 11,032-row regression checks initial import and repeat import. This does not bypass cloud authentication or make stale terminals safe to reconnect.
 
-Loyalty earning basis: `electron/utils/loyalty.ts` is shared by checkout, edit/settlement and renderer receipt preparation. `loyalty_config.includeTax` defaults to true for compatibility; false subtracts tax from the eligible total before flooring points. The preference uses the main Settings Save Changes draft. Reconciliation refreshes invoice opening and closing point snapshots after an edit.
 
-Loyalty review (6 November 2026): payment/edit refresh respects `counts_in_revenue`, and disabled earning still reconciles historical contributions. Customer detail summaries refresh from the stored customer alongside invoice/activity reads; stale detail responses cannot replace another customer. Receipt point balances preserve zero and negative values. Regression coverage: `customerPointsRefresh.ui`, `loyaltyReceipt`, `loyaltyPersistence`.
 
-Zero-counter recovery: customer directory reads transactionally restore all-three-zero customer loyalty counters from the recorded loyalty ledger, marking repaired rows PENDING through the existing repository. Nonzero counters are preserved; no invoice-based re-award, rate change, or inferred opening balance occurs. Recovery is tenant-scoped and idempotent (`loyaltyPersistence`).
 
-Customer directory create/edit rejects another active customer with the same whitespace/case-normalized name or normalized phone (existing last-ten-digit convention). The manual Merge Duplicates header action is removed; historical startup/sync identity reconciliation remains internal. Tests: `loyaltyPersistence` duplicate create/edit regression.
 
 ### Product and variant discount drafts
 
-`src/components/inventory/productDiscounts.ts` owns percentage/flat conversion and offer exclusivity for both product and variant forms. Variants repeat Inventory & Pricing and Discount & Offers after the parent discounts; variant discounts load/save independently. New variant barcodes use compact 12-character uppercase hexadecimal values; saved barcodes stay unchanged and existing duplicate validation still applies. Coverage: `productDiscounts.test.ts`, `variantsSection.ui.test.tsx`, `variantProducts.test.ts`.
+`src/utils/pricing/productDiscounts.ts` owns percentage/flat conversion, MRP recalculation and offer exclusivity for both product and variant forms. Variants repeat Inventory & Pricing and Discount & Offers after the parent discounts; variant discounts load/save independently. New variant barcodes use compact 12-character uppercase hexadecimal values; saved barcodes stay unchanged and existing duplicate validation still applies. Coverage: `productDiscounts.test.ts`, `variantsSection.ui.test.tsx`, `variantProducts.test.ts`.
+
+### Payment Methods date-range display
+
+Payment Methods overview filters sources by `last_transaction_date`; this is latest activity, not a historical balance report. Its metric cards and available balances remain lifetime/current values. The selected source ledger applies the shared inclusive shop-calendar range to `transaction_date`, combined with text search. Cash-in/out summary totals reflect those visible entries; saved running balances remain historical ledger values. Clearing both dates includes undated entries; an active range excludes missing or invalid dates. `components/payment-methods/paymentDateFilter.ts` owns matching through canonical timezone/calendar utilities; `tests/unit/paymentDateFilter.test.ts` covers boundaries, one-sided ranges and invalid values. No financial posting, IPC or sync contract changes.

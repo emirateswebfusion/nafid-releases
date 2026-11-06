@@ -33,6 +33,13 @@
 
 ## 6.2 Workflow for any change
 
+For cash-drawer close synchronization, keep the receiving-terminal compatibility rule in
+`electron/sync/entities/cashSync.ts` and SQL in `electron/db/statements/sync/cashSync.ts`. A received `CLOSED`
+row must bypass open-balance protection; do not infer `OPEN` from its opening balance. Keep closing metadata
+and frozen totals together. Run `cashDrawerCloseSync.test.ts` plus the sync characterization harnesses;
+two-terminal LAN acceptance remains separate from an isolated pull test. No wire/schema change is needed
+for this local correction; a new conflict-resolution contract requires coordinated POS/server work.
+
 1. **Locate the owner.** Use the table above and [02-codebase-map](02-codebase-map.md). One change belongs to one layer.
 2. **Read before you write.** Find every caller of what you change (`grep` the function/channel name across `src/` and
    `electron/`; for sync/REST also grep `nafid-server`).
@@ -54,44 +61,30 @@ Do not submit measured custom lengths to thermal drivers: Epson APD can substitu
 the length difference before the bill (reproduced as 193 mm leading blank on a short v2.2.2 receipt).
 Keep the driver configured for the selected roll width and continuous/long receipt paper; do not change the user's
 printer defaults from Nafid. A4 and barcode jobs retain their explicit sizes and existing fallback behavior.
-Windows receipt jobs query the selected queue's current GDI device caps in `hardware/windowsPrintArea.ts`:
-`HORZRES`, `LOGPIXELSX`, `PHYSICALWIDTH`, `PHYSICALOFFSETX`. No printer-model lookup or fixed 58/80 mm
-printable width is assumed. `usePrinterDefaultPageSize` selects that queue's form; no custom height is submitted.
-`receiptHtml.ts` positions the border ink inside those physical bounds, accounting for the existing 3 mm body
-padding and two CSS pixels of raster rounding allowance. Positive calibration reduces width, preserving the right
-edge; negative offsets are clamped at zero for measured Windows geometry to avoid entering the hardware margin.
-The HTML page width follows the driver while the app's width remains the receipt column/font-format preference.
-An 80 mm text layout on a 58 mm queue therefore fits rather than losing its Amount column. Invalid/non-thermal
-caps or a failed Windows query stop before printing; errors request driver settings/retry instead of guessing.
-Non-Windows system printers retain legacy geometry. PDF/WhatsApp geometry is unchanged.
-Sources: [Windows GetDeviceCaps](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdevicecaps),
-[Electron 42.4.1 printing API](https://github.com/electron/electron/blob/v42.4.1/docs/api/web-contents.md#contentsprintoptions-callback).
-`hardware/receiptLayout.ts` owns physical text fitting and the final main-process preflight. It measures real DOM
-text ranges, not canvas, uses container units for width changes, corrects hinted-font glyph bounds, and re-fits on
-font readiness, container resize and `beforeprint`. The same preparation runs from main immediately before spooling;
-it recovers when the HTML inline script did not execute, and rejects missing/overflowing layout instead of printing.
-PDF/WhatsApp retain their existing fitting path. Actual renderer coverage is `tests/characterization/receipt-layout.cjs`
-(54 receipts / 162 assertions with canvas disabled across nine styles, three fonts and 58/80 mm, including late
-narrowing). Native driver coverage includes unavailable canvas and removed inline scripts; the photographed five-item
-layout is a synthetic fixture. Merely removing body/page margins was tested and clipped both borders on the Epson
-APD queue, so do not assume driver defaults alone contain fixed-width HTML text.
-Rows fit available width after assets load, before `printReady(height)` signals content readiness. Height is a
-readiness/validity check only for physical jobs, not their paper length. Missing readiness messages recover by
-measuring that same window directly. Invalid direct measurements report a retry error; never feed guessed paper.
-Each USB job captures its receipt text before printer discovery. Receipt failures never retry on a different/default
-printer. PDF/WhatsApp callers keep their original body geometry and dynamic CSS page sizing.
+The current `hardware/receiptHtml.ts` renderer fits text using canvas measurements after assets load,
+then signals `printReady`. It does not currently contain the previously documented
+`hardware/windowsPrintArea.ts` or `hardware/receiptLayout.ts` modules; do not assume GDI device-cap
+measurement, DOM-range fitting, or those missing-module preflight guarantees when changing this path.
+The USB adapter uses the selected printer form through `usePrinterDefaultPageSize`; PDF/WhatsApp
+retain their own page geometry. Preserve the shared QR/points rendering described below.
 
-Unit coverage: `tests/unit/windowsPrintArea.test.ts`, `thermalPrint.test.ts`, `printerPromise.test.ts`, `whatsappPdfDelivery.test.ts`.
-Windows driver/emulator gate: `tests/characterization/thermal-driver.cjs` (see its README). Unlike `printToPDF`, this
-runs real Windows spooling through a thermal driver into local emupos, checking short and 60-item bills for one
-cut-delimited receipt, <= 8 mm leading blank, and visible ink bounds inside both edges. The Epson APD 5.13 / TM-T88V
-Receipt5 test queues were validated at 180 dpi: 80 mm / 512 dots and 58 mm / 360 dots. Emulator output does not verify physical cutter,
-mechanics, or every driver/firmware; other printer configurations still need targeted checks.
+Use the existing `thermalPrint.test.ts`, `printerPromise.test.ts`, `receiptPaymentPanel.test.ts` and
+`whatsappPdfDelivery.test.ts` coverage. Historical driver/emulator evidence is not acceptance for the
+current source or a new installer; follow `release-validation.md` and verify the actual shop printer.
 
 ## 6.3 Modifying an existing feature safely
 
 - **Billing / checkout:** line money math is in `utils/pricing/linePricing.ts` and `utils/pricing/checkoutLines.ts`; totals in
   `store/cartStore.ts`; deduction lookups in `components/billing/deductionLookup.ts`. Change those, not inline copies.
+- **Billing cart layout:** regular product rows live in `billing/views/cart/CartItemRow.tsx`. Keep the name/badge
+  group and the quantity/rate/discount/total group in one wrapping flex row. Short names stay beside the controls;
+  when the groups do not fit, controls wrap together and remain right-aligned. Long names may wrap internally
+  without truncation. Use available width, not character counts or device-width thresholds. Preserve input refs,
+  keyboard traversal, canonical pricing helpers and edit/remove actions. Do not apply this layout to other line
+  types without a separate requirement. Exercise short and long names in the running POS.
+- **Saved bill order:** use the existing invoice read statements and `electron/sync/invoiceItemOrder.ts`; do not
+  sort bill lines by name or random ids in UI code. Preserve the PENDING-edit guard and removal semantics. See
+  [canonical rule](04-business-rules.md#saved-bill-line-order) and add sync characterization coverage before changes.
 - **Big screens** (`BillingPage`, `SalesHistory`, `PurchaseBillManager`, `CashierSettlement`, `CustomersPage`):
   extract the block you need to change into `views/` or a hook first (move code verbatim, compile, then edit), so the
   change is reviewable and the screen shrinks.
@@ -170,7 +163,7 @@ npm run package:win    # rebuild natives + build + electron-builder
 | Fixed defects (23 Oct) | With no cloud login (offline login, or none: tenant id taken from the local DB) the sync worker treated the `lan-local-token` placeholder as a valid cloud token and ran cloud sync with it (49 requests in the no-login sync harness, 41 with that bearer). `electron/sync/syncAuth.ts` `cloudTokenUnusable` now rejects it on the cloud route; LAN is unchanged (sync and LAN harness identical) | Decide whether `getTenantIdFromDb` should be used at all outside LAN |
 | Fixed defects (23 Oct, billing) | GST header badge showed `GST-GST-001` (single-series GST numbers already carry `GST-`; rule now `displayInvoiceNumber` in `utils/pricing/invoiceNumberHelper.ts`); leaving quotation mode kept the GST invoice type set on entry, so the next sale was GST (`billing/hooks/useQuotationToggle.ts` restores it); the ERP grid showed a made-up number `6019` when none was reserved; warranty expiry and a tab-store comment held `�` | — |
 | Fixed defects (23 Oct, customers) | After adjusting or recalculating loyalty points the customer list went empty and the open customer's points did not refresh: the refresh called `customersApi.getCustomers(tenantId)` with a bare string, so the main process (which reads `{ tenant_id }`) returned `[]`. Now `getCustomers({ tenant_id })`. The bug was invisible to the gate because `useAuthStore` resolves to `any` there (see Type safety) | — |
-| Fixed defects (3 Nov, purchase bills header) | Refactored Purchase Bills header and toolbar (`PurchaseBillHeader.tsx`, `PurchaseBillList.tsx`, `PurchaseBillManager.tsx`): elevated Re-sync, Export CSV and + New Bill to top header row matching `InventoryHeader` and `SalesHistoryHeader` conventions; fixed `DateRangeFilter` and `Re-sync` button text wrapping; unified toolbar control heights (`h-9`); replaced raw emoji with `FileText` icon per design taste guidelines. | — |
+| Purchase bills toolbar | `purchase/views/PurchaseBillList.tsx` owns search, the bill-type dropdown with counts, date range and Re-sync/Export/New Bill actions. Use shared `Input`, `Select`, `Button` and `DateRangeFilter`; controls stay 40 px high with non-wrapping action labels. Desktop uses one row; smaller windows wrap groups. Type filtering remains screen-local through `setFilterType`; no persistence, IPC or sync contract changes. Regression: `purchaseBillToolbar.ui.test.tsx`. | — |
 | Features & Security (3 Nov, quick PIN & staff protection) | Added direct 4-digit PIN authentication on `LoginScreen` via `QuickPinLogin.tsx` (no user lists/dropdowns shown, immediate auto-verification on 4th digit, physical keyboard and barcode scanner support); added anti-brute force lockout (5 failed attempts locks for 30s); enforced multi-tenant PIN isolation (`hashStaffPin(pin, tenant_id)`); added self-deactivation and Admin account deactivation protection across `StaffManager.tsx`, `StaffProfileHeader.tsx`, `StaffBasicTab.tsx`, and `staffService.saveStaff`. Tests: `tests/unit/quickPinLogin.test.ts`. | — |
 | Fixed defects & Features (5 Nov, inventory CSV export & upload headers) | (1) Product CSV export in `useInventoryExports.ts` (`buildInventoryCsvRow`) now exports complete product specifications: includes missing `HSN Code`, `Tax Rate %`, `Discount %`, `Discount Flat`, `Low Stock`, `Billing Type`, and `GST Applicable`, with safe fallbacks to `domain_attributes` for `item_code` and `hsn_sac_code`. (2) Updated `PRODUCT_HEADER_MAP` in `dataUploadTypes.ts` to recognize `hsn/sac code`, `discount percentage`, `real stock`, `paper stock`, `paper purchase`, `paper mrp`, `billing type`, `gst applicable`, and `added date`, preventing them from being mistakenly interpreted as dynamic pricing tiers on CSV re-import. Tests: `tests/unit/inventoryCsvExport.test.ts`. | — |
 | Fixed defects & Features (5 Nov, v2.2.36) | (1) Thermal Receipt PDF Sizing: WhatsApp receipt-width PDF generation measures rendered DOM content height (`document.body.scrollHeight`), injects exact `@page` sizing, and prints to custom PDF dimensions (`widthMm` x `pageHeightMm`) instead of standard A4 canvas (297 mm), eliminating trailing blank canvas on mobile receipts (`electron/whatsapp/whatsappService.ts`, `whatsappPdfDelivery.test.ts`). (2) Bill of Supply & Thermal Receipt Tax Breakup: Intra-state tax calculations in `cartStore.ts`, `checkoutHandler.ts`, `receiptCore.ts`, `boxed.ts`, and `whatsappBillHelper.ts` fallback to canonical `splitTaxAmount(tax)` from `src/utils/pricing/checkoutLines.ts` when total tax > 0, ensuring consistent non-zero CGST and SGST on Bill of Supply and receipts rather than 0.00 splits (`thermalBillTaxBreakup.test.ts`). (3) Auto WhatsApp Send Persistence: `auto_whatsapp_send` setting is persisted to SQLite `settings` table via `setSetting`, loaded on startup (`useSettingsLoader.ts`), and auto-healed during checkout (`checkoutHandler.ts`). | — |
@@ -265,16 +258,20 @@ workflow in a disposable Windows runner as required by `release-validation.md` b
 
 ### Variant editor and management ownership
 
-Use `inventory/variantProducts.ts` for validation and complete variant product/tier roundtrips.
+Use `inventory/variantProducts.ts` for the canonical `ProductVariantItem` type, validation and
+complete variant product/tier roundtrips. Hooks import the type from that module, never a view.
 Use `inventory/views/form/VariantsSection.tsx` to repeat `PricingSection`; do not create a second
 pricing implementation or restore the inventory toolbar Variants subpage. Dashboard event
 `open-product-variants` opens `variants/VariantsManager.tsx` under inventory/products.view.
 The page offers Add Variant through `views/VariantProductPicker.tsx`, which selects an existing
-non-variant product (including products without children). `views/VariantEditor.tsx` loads sibling
-variants, pricing tiers and the paper-stock preference, reuses `VariantsSection` in single-variant
-mode and saves only that child through `saveProductVariants`. No parent product write occurs.
+non-variant product (including products without children). `views/VariantEditor.tsx` is a shared `Modal` view;
+`hooks/useVariantEditor.ts` loads siblings, tiers and the paper-stock preference and owns guarded
+save/retry state. The view reuses `VariantsSection` in single-variant mode and the hook saves only
+that child through `saveProductVariants`. No parent product write occurs.
 `inventory/variantDrafts.ts` owns parent defaults and compact-barcode draft creation shared by both
-entry points. A partial tier failure retains the assigned child ID for retry. `variants/variantCatalog.ts` builds and filters individual rows;
+entry points. `hooks/useVariantCatalog.ts` cancels stale catalog reads; the workspace remounts
+on tenant change so old selections/drafts cannot enter another tenant. A partial tier failure
+retains the assigned child ID for retry. `variants/variantCatalog.ts` builds and filters individual rows;
 `views/VariantPriceTable.tsx` renders one catalog-wide price list with a sticky header.
 Search, product/category selectors and named variant chips combine; counters show visible/total
 variants. Children whose parent is unavailable stay visible with an explicit label and disabled
@@ -359,7 +356,7 @@ Toast presentation changes are covered by `floatToast.ui` (replacement timers, c
 
 Invoice HTML tax-breakup presentation belongs in `utils/print/invoiceHtml/taxBreakup.ts`, reusing `receipt/receiptCore.ts:resolveTaxBreakup`; see the business-rules reference. Hidden print/PDF windows disable background throttling in `electron/hardware/printer.ts` and `electron/whatsapp/whatsappService.ts`. Digital thermal receipt PDF margins are applied in the WhatsApp PDF path, preserving physical printer geometry. Source tests do not replace physical printer or packaged-installer acceptance.
 
-Architecture review validation (6 November 2026): app and Electron typechecks passed; the full two-worker Vitest run passed 194 files / 1,135 tests without unhandled errors; architecture guard passed with zero bridge violations, misplaced SQL and oversized files; lint ratchet passed with zero errors/warnings. The Settings layout test now mocks cloud reads and drains pending updates during cleanup. This evidence covers the current POS source tree; it does not certify other app changes, a shipped installer or physical printer output.
+Earlier architecture review snapshot (6 November 2026): app and Electron typechecks passed; the full two-worker Vitest run passed 194 files / 1,135 tests without unhandled errors; architecture guard passed with zero bridge violations, misplaced SQL and oversized files; lint ratchet passed with zero errors/warnings. The Settings layout test now mocks cloud reads and drains pending updates during cleanup. This evidence covers that earlier source snapshot; it does not certify other app changes, a shipped installer or physical printer output.
 
 ### Billing print latency and payment completion (6 November 2026)
 
@@ -370,3 +367,57 @@ Sales History payment collection closes its dialog immediately after confirmed p
 ### Thermal UPI QR size
 
 `electron/utils/upiQr.ts` owns the 25 mm square thermal receipt QR size (including a four-module white border) and generation options. Renderer receipt and Settings previews use its re-export in `src/utils/print/upiQr.ts`; keep these aligned with `hardware/receiptHtml.ts`. `electron/utils/receiptPaymentPanel.ts` groups the four boxed loyalty rows immediately following a QR marker into one panel (QR left, points right), shared by the USB HTML and both previews through a renderer re-export. The boxed generator puts this panel before the signature/footer. Plain text keeps all four rows for network output; QR-off retains the regular points table. A4 invoice layouts are separate. Physical printer/phone scanning must be checked on the shop hardware.
+
+### Closing sales display
+
+Closing-message sales labels and amounts must agree between `electron/whatsapp/shopClosingMessage.ts` and `src/utils/time/shopClosingHelper.ts`. Use the shared pure `electron/utils/closingSales.ts` rule for the after-discount display; preserve gross and net meanings. Regression coverage: `shopClosingGrossAmount.test.ts` and `salesHistoryReports.test.ts`.
+
+### Payment Methods date filters
+
+Overview and ledger share screen-local start/end dates in `usePaymentMethodsState`. Both views use the shared `DateRangeFilter` immediately before search; the overview toolbar stays above card stacking contexts and the ledger container must not clip the calendar. Keep these controls grouped when changing responsive layouts.
+
+`payment-methods/paymentDateFilter.ts` owns inclusive range matching, using canonical shop-calendar utilities. Missing or invalid dates are excluded only while a range is active. The overview matches each source's latest transaction date; its balances and metric cards remain current, lifetime values. Ledger entries and cash-in/out totals follow date and search filters; stored running balances remain unchanged. No IPC, SQL, sync or persistence contract changes are involved. Boundary and invalid-date coverage lives in `tests/unit/paymentDateFilter.test.ts`. The screen's refresh-reset directive remounts during development updates when its custom hook shape changes; it does not alter production persistence.
+
+### WhatsApp device connection presentation
+
+The WhatsApp adapter retains connecting status during recoverable reconnects; invalid sessions remain disconnected. The device view shows progress while connecting without a QR and while syncing, using semantic Loader2 and theme primary tokens. Close QR Code only hides the QR locally; Show QR Code restores it without disconnecting or changing saved settings. Connection and disconnect remain explicit operations outside Settings Save Changes. Regression coverage: whatsappDevice.ui.test.tsx. Live phone pairing still requires runtime acceptance.
+
+
+### Loyalty and customer identity ownership
+
+Earning math belongs in `electron/utils/loyalty.ts`, re-exported by `src/utils/pricing/loyalty.ts`; checkout, edits and settlement use the same rule. Persist `loyalty_config.includeTax` through the Settings draft/snapshot/main-save path, defaulting to inclusive for existing shops. This is an additive field in the existing opaque settings JSON; no IPC channel, synced column or server payload shape changed.
+
+Customer directory duplicate validation uses `electron/utils/customerIdentityKey.ts` and tenant-scoped candidates from `electron/db/statements/customers.ts`. Billing resolution remains in `electron/db/customerIdentity.ts`; preserve its deterministic-ID contract and historical identity reconciliation. Removing the manual Merge Duplicates button does not remove startup/sync repair code.
+
+Zero-counter recovery belongs in `loyaltyService.repairZeroLoyaltyCounters`, called transactionally before directory reads. It only restores all-three-zero counters from recorded ledger movements, marks the row pending through existing statements, and never invents opening balances or re-awards invoices. Test tenant isolation, nonzero preservation and repeat-read idempotence whenever changing this policy. Explicit Recalculate still refuses ambiguous historical mismatches.
+
+Regression suites: `loyaltyPersistence`, `loyaltyTax`, `loyaltyReceipt`, `loyaltyVisibility.ui`, `customerPointsRefresh.ui`, `customerCreationCheckout`, and `customerLoyaltySync`. Receipt characterization changes must show only the intended points block. Runtime UI, shop-data recovery and packaged installer acceptance remain separate from source gates.
+
+Product/variant discount edits and MRP recalculation must use `utils/pricing/productDiscounts.ts`
+(`changeProductDiscount`, `recalculateProductDiscount`); do not put money formulas in views/hooks.
+Zero is a valid offer and must remain visible while disabling competing discount inputs.
+Audit coverage: `productDiscounts`, `discountSection.ui`, `variantCatalogLoad.ui`, `variantEditor.ui`,
+`variantsManager.ui`, `variantsSection.ui`, and the real-service `variantPersistence` roundtrip.
+
+### Combo availability changes
+
+Billing search uses `src/utils/pricing/comboStock.ts` for complete-combo availability.
+Keep this calculation out of view components. Use the combo API's component stocks,
+not the search-filtered product list; account for required quantities and repeated products.
+Run `productSearch.test.ts` and `comboStock.test.ts` when changing this mapping or rule.
+
+### Source architecture review (6 November 2026)
+
+Reviewed the cashier close correction and recent loyalty, customer identity, variants, discount, receipt,
+bill-order, combo availability and payment-date changes against the existing layer and canonical-rule owners.
+App/Electron typechecks passed; the two-worker Vitest run passed 225 files / 1,295 tests. Architecture guard
+passed with zero bridge violations, misplaced SQL and oversized files; lint ratchet passed with zero errors
+and warnings. Test temporary files used a writable directory outside the repositories. No baselines were raised.
+These are source checks, not installed-app, physical-printer, two-terminal LAN or packaged-release acceptance.
+The existing AGENTS.md rules remain applicable; no new operating-rule exception is introduced.
+
+WhatsApp review verification (6 Nov 2026): renderer and Electron typechecks passed; architecture guard passed; lint ratchet 0 errors / 0 warnings. Full suite: 224 files passed; trialAccessService had restricted-temp-file EPERM failures and passed all 9 tests when rerun with normal file access. WhatsApp device/version regressions passed 5/5. Live phone pairing remains unverified; no installer was built or published.
+
+### Architecture review evidence (6 November 2026)
+
+App and Electron typechecks, architecture guard and lint ratchet passed (zero errors/warnings; baselines unchanged). Full two-worker Vitest run: 221 files / 1,285 tests passed; six trial-access cases failed on restricted Windows temp-file rename and the toast source scan exceeded its default timeout. A separate single-worker run with normal temp-file access and a 30-second test timeout passed both affected suites (2 files / 10 tests). This is not a single uninterrupted green full-suite run. Purchase dropdown/actions, variant editor and persistence, loyalty, receipt panels, payment-date filtering and sync regression suites passed. The new purchase toolbar visual layout still needs running-app acceptance; source tests do not certify a packaged installer, physical printing or phone pairing.

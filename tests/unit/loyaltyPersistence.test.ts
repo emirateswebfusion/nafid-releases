@@ -204,3 +204,13 @@ it('blocks duplicate customer names and formatted phones on create and edit', ()
   expect(updateCustomer({ customer_id: 'other', tenant_id: 't', name: 'Other', phone: '(94468) 55246' }).success).toBe(false);
   expect((raw.prepare("SELECT COUNT(*) AS count FROM customers WHERE tenant_id = 't'").get() as { count: number }).count).toBe(2);
 });
+
+it('zero-counter recovery preserves nonzero opening balances and stays tenant scoped', () => {
+  expect(checkout({ invoice_id: 'scope', user_id: 'u', tenant_id: 't', invoice_number: 'SCOPE', invoice_type: 'ESTIMATE', subtotal: 500, tax_total: 0, discount_total: 0, grand_total: 500, payment_method: 'CASH', customer_id: 'c', items: [] }).success).toBe(true);
+  raw.prepare("UPDATE customers SET total_points_earned = 0, total_points_redeemed = 0, current_points_balance = 0 WHERE customer_id = 'c'").run();
+  getCustomers({ tenant_id: 'another-shop' });
+  expect(balance()).toBe(0);
+  raw.prepare("UPDATE customers SET current_points_balance = 7 WHERE customer_id = 'c'").run();
+  getCustomers({ tenant_id: 't' });
+  expect(balance()).toBe(7);
+});

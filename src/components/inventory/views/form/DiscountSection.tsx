@@ -13,6 +13,7 @@ export interface DiscountSectionProps {
 export function DiscountSection({
   formData, handleDiscountFlatChange, handleDiscountPercentChange, handleOfferPriceChange,
 }: DiscountSectionProps) {
+  const hasOffer = formData.offer_price !== '' && formData.offer_price != null;
   return (
     <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
@@ -35,9 +36,9 @@ export function DiscountSection({
                 type="number"
                 step="0.01"
                 onWheel={e => (e.target as HTMLInputElement).blur()}
-                value={formData.discount_percent || ''}
+                value={formData.discount_percent ?? ''}
                 onChange={e => handleDiscountPercentChange(e.target.value)}
-                disabled={!!formData.offer_price}
+                disabled={hasOffer}
                 className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
               />
             </div>
@@ -47,9 +48,9 @@ export function DiscountSection({
                 type="number"
                 step="0.01"
                 onWheel={e => (e.target as HTMLInputElement).blur()}
-                value={formData.discount_flat || ''}
+                value={formData.discount_flat ?? ''}
                 onChange={e => handleDiscountFlatChange(e.target.value)}
-                disabled={!!formData.offer_price}
+                disabled={hasOffer}
                 className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
               />
             </div>
@@ -67,7 +68,7 @@ export function DiscountSection({
               type="number"
               step="0.01"
               onWheel={e => (e.target as HTMLInputElement).blur()}
-              value={formData.offer_price || ''}
+              value={formData.offer_price ?? ''}
               onChange={e => handleOfferPriceChange(e.target.value)}
               disabled={!!formData.discount_percent || !!formData.discount_flat}
               className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"

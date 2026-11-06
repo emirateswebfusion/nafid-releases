@@ -1,4 +1,4 @@
-import { discountChange } from './productDiscounts';
+import { changeProductDiscount } from '../../utils/pricing/productDiscounts';
 import { FloatToast } from '../ui/FloatToast';
 import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
@@ -35,7 +35,7 @@ import { useInventoryEffects } from './hooks/useInventoryEffects';
 // ─── Main Component ─────────────────────────────────────────────────────────
 export function InventoryManager({ onClose, isRestricted: _isRestricted, initialProduct }: { onClose: () => void; isRestricted?: boolean; initialProduct?: Product | null }) {
   useCloseOnEscape(onClose);
-  const { tenantId } = useAuthStore();
+  const tenantId = useAuthStore(state => state.tenantId);
 
   const inv = useInventoryState();
   const {
@@ -376,9 +376,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted, initial
       : Number(data.base_price) || 0;
   };
 
-  const handleDiscountPercentChange = (val: string) => setFormData(prev => ({ ...prev, ...discountChange(getEffectiveMrp(prev), 'discount_percent', val) }));
-  const handleDiscountFlatChange = (val: string) => setFormData(prev => ({ ...prev, ...discountChange(getEffectiveMrp(prev), 'discount_flat', val) }));
-  const handleOfferPriceChange = (val: string) => setFormData(prev => ({ ...prev, ...discountChange(getEffectiveMrp(prev), 'offer_price', val) }));
+  const handleDiscountPercentChange = (val: string) => setFormData(prev => ({ ...prev, ...changeProductDiscount(getEffectiveMrp(prev), 'discount_percent', val) }));
+  const handleDiscountFlatChange = (val: string) => setFormData(prev => ({ ...prev, ...changeProductDiscount(getEffectiveMrp(prev), 'discount_flat', val) }));
+  const handleOfferPriceChange = (val: string) => setFormData(prev => ({ ...prev, ...changeProductDiscount(getEffectiveMrp(prev), 'offer_price', val) }));
 
   const { printBarcode, printProductLabel, downloadCsv } = useInventoryExports({
     inv, stockFilterRef, tenantId,

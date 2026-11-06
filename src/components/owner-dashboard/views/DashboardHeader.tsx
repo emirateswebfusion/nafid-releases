@@ -2,6 +2,7 @@ import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { useEffect } from 'react';
+import { Button } from '../../ui/Button';
 import { isAdminRole, formatRoleName } from '../../../utils/security/permissions';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import clsx from 'clsx';
@@ -65,9 +66,9 @@ export function DashboardHeader({
               <span className="w-2 h-2 rounded-full bg-amber-500" />
               <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">{invoiceCount} {invoiceCount === 1 ? 'Invoice' : 'Invoices'}</span>
             </div>
-            <div
+            <Button type="button" variant="ghost" disabled={!isCloudSyncPaused}
               className={clsx(
-                "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors",
+                "h-auto flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors disabled:opacity-100",
                 isCloudSyncPaused
                   ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 cursor-pointer hover:bg-amber-500/20 active:scale-[0.97]"
                   : (!isOnline || !activeRoute || activeRoute === 'NONE')
@@ -98,7 +99,7 @@ export function DashboardHeader({
                   ? 'Syncing...'
                   : (activeRoute === 'LAN' ? 'Wi-Fi Connected' : 'Cloud Connected')}
               </span>
-            </div>
+            </Button>
             <span className="w-px h-5 bg-border/40" />
           </div>
 

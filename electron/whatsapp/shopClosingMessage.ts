@@ -1,3 +1,4 @@
+import { closingSalesAfterDiscounts } from '../utils/closingSales.js';
 import { withNafidFooter } from './messageFooter.js';
 import { formatStoreMoney } from '../services/storeCountryService.js';
 import type { ShopClosingChecklist } from './shopClosingTypes.js';
@@ -53,7 +54,7 @@ export function formatClosingWhatsAppMessage(summaryData: ReturnType<typeof impo
       if (checklist.grossSales !== false) {
         lines.push(`• Gross Sales (before discounts): ${formatCurrency((summaryData.grossSales as number | null | undefined))}`);
       }
-      lines.push(`• Sales Today: *${formatCurrency(Math.max(0, summaryData.grossSales - summaryData.totalDiscount))}*`);
+      lines.push(`• Sales Today: *${formatCurrency(closingSalesAfterDiscounts(summaryData.grossSales, summaryData.totalDiscount))}*`);
       if (checklist.totalDiscount !== false && summaryData.totalDiscount > 0) {
         lines.push(`• Total Discount: -${formatCurrency((summaryData.totalDiscount as number | null | undefined))}`);
       }

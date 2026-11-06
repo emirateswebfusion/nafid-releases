@@ -293,10 +293,11 @@ fields. The local `last_active_terminal_session` setting is written with sync_st
 it contains display context only, never credentials. Auth token/offline session save and logout preserve
 this context through `authSessionService` and `terminalSession`. PIN authentication still validates the
 staff hash, tenant status, active status and login permissions. Quick PIN login (`auth:loginWithPin`)
-preserves an existing valid cloud session for the same tenant instead of wiping on-disk credentials,
-updating the session user and keeping background sync active (`isCloudSyncPaused: false`). Offline-only
-PIN login sets `isCloudSyncPaused: true` without raising false expiry errors. Clicking resume sync
-prioritizes the email/password login tab. No cloud/LAN payload changes.
+preserves an existing usable cloud session for the same tenant without rewriting the cloud owner's account
+metadata. The local session user is saved separately; main returns additive `cloud_sync_ready` and renderer
+sets `isCloudSyncPaused` from that result. Missing, expired or worker-rejected credentials stay paused.
+Clicking resume sync opens the closable in-app cloud-only dialog; it never navigates to the login page,
+logs out the local user or clears open bills. No cloud/LAN payload changes.
 
 ### Saved invoice line order
 

@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useMemo, useState } from 'react';
 import { Layers, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { deleteProduct, type Product } from '../../data/products';
 import { hasPermission } from '../../utils/security/permissions';
-import { loadVariantCatalog, variantAttributes } from '../inventory/variantProducts';
+import { variantAttributes } from '../inventory/variantProducts';
+import { useVariantCatalog } from './hooks/useVariantCatalog';
+import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { VariantEditor } from './views/VariantEditor';
 import { VariantProductPicker } from './views/VariantProductPicker';
 import { VariantsHeader } from './views/VariantsHeader';
@@ -15,11 +18,15 @@ import { VariantPriceTable } from './views/VariantPriceTable';
 
 /** Catalog-wide variants use the shared variant editor and persistence. */
 export function VariantsManager({ onClose }: { onClose: () => void }) {
-  const user = useAuthStore();
+  const user = useAuthStore(useShallow(state => ({ tenantId: state.tenantId, role: state.role, permissions: state.permissions })));
   const { tenantId } = user;
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  return <VariantsWorkspace key={tenantId || 'global'} tenantId={tenantId || 'global'} onClose={onClose} />;
+}
+
+function VariantsWorkspace({ tenantId, onClose }: { tenantId: string; onClose: () => void }) {
+  const { products, loading, error: catalogError, refresh } = useVariantCatalog(tenantId);
+  const [actionError, setActionError] = useState('');
+  const error = catalogError || actionError;
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [variant, setVariant] = useState('');
@@ -29,20 +36,11 @@ export function VariantsManager({ onClose }: { onClose: () => void }) {
   const [deleting, setDeleting] = useState<Product | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
-  const canEdit = hasPermission(user, 'products.edit');
-  const canCreate = hasPermission(user, 'products.create');
-  const canDelete = hasPermission(user, 'products.delete');
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try { setProducts(await loadVariantCatalog(tenantId || 'global')); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load variants.'); }
-    finally { setLoading(false); }
-  }, [tenantId]);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial catalog read.
-    void load();
-  }, [load]);
+  const canEdit = useAuthStore(state => hasPermission(state, 'products.edit'));
+  const canCreate = useAuthStore(state => hasPermission(state, 'products.create'));
+  const canDelete = useAuthStore(state => hasPermission(state, 'products.delete'));
+  const load = () => { setActionError(''); refresh(); };
+  useCloseOnEscape(deleting && !busy ? () => setDeleting(null) : null);
   const rows = useMemo(() => buildVariantRows(products), [products]);
   const filtered = filterVariantRows(rows, search, category, variant, productId);
   const parents = [...new Map(rows.flatMap(row => row.parent ? [[row.parent.product_id, row.parent] as const] : [])).values()];
@@ -56,8 +54,8 @@ export function VariantsManager({ onClose }: { onClose: () => void }) {
       const result = await deleteProduct(deleting.product_id);
       if (!result.success) throw new Error(result.error || 'Could not delete variant.');
       setDeleting(null);
-      await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not delete variant.'); }
+      load();
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : 'Could not delete variant.'); }
     finally { setBusy(false); }
   };
   const editVariant = (product: Product) => {
@@ -93,8 +91,8 @@ export function VariantsManager({ onClose }: { onClose: () => void }) {
         <h2 id="delete-variant-title" className="font-bold">Delete {deleting?.name}?</h2>
         <p className="text-sm text-muted-foreground">The variant will move to the recycle bin. Existing invoices remain available.</p>
         <div className="flex justify-end gap-2">
-          <button disabled={busy} onClick={() => setDeleting(null)} className="px-3 py-2 rounded-xl border border-border">Cancel</button>
-          <button disabled={busy} onClick={() => void remove()} className="px-3 py-2 rounded-xl bg-destructive text-destructive-foreground">{busy ? 'Deleting…' : 'Delete Variant'}</button>
+          <Button variant="outline" disabled={busy} onClick={() => setDeleting(null)}>Cancel</Button>
+          <Button variant="destructive" disabled={busy} onClick={() => void remove()}>{busy ? 'Deleting…' : 'Delete Variant'}</Button>
         </div>
       </div>
     </Modal>

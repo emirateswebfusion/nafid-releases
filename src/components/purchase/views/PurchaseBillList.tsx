@@ -3,6 +3,9 @@ import React, { Fragment } from 'react';
 import { Search, X, Download, Plus, Receipt, FileText, User, Calendar, Printer, Pencil, Trash, Eye, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { DateRangeFilter } from '../../ui/DateRangeFilter';
+import { Button } from '../../ui/Button';
+import { Input } from '../../ui/Input';
+import { Select } from '../../ui/Select';
 import { Skeleton } from '../../ui/Skeleton';
 import { formatDate } from '../purchaseFormat';
 import type { PurchaseBill, PurchaseBillItem } from '../purchaseTypes';
@@ -47,46 +50,46 @@ export function PurchaseBillList({
   return (
     <>
     <div className="w-full px-4 sm:px-6 pt-6 select-none shrink-0">
-      <div className="flex flex-wrap lg:flex-nowrap gap-3 items-center bg-card border border-border rounded-[28px] shadow-sm p-4 sm:px-6 select-none">
+      <div className="flex flex-wrap gap-3 items-center bg-card border border-border rounded-[28px] shadow-sm p-4 sm:px-6 select-none">
         {/* Search */}
       <div className="relative min-w-[180px] w-full sm:w-auto flex-1">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
-        <input
+        <Input
+          aria-label="Search bills or suppliers"
           type="text"
           placeholder="Search bill or supplier..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
+          className="pl-10 pr-8"
         />
         {searchQuery && (
-          <button
+          <Button variant="ghost" size="icon"
+            aria-label="Clear bill search"
             onClick={() => setSearchQuery('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 p-1"
           >
             <X className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Bill type and date filters */}
       <div className="flex shrink-0 items-center gap-3 flex-wrap">
-        <select
+        <Select
           aria-label="Bill type"
           value={filterType}
-          onChange={e => {
-            const type = e.target.value;
+          onChange={type => {
             if (type === 'ALL' || type === 'GST' || type === 'ESTIMATE' || type === 'PAPER') setFilterType(type);
           }}
-          className="h-10 rounded-xl border border-input bg-background px-3 text-xs font-semibold text-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 cursor-pointer"
-        >
-          {(['ALL', 'GST', 'ESTIMATE', 'PAPER'] as const).map(type => {
+          className="w-44"
+          options={(['ALL', 'GST', 'ESTIMATE', 'PAPER'] as const).map(type => {
             const count = type === 'ALL' ? bills.length : type === 'PAPER'
               ? bills.filter(b => billSummaries[b.purchase_bill_id]?.hasPaper).length
               : bills.filter(b => b.bill_type === type).length;
             const label = type === 'ALL' ? 'All Types' : type === 'GST' ? 'GST Only' : type === 'ESTIMATE' ? 'Estimate Only' : 'Paper Only';
-            return <option key={type} value={type}>{label}{loading ? '' : ` (${count})`}</option>;
+            return { value: type, label: `${label}${loading ? '' : ` (${count})`}` };
           })}
-        </select>
+        />
 
         <DateRangeFilter triggerClassName="h-10 px-3 whitespace-nowrap text-xs bg-background" startDate={dateFrom} endDate={dateTo} onChange={(s, e) => { setDateFrom(s); setDateTo(e); }} />
 
@@ -94,36 +97,36 @@ export function PurchaseBillList({
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
         {onResyncPurchases && (
-          <button
+          <Button
             onClick={onResyncPurchases}
             disabled={isResyncing}
             title="Force refresh / download purchase bills from cloud"
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-xs rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-4 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            variant="outline" className="h-10 shrink-0 gap-1.5 px-4"
           >
             <RefreshCw className={clsx("w-4 h-4 shrink-0", isResyncing && "animate-spin text-primary")} />
             <span className="hidden sm:inline">{isResyncing ? 'Syncing...' : 'Re-sync'}</span>
-          </button>
+          </Button>
         )}
         {/* Export Button */}
         {!showAddForm && filteredBills.length > 0 && (
-          <button
+          <Button
             onClick={handleExportCSV}
             disabled={isExporting}
             title={`Export ${filteredBills.length} filtered bill${filteredBills.length !== 1 ? 's' : ''} to CSV`}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-xs rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            variant="outline" className="h-10 shrink-0 gap-1.5 px-5"
           >
             <Download className="w-4 h-4 shrink-0" />
             <span>Export</span>
-          </button>
+          </Button>
         )}
 
         {/* New Bill Button */}
-        <button
+        <Button
           onClick={() => { setShowAddForm(true); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); }}
-          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-xs rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          className="h-10 shrink-0 gap-1.5 px-5"
         >
           <Plus className="w-4 h-4 shrink-0" /> New Bill
-        </button>
+        </Button>
       </div>
     </div>
     </div>

@@ -29,6 +29,9 @@ src/
     billing/              + checkout/, customerDirectory.ts, productSearch.ts, numberReservation.ts, BillingConstants.ts
     restaurant/           RestaurantPage + views/, modals/, settings/, hooks/: tables, orders, KOT, kitchen display;
                           restaurantRules (India/UAE charges and channels), restaurantBillHandover (order → checkout)
+    inventory/            InventoryManager + hooks/views; variantProducts (child/tier persistence), variantDrafts (shared defaults)
+    variants/             VariantsManager + hooks/useVariantCatalog (cancelled reads), hooks/useVariantEditor (draft/save),
+                          views/VariantEditor (Modal), VariantProductPicker, VariantsHeader, VariantPriceTable
     settings/             SettingsManager + tabs/, the settings panels (emergency purge, data masking, terminology)
     app/                  app shell: ErrorBoundary, PermissionGuard, SplashScreen, UpdateBanner, prompts, PrintRouter, lazyScreens, hooks/
                           and app-wide flows used by several screens: CardTerminalDialog + cardTerminalStep (card machine)
@@ -39,7 +42,7 @@ src/
   store/                  Zustand stores shared across screens (auth, cart, tabs, theme, flags, sync connection, …)
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)
   utils/                  pure rules and generators, grouped (folders only, guard R15):
-    pricing/              money, line pricing, checkout lines, pricing tiers, invoice numbering, sales-history amounts/tax
+    pricing/              productDiscounts (product/variant drafts and MRP recalculation), money, line pricing, checkout lines, pricing tiers, invoice numbering, sales-history amounts/tax
     print/                receipt / invoice / quotation / ledger generators (receipt/, invoiceHtml/ split by style), UPI, WhatsApp bill;
                           UAE documents: uaeInvoice (A4 + thermal), uaeLabels (English/Arabic labels, titles, Arabic setting)
     time/                 store time zone, date display, shop closing (business day)
@@ -120,6 +123,7 @@ electron/
     syncTransport.ts endpoints + connectivity, fetch with LAN→cloud fallback, pushBatch + outbox, cursors, pullPaginated
     einvoiceSync.ts  cloud-only UAE e-invoicing step after each cycle (process request + status mirror pull)
     syncConfig.ts / cloudAccess.ts / syncProgress.ts / syncState.ts   limits + stored login / access rules / progress / shared state
+    invoiceItemOrder.ts  pure legacy invoice-pull rule: retain surviving local line order; append new incoming lines
     entities/        per-table push + pull: catalog, salesDocs, parties, cash, stockDocs, settings
     localHostServer.ts (LAN server) + lanUpsert.ts (LAN row merge)
   hardware/          printer (ESC/POS, A4/PDF), weighingScale (serial), barcodeScanner (keyboard wedge),
@@ -127,6 +131,8 @@ electron/
   whatsapp/          Baileys session, invoice sending, shop-closing report (service + IPC; shopClosingSummary = data,
                      shopClosingMessage = WhatsApp text, shopClosingTypes)
   utils/             pure helpers for the main process (ids, gst, validation, timestamps, cashier settlement math)
+                     upiQr / receiptPaymentPanel: shared thermal QR geometry and escaped payment-panel HTML;
+                     renderer consumers use the matching src/utils/print re-exports (no Electron/runtime imports)
 ```
 
 Dependency direction: `main → ipc → services → db/statements`, `sync → services/db`; `hardware`/`whatsapp` are adapters.
@@ -146,7 +152,7 @@ main chooses the configured endpoint and preserves HTTP errors. `authStorage.ts`
 `store/authStore.ts` owns POS entry and startup identity restore; `store/cloudSyncRecovery.ts` owns cloud-only
 reconnection without changing the local user/cart. `components/app/SessionExpiredModal.tsx` provides the closable
 form. `utils/security/authToken.ts` owns renderer JWT parsing/expiry and is re-exported by the auth store for existing
-callers. The typed `auth:resumeCloudSession` path is `data/auth.ts` → preload → registration-only `authHandlers.ts`
+callers. The typed `auth:resumeCloudSession` path is `data/auth.ts` → preload → IPC registration in `authHandlers.ts`
 → `services/cloudSessionRecoveryService.ts` → `authSessionService` / `authStorage`. Cloud credential persistence and
 local identity persistence remain separate; the reconnect use-case validates tenant and expected local user first.
 See [cloud session recovery](03-data-access.md#cloud-session-recovery).
@@ -167,3 +173,13 @@ See [cloud session recovery](03-data-access.md#cloud-session-recovery).
 ### Transient notification ownership
 
 `components/ui/FloatToast.tsx` owns toast markup, severity icons, accessibility roles, dismissal and optional actions (using the shared Button). Feature state stays in its existing hook/store; view adapters only map messages to this primitive. Positioned stack containers use `stackItem` so concurrent messages do not overlap. No notification code belongs in `src/data`.
+
+### Loyalty and customer identity rule modules
+
+- `electron/utils/loyalty.ts`: pure earning basis/rate calculation; renderer re-export `src/utils/pricing/loyalty.ts`.
+- `electron/utils/customerIdentityKey.ts`: directory name/phone normalization; candidate SQL remains in `db/statements/customers.ts`.
+- `electron/services/loyaltyService.ts`: invoice contribution reconciliation and recorded-ledger zero-counter recovery. See business rules > Loyalty points for recovery limits.
+
+### Payment Methods filtering ownership
+
+`components/payment-methods/PaymentMethods.tsx` orchestrates source and ledger filtering; `hooks/usePaymentMethodsState.ts` owns the shared screen-local range. `paymentDateFilter.ts` matches inclusive store-calendar dates using `utils/time/timezoneHelper.ts`. Both filter toolbars reuse `components/ui/DateRangeFilter.tsx`. Regression coverage: `tests/unit/paymentDateFilter.test.ts`. See the Payment Methods date filters section in `06-change-guide.md` for popup stacking and display semantics.

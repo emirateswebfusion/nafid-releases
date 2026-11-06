@@ -1,7 +1,8 @@
+import { useShallow } from 'zustand/react/shallow';
 // @refresh reset
 // Remount this screen during live updates when its custom state hook changes.
 import { useEffect, useCallback, useRef } from 'react';
-import { storeCalendarDate } from '../../utils/time/timezoneHelper';
+import { matchesPaymentDateRange } from './paymentDateFilter';
 import { useAuthStore } from '../../store/authStore';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { getUpiPageConfig } from '../../utils/print/upiConfig';
@@ -24,7 +25,7 @@ import { PaymentMethodsHeader } from './views/PaymentMethodsHeader';
 
 export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
-  const { tenantId, userId, userName } = useAuthStore();
+  const { tenantId, userId, userName } = useAuthStore(useShallow(state => ({ tenantId: state.tenantId, userId: state.userId, userName: state.userName })));
   const isOwner = !isRestricted;
 
   const pmState = usePaymentMethodsState();
@@ -75,14 +76,6 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     pmState, loadSources, showMessage, tenantId, userId, userName,
   });
 
-  const matchesDate = (value: string | null | undefined) => {
-    if (!pmState.startDate && !pmState.endDate) return true;
-    if (!value) return false;
-    const date = storeCalendarDate(value);
-    if (Number.isNaN(date.getTime())) return false;
-    const day = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return (!pmState.startDate || day >= pmState.startDate) && (!pmState.endDate || day <= pmState.endDate);
-  };
   const filteredSources = sources.filter(s => {
     const matchesSearch = !search.trim() ||
       s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -92,7 +85,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
       (s.holder_name || '').toLowerCase().includes(search.toLowerCase());
 
     const matchesFilter = typeFilter === 'ALL' || s.type === typeFilter;
-    return matchesSearch && matchesFilter && matchesDate(s.last_transaction_date);
+    return matchesSearch && matchesFilter && matchesPaymentDateRange(s.last_transaction_date, pmState.startDate, pmState.endDate);
   });
 
   const safeSources = Array.isArray(sources) ? sources : [];
@@ -103,7 +96,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
   const totalTxnCount = safeSources.reduce((sum, s) => sum + (Number(s.transaction_count) || 0), 0);
 
   const filteredTransactions = transactions.filter(t => {
-    if (!matchesDate(t.transaction_date)) return false;
+    if (!matchesPaymentDateRange(t.transaction_date, pmState.startDate, pmState.endDate)) return false;
     if (!txSearch.trim()) return true;
     const query = txSearch.toLowerCase();
     return (

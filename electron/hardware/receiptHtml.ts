@@ -1,7 +1,6 @@
 import { readReceiptPointRows, receiptPaymentPanelHtml } from '../utils/receiptPaymentPanel.js';
 import QRCode from 'qrcode';
 import { UPI_QR_OPTIONS } from '../utils/upiQr.js';
-
 /** Thermal receipt rendering: the plain-text receipt as HTML (borders, dividers, QR and Code 128 barcodes).
  * Pure function, no printer state. The page geometry is driven by @page (width fixed, height set after
  * content measurement) so a long receipt prints as a single continuous page with one cut at the end. */
@@ -13,7 +12,6 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
-
 function generateCode128Svg(text: string): string {
   const patterns: string[] = [
     "212222","222122","222221","121223","121322","131222","122213","122312","132212","221213",
@@ -32,7 +30,6 @@ function generateCode128Svg(text: string): string {
   const startB = 104;
   let checksum = startB;
   const codes: number[] = [startB];
-
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i) - 32;
     if (code >= 0 && code <= 94) {
@@ -42,11 +39,9 @@ function generateCode128Svg(text: string): string {
   }
   codes.push(checksum % 103);
   codes.push(106);
-
   let width = 0;
   let barElements = '';
   const barHeight = 24;
-
   codes.forEach(codeIdx => {
     const pat = patterns[codeIdx];
     if (!pat) return;
@@ -58,7 +53,6 @@ function generateCode128Svg(text: string): string {
       width += w;
     }
   });
-
   return `<div style="width:100%;display:flex;justify-content:center;margin:4px 0;">
     <svg width="${width.toFixed(1)}" height="${barHeight}" viewBox="0 0 ${width.toFixed(1)} ${barHeight}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
       ${barElements}
@@ -133,7 +127,9 @@ export async function buildReceiptHtml(receiptText: string, widthMm: number, fon
         let dataUrl: string | null = null;
         try {
           dataUrl = await QRCode.toDataURL(match[1], UPI_QR_OPTIONS);
-        } catch { /* Keep the point values visible even if QR generation fails. */ }
+        } catch (error) {
+          console.error('[Receipt] UPI QR generation failed', error);
+        }
         rowsHtml += receiptPaymentPanelHtml(dataUrl, pointRows);
         i += pointRows.length;
         continue;

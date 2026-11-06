@@ -101,3 +101,32 @@ it('keeps locally saved bill order when the cloud returns the same lines in a di
   expect(raw.prepare('SELECT item_id FROM invoice_items WHERE invoice_id = ? ORDER BY rowid').all('inv')
     .map(row => row.item_id)).toEqual(['line', 'second']);
 });
+
+it('pushes invoice lines in saved order even with an item-id lookup index', async () => {
+  raw.exec(`UPDATE invoices SET sync_status='PENDING';
+    INSERT INTO invoice_items(item_id,invoice_id,tenant_id,product_id,name,quantity,unit_price,tax_amount,total)
+      VALUES ('aaa','inv','t','p','Second',1,10,0,10);
+    CREATE INDEX order_probe ON invoice_items(invoice_id, tenant_id, item_id);`);
+  await syncInvoices('token', 't');
+  expect(vi.mocked(pushBatch).mock.calls[0][2]).toEqual([
+    expect.objectContaining({ items: [expect.objectContaining({ item_id: 'line' }), expect.objectContaining({ item_id: 'aaa' })] }),
+  ]);
+});
+it('retains a divergent pending edit and its line order instead of applying stale cloud lines', async () => {
+  raw.exec("UPDATE invoices SET sync_status='PENDING', updated_at='2026-11-06T10:00:00Z'");
+  state.rows = [{ invoice_id: 'inv', tenant_id: 't', invoice_number: 'INV',
+    updated_at: '2026-11-05T10:00:00Z', items: [] }];
+  await pullInvoices('token', 't');
+  expect(raw.prepare('SELECT item_id FROM invoice_items ORDER BY rowid').all().map(row => row.item_id)).toEqual(['line']);
+  expect(raw.prepare('SELECT sync_status FROM invoices').get()?.sync_status).toBe('PENDING');
+});
+it('removes absent lines and appends new lines without restoring stale saved lines', async () => {
+  raw.exec(`INSERT INTO invoice_items(item_id,invoice_id,tenant_id,product_id,name,quantity,unit_price,tax_amount,total)
+    VALUES ('removed','inv','t','p','Removed',1,10,0,10);`);
+  const line = (item_id: string) => ({ item_id, product_id: 'p', name: item_id, quantity: 1, unit_price: 10, tax_amount: 0, total: 10 });
+  state.rows = [{ invoice_id: 'inv', tenant_id: 't', invoice_number: 'INV', invoice_type: 'GST',
+    subtotal: 20, tax_total: 0, grand_total: 20, is_deleted: 0, stock_applied: 1,
+    updated_at: '2026-11-06T10:00:00Z', items: [line('new'), line('line')] }];
+  await pullInvoices('token', 't');
+  expect(raw.prepare('SELECT item_id FROM invoice_items ORDER BY rowid').all().map(row => row.item_id)).toEqual(['line', 'new']);
+});

@@ -542,7 +542,7 @@ export function PaperPreviewModal({
                     );
                   }
 
-                          return <div key={`qr-${index}`} dangerouslySetInnerHTML={{ __html: receiptPaymentPanelHtml(qrImages[row.payload] || null, row.points) }} />;
+                  return <div key={`qr-${index}`} dangerouslySetInnerHTML={{ __html: receiptPaymentPanelHtml(qrImages[row.payload] || null, row.points) }} />;
                 })}
               </div>
             </div>

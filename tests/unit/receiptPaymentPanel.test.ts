@@ -3,6 +3,7 @@ import { JSDOM } from 'jsdom';
 import QRCode from 'qrcode';
 import { generateReceiptText, type ReceiptData } from '../../src/utils/print/receiptGenerator';
 import { buildReceiptHtml } from '../../electron/hardware/receiptHtml';
+import { sanitizeForEscPos } from '../../electron/hardware/escPos';
 import { readReceiptPointRows, receiptPaymentPanelHtml } from '../../electron/utils/receiptPaymentPanel';
 
 const sample: ReceiptData = {
@@ -36,6 +37,23 @@ describe('receipt QR and points panel', () => {
 
   it('does not consume partial or unrelated rows from historical receipts', () => {
     expect(readReceiptPointRows(['[[QR:test]]', '│Bill Points│1.00│', '│For Test Shop│'], 0)).toEqual([]);
+  });
+
+  it('keeps point values in the text-only network printer output', () => {
+    const output = sanitizeForEscPos(generateReceiptText(sample, 8, undefined, 'boxed'));
+    for (const label of ['Bill Points', 'Used Point', 'Used Amt', 'Balance Points']) {
+      expect(output).toContain(label);
+    }
+    expect(output).toContain('-4.00');
+    expect(output).not.toContain('[[QR:');
+  });
+
+  it('keeps the signature when a QR has no loyalty rows', async () => {
+    const data = { ...sample, pointsEarned: 0, pointsRedeemed: 0, pointsRedeemedDiscount: 0, remainingPointsBalance: 0 };
+    const dom = new JSDOM(await buildReceiptHtml(generateReceiptText(data, 8, undefined, 'boxed'), 80));
+    expect(dom.window.document.querySelector('[data-receipt-payment-panel] img')).not.toBeNull();
+    expect(dom.window.document.body.textContent).toContain('Authorised Signatory');
+    expect(dom.window.document.body.textContent).not.toContain('Balance Points');
   });
 
   it('escapes panel text and image attributes', () => {

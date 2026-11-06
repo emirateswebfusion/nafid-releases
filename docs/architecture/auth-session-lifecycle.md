@@ -45,6 +45,15 @@ The dashboard starts with an unknown/offline route. Its badges say **Cloud Conne
 released on session changes/unmount. `runInitialSync` reports disabled access, rejected authorization and unavailable
 routes as failures; a successful cycle result still does not guarantee an empty pending queue or conflict resolution.
 
+The Re-Login Needed action uses the shared native Button so keyboard users can focus and activate recovery;
+passive connection statuses disable the action. Regression: `dashboardConnection.ui`.
+
+Architecture recheck: corrected the former clickable-div recovery action and stale offline-login/PIN recovery
+ownership descriptions. All 225 test files / 1,295 tests passed with two workers; app/Electron typechecks,
+architecture guard and zero-warning lint passed. The default-concurrency run had five timeouts, all passing on
+controlled reruns without relaxing thresholds. BrowserOS isolated-fixture acceptance focused the header button and
+opened cloud recovery with Enter. No main-process, IPC or cloud/LAN wire contract changed in this recheck.
+
 The authenticated shell (`useSyncStatus`) owns the online-status subscription and updates the in-memory
 `syncConnectionStore`. Dashboard reads this state rather than starting Offline on each mount. Leaving for Sales
 History must retain the last worker-reported route; events received while Dashboard is closed still update it.

@@ -9,7 +9,8 @@ import { DiscountSection } from './form/DiscountSection';
 import { PricingSection } from './form/PricingSection';
 import { CoreSection } from './form/CoreSection';
 
-import { VariantsSection, type ProductVariantItem } from './form/VariantsSection';
+import { VariantsSection } from './form/VariantsSection';
+import type { ProductVariantItem } from '../variantProducts';
 
 export interface InventoryFormViewProps {
   view: 'list' | 'add' | 'edit';

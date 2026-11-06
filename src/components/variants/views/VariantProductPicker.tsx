@@ -5,6 +5,7 @@ import { useCloseOnEscape } from '../../../hooks/useCloseOnEscape';
 import { variantAttributes } from '../../inventory/variantProducts';
 import { Modal } from '../../ui/Modal';
 import { Input } from '../../ui/Input';
+import { Button } from '../../ui/Button';
 
 export function VariantProductPicker({ products, onSelect, onClose }: {
   products: Product[]; onSelect: (product: Product) => void; onClose: () => void;
@@ -20,11 +21,11 @@ export function VariantProductPicker({ products, onSelect, onClose }: {
       <div className="relative"><Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" aria-hidden="true" />
         <Input autoFocus aria-label="Find product for variant" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search product name, category or barcode" className="pl-9" /></div>
       <div className="max-h-80 overflow-y-auto divide-y divide-border rounded-xl border border-border">
-        {matches.slice(0, 50).map(product => <button key={product.product_id} type="button" onClick={() => onSelect(product)}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted focus-visible:bg-muted focus-visible:outline-none">
+        {matches.slice(0, 50).map(product => <Button variant="ghost" key={product.product_id} type="button" onClick={() => onSelect(product)}
+          className="h-auto w-full justify-between gap-3 rounded-none px-4 py-3 text-left font-normal tracking-normal text-foreground whitespace-normal">
           <span className="min-w-0"><span className="block text-sm font-semibold truncate">{product.name}</span>
             <span className="block text-xs text-muted-foreground truncate">{product.category || 'Uncategorized'}{product.sku_barcode ? ` · ${product.sku_barcode}` : ''}</span></span>
-          <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" /></button>)}
+          <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" /></Button>)}
         {!matches.length && <p className="p-6 text-center text-sm text-muted-foreground">{parents.length ? 'No matching products. Try another search.' : 'Create a product in Inventory before adding its variants.'}</p>}
       </div>
       {matches.length > 50 && <p className="text-xs text-muted-foreground">Showing the first 50 products. Search to find a specific product.</p>}
