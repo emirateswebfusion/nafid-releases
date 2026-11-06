@@ -4,7 +4,7 @@ import { enqueueLegacyPendingRows, listPendingOps, withSyncApplyGuard } from '..
 import { ALL_SYNCED_TABLES } from '../db/migrations/syncedTables.js';
 import * as sql from '../db/statements/sync/outboxSync.js';
 import { LOCAL_DEVICE_SETTING_KEYS } from './entities/settingsSync.js';
-import { fetchWithFallback, clearAuthAndNotify, getMeta, setMeta } from './syncTransport.js';
+import { fetchWithFallback, getMeta, setMeta } from './syncTransport.js';
 import { notifyPercent } from './syncProgress.js';
 import { cloudTokenUnusable } from './syncAuth.js';
 import { isRow, resultAction, usesOutbox } from './outboxResults.js';
@@ -24,7 +24,6 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
     const { response } = await fetchWithFallback(path, { method: body ? 'POST' : 'GET',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(30000) });
-    if (response.status === 401) await clearAuthAndNotify();
     if (!response.ok) throw new Error(`Outbox HTTP ${response.status}`);
     return response.json() as Promise<unknown>;
   };

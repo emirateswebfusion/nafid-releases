@@ -1,3 +1,4 @@
+import { renderTaxBreakup } from '../taxBreakup';
 import { getEffectiveBillSettings, formatPrintItem, numberToIndianWords } from '../../receiptGenerator';
 import { type InvoiceData, getDocumentTitle, formatItemNameForBill, renderHtmlBalanceRows } from '../invoiceHtmlCore';
 
@@ -277,7 +278,8 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     </div>
 
     <!-- Bottom Page Footer (Anchored at bottom of Half A4 paper) -->
-    <div class="footer-section">
+    ${renderTaxBreakup(data)}
+  <div class="footer-section">
       <div class="divider-solid"></div>
       <div class="summary-grid">
         <!-- Left: Rupees in Words & Customer Ledger -->

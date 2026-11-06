@@ -2,7 +2,7 @@ import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash, Clock, Printer, RefreshCw } from 'lucide-react';
+import { Undo2, Search, X, Package, User, AlertCircle, LogOut, Phone, Trash, Clock, Printer, RefreshCw } from 'lucide-react';
 import { CurrencyIcon } from '../ui/CurrencyIcon';
 import clsx from 'clsx';
 import { Skeleton } from '../ui/Skeleton';
@@ -272,15 +272,6 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         </div>
       </header>
       <ReturnCashRegisterNote tenantId={tenantId} />
-
-      {/* Status Message for small screens */}
-      {statusMessage && (
-        <div className={clsx('sm:hidden shrink-0 flex items-center gap-2 px-4 py-2 text-xs font-bold border-b', statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/10' : 'bg-red-500/10 text-red-600 border-red-500/10')}>
-          {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-          {statusMessage.text}
-          <button onClick={() => setStatusMessage(null)} className="ml-auto cursor-pointer"><X className="w-3.5 h-3.5" /></button>
-        </div>
-      )}
 
       {/* Statistics Panel */}
       <div className="flex-1 flex flex-col min-h-0 bg-background select-none w-full px-4 sm:px-6 py-6 space-y-6">

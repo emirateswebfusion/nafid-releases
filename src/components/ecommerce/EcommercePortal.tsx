@@ -1,3 +1,4 @@
+import { FloatToast } from '../ui/FloatToast';
 import { storeDateTime } from '../../utils/time/dateDisplay';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Store, Package, ShoppingCart, Settings, RefreshCw, X, TrendingUp } from 'lucide-react';
@@ -56,7 +57,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
     setBulkProcessing, setSyncingProductId, editingProduct, orders, setOrders, setOrdersLoading,
     orderSearch, orderStatusFilter, selectedOrder, setSelectedOrder, setRegLoading, setRegError,
     setRegSuccess, settingsForm, setSettingsForm, setSavingSettings, setSettingsMsg, setTestingConnection,
-    setPingLatency,
+    setPingLatency, toast, setToast,
   } = ec;
 
   // Registration Form State
@@ -238,7 +239,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
       if (res.success) {
         await loadProducts();
       } else {
-        alert(`Product sync failed: ${res.error}`);
+        setToast({ text: `Product sync failed: ${res.error}`, type: 'error' });
       }
     } finally {
       setSyncingProductId(null);
@@ -253,7 +254,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
       if (res.success) {
         await loadProducts();
       } else {
-        alert(`Unpublish failed: ${res.error}`);
+        setToast({ text: `Unpublish failed: ${res.error}`, type: 'error' });
       }
     } finally {
       setSyncingProductId(null);
@@ -584,6 +585,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
           </div>
         </div>
       )}
+      <FloatToast message={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

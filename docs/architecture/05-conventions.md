@@ -107,3 +107,9 @@ Python, open files with `encoding='utf8', newline=''`.
 ## Settings draft and save convention
 
 Settings preferences, feature switches and setup edits remain drafts until the single header Save Changes action. Register section-owned async saves with `useSettingsSectionSave` and `SettingsSaveSession`; do not write from input handlers or add section Save buttons. Keep visited sections and nested draft panes mounted across navigation. Await persistence, propagate errors, and keep failed drafts retryable. Runtime stores and caches update only after successful persistence. Existing API writes are not an atomic transaction across sections. Explicit operational actions remain separate. See AGENTS.md rule 18 and the change guide Settings section.
+
+## Toast notifications
+
+- All POS transient notifications use `src/components/ui/FloatToast.tsx`; do not create feature-specific toast markup, use browser `alert()`, or add another toast library. Feature adapters may only map state into FloatToast props.
+- Use success/error/info/warning types and semantic icons from the shared component. Put simultaneous messages in one positioned stack with `stackItem`; retain dismiss callbacks, action buttons and existing state-owned lifetimes (`duration={0}`). Restaurant errors/warnings remain until dismissed.
+- Inline field validation, persistent status/progress panels and confirmation dialogs remain contextual UI. Add shared visual or accessibility changes only in FloatToast.

@@ -170,7 +170,7 @@ export function initPrinter() {
         show: false,
         width: isHalfA4 ? 794 : (isA5 ? (isLandscape ? 794 : 560) : (isLandscape ? 1123 : 794)),
         height: isHalfA4 ? 560 : (isA5 ? (isLandscape ? 560 : 794) : (isLandscape ? 794 : 1123)),
-        webPreferences: {
+        webPreferences: { backgroundThrottling: false,
           preload: path.join(__dirname, '../preload.js'),
           contextIsolation: true,
           nodeIntegration: false,
@@ -402,7 +402,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
       width: windowWidth,
       height: windowHeight,
       useContentSize: true,
-      webPreferences: {
+      webPreferences: { backgroundThrottling: false,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
@@ -450,7 +450,7 @@ function printBulkBarcodeUSB(items: BulkPrintItem[], deviceName: string, widthMm
       width: windowWidth,
       height: windowHeight,
       useContentSize: true,
-      webPreferences: {
+      webPreferences: { backgroundThrottling: false,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
@@ -568,7 +568,7 @@ function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: bool
       show: false,
       width: winWidth,
       height: winHeight,
-      webPreferences: {
+      webPreferences: { backgroundThrottling: false,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
@@ -712,12 +712,11 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
       width: Math.ceil(widthMm * 96 / 25.4),
       height: 4000,
       useContentSize: true,
-      webPreferences: {
+      webPreferences: { backgroundThrottling: false,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        backgroundThrottling: false,
       }
     });
 

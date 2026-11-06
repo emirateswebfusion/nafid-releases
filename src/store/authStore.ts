@@ -24,7 +24,7 @@ export interface AuthState {
   cloudSyncReason: string | null;
 
   // Actions
-  login: (email: string, password: string, apiBase?: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, apiBase?: string, options?: { requireCloud?: boolean }) => Promise<{ success: boolean; error?: string }>;
   loginWithPin: (pin: string) => Promise<{ success: boolean; error?: string }>;
   setLastSyncTime: (time: number) => void;
   setCloudSyncPaused: (paused: boolean, reason?: string | null) => void;
@@ -243,7 +243,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
   },
 
   // ── Login: call Cloud API then persist token via IPC ─────────────────────
-  login: async (email, password, apiBase = CLOUD_API) => {
+  login: async (email, password, apiBase = CLOUD_API, options = {}) => {
+    let receivedCloudResponse = false;
     const applyOfflineLogin = async (user: { role?: string; permissions?: string[]; restricted_page?: string | null; tenant_id: string; user_id: string; name?: string }, reason: string) => {
       const roleVal = normalizeRole(user.role);
       if (roleVal === 'SUPER_ADMIN') {
@@ -301,16 +302,15 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       useCartStore.getState().resetDomainConfirmation();
       const baseUrl = apiBase.replace(/\/$/, '');
       const res = await authCloud.login(baseUrl, email, password);
+      receivedCloudResponse = true;
       // Guard: server may return a non-JSON body (e.g. a hosting-provider gateway error such as
       // HTTP 402 "Payment required"). Parse gracefully so the UI always shows a readable message.
       const data = await res.json().catch(() => null as null);
 
       if (!res.ok) {
-        if (res.status === 403 || res.status === 401) {
-          const errMsg = data?.error || 'Authentication failed';
-          if (errMsg.toLowerCase().includes('disabled') || errMsg.toLowerCase().includes('terminated') || errMsg.toLowerCase().includes('restricted')) {
-            return { success: false, error: errMsg };
-          }
+        // An online denial must never be bypassed with an older cached password.
+        if (options.requireCloud || [400, 401, 403, 429].includes(res.status)) {
+          return { success: false, error: formatError(data?.error || data, 'Cloud login failed. Please try again.') };
         }
         if (hasBridge('authLoginOffline')) {
           console.warn(`[AuthStore] Cloud login returned HTTP ${res.status} (${data?.error || 'Server Error'}), attempting local DB auth...`);
@@ -324,7 +324,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         return { success: false, error: formatError(data?.error || data, 'Server is temporarily unavailable. Please try again later.') };
       }
 
-      if (data === null) {
+      if (!data || typeof data.token !== 'string' || !data.token || isTokenExpired(data.token) || !data.tenant_id || !data.user_id) {
         return { success: false, error: 'Server returned an unexpected response. Please try again.' };
       }
 
@@ -346,7 +346,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
       // Persist to disk and local SQLite database via IPC
       if (isDesktopRuntime()) {
-        await authApi.saveToken({
+        const saved = await authApi.saveToken({
           jwt_token: data.token,
           tenant_id: data.tenant_id,
           user_id: data.user_id,
@@ -360,6 +360,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
           permissions: data.permissions,
           login_enabled: data.login_enabled !== false,
         });
+        if (!saved?.success) return { success: false, error: saved?.error || 'Could not save the cloud session. Please try again.' };
       } else {
         localStorage.setItem(BROWSER_AUTH_KEY, JSON.stringify({
           jwt_token: data.token,
@@ -394,11 +395,11 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         
         // Also ensure it's saved locally for offline persistence
         if (isDesktopRuntime()) {
-          await settingsApi.set({ 
-            tenant_id: data.tenant_id, 
-            key: 'isDomainConfirmed', 
-            value: true 
-          });
+          try {
+            await settingsApi.set({ tenant_id: data.tenant_id, key: 'isDomainConfirmed', value: true });
+          } catch (error) {
+            console.warn('[AuthStore] Could not cache domain confirmation:', error);
+          }
         }
       }
 
@@ -409,11 +410,15 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
       return { success: true };
     } catch (err) {
-      // Offline fallback: Attempt local authentication using cached user credentials in SQLite
-      if (hasBridge('authLoginOffline')) {
-        const offlineAuth = await authApi.loginOffline({ email, password });
-        if (offlineAuth.success && offlineAuth.user) {
-          return await applyOfflineLogin(offlineAuth.user, 'Offline Mode — Cloud Sync paused. Check network connection.');
+      // Only a failed network request may fall back; persistence/response errors must stay visible.
+      if (!receivedCloudResponse && !options.requireCloud && hasBridge('authLoginOffline')) {
+        try {
+          const offlineAuth = await authApi.loginOffline({ email, password });
+          if (offlineAuth.success && offlineAuth.user) {
+            return await applyOfflineLogin(offlineAuth.user, 'Offline Mode — Cloud Sync paused. Check network connection.');
+          }
+        } catch (offlineError) {
+          return { success: false, error: formatError(offlineError, 'Offline login is unavailable. Please try again.') };
         }
       }
       return { success: false, error: formatError(err, 'Cannot reach server. Check your network connection.') };

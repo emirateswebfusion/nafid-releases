@@ -7,6 +7,7 @@ import { type EcommerceSettings, type EcommerceProductItem, type EcommerceOrder 
  * from the signed-in shop.)
  */
 export function useEcommerceState() {
+  const [toast, setToast] = useState<{ text: string; type: 'error' } | null>(null);
   // Active navigation tab
   const [activeTab, setActiveTab] = useState<'overview' | 'registration' | 'products' | 'orders' | 'settings'>('overview');
   const [settings, setSettings] = useState<EcommerceSettings | null>(null);
@@ -49,7 +50,7 @@ export function useEcommerceState() {
   const [pingLatency, setPingLatency] = useState<number | null>(null);
 
   return {
-    activeTab, setActiveTab, settings, setSettings, loading, setLoading, refreshing, setRefreshing, connectionStatus,
+    toast, setToast, activeTab, setActiveTab, settings, setSettings, loading, setLoading, refreshing, setRefreshing, connectionStatus,
     setConnectionStatus, copiedId, setCopiedId, products, setProducts, productsLoading, setProductsLoading,
     productSearch, setProductSearch, productFilter, setProductFilter, categoryFilter, setCategoryFilter, stockFilter,
     setStockFilter, selectedProductIds, setSelectedProductIds, bulkProcessing, setBulkProcessing, syncingProductId,

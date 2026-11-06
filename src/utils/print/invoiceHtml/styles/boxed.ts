@@ -1,3 +1,4 @@
+import { renderTaxBreakup } from '../taxBreakup';
 import { localizeCurrencyText } from '../../../localization/storeProfile';
 import { getEffectiveBillSettings, formatPrintItem, numberToIndianWords } from '../../receiptGenerator';
 import { splitTaxAmount } from '../../../pricing/checkoutLines';
@@ -434,7 +435,8 @@ export function generateBoxedHtml(data: InvoiceData, title: string): string {
     </div>
 
     <!-- Bottom Page Footer -->
-    <div class="footer-container">
+    ${renderTaxBreakup(data)}
+  <div class="footer-container">
       <!-- E&OE & Totals Section -->
       <div style="display: flex; border-bottom: 1px solid #000;">
         <div style="width: 65%; border-right: 1px solid #000; padding: 4px 8px; font-size: 10.5px; line-height: 1.35;">

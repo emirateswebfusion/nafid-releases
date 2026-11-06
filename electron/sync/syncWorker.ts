@@ -17,6 +17,7 @@ export function setSyncActive(active: boolean) {
   syncState.isSyncActive = active;
   if (active) {
     syncState.authExpiredNotified = false;
+    if (syncState.isWorkerInitialized && !syncState.syncCycleTimerId) scheduleNextSyncCycle();
   }
   console.log(`[SyncWorker] Sync active state changed to: ${active}`);
 }
@@ -383,7 +384,7 @@ export async function runInitialSync(sender?: WebContents) {
     syncState.isSyncActive = false;
     notifyOnlineStatus(false, 'NONE');
     if (config?.jwt_token && config.jwt_token !== LAN_PLACEHOLDER_TOKEN && cloudTokenUnusable(config.jwt_token)) {
-      clearAuthAndNotify();
+      clearAuthAndNotify(config.jwt_token);
     }
     return { success: false, error: 'Auth token expired or missing' };
   }

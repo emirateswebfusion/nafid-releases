@@ -227,8 +227,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('sync:progress', listener);
     return () => ipcRenderer.removeListener('sync:progress', listener);
   },
-  onTokenExpired: (callback: () => void) => {
-    const listener = () => callback();
+  onTokenExpired: (callback: (session?: { token: string }) => void) => {
+    const listener = (_event: unknown, session?: { token: string }) => callback(session);
     ipcRenderer.on('auth:token-expired', listener);
     return () => ipcRenderer.removeListener('auth:token-expired', listener);
   },

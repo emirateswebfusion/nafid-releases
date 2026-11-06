@@ -1,6 +1,7 @@
+import { FloatToast } from '../ui/FloatToast';
 import { useState, useEffect } from 'react';
 import { POS_LAYOUT_MODELS_DATA, DEFAULT_BILLING_UI_CONFIG, type BillingUIConfig, type POSLayoutModel } from '../../store/billingUIStore';
-import { LayoutGrid, Columns, Sliders, RotateCcw, Eye, Touchpad, X, AlertCircle, User, Search } from 'lucide-react';
+import { LayoutGrid, Columns, Sliders, RotateCcw, Eye, Touchpad, User, Search } from 'lucide-react';
 import clsx from 'clsx';
 import { PostPrintModeSection } from './views/PostPrintModeSection';
 import { ComponentVisibilitySection } from './views/ComponentVisibilitySection';
@@ -252,15 +253,7 @@ export function BillingUICustomizer({ config, onChange }: BillingUICustomizerPro
       )}
       {/* ─── FLOATING TOAST NOTIFICATION ─── */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <div className="p-1.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
-            <AlertCircle className="w-4 h-4" />
-          </div>
-          <span className="text-xs font-bold text-white">{toastMessage}</span>
-          <button onClick={() => setToastMessage(null)} className="p-1 hover:bg-slate-700/50 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-white shrink-0">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        <FloatToast message={toastMessage} type="warning" onClose={() => setToastMessage(null)} />
       )}
     </div>
   );

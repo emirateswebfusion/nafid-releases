@@ -38,7 +38,7 @@ export async function requestServerInvoiceNumber(
   series: string | undefined,
   configKey: string,
   start?: number,
-  timeoutMs: number = 3000
+  timeoutMs: number = 750
 ): Promise<{ success: true; invoiceNumber: string } | { success: false; error: string; offline: boolean }> {
   try {
     const terminalCode = getOrInitTerminalCode(db);

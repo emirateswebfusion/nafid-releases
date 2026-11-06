@@ -92,8 +92,9 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
           orderType={opening.type} staff={data.staff} onCancel={() => setOpening(null)}
           onSave={async fields => {
             const order = await actions.openOrder({ ...fields, order_type: opening.type, table_id: opening.table?.table_id ?? null });
-            setOpening(null);
-            if (order) { await data.refreshOrders(); setSelectedId(order.order_id); }
+            if (!order) return false;
+            await data.refreshOrders(); setSelectedId(order.order_id); setOpening(null);
+            return true;
           }} />
       )}
     </div>

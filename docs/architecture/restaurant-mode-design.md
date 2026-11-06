@@ -397,3 +397,6 @@ Tables navigation now separates Orders & seating from the Tables entity page. `r
 
 
 Tables entity list uses the full available content width with responsive page padding. Bulk Add Tables remains available alongside Add Table regardless of row count. `BulkTablesDialog` creates at most 200 numbered tables, skips existing names, and retains successful IDs/names across partial-failure retries. It refreshes the list after attempted writes and reports partial failures; batch creation is not atomic. Tests: tablesManager.ui.test.tsx.
+
+
+OrderDetailsDialog awaits create/update results, locks duplicate submission and dismissal while saving, and retains entered fields on failure. Parent screens close only on confirmed success and refresh order rows. Customer identity is editable for dine-in as well as takeaway/delivery. Previously assigned staff names survive unavailable staff-directory entries. Billing-claimed orders require reopening before editing. Existing update API and persistence contracts are unchanged. Regression: orderDetailsDialog.ui.test.tsx.

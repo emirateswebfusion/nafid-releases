@@ -147,3 +147,7 @@ builders (`getProductsStatement`, `getInvoicesStatement`, `deltaRowsQuery`, …,
 ### Settings save ownership
 
 `components/settings/SettingsManager.tsx` owns the main form, feature draft and visited sections. `settingsSaveSession.ts` aggregates section persistence; `hooks/useSettingsSectionSave.ts` registers dirty state and awaited callbacks. `restaurant/settings/useRestaurantSettingsDraft.ts` stages restaurant rows and printer configuration through existing data APIs. `design-settings/useDesignDraft.ts` stages appearance choices; canonical theme, terminology and dashboard stores own persistence and runtime application. These modules were introduced by Settings PR #64; local branches without that merge must integrate it before relying on this ownership map.
+
+### Transient notification ownership
+
+`components/ui/FloatToast.tsx` owns toast markup, severity icons, accessibility roles, dismissal and optional actions (using the shared Button). Feature state stays in its existing hook/store; view adapters only map messages to this primitive. Positioned stack containers use `stackItem` so concurrent messages do not overlap. No notification code belongs in `src/data`.

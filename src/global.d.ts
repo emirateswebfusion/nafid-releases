@@ -12,7 +12,7 @@ import type { PurchaseBillItemWithProduct, PurchaseSearchProduct } from './data/
 import type { ScrapInvoiceByNumberResult, ScrapInvoiceListResult, ScrapTransactionWithCategory } from './data/scrap';
 import type { PricingTier } from './data/pricingTiers';
 import type { DeletedInvoice, DeletedProduct, DeletedCustomer, DeletedParty } from './data/recycleBin';
-import type { OfflineLoginResult, PinLoginResult, TerminalConfigResult } from './data/auth';
+import type { OfflineLoginResult, PinLoginResult, TerminalConfigResult, RejectedCloudSession } from './data/auth';
 import type { EffectiveCloudState } from './data/sync';
 import type { BulkPrintItem } from './data/printing';
 import type { CardTerminalPayment, CardTerminalStatus, CardTerminalTransaction } from './data/cardTerminal';
@@ -206,7 +206,7 @@ export interface IElectronAPI {
   onSyncCycleComplete: (callback: () => void) => (() => void);
   onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => void) => (() => void);
   onSyncProgress: (callback: (progress: SyncProgress) => void) => (() => void) | void;
-  onTokenExpired: (callback: () => void) => (() => void) | void;
+  onTokenExpired: (callback: (session?: RejectedCloudSession) => void) => (() => void) | void;
   dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string; tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE' }) => Promise<{ success: boolean; results?: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[]; error?: string }>;
   dbPreviewConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; tax_mode?: 'EXCLUSIVE' | 'INCLUSIVE' }) => Promise<{
     success: boolean;

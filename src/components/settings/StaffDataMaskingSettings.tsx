@@ -1,6 +1,7 @@
+import { FloatToast } from '../ui/FloatToast';
 import { getCurrencyPrefix, getStoreProfile } from '../../utils/localization/storeProfile';
 import { useState, useEffect } from 'react';
-import { EyeOff, Shield, Eye, CheckCircle2, AlertCircle, Calendar, Package } from 'lucide-react';
+import { EyeOff, Shield, Eye, CheckCircle2, Calendar, Package } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
 import { 
@@ -97,15 +98,7 @@ export function StaffDataMaskingSettings({ config: propConfig, onChange: propOnC
     <div className="w-full space-y-6 animate-in fade-in duration-300 pb-12 select-none">
       {/* Toast */}
       {statusMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <div className={clsx(
-            "px-4 py-3 rounded-2xl flex items-center gap-3 shadow-2xl border text-sm font-bold",
-            statusMessage.type === 'success' ? "bg-slate-900 text-emerald-400 border-emerald-500/30" : "bg-red-950 text-red-200 border-red-500/30"
-          )}>
-            {statusMessage.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <AlertCircle className="w-5 h-5 text-rose-400" />}
-            <span>{statusMessage.text}</span>
-          </div>
-        </div>
+        <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} duration={0} />
       )}
 
       {/* Main Header Card */}

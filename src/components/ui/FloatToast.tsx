@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import clsx from 'clsx';
+import { Button } from './Button';
 import { RedCrossButton } from './RedCrossButton';
 
 export interface ToastMessage {
@@ -11,16 +12,19 @@ export interface ToastMessage {
 
 interface FloatToastProps {
   message: ToastMessage | null | string;
-  onClose: () => void;
+  onClose?: () => void;
+  stackItem?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
   title?: string;
   type?: 'success' | 'error' | 'info' | 'warning';
   position?: 'bottom-right' | 'bottom-left';
   duration?: number;
 }
 
-export function FloatToast({ message, onClose, title, type = 'success', position = 'bottom-right', duration = 4000 }: FloatToastProps) {
+export function FloatToast({ message, onClose, title, type = 'success', position = 'bottom-right', duration = 4000, stackItem = false, actionLabel, onAction }: FloatToastProps) {
   React.useEffect(() => {
-    if (!message || duration <= 0) return;
+    if (!message || !onClose || duration <= 0) return;
     const timer = setTimeout(() => {
       onClose();
     }, duration);
@@ -32,7 +36,7 @@ export function FloatToast({ message, onClose, title, type = 'success', position
   const msgText = typeof message === 'string' ? message : message.text;
   const msgType = typeof message === 'string' ? type : message.type;
   const defaultTitle = msgType === 'success' ? 'STATUS' : msgType === 'error' ? 'ALERT' : 'NOTIFICATION';
-  const msgTitle = typeof message === 'string' ? (title || defaultTitle) : (message.title || defaultTitle);
+  const msgTitle = typeof message === 'string' ? (title || defaultTitle) : (title || message.title || defaultTitle);
 
   const iconMap = {
     success: <CheckCircle2 className="w-4 h-4" />,
@@ -51,7 +55,7 @@ export function FloatToast({ message, onClose, title, type = 'success', position
   const posClass = position === 'bottom-left' ? 'bottom-5 left-5' : 'bottom-5 right-5';
 
   return (
-    <div className={clsx('fixed z-[999999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto max-w-md', posClass)}>
+    <div className={clsx('z-[999999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto max-w-md', stackItem ? 'relative w-full' : clsx('fixed', posClass))} role={msgType === 'error' || msgType === 'warning' ? 'alert' : 'status'}>
       <div className={clsx('p-2 rounded-xl shrink-0', badgeColorMap[msgType] || badgeColorMap.info)}>
         {iconMap[msgType] || iconMap.info}
       </div>
@@ -59,7 +63,8 @@ export function FloatToast({ message, onClose, title, type = 'success', position
         <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">{msgTitle}</span>
         <span className="text-white font-bold text-xs block leading-tight">{msgText}</span>
       </div>
-      <RedCrossButton onClick={onClose} size="sm" />
+      {actionLabel && onAction && <Button type="button" size="sm" onClick={onAction}>{actionLabel}</Button>}
+      {onClose && <RedCrossButton onClick={onClose} size="sm" />}
     </div>
   );
 }

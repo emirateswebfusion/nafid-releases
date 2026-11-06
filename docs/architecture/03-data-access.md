@@ -101,6 +101,26 @@ Main → renderer events follow the same path with `bindEvents` in `src/data/eve
 Before adding a cloud call, confirm the route is mounted in `nafid-server/src/index.ts` (the REST contract is documented
 in `nafid-server/docs/architecture/02-http-api.md`).
 
+### Cloud session recovery
+
+`LoginScreen` retains the `auth_prefer_email` recovery intent across StrictMode effects and failed retries.
+It calls `authStore.login(..., { requireCloud: true })` (fourth argument): recovering cloud sync requires an online
+login and successful `authApi.saveToken`; it cannot silently succeed through cached offline credentials.
+Ordinary login may still fall back for network/provider outages (including hosting HTTP 402), but never for
+invalid login input, a credential/account denial or rate limiting (HTTP 400/401/403/429). Local-authentication
+failures return an error so the login form remains retryable.
+Missing/expired tokens and persistence failures remain on the login screen. A later domain-confirmation cache failure
+must not replace the saved online session with an offline one.
+
+The sync transport handles cloud HTTP 401 responses using the token and route of the individual request.
+It compares the rejected token with the current persisted token before pausing; LAN pairing errors and stale
+responses cannot pause a replacement session. `onTokenExpired` optionally carries `{ token }` through the preload,
+`global.d.ts` and `bridgeEvents`; the renderer ignores mismatched/signed-out events and honors matching server
+rejections even when JWT expiry is in the future. Payload-free events from older main processes retain their expiry
+check. PIN users compare the stored terminal credential for their tenant without adopting its owner JWT;
+a user/session change during that read cancels the stale prompt. Reauthentication restarts a cancelled background
+timer once. REST/sync payloads and persisted business rows are unchanged. Regression coverage: `cloudRelogin.ui`, `reloginScreen.ui`, `syncReauthentication`, `syncResumeTimer`.
+
 ## 3.3 Main-process data layer
 
 ```text

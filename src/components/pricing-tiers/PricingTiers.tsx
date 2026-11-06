@@ -1,6 +1,5 @@
+import { FloatToast } from '../ui/FloatToast';
 import { useMemo, useRef } from 'react';
-import { AlertCircle, CheckCircle2, X } from 'lucide-react';
-import clsx from 'clsx';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { useAuthStore } from '../../store/authStore';
 
@@ -100,36 +99,12 @@ export function PricingTiers({ onClose }: { onClose?: () => void }) {
       />
 
       {/* ── FLOATING TOAST MESSAGES ── */}
-      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-2.5 w-full max-w-md pointer-events-none">
+      <div className="fixed bottom-5 right-5 z-[999999] flex flex-col items-end gap-2.5 w-full max-w-md pointer-events-none">
         {statusMessage && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
-              {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
-                {statusMessage.type === 'success' ? 'PRICING STATUS' : 'PRICING ALERT'}
-              </span>
-              <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
-            </div>
-            <button type="button" onClick={() => setStatusMessage(null)} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} title={statusMessage?.type === 'success' ? 'PRICING STATUS' : 'PRICING ALERT'} duration={0} stackItem />
         )}
         {error && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className="p-2 rounded-xl bg-red-500/25 text-red-400 shrink-0">
-              <AlertCircle className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">PRICING ERROR</span>
-              <span className="text-white font-bold text-xs block leading-tight">{typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))}</span>
-            </div>
-            <button type="button" onClick={() => setError(null)} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <FloatToast message={typeof error === 'string' ? error : ((error as { message?: string })?.message || JSON.stringify(error))} type="error" title="PRICING ERROR" onClose={() => setError(null)} duration={0} stackItem />
         )}
       </div>
 

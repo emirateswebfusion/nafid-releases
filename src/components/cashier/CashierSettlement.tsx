@@ -2,7 +2,7 @@ import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
-import { CheckCircle2, Plus, X, DollarSign, Clock, AlertTriangle, Bell, Zap } from 'lucide-react';
+import { CheckCircle2, Plus, DollarSign, Clock, AlertTriangle } from 'lucide-react';
 import { CustomDialog, type DialogVariant } from '../ui/CustomDialog';
 import { FloatToast } from '../ui/FloatToast';
 import { useAuthStore } from '../../store/authStore';
@@ -705,39 +705,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       />
 
       {/* ═══ Sudden New Bill Notification Toast Banner ═══ */}
-      {latestNewBill && (
-        <div className="fixed top-16 right-6 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
-          <div className="p-4 rounded-2xl bg-card border-2 border-emerald-500/80 shadow-2xl flex items-center gap-3.5 max-w-sm">
-            <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-500 shrink-0 animate-bounce">
-              <Bell className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  <Zap className="w-3 h-3 fill-emerald-500 text-emerald-500" /> New Bill Received!
-                </span>
-                <button
-                  onClick={() => setLatestNewBill(null)}
-                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-sm font-extrabold text-foreground truncate mt-0.5">
-                {latestNewBill.invoice_number}
-              </p>
-              <div className="flex items-center justify-between text-xs mt-1">
-                <span className="text-muted-foreground font-semibold truncate">
-                  {latestNewBill.customer_name || 'Walk-in Customer'}
-                </span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-                  {formatCurrency(Number(latestNewBill.grand_total))}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* ── Custom Delete Transaction Confirmation Modal ── */}
       <DeleteTransactionDialog
@@ -762,7 +730,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
         variant={alertDialog?.variant || 'warning'}
       />
 
-      <FloatToast message={reprintSuccess ? 'Invoice reprinted successfully!' : null} onClose={() => setReprintSuccess(false)} />
+      <div className="fixed bottom-5 right-5 z-[999999] flex flex-col gap-2 max-w-md pointer-events-none">
+        <FloatToast message={latestNewBill ? `${latestNewBill.invoice_number} · ${latestNewBill.customer_name || 'Walk-in Customer'} · ${formatCurrency(Number(latestNewBill.grand_total))}` : null} title="New Bill Received!" onClose={() => setLatestNewBill(null)} duration={0} stackItem />
+        <FloatToast message={reprintSuccess ? 'Invoice reprinted successfully!' : null} onClose={() => setReprintSuccess(false)} stackItem />
+      </div>
     </div>
   );
 }

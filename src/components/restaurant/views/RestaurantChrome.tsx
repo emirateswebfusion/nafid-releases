@@ -1,5 +1,6 @@
+import { FloatToast } from '../../ui/FloatToast';
 import { storeTime } from '../../../utils/time/dateDisplay';
-import { CircleCheck, Clock, ShoppingBag, Bike, LayoutGrid, ChefHat, X } from 'lucide-react';
+import { Clock, ShoppingBag, Bike, LayoutGrid, ChefHat } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '../../ui/Button';
 import { RedCrossButton } from '../../ui/RedCrossButton';
@@ -72,20 +73,5 @@ interface ToastProps {
 
 /** Floating status message (bottom right); success messages fade by themselves. */
 export function RestaurantToast({ message, onClose }: ToastProps) {
-  useEffect(() => {
-    if (message?.tone !== 'ok') return;
-    const t = window.setTimeout(onClose, 3500);
-    return () => window.clearTimeout(t);
-  }, [message, onClose]);
-  if (!message) return null;
-  const tone = message.tone === 'error' ? 'border-rose-500/40 bg-rose-50 text-rose-800 dark:bg-rose-950 dark:text-rose-200'
-    : message.tone === 'warn' ? 'border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
-      : 'border-emerald-500/40 bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200';
-  return (
-    <div role="status" className={`fixed bottom-5 right-5 z-[60] flex max-w-md items-start gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-xl ${tone}`}>
-      {message.tone === 'ok' && <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" />}
-      <span className="flex-1">{message.text}</span>
-      <button type="button" onClick={onClose} title="Dismiss" className="opacity-70 hover:opacity-100"><X className="h-4 w-4" /></button>
-    </div>
-  );
+  return <FloatToast message={message ? { text: message.text, type: message.tone === 'ok' ? 'success' : message.tone === 'warn' ? 'warning' : 'error' } : null} onClose={onClose} duration={message?.tone === 'ok' ? 3500 : 0} />;
 }

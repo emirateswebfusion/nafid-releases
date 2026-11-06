@@ -71,10 +71,9 @@ export function useCollectPayment(ctx: UseCollectPaymentContext) {
         loadInvoices(true);
         // Dispatch event to refresh CashierSettlement drawer cash instantly
         window.dispatchEvent(new CustomEvent('checkout:completed'));
-        setTimeout(() => {
-          setCollectPaymentOpen(false);
-          setCollectPaymentSuccess(false);
-        }, 1500);
+        setCollectPaymentOpen(false);
+        setCollectPaymentSuccess(false);
+        showToast('Payment recorded', 'success');
       } else {
         showToast('Failed to update payment: ' + (result.error || 'Unknown error'), 'error');
       }

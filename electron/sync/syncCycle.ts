@@ -253,7 +253,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
 
       if (activeRoute === 'CLOUD' && cloudTokenUnusable(jwt_token)) {
         console.warn('[SyncWorker] JWT token has expired on Cloud route. Clearing auth...');
-        await clearAuthAndNotify();
+        await clearAuthAndNotify(jwt_token);
         return;
       }
 

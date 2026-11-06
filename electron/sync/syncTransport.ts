@@ -143,6 +143,10 @@ export async function fetchWithFallback(
   options: RequestInit & { signal?: AbortSignal | null } = {}
 ): Promise<{ response: Response; activeUrl: string; activeRoute: 'LAN' | 'CLOUD' }> {
   const endpoints = getSyncEndpoints();
+  const token = new Headers(options.headers).get('Authorization')?.replace(/^Bearer /, '');
+  const checkAuth = async (response: Response, route: 'LAN' | 'CLOUD') => {
+    if (response.status === 401 && route === 'CLOUD' && token) await clearAuthAndNotify(token);
+  };
 
   // Primary request attempt (LAN requests carry the shop pairing key; it is never sent to the cloud)
   try {
@@ -152,6 +156,7 @@ export async function fetchWithFallback(
       : options;
     const res = await fetch(primaryFullUrl, primaryOptions);
     syncState.currentActiveRoute = endpoints.primaryRoute;
+    await checkAuth(res, endpoints.primaryRoute);
     return { response: res, activeUrl: endpoints.primaryUrl, activeRoute: endpoints.primaryRoute };
   } catch (primaryErr) {
     const isNetworkError = (primaryErr as Error).name === 'TimeoutError' || 
@@ -173,6 +178,7 @@ export async function fetchWithFallback(
         }
         const res = await fetch(fallbackFullUrl, options);
         syncState.currentActiveRoute = endpoints.fallbackRoute!;
+        await checkAuth(res, endpoints.fallbackRoute!);
         notifyOnlineStatus(true, 'CLOUD');
         return { response: res, activeUrl: endpoints.fallbackUrl, activeRoute: endpoints.fallbackRoute! };
       } catch (fallbackErr: unknown) {
@@ -188,7 +194,8 @@ export async function fetchWithFallback(
   }
 }
 
-export async function clearAuthAndNotify() {
+export async function clearAuthAndNotify(token: string) {
+  if (getAuthConfig()?.jwt_token !== token) return;
   const endpoints = getSyncEndpoints();
   if (endpoints.primaryRoute === 'LAN') {
     console.warn('[SyncWorker] ℹ️ Local LAN mode is active. Preserving sync worker state despite cloud auth error.');
@@ -205,7 +212,7 @@ export async function clearAuthAndNotify() {
     const win = BrowserWindow.getAllWindows()[0];
     if (win && !win.isDestroyed()) {
       console.warn('[SyncWorker] ⚠️ Auth token expired or unauthorized. Pausing cloud sync loop and notifying UI (local POS remains active).');
-      win.webContents.send('auth:token-expired');
+      win.webContents.send('auth:token-expired', { token });
     }
   }
 }
@@ -234,15 +241,7 @@ export async function pushBatch<T>(
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          if (syncState.currentActiveRoute === 'CLOUD') {
-            console.error(`[SyncWorker] ${label} failed: HTTP 401 (token expired). Clearing auth...`);
-            await clearAuthAndNotify();
-          } else {
-            console.warn(`[SyncWorker] ${label} received 401 from ${syncState.currentActiveRoute}. Skipping auth reset.`);
-          }
-          return [];
-        }
+        if (response.status === 401) return [];
         let errDetail = '';
         try {
           errDetail = await response.text();
@@ -390,15 +389,7 @@ export async function pullPaginated(opts: {
           signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
         if (!response.ok) {
-          if (response.status === 401) {
-            if (syncState.currentActiveRoute === 'CLOUD') {
-              console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...`);
-              await clearAuthAndNotify();
-            } else {
-              console.warn(`[SyncWorker] Pull ${opts.label} received 401 from ${syncState.currentActiveRoute}. Skipping auth reset.`);
-            }
-            return null;
-          }
+          if (response.status === 401) return null;
           console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP ${response.status}`);
           return null;
         }

@@ -1,16 +1,22 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/data/settings', () => ({ getSetting: vi.fn().mockResolvedValue(null), setSetting: vi.fn().mockResolvedValue(undefined), getAllSettings: vi.fn().mockResolvedValue({}) }));
 vi.mock('../../src/data/restaurant', () => ({ restaurantApi: { getSetup: vi.fn().mockResolvedValue({ stations: [], tables: [], modifierGroups: [] }), getPrinterConfig: vi.fn().mockResolvedValue({ widthMm: 80, stations: {} }), savePrinterConfig: vi.fn().mockResolvedValue({ success: true }) } }));
+
+// Layout checks must not leave real cloud requests running after the jsdom window is removed.
+vi.mock('../../src/data/cloud/einvoiceCloud', () => ({ einvoiceCloud: {
+  getOverview: vi.fn().mockResolvedValue({ settings: { mode: 'OFF', provider_id: 'sandbox', environment: 'SANDBOX', start_date: '2026-11-06' }, providers: [], connection: null, counts: [] }),
+  listInbound: vi.fn().mockResolvedValue([]),
+} }));
 
 const { SETTINGS_SECTIONS } = await import('../../src/components/settings/settingsSections');
 const { SettingsSectionContent } = await import('../../src/components/settings/views/SettingsSectionContent');
 const { useSettingsFormState } = await import('../../src/components/settings/hooks/useSettingsFormState');
 const { DEFAULT_FEATURE_FLAGS } = await import('../../src/config/featureFlags');
 
-afterEach(cleanup);
+afterEach(async () => { cleanup(); await act(async () => {}); });
 
 function Section({ id }: { id: string }) {
   const form = useSettingsFormState();
