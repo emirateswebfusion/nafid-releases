@@ -2,7 +2,8 @@ declare function parseFloat(string: unknown): number;
 import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { PARTY_HEADER_MAP, PRODUCT_HEADER_MAP, resolveDynamicTierName } from '../dataUploadTypes';
+import { PARTY_HEADER_MAP } from '../dataUploadTypes';
+import { parseProductRows } from '../productFile';
 import { parseOpeningBalanceGrid } from '../openingBalanceFile';
 import type { ParsedRow, UploadEntityType } from '../dataUploadTypes';
 import type { DataUploadState } from './useDataUploadState';
@@ -19,6 +20,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
   const { availableTiers, setFileName, setLoading, setMessage, setParsedRows } = du;
 
   const handleEntityChange = (type: UploadEntityType) => {
+    if (du.importing || du.loading) return;
     setEntityType(type);
     setParsedRows([]);
     setFileName('');
@@ -29,18 +31,29 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
 
   const handleFileUpload = (file: File) => {
     if (!file) return;
+    if (du.importing || du.loading) return;
+    setParsedRows([]);
+    if (!/\.(csv|xlsx|xls)$/i.test(file.name) || file.size > 10 * 1024 * 1024) {
+      setMessage({ type: 'error', text: 'Choose a CSV or Excel file up to 10MB.' });
+      return;
+    }
     setLoading(true);
     setMessage(null);
     setFileName(file.name);
 
-    const isCsv = file.name.endsWith('.csv') || file.type === 'text/csv';
+    const isCsv = /\.csv$/i.test(file.name) || file.type === 'text/csv';
     const isOpening = entityType === 'opening_balances';
 
     if (isCsv) {
       Papa.parse(file, {
         header: !isOpening,
-        skipEmptyLines: true,
+        skipEmptyLines: 'greedy',
         complete: (results) => {
+          if (results.errors.length) {
+            setMessage({ type: 'error', text: `CSV needs correction: ${results.errors[0].message}` });
+            setLoading(false);
+            return;
+          }
           if (isOpening) processOpeningGrid(results.data as unknown[][]);
           else processRawData(results.data as Array<Record<string, unknown>>);
           setLoading(false);
@@ -55,14 +68,14 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
       reader.onload = (e) => {
         try {
           const buffer = e.target?.result;
-          const workbook = XLSX.read(buffer, { type: 'binary' });
+          const workbook = XLSX.read(buffer, { type: 'array' });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
           if (isOpening) {
             processOpeningGrid(XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as unknown[][]);
             return;
           }
-          const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+          const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
           processRawData(rawData as Array<Record<string, unknown>>);
         } catch (err) {
           setMessage({ type: 'error', text: `Failed to parse Excel file: ${(err as Error).message}` });
@@ -74,7 +87,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
         setMessage({ type: 'error', text: 'Error reading file from disk.' });
         setLoading(false);
       };
-      reader.readAsBinaryString(file);
+      reader.readAsArrayBuffer(file);
     }
   };
 
@@ -106,7 +119,11 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
       return;
     }
 
-    const headerMapping = entityType === 'products' ? PRODUCT_HEADER_MAP : PARTY_HEADER_MAP;
+    if (entityType === 'products') {
+      setParsedRows(parseProductRows(rows, availableTiers));
+      return;
+    }
+    const headerMapping = PARTY_HEADER_MAP;
 
     const processed: ParsedRow[] = rows.map((rawRow, _idx) => {
       const mappedData: import('../dataUploadTypes').ParsedRowData & Record<string, unknown> = {} as import('../dataUploadTypes').ParsedRowData;
@@ -135,52 +152,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
         errors.push('Name is required');
       }
 
-      if (entityType === 'products') {
-        const basePrice = parseFloat(mappedData.base_price ?? rawRow['Selling Price / MRP'] ?? rawRow['Selling Price'] ?? rawRow['MRP'] ?? 0);
-        const purchasePrice = parseFloat(mappedData.purchase_price ?? rawRow['Purchase Price'] ?? 0);
-        const stock = parseFloat(mappedData.current_stock ?? rawRow['Stock'] ?? 0);
-        const reorder = parseFloat(mappedData.reorder_level ?? rawRow['Reorder Level'] ?? 0);
-        const taxRate = parseFloat(mappedData.tax_rate_percent ?? rawRow['Tax Rate %'] ?? rawRow['GST %'] ?? 0);
-
-        if (isNaN(basePrice) || basePrice <= 0) {
-          errors.push('MRP must be greater than 0');
-        }
-
-        mappedData.base_price = basePrice || 0;
-        mappedData.purchase_price = isNaN(purchasePrice) ? 0 : purchasePrice;
-        mappedData.current_stock = isNaN(stock) ? 0 : stock;
-        mappedData.reorder_level = isNaN(reorder) ? 0 : reorder;
-        mappedData.tax_rate_percent = isNaN(taxRate) ? 0 : taxRate;
-        mappedData.sku_barcode = String(mappedData.sku_barcode ?? rawRow['Barcode'] ?? '').trim();
-        mappedData.item_code = String(mappedData.item_code ?? rawRow['Item Code'] ?? '').trim();
-        mappedData.category = String(mappedData.category ?? rawRow['Category'] ?? '').trim();
-        mappedData.brand_manufacturer = String(mappedData.brand_manufacturer ?? rawRow['Brand'] ?? '').trim();
-        mappedData.uom = String(mappedData.uom ?? rawRow['UOM'] ?? 'Pcs').trim() || 'Pcs';
-        mappedData.hsn_sac_code = String(mappedData.hsn_sac_code ?? rawRow['HSN Code'] ?? '').trim();
-        mappedData.is_gst_applicable = (mappedData.tax_rate_percent > 0 || mappedData.hsn_sac_code.length > 0) ? 1 : 0;
-
-        // Dynamic tier pricing extraction across all headers:
-        // Any non-standard column with a valid numeric price is dynamically extracted as a price tier
-        const tierPrices: Record<string, number> = {};
-        Object.keys(rawRow).forEach((rawKey) => {
-          const tierName = resolveDynamicTierName(rawKey, availableTiers);
-          if (tierName) {
-            const rawVal = rawRow[rawKey];
-            if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
-              const str = String(rawVal).trim();
-              const cleaned = str.replace(/^(?:[₹$€£\s]|AED|INR)+/i, '').replace(/,/g, '');
-              if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
-                const valNum = parseFloat(cleaned);
-                if (!isNaN(valNum) && valNum >= 0) {
-                  tierPrices[tierName] = valNum;
-                }
-              }
-            }
-          }
-        });
-
-        mappedData.tier_prices = tierPrices;
-      } else if (entityType === 'staff') {
+      if (entityType === 'staff') {
         const phone = String(mappedData.phone ?? rawRow['Phone'] ?? '').trim();
         const email = String(mappedData.email ?? rawRow['Email'] ?? '').trim();
         const roleDesig = String(mappedData.role_designation ?? rawRow['Role / Designation'] ?? rawRow['Role'] ?? 'Staff').trim();

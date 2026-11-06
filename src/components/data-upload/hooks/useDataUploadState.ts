@@ -5,7 +5,7 @@ import type { ParsedRow } from '../dataUploadTypes';
 export function useDataUploadState() {
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState<string>('');
-  const [, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [importing, setImporting] = useState<boolean>(false);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -16,7 +16,7 @@ export function useDataUploadState() {
 
   return {
     openingAsOf, setOpeningAsOf, openingPartyType, setOpeningPartyType,
-    parsedRows, setParsedRows, fileName, setFileName, setLoading, importing, setImporting, dragActive, setDragActive,
+    loading, parsedRows, setParsedRows, fileName, setFileName, setLoading, importing, setImporting, dragActive, setDragActive,
     message, setMessage, showOrderGuide, setShowOrderGuide, availableTiers, setAvailableTiers,
   };
 }

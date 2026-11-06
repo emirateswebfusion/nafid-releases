@@ -388,6 +388,11 @@ export async function runInitialSync(sender?: WebContents) {
     }
     return { success: false, error: 'Auth token expired or missing' };
   }
+  const access = calculateEffectiveCloudAccess();
+  if (!isLanRoute && !access.isCloudAllowed) {
+    notifyOnlineStatus(false, 'NONE');
+    return { success: false, error: access.activeReason };
+  }
   syncState.authExpiredNotified = false;
   console.log('[SyncWorker] Running explicit initial sync...');
   syncState.isSyncActive = true;
@@ -400,6 +405,8 @@ export async function runInitialSync(sender?: WebContents) {
   triggerUrgentCashSync().catch(() => {});
   triggerUrgentQuotationSync().catch(() => {});
   await runSyncCycle(sender);
+  if (syncState.authExpiredNotified || !syncState.isSyncActive) return { success: false, error: 'Cloud authorization is unavailable. Reconnect cloud sync.' };
+  if (syncState.currentActiveRoute === 'NONE') return { success: false, error: 'No sync connection is available. Local work remains available.' };
   return { success: true };
 }
 

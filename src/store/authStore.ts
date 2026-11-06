@@ -7,9 +7,12 @@ import { settingsApi } from '../data/settings';
 import { syncApi } from '../data/sync';
 import { CLOUD_API, registerCloudAuth } from '../data/cloud/client';
 import { authCloud } from '../data/cloud/authCloud';
+import { decodeJwtPayload, isTokenExpired } from '../utils/security/authToken';
+export { isTokenExpired } from '../utils/security/authToken';
 
 export interface AuthState {
   isAuthenticated: boolean;
+  authError: string | null;
   token: string | null;
   tenantId: string | null;
   userId: string | null;
@@ -24,7 +27,7 @@ export interface AuthState {
   cloudSyncReason: string | null;
 
   // Actions
-  login: (email: string, password: string, apiBase?: string, options?: { requireCloud?: boolean }) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, apiBase?: string, options?: { requireCloud?: boolean; offlineOnly?: boolean }) => Promise<{ success: boolean; error?: string }>;
   loginWithPin: (pin: string) => Promise<{ success: boolean; error?: string }>;
   setLastSyncTime: (time: number) => void;
   setCloudSyncPaused: (paused: boolean, reason?: string | null) => void;
@@ -45,32 +48,6 @@ function normalizeRole(rawRole: string | null | undefined): 'SUPER_ADMIN' | 'ADM
 }
 
 const BROWSER_AUTH_KEY = 'nafid_pos_auth_session';
-
-function decodeJwtPayload(token: string): { exp?: number; role?: string; permissions?: string[]; restricted_page?: string } | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length < 2) return null;
-    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    while (base64.length % 4 !== 0) {
-      base64 += '=';
-    }
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
-
-export function isTokenExpired(token: string): boolean {
-  const payload = decodeJwtPayload(token);
-  if (!payload) return true;
-  return payload.exp ? payload.exp * 1000 < Date.now() : false;
-}
 
 function parsePermissionsFromToken(token: string): string[] {
   const payload = decodeJwtPayload(token);
@@ -98,8 +75,11 @@ function formatError(err: unknown, fallback: string): string {
 
 // Explicit type: the initializer calls useAuthStore.getState() itself, and with noImplicitAny off that circular
 // reference made tsc infer `any` for the whole store (every screen read tenantId etc. untyped).
+let authGeneration = 0;
+
 export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState>()((set, _get) => ({
   isAuthenticated: false,
+  authError: null,
   token: null,
   tenantId: null,
   userId: null,
@@ -118,22 +98,31 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
   // ── On app startup: read config.json via IPC ──────────────────────────────
   checkAuth: async () => {
+    const generation = authGeneration;
     set({ isLoading: true });
     try {
       if (isDesktopRuntime()) {
         // Reset local store confirmation state before restoring either session type.
         useCartStore.getState().resetDomainConfirmation();
         const offlineSession = await authApi.getOfflineSession();
+        if (generation !== authGeneration) return;
         if (offlineSession?.tenant_id && offlineSession.user_id) {
           const roleVal = normalizeRole(offlineSession.role);
           if (roleVal === 'SUPER_ADMIN') {
             await authApi.clearToken();
+            if (generation !== authGeneration) return;
             set({ isAuthenticated: false, permissions: [] });
             return;
           }
+          let cloudAvailable = false;
+          try {
+            const cloud = await authApi.getToken();
+            cloudAvailable = cloud?.tenant_id === offlineSession.tenant_id && Boolean(cloud?.jwt_token) && !isTokenExpired(cloud!.jwt_token);
+          } catch { /* Cloud credential storage must not block a valid local session. */ }
           const permissions = roleVal === 'ADMIN'
             ? ['*']
             : (Array.isArray(offlineSession.permissions) && offlineSession.permissions.length > 0 ? offlineSession.permissions : convertLegacyRestrictedPageToPermissions(offlineSession.restricted_page));
+          if (generation !== authGeneration) return;
           set({
             isAuthenticated: true,
             token: null,
@@ -144,20 +133,22 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
             userName: offlineSession.user_name || null,
             shopName: offlineSession.shop_name || null,
             restrictedPage: offlineSession.restricted_page || null,
-            isCloudSyncPaused: true,
-            cloudSyncReason: 'Operating in Local Mode (Central DB unavailable). POS active.'
+            isCloudSyncPaused: !cloudAvailable,
+            cloudSyncReason: cloudAvailable ? null : 'Operating in Local Mode (Central DB unavailable). POS active.'
           });
           useCartStore.getState().setRole(roleVal);
           return;
         }
 
         const stored = await authApi.getToken();
+        if (generation !== authGeneration) return;
         if (stored?.jwt_token) {
           const expired = isTokenExpired(stored.jwt_token);
           const perms = parsePermissionsFromToken(stored.jwt_token);
           let rawRole = (stored.role || '') as NonNullable<AuthState['role']>;
           if (rawRole === 'SUPER_ADMIN') {
             if (isDesktopRuntime()) await authApi.clearToken();
+            if (generation !== authGeneration) return;
             set({ isAuthenticated: false, permissions: [] });
             return;
           }
@@ -173,6 +164,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
               resolvedShopName = localName.trim();
             }
           } catch { /* ignore */ }
+
+          if (generation !== authGeneration) return;
 
           set({
             isAuthenticated: true,
@@ -200,12 +193,14 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
             }
           }
         } else {
+          if (generation !== authGeneration) return;
           set({ isAuthenticated: false, permissions: [] });
         }
       } else {
         // Keep browser development sessions across a hard refresh as well.
         const rawSession = localStorage.getItem(BROWSER_AUTH_KEY);
         if (!rawSession) {
+          if (generation !== authGeneration) return;
           set({ isAuthenticated: false, permissions: [] });
           return;
         }
@@ -214,10 +209,12 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
           const stored = JSON.parse(rawSession);
           if (!stored?.jwt_token || isTokenExpired(stored.jwt_token)) {
             localStorage.removeItem(BROWSER_AUTH_KEY);
+            if (generation !== authGeneration) return;
             set({ isAuthenticated: false, permissions: [] });
             return;
           }
           const roleVal = normalizeRole(stored.role);
+          if (generation !== authGeneration) return;
           set({
             isAuthenticated: true,
             token: stored.jwt_token,
@@ -234,16 +231,21 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
           useCartStore.getState().setRole(roleVal);
         } catch {
           localStorage.removeItem(BROWSER_AUTH_KEY);
+          if (generation !== authGeneration) return;
           set({ isAuthenticated: false, permissions: [] });
         }
       }
     } finally {
-      set({ isLoading: false });
+      if (generation === authGeneration) set({ isLoading: false });
     }
   },
 
   // ── Login: call Cloud API then persist token via IPC ─────────────────────
   login: async (email, password, apiBase = CLOUD_API, options = {}) => {
+    const generation = ++authGeneration;
+    const cancelled = () => generation !== authGeneration;
+    const cancelledResult = { success: false, error: 'Login cancelled because the session changed.' };
+    set({ authError: null });
     let receivedCloudResponse = false;
     const applyOfflineLogin = async (user: { role?: string; permissions?: string[]; restricted_page?: string | null; tenant_id: string; user_id: string; name?: string }, reason: string) => {
       const roleVal = normalizeRole(user.role);
@@ -269,17 +271,21 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         restricted_page: user.restricted_page || null,
         permissions,
       };
+      if (cancelled()) return cancelledResult;
+      let cloudReady = false;
       if (isDesktopRuntime()) {
         try {
           const saved = await authApi.saveOfflineSession(offlineSession);
           if (!saved?.success) {
             return { success: false, error: saved?.error || 'Could not save the offline session. Please try again.' };
           }
+          cloudReady = saved.cloud_sync_ready === true;
         } catch (error) {
           return { success: false, error: (error as Error)?.message || 'Could not save the offline session. Please try again.' };
         }
       }
 
+      if (cancelled()) return cancelledResult;
       set({
         isAuthenticated: true,
         token: null,
@@ -290,8 +296,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         userName: offlineSession.user_name,
         shopName: resolvedShopName,
         restrictedPage: offlineSession.restricted_page,
-        isCloudSyncPaused: true,
-        cloudSyncReason: reason,
+        isCloudSyncPaused: !cloudReady,
+        cloudSyncReason: cloudReady ? null : reason,
       });
       useCartStore.getState().setRole(roleVal);
       return { success: true };
@@ -300,17 +306,26 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
     try {
       // Reset local store confirmation state before logging in
       useCartStore.getState().resetDomainConfirmation();
+      if (options.offlineOnly) {
+        if (options.requireCloud) return { success: false, error: 'Cloud recovery requires an online login.' };
+        if (!hasBridge('authLoginOffline')) return { success: false, error: 'Offline login is available only on a configured POS terminal.' };
+        const offline = await authApi.loginOffline({ email, password });
+        if (offline.success === false) return { success: false, error: offline.error || 'Offline login failed. Please sign in online once on this PC.' };
+        return await applyOfflineLogin(offline.user, 'Working offline — Cloud Sync paused. Sign in online later to resume sync.');
+      }
       const baseUrl = apiBase.replace(/\/$/, '');
       const res = await authCloud.login(baseUrl, email, password);
+      if (cancelled()) return cancelledResult;
       receivedCloudResponse = true;
       // Guard: server may return a non-JSON body (e.g. a hosting-provider gateway error such as
       // HTTP 402 "Payment required"). Parse gracefully so the UI always shows a readable message.
       const data = await res.json().catch(() => null as null);
+      if (cancelled()) return cancelledResult;
 
       if (!res.ok) {
         // An online denial must never be bypassed with an older cached password.
         if (options.requireCloud || [400, 401, 403, 429].includes(res.status)) {
-          return { success: false, error: formatError(data?.error || data, 'Cloud login failed. Please try again.') };
+          return { success: false, error: formatError(data?.error || data, `Cloud login failed (HTTP ${res.status}). The cloud service did not provide an error message. Please try again or contact support with this code.`) };
         }
         if (hasBridge('authLoginOffline')) {
           console.warn(`[AuthStore] Cloud login returned HTTP ${res.status} (${data?.error || 'Server Error'}), attempting local DB auth...`);
@@ -345,6 +360,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       if (!resolvedShopName) resolvedShopName = email;
 
       // Persist to disk and local SQLite database via IPC
+      if (cancelled()) return cancelledResult;
       if (isDesktopRuntime()) {
         const saved = await authApi.saveToken({
           jwt_token: data.token,
@@ -374,6 +390,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         }));
       }
       
+      if (cancelled()) return cancelledResult;
       set({
         isAuthenticated: true,
         token: data.token,
@@ -403,6 +420,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         }
       }
 
+      if (cancelled()) return cancelledResult;
       // If background sync worker is running, trigger an immediate cycle
       if (hasBridge('runInitialSync')) {
         syncApi.runInitialSync().catch(() => {});
@@ -410,8 +428,9 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
       return { success: true };
     } catch (err) {
+      if (cancelled()) return cancelledResult;
       // Only a failed network request may fall back; persistence/response errors must stay visible.
-      if (!receivedCloudResponse && !options.requireCloud && hasBridge('authLoginOffline')) {
+      if (!receivedCloudResponse && !options.requireCloud && !options.offlineOnly && hasBridge('authLoginOffline')) {
         try {
           const offlineAuth = await authApi.loginOffline({ email, password });
           if (offlineAuth.success && offlineAuth.user) {
@@ -427,6 +446,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
   // ── Login with PIN ────────────────────────────────────────────────────────
   loginWithPin: async (pin: string) => {
+    const generation = ++authGeneration;
+    set({ authError: null });
     if (!isDesktopRuntime()) {
       return { success: false, error: 'PIN login is only supported on the POS desktop app.' };
     }
@@ -435,6 +456,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
     }
     try {
       const res = await authApi.loginWithPin({ pin });
+      if (generation !== authGeneration) return { success: false, error: 'PIN login cancelled because the session changed.' };
       if (!res.success) {
         return { success: false, error: res.error || 'Invalid PIN' };
       }
@@ -452,8 +474,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         userName: u.name,
         shopName: u.shop_name || 'My Shop',
         restrictedPage: null,
-        isCloudSyncPaused: false,
-        cloudSyncReason: null,
+        isCloudSyncPaused: res.cloud_sync_ready !== true,
+        cloudSyncReason: res.cloud_sync_ready === true ? null : 'Local PIN login — sign in online to reconnect cloud sync.',
       });
       useCartStore.getState().setRole(roleVal);
       return { success: true };
@@ -464,7 +486,16 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
 
   // ── Logout ────────────────────────────────────────────────────────────────
   logout: async () => {
-    if (isDesktopRuntime()) await authApi.clearToken();
+    ++authGeneration;
+    try {
+      if (isDesktopRuntime()) {
+        const cleared = await authApi.clearToken();
+        if (!cleared?.success) throw new Error(cleared?.error || 'Could not clear the saved session.');
+      }
+    } catch {
+      set({ token: null, isCloudSyncPaused: true, authError: 'Sign-out could not finish. Your current work is still open. Please retry signing out.' });
+      return;
+    }
     localStorage.removeItem(BROWSER_AUTH_KEY);
     try {
       localStorage.removeItem('nafid_pos_ai_conversations_v3');
@@ -472,7 +503,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       localStorage.removeItem('nafid_pos_ai_conversations');
     } catch { /* ignore */ }
     useCartStore.getState().clearCart();
-    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, permissions: [], userName: null, shopName: null, restrictedPage: null });
+    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, permissions: [], userName: null, shopName: null, restrictedPage: null, isCloudSyncPaused: true, cloudSyncReason: null, lastSyncTime: null, authError: null, isLoading: false });
   },
 
   updateDomain: async (domain: string) => {
@@ -562,7 +593,8 @@ registerCloudAuth({
     if (!token && typeof window !== 'undefined' && hasBridge('authGetToken')) {
       try {
         const stored = await authApi.getToken();
-        if (stored?.jwt_token) {
+        const active = useAuthStore.getState();
+        if (stored?.jwt_token && active.isAuthenticated && stored.tenant_id === active.tenantId && stored.user_id === active.userId) {
           token = stored.jwt_token;
           useAuthStore.setState({ token: stored.jwt_token });
         }

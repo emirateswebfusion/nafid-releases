@@ -1,4 +1,7 @@
 import { ipcMain } from 'electron';
+import { handle } from './common.js';
+import { resumeCloudSession } from '../services/cloudSessionRecoveryService.js';
+import { loginCloud } from '../services/cloudLoginService.js';
 import { localSaveUser, localAuthenticateUser, getTerminalConfig } from '../services/localAuthService.js';
 import { readAuthPayload, readOfflineSession } from '../services/authStorage.js';
 import * as authSession from '../services/authSessionService.js';
@@ -6,6 +9,8 @@ import { getTrialAccess, blockTrialAccess } from '../services/trialAccessService
 import { refreshTrialSession } from '../services/trialSessionService.js';
 
 export function registerAuthHandlers(): void {
+  handle('auth:resumeCloudSession', resumeCloudSession);
+  handle('auth:loginCloud', loginCloud);
   ipcMain.removeHandler('auth:saveToken');
   ipcMain.handle('auth:saveToken', (_event, payload) => authSession.saveToken(payload));
 

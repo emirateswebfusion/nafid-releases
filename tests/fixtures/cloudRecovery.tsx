@@ -1,0 +1,45 @@
+/** Isolated renderer acceptance fixture. No shop database, real account, hardware or external network. */
+import { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import '../../src/index.css';
+import { SessionExpiredModal } from '../../src/components/app/SessionExpiredModal';
+import { useAuthStore } from '../../src/store/authStore';
+import { Button } from '../../src/components/ui/Button';
+import { AuthErrorToast } from '../../src/components/app/AuthErrorToast';
+import { DashboardHeader } from '../../src/components/owner-dashboard/views/DashboardHeader';
+import { useOwnerDashboardState } from '../../src/components/owner-dashboard/hooks/useOwnerDashboardState';
+
+let available = false;
+let saved = false;
+const token = `h.${btoa(JSON.stringify({ exp: 4102444800, tenant_id: 'fixture-shop', user_id: 'owner' }))}.s`;
+Object.defineProperty(window, 'electronAPI', { configurable: true, value: new Proxy({}, {
+  get: (_target, key: string) => {
+    if (key.startsWith('on')) return () => () => {};
+    if (key === 'authLoginCloud') return async () => ({ success: true, status: available ? 200 : 503, data: cloudBody() });
+    if (key === 'authResumeCloudSession') return async () => { saved = true; return { success: true }; };
+    if (key === 'authGetToken') return async () => saved ? { jwt_token: token, tenant_id: 'fixture-shop', user_id: 'owner' } : null;
+    return async () => ({ success: true });
+  },
+}) });
+const cloudBody = () => available
+  ? { token, tenant_id: 'fixture-shop', user_id: 'owner', role: 'ADMIN', permissions: ['*'], shop_name: 'Test shop' }
+  : { error: 'Cloud unavailable in this test. Close and continue working offline.' };
+window.fetch = async () => new Response(JSON.stringify(cloudBody()), { status: available ? 200 : 503 });
+useAuthStore.setState({ isAuthenticated: true, isLoading: false, tenantId: 'fixture-shop', userId: 'cashier', userName: 'Test cashier', role: 'STAFF', permissions: ['sales.create'], token: null, isCloudSyncPaused: true });
+
+export function Fixture() {
+  const [open, setOpen] = useState(false);
+  const paused = useAuthStore(state => state.isCloudSyncPaused);
+  const name = useAuthStore(state => state.userName);
+  const od = useOwnerDashboardState();
+  return <><DashboardHeader canOpenSettings={false} isCloudSyncPaused={paused} isEditMode={false} isSyncing={false} menuRef={{ current: null }} role="STAFF" setIsEditMode={() => {}} shopName="Test shop" theme="light" toggleTheme={() => {}} userName={name} od={od} /><main className="p-8 space-y-5">
+    <h1 className="text-2xl font-bold">Cloud recovery — isolated test shop</h1>
+    <p>Signed in locally: {name}</p><p>Open bill: TEST-001 — 2 items</p>
+    <Button onClick={() => setOpen(true)}>{paused ? 'Re-Login Needed' : 'Cloud credentials restored'}</Button>
+    <div className="flex gap-3"><Button variant="outline" onClick={() => { available = false; }}>Simulate unavailable cloud</Button><Button variant="outline" onClick={() => { available = true; }}>Simulate available cloud</Button></div>
+    <div className="flex gap-3"><Button variant="outline" onClick={() => { od.setIsOnline(true); od.setActiveRoute('CLOUD'); }}>Simulate cloud connection</Button><Button variant="outline" onClick={() => useAuthStore.setState({ authError: 'Test sign-out could not finish. Please try again.' })}>Simulate sign-out error</Button></div>
+    <SessionExpiredModal isOpen={open} onClose={() => setOpen(false)} />
+    <AuthErrorToast />
+  </main></>;
+}
+createRoot(document.getElementById('root')!).render(<Fixture />);

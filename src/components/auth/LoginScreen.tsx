@@ -16,9 +16,6 @@ type Tab = 'pin' | 'login' | 'register' | 'forgot-password' | 'reset-password';
 export function LoginScreen() {
   const login = useAuthStore(state => state.login);
 
-  const [requireCloud] = useState(() => {
-    try { return sessionStorage.getItem('auth_prefer_email') === 'true'; } catch { return false; }
-  });
   const [tab, setTab] = useState<Tab>('login');
   const [shopName, setShopName] = useState('');
   const [lastUser, setLastUser] = useState({ name: '', role: '' });
@@ -47,15 +44,16 @@ export function LoginScreen() {
     setFieldErrors({});
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.SyntheticEvent, offlineOnly = false) => {
     e.preventDefault();
+    if (loading) return;
     clearMessages();
     const errors: Record<string, string> = {};
     if (!email.trim()) errors.email = 'Please enter your email address';
     if (!password) errors.password = 'Please enter your password';
     if (Object.keys(errors).length) { setFieldErrors(errors); return; }
     setLoading(true);
-    const res = await login(email.trim(), password, undefined, { requireCloud });
+    const res = await login(email.trim(), password, undefined, offlineOnly ? { offlineOnly: true } : undefined);
     if (res.success) { try { sessionStorage.removeItem('auth_prefer_email'); } catch { /* ignore */ } }
     if (!res.success) setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Login failed.'));
     setLoading(false);
@@ -114,11 +112,11 @@ export function LoginScreen() {
           setTerminalConfigured(true);
           if (cfg.shop_name) setShopName(cfg.shop_name);
           setLastUser({ name: cfg.user_name || '', role: cfg.role || '' });
-          if (!requireCloud) setTab('pin');
+          setTab('pin');
         }
       }).catch(() => {});
     }
-  }, [requireCloud]);
+  }, []);
 
   const switchTab = (t: Tab) => {
     if (t === 'pin') { try { sessionStorage.removeItem('auth_prefer_email'); } catch { /* ignore */ } }
@@ -236,6 +234,15 @@ export function LoginScreen() {
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 {loading ? 'Signing you in...' : 'Sign in'}
               </Button>
+              {error && terminalConfigured && hasBridge('authLoginOffline') && (
+                <div className="space-y-2">
+                  <Button type="button" variant="outline" disabled={loading} className="w-full h-11"
+                    onClick={event => { void handleLogin(event, true); }}>
+                    Continue offline with this password
+                  </Button>
+                  <p className="text-xs text-muted-foreground">Checks the saved password on this PC. Billing stays available; cloud sync needs a valid cloud connection.</p>
+                </div>
+              )}
               <div className="border-t border-border pt-5 text-center space-y-2">
                 <p className="text-sm text-muted-foreground">New to Nafid?</p>
                 <Button type="button" variant="outline" className="w-full h-11" onClick={() => switchTab('register')}>Sign up for a free trial</Button>

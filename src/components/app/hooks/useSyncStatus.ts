@@ -60,8 +60,9 @@ export function useSyncStatus({ isAuthenticated, isCloudSyncPaused }: { isAuthen
     if (typeof window !== 'undefined' && window.location.hash.startsWith('#/print')) return;
     if (isAuthenticated && !isCloudSyncPaused && !syncChecked && isDesktopRuntime()) {
       console.log('[App] System authenticated. Starting cloud sync in background...');
-      syncApi.runInitialSync().then(() => {
-        console.log('[App] Initial sync completed.');
+      syncApi.runInitialSync().then(result => {
+        if (result.success) console.log('[App] Initial sync cycle finished.');
+        else console.warn('[App] Initial sync did not run:', result.error);
       }).catch((error) => {
         console.error('[App] Sync failed:', error);
       });

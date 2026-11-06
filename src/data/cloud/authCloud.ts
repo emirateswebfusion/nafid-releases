@@ -1,10 +1,21 @@
 import { cloudRequest } from './client';
+import { authApi } from '../auth';
+import { hasBridge, isDesktopRuntime } from '../client';
 
 /** Authentication requests against the cloud API. Returns the raw response so callers keep their status handling. */
 export const authCloud = {
-  login(baseUrl: string, email: string, password: string): Promise<Response> {
+  async login(baseUrl: string, email: string, password: string, signal?: AbortSignal): Promise<Response> {
+    if (signal?.aborted) throw new Error('Cloud sign-in cancelled.');
+    if (isDesktopRuntime() && hasBridge('authLoginCloud')) {
+      // Main uses the shipped cloud endpoint, never a renderer-supplied destination for credentials.
+      const result = await authApi.loginCloud({ email, password });
+      if (signal?.aborted) throw new Error('Cloud sign-in cancelled.');
+      if (result.success === false) throw new Error(result.error);
+      return new Response(JSON.stringify(result.data), { status: result.status, headers: { 'Content-Type': 'application/json' } });
+    }
     return cloudRequest(`${baseUrl}/auth/login`, {
       method: 'POST',
+      signal: signal || AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });

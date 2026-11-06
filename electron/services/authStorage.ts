@@ -16,7 +16,7 @@ export const encrypt = (text: string): Buffer | null => {
   return safeStorage.encryptString(text);
 };
 
-const decrypt = (data: Buffer): string | null => {
+export const decrypt = (data: Buffer): string | null => {
   if (!safeStorage.isEncryptionAvailable()) return data.toString('utf-8');
   try {
     return safeStorage.decryptString(data);
@@ -25,22 +25,19 @@ const decrypt = (data: Buffer): string | null => {
   }
 };
 
+/** Both UI and sync use this reader; malformed/unreadable encrypted storage may use the valid legacy fallback. */
 export function readAuthPayload(): AuthPayload | null {
-  const encPath = getEncryptedPath();
-  if (fs.existsSync(encPath)) {
-    const raw = fs.readFileSync(encPath);
-    const decrypted = decrypt(raw);
-    if (decrypted) {
-      try { return JSON.parse(decrypted); } catch { /* ignore */ }
-    }
+  for (const [file, encrypted] of [[getEncryptedPath(), true], [getConfigPath(), false]] as const) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      const raw = fs.readFileSync(file);
+      const text = encrypted ? decrypt(raw) : raw.toString('utf-8');
+      if (!text) continue;
+      const parsed: unknown = JSON.parse(text);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as AuthPayload;
+    } catch { /* Try the other stored representation, without exposing credentials. */ }
   }
-  const p = getConfigPath();
-  if (!fs.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export function clearOfflineSession() {
@@ -49,13 +46,10 @@ export function clearOfflineSession() {
 }
 
 export function readOfflineSession(): unknown {
-  const offlinePath = getOfflineSessionPath();
-  if (!fs.existsSync(offlinePath)) return null;
-  const decrypted = decrypt(fs.readFileSync(offlinePath));
-  if (!decrypted) return null;
   try {
-    return JSON.parse(decrypted);
-  } catch {
-    return null;
-  }
+    const offlinePath = getOfflineSessionPath();
+    if (!fs.existsSync(offlinePath)) return null;
+    const decrypted = decrypt(fs.readFileSync(offlinePath));
+    return decrypted ? JSON.parse(decrypted) as unknown : null;
+  } catch { return null; }
 }

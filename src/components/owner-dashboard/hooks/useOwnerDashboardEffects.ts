@@ -94,35 +94,35 @@ export function useOwnerDashboardEffects(ctx: UseOwnerDashboardEffectsContext) {
   useEffect(() => {
     if (!isDesktopRuntime()) return;
 
+    const subscriptions: (() => void)[] = [];
     if (hasBridge('onSyncCycleComplete')) {
-      bridgeEvents.onSyncCycleComplete(() => {
+      subscriptions.push(bridgeEvents.onSyncCycleComplete(() => {
         const t = Date.now();
         setLastSyncTime(t);
         setDisplayTime('just now');
         loadStats();
-      });
+      }));
     }
 
     if (hasBridge('onSyncDataUpdated')) {
-      bridgeEvents.onSyncDataUpdated(() => {
+      subscriptions.push(bridgeEvents.onSyncDataUpdated(() => {
         loadStats();
-      });
+      }));
     }
 
     const interval = setInterval(() => {
       loadStats();
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); subscriptions.forEach(unsubscribe => unsubscribe()); };
   }, [setLastSyncTime, loadStats, setDisplayTime]);
 
   useEffect(() => {
     if (hasBridge('onOnlineStatus')) {
-      bridgeEvents.onOnlineStatus((online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => {
+      return bridgeEvents.onOnlineStatus((online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => {
         setIsOnline(online);
-        if (route) setActiveRoute(route);
+        setActiveRoute(online ? route || null : 'NONE');
       });
-      return;
     }
     setIsOnline(navigator.onLine);
     const handler = () => setIsOnline(navigator.onLine);

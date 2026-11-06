@@ -70,7 +70,7 @@ export function DashboardHeader({
                 "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors",
                 isCloudSyncPaused
                   ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 cursor-pointer hover:bg-amber-500/20 active:scale-[0.97]"
-                  : (!isOnline || activeRoute === 'NONE')
+                  : (!isOnline || !activeRoute || activeRoute === 'NONE')
                   ? "bg-destructive/10 border-destructive/20 text-destructive"
                   : isSyncing
                   ? "bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400"
@@ -83,7 +83,7 @@ export function DashboardHeader({
                 "w-1.5 h-1.5 rounded-full",
                 isCloudSyncPaused
                   ? "bg-amber-500 animate-pulse"
-                  : (!isOnline || activeRoute === 'NONE')
+                  : (!isOnline || !activeRoute || activeRoute === 'NONE')
                   ? "bg-destructive"
                   : isSyncing
                   ? "bg-blue-500 animate-spin"
@@ -92,11 +92,11 @@ export function DashboardHeader({
               <span className="text-[10px] font-bold tracking-wider">
                 {isCloudSyncPaused
                   ? 'Re-Login Needed'
-                  : (!isOnline || activeRoute === 'NONE')
+                  : (!isOnline || !activeRoute || activeRoute === 'NONE')
                   ? 'Offline'
                   : isSyncing
                   ? 'Syncing...'
-                  : (activeRoute === 'LAN' ? 'Wi-Fi Synced' : 'Cloud Synced')}
+                  : (activeRoute === 'LAN' ? 'Wi-Fi Connected' : 'Cloud Connected')}
               </span>
             </div>
             <span className="w-px h-5 bg-border/40" />

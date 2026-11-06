@@ -16,6 +16,7 @@ export interface DataUploadPreviewProps {
 export function DataUploadPreview({
   entityType, invalidCount, onClear, parsedRows, validCount,
 }: DataUploadPreviewProps) {
+  const previewRows = invalidCount > 0 ? [...parsedRows.filter(r => !r.isValid), ...parsedRows.filter(r => r.isValid)] : parsedRows;
   return (
     <div className="space-y-3 pt-2">
       <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-3">
@@ -88,7 +89,7 @@ export function DataUploadPreview({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono text-[11px]">
-            {parsedRows.slice(0, 100).map((row) => (
+            {previewRows.slice(0, 100).map((row) => (
               <tr
                 key={row.id}
                 className={row.isValid ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50' : 'bg-rose-50/60 dark:bg-rose-950/40 hover:bg-rose-100/50 text-rose-900 dark:text-rose-200'}
@@ -104,8 +105,8 @@ export function DataUploadPreview({
                 </td>
                 {entityType === 'products' ? (
                   <>
-                    <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100">{row.data.name || '—'}</td>
-                    <td className="py-2 px-3 font-bold text-emerald-700 dark:text-emerald-400">{getCurrencyPrefix()}{row.data.base_price ?? 0}</td>
+                    <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100">{row.data.name || '—'}{!row.isValid && <p className="mt-1 font-sans text-rose-700 dark:text-rose-300">{row.errors.join('; ')}</p>}</td>
+                    <td className="py-2 px-3 font-bold text-emerald-700 dark:text-emerald-400">{getCurrencyPrefix()}{Number.isFinite(row.data.base_price ?? 0) ? row.data.base_price ?? 0 : '—'}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">
                       {row.data.tier_prices && Object.keys(row.data.tier_prices).length > 0 ? (
                         <div className="flex flex-wrap gap-1">
@@ -124,9 +125,9 @@ export function DataUploadPreview({
                     </td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.sku_barcode || '—'}</td>
                     <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.category || '—'}</td>
-                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{getCurrencyPrefix()}{row.data.purchase_price ?? 0}</td>
-                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.current_stock ?? 0} {row.data.uom}</td>
-                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{row.data.tax_rate_percent}%</td>
+                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{getCurrencyPrefix()}{Number.isFinite(row.data.purchase_price ?? 0) ? row.data.purchase_price ?? 0 : '—'}</td>
+                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{Number.isFinite(row.data.current_stock ?? 0) ? `${row.data.current_stock ?? 0} ${row.data.uom}` : '—'}</td>
+                    <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{Number.isFinite(row.data.tax_rate_percent) ? `${row.data.tax_rate_percent}%` : '—'}</td>
                   </>
                 ) : entityType === 'opening_balances' ? (
                   <>
@@ -158,7 +159,7 @@ export function DataUploadPreview({
         </table>
         {parsedRows.length > 100 && (
           <div className="py-2 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 font-sans">
-            Showing first 100 rows out of {parsedRows.length}...
+            Showing 100 rows out of {parsedRows.length}{invalidCount > 0 ? ', with rows needing correction first' : ''}...
           </div>
         )}
       </div>

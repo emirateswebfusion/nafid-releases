@@ -96,6 +96,7 @@ export function DataUploadStepsGrid({
             onChange={(e) => {
               if (e.target.files && e.target.files[0]) {
                 handleFileUpload(e.target.files[0]);
+                e.target.value = '';
               }
             }}
           />
