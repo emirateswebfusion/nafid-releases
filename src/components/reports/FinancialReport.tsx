@@ -1,3 +1,6 @@
+import { storeCalendarDate, calendarDateKey } from '../../utils/time/timezoneHelper';
+import { getStoreBusinessDate } from '../../utils/time/timezoneHelper';
+import { storeDateTime } from '../../utils/time/dateDisplay';
 import { getStoreLocale, getStoreProfile, localizeTaxText } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
@@ -61,11 +64,11 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
   const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'custom'>('month');
   
   // Custom Date Range State
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getStoreBusinessDate();
   const [startDate, setStartDate] = useState<string>(() => {
-    const d = new Date();
+    const d = storeCalendarDate();
     d.setDate(1); // First day of current month
-    return d.toISOString().split('T')[0];
+    return calendarDateKey(d);
   });
   const [endDate, setEndDate] = useState<string>(todayStr);
 
@@ -93,25 +96,25 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       setStartDate(todayStr);
       setEndDate(todayStr);
     } else if (range === 'yesterday') {
-      const y = new Date();
+      const y = storeCalendarDate();
       y.setDate(y.getDate() - 1);
-      const yStr = y.toISOString().split('T')[0];
+      const yStr = calendarDateKey(y);
       setStartDate(yStr);
       setEndDate(yStr);
     } else if (range === 'week') {
-      const w = new Date();
+      const w = storeCalendarDate();
       w.setDate(w.getDate() - 7);
-      setStartDate(w.toISOString().split('T')[0]);
+      setStartDate(calendarDateKey(w));
       setEndDate(todayStr);
     } else if (range === 'month') {
-      const m = new Date();
+      const m = storeCalendarDate();
       m.setDate(1);
-      setStartDate(m.toISOString().split('T')[0]);
+      setStartDate(calendarDateKey(m));
       setEndDate(todayStr);
     } else if (range === 'quarter') {
-      const q = new Date();
+      const q = storeCalendarDate();
       q.setMonth(q.getMonth() - 3);
-      setStartDate(q.toISOString().split('T')[0]);
+      setStartDate(calendarDateKey(q));
       setEndDate(todayStr);
     }
   };
@@ -181,7 +184,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
           else pm.credit += grandTotal;
 
           // Daily Trend
-          const dateKey = (inv.created_at || '').split(' ')[0] || startDate;
+          const dateKey = inv.created_at ? getStoreBusinessDate(getStoreTimezone(), inv.created_at) : startDate;
           if (!trendMap[dateKey]) trendMap[dateKey] = { sales: 0, profit: 0, tax: 0 };
           trendMap[dateKey].sales += grandTotal;
           trendMap[dateKey].tax += tax;
@@ -264,7 +267,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       ['NAFID - Financial Statement Report'],
       ['Shop Name', shopName || 'Retail Store'],
       ['Date Period', `${startDate} to ${endDate}`],
-      ['Generated On', new Date().toLocaleString(getStoreLocale(), { timeZone: getStoreTimezone() })],
+      ['Generated On', storeDateTime(new Date(), getStoreLocale(), { timeZone: getStoreTimezone() })],
       [],
       ['Metric', `Amount (${getStoreProfile().currency})`],
       ['Gross Sales Revenue', finData.grossSales.toFixed(2)],

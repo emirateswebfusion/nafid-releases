@@ -1,3 +1,5 @@
+import { storeCalendarDate } from '../../utils/time/timezoneHelper';
+import { parseUTCDate } from '../../utils/time/utc';
 import { isMalayalam, pad } from './format';
 import type { OfflineDateRange } from './types';
 
@@ -10,7 +12,7 @@ export function resolveDateRange(
   customTo?: string,
   isMal: boolean = false
 ): OfflineDateRange {
-  const now = new Date();
+  const now = storeCalendarDate();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed
   const day = now.getDate();
@@ -32,7 +34,7 @@ export function resolveDateRange(
     const diffToMonday = day - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
     const mon = new Date(year, month, diffToMonday);
     const monStr = `${mon.getFullYear()}-${pad(mon.getMonth() + 1)}-${pad(mon.getDate())}`;
-    const daysElapsed = Math.max(1, Math.round((now.getTime() - mon.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const daysElapsed = Math.max(1, Math.round((parseUTCDate(todayStr).getTime() - parseUTCDate(monStr).getTime()) / (1000 * 60 * 60 * 24)) + 1);
     return { fromDate: monStr, toDate: todayStr, label: isMal ? 'ഈ ആഴ്ച (This Week)' : 'This Week', daysCount: daysElapsed };
   }
 
@@ -63,7 +65,7 @@ export function resolveDateRange(
   if (type === 'this_quarter') {
     const qStartMonth = Math.floor(month / 3) * 3;
     const startStr = `${year}-${pad(qStartMonth + 1)}-01`;
-    const daysElapsed = Math.max(1, Math.round((now.getTime() - new Date(startStr).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const daysElapsed = Math.max(1, Math.round((parseUTCDate(todayStr).getTime() - parseUTCDate(startStr).getTime()) / (1000 * 60 * 60 * 24)) + 1);
     return { fromDate: startStr, toDate: todayStr, label: isMal ? 'ഈ ക്വാർട്ടർ (This Quarter)' : 'This Quarter', daysCount: daysElapsed };
   }
 
@@ -83,7 +85,7 @@ export function resolveDateRange(
 
   if (type === 'this_year') {
     const startStr = `${year}-01-01`;
-    const daysElapsed = Math.max(1, Math.round((now.getTime() - new Date(startStr).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const daysElapsed = Math.max(1, Math.round((parseUTCDate(todayStr).getTime() - parseUTCDate(startStr).getTime()) / (1000 * 60 * 60 * 24)) + 1);
     return { fromDate: startStr, toDate: todayStr, label: isMal ? 'ഈ വർഷം (This Year)' : 'This Year', daysCount: daysElapsed };
   }
 
@@ -109,12 +111,12 @@ export function resolveDateRange(
     const startStr = `${fyStartYear}-04-01`;
     const endStr = `${fyStartYear + 1}-03-31`;
     const effectiveTo = todayStr < endStr ? todayStr : endStr;
-    const daysElapsed = Math.max(1, Math.round((new Date(effectiveTo).getTime() - new Date(startStr).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const daysElapsed = Math.max(1, Math.round((parseUTCDate(effectiveTo).getTime() - parseUTCDate(startStr).getTime()) / (1000 * 60 * 60 * 24)) + 1);
     return { fromDate: startStr, toDate: effectiveTo, label: isMal ? `സാമ്പത്തിക വർഷം FY ${fyStartYear}-${String(fyStartYear + 1).slice(-2)}` : `Financial Year FY ${fyStartYear}-${String(fyStartYear + 1).slice(-2)}`, daysCount: daysElapsed };
   }
 
   if (customFrom && customTo) {
-    const diff = Math.max(1, Math.round((new Date(customTo).getTime() - new Date(customFrom).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const diff = Math.max(1, Math.round((parseUTCDate(customTo).getTime() - parseUTCDate(customFrom).getTime()) / (1000 * 60 * 60 * 24)) + 1);
     let label = isMal ? `${customFrom} മുതൽ ${customTo} വരെ` : `${customFrom} to ${customTo}`;
 
     // Check if it spans a full calendar month
@@ -171,7 +173,7 @@ export function extractDateFromText(text: string): { fromDate?: string; toDate?:
   if (nDaysMatch && nDaysMatch[1]) {
     const n = parseInt(nDaysMatch[1], 10);
     if (n > 0 && n <= 365) {
-      const now = new Date();
+      const now = storeCalendarDate();
       const p = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (n - 1));
       const fromStr = `${p.getFullYear()}-${pad(p.getMonth() + 1)}-${pad(p.getDate())}`;
       const toStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -250,7 +252,7 @@ export function extractDateFromText(text: string): { fromDate?: string; toDate?:
   }
 
   if (foundMonthInfo) {
-    const now = new Date();
+    const now = storeCalendarDate();
     const currentYear = now.getFullYear();
     const yearMatch = text.match(/\b(20\d\d)\b/);
     const targetYear = yearMatch ? parseInt(yearMatch[1], 10) : currentYear;

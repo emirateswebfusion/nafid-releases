@@ -1,13 +1,22 @@
+import { useState } from 'react';
+import { useSettingsSectionSave } from './hooks/useSettingsSectionSave';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import React from 'react';
-import { useTerminologyStore, TERMINOLOGY_PRESETS } from '../../store/terminologyStore';
+import { useTerminologyStore, TERMINOLOGY_PRESETS, computeLabels, saveTerminologyPreferences } from '../../store/terminologyStore';
 import { BookOpen, Check, Eye } from 'lucide-react';
 import clsx from 'clsx';
 import { Input } from '../ui/Input';
 
 export const LedgerTerminologySettings: React.FC = () => {
-  const { preset, customLabels, setPreset, setCustomLabels, getLabels } = useTerminologyStore();
-  const currentLabels = getLabels();
+  const [preset, setPreset] = useState(() => useTerminologyStore.getState().preset);
+  const [customLabels, setCustom] = useState(() => useTerminologyStore.getState().customLabels);
+  const [saved, setSaved] = useState(() => JSON.stringify([preset, customLabels]));
+  const setCustomLabels = (patch: Partial<typeof customLabels>) => setCustom(current => ({ ...current, ...patch }));
+  const currentLabels = computeLabels(preset, customLabels);
+  useSettingsSectionSave(JSON.stringify([preset, customLabels]) !== saved, async () => {
+    await saveTerminologyPreferences(preset, customLabels);
+    setSaved(JSON.stringify([preset, customLabels]));
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">

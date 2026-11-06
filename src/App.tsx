@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useLayoutEffect, useState, useRef } from 'react';
-import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, RestaurantPage, preloadBilling } from './components/app/lazyScreens';
+import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, RestaurantPage, preloadBilling, VariantsManager } from './components/app/lazyScreens';
 import UpdateBanner from './components/app/UpdateBanner';
 import { useStartupReady } from './components/app/hooks/useStartupReady';
 import { PermissionGuard } from './components/app/PermissionGuard';
@@ -37,6 +37,7 @@ function App() {
   const profileReady = useStoreProfile(tenantId, isAuthenticated);
   useStartupReady(!isLoading && (!isAuthenticated || profileReady));
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
+  const [showVariantsManager, setShowVariantsManager] = useState(false);
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [showComboManager, setShowComboManager] = useState(false);
   const [showStockReport, setShowStockReport] = useState(false);
@@ -76,7 +77,7 @@ function App() {
     const kitchen = openPage('kitchen', 'kitchen_display');
     const setup = () => {
       if (!featureFlagsRef.current?.restaurant_mode) return;
-      setShowRestaurant(false); setSettingsInitialSection('restaurant'); setShowSettingsManager(true);
+      setRestaurantView('floor'); setShowRestaurant(true);
     };
     const dashboard = () => setShowRestaurant(false);
     const events: [string, () => void][] = [['open-restaurant', floor], ['open-tables', floor], ['open-takeaway-delivery', tokens], ['open-kitchen-display', kitchen], ['open-restaurant-setup', setup], ['open-dashboard', dashboard], ['open-billing-page', dashboard]];
@@ -141,7 +142,7 @@ function App() {
   }, [isAuthenticated, loadFlags]);
 
   useScreenEvents({
-    enableScrapRef, featureFlagsRef, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowGstReports, setShowVatReports, setShowInventoryManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager,
+    enableScrapRef, featureFlagsRef, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowGstReports, setShowVatReports, setShowInventoryManager, setShowVariantsManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager,
   });
 
   // Fetch the billing chunk in the background once signed in (screens are lazy, see lazyScreens.ts).
@@ -309,6 +310,10 @@ function App() {
         <PermissionGuard feature="sales_history" permission="sales.view" onBack={() => setShowSalesHistory(false)}>
           <SalesHistory onClose={() => setShowSalesHistory(false)} />
         </PermissionGuard>
+      ) : showVariantsManager ? (
+        <PermissionGuard feature="inventory" permission="products.view" onBack={() => setShowVariantsManager(false)}>
+          <VariantsManager onClose={() => setShowVariantsManager(false)} />
+        </PermissionGuard>
       ) : showInventoryManager ? (
         <PermissionGuard feature="inventory" permission="products.view" onBack={() => setShowInventoryManager(false)}>
           <InventoryManager onClose={() => setShowInventoryManager(false)} />
@@ -356,6 +361,7 @@ function App() {
         isOpen={showSessionExpiredModal}
         onConfirm={() => {
           setShowSessionExpiredModal(false);
+          try { sessionStorage.setItem('auth_prefer_email', 'true'); } catch { /* ignore */ }
           useAuthStore.getState().logout();
         }}
         onClose={() => {

@@ -52,9 +52,6 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     category: 'Billing & Sales',
     icon: ShoppingCart,
     items: [
-      { id: 'restaurant', label: 'Tables, Kitchen & Food Orders', icon: Store, ownerOnly: true, feature: 'restaurant_mode',
-        description: 'Tables, seating areas, kitchen printers, add-ons and service charges.',
-        keywords: 'restaurant cafeteria kot kitchen tables takeaway delivery modifiers service charge' },
       { id: 'billing', label: 'Billing Rules', icon: Receipt, ownerOnly: true,
         description: 'Price override display, purchase cost visibility, biller PIN, sales staff tracking and Convert to GST.',
         keywords: 'mrp override purchase cost pin biller sales staff commission convert gst staff credit' },

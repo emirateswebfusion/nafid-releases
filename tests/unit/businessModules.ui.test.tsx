@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ save: vi.fn(), sync: vi.fn() }));
 vi.mock('../../src/store/authStore', () => ({ useAuthStore: Object.assign((select?: (s: { tenantId: string; role: string; permissions: string[] }) => unknown) => {
@@ -13,15 +14,19 @@ import { useFeatureFlagsStore, DEFAULT_FEATURE_FLAGS } from '../../src/config/fe
 import { useDashboardCards } from '../../src/components/owner-dashboard/hooks/useDashboardCards';
 afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); mocks.save.mockResolvedValue(undefined); mocks.sync.mockResolvedValue(undefined); useFeatureFlagsStore.getState().setFlags({ ...DEFAULT_FEATURE_FLAGS }); });
-it('selects a restaurant category, allows customization, and persists it for the shop', async () => {
-  render(<FeaturesTab featureFlags={DEFAULT_FEATURE_FLAGS} handleToggleFeatureFlag={() => {}} setShowCashRegister={() => {}} setConfirmTurnOffAllModalOpen={() => {}} />);
+it('keeps category and module selections in the parent draft without persisting or applying them', () => {
+  function Draft() {
+    const [flags, setFlags] = useState(DEFAULT_FEATURE_FLAGS);
+    return <FeaturesTab featureFlags={flags} onFlagsChange={setFlags} handleToggleFeatureFlag={(key, value) => setFlags(current => ({ ...current, [key]: value ?? !current[key] }))} setShowCashRegister={() => {}} setConfirmTurnOffAllModalOpen={() => {}} />;
+  }
+  render(<Draft />);
   fireEvent.click(screen.getByRole('button', { name: /Restaurant \/ Cafeteria/ }));
   expect((screen.getByRole('checkbox', { name: /Enable Scrap Management/ }) as HTMLInputElement).checked).toBe(false);
   fireEvent.click(screen.getByRole('checkbox', { name: /Kitchen Display/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'Save shop modules' }));
-  await waitFor(() => expect(mocks.save).toHaveBeenCalledWith({ tenant_id: 'shop', key: 'feature_flags', value: expect.objectContaining({ restaurant_mode: true, dining_tables: true, takeaway_delivery: true, kitchen_display: false, scrap: false }) }));
-  await screen.findByRole('status');
-  await waitFor(() => expect(useFeatureFlagsStore.getState().flags?.kitchen_display).toBe(false));
+  expect((screen.getByRole('checkbox', { name: /Kitchen Display/ }) as HTMLInputElement).checked).toBe(false);
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(useFeatureFlagsStore.getState().flags?.restaurant_mode).toBe(false);
+  expect(screen.queryByRole('button', { name: /Save/ })).toBeNull();
 });
 it('hides disabled dashboard cards and exposes food operations as separate pages', () => {
   const flags = { ...DEFAULT_FEATURE_FLAGS, restaurant_mode: true, dining_tables: true, takeaway_delivery: true, kitchen_display: false, advertisements: false, scrap: false };

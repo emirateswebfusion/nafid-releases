@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import type { InventoryFormViewProps } from '../InventoryFormView';
 
 export interface PricingSectionProps {
+  title?: string;
   activePricingTiers: InventoryFormViewProps['activePricingTiers'];
   enableRealPaperStock: boolean;
   formData: InventoryFormViewProps['formData'];
@@ -20,7 +21,7 @@ export interface PricingSectionProps {
 /** Product form section 2: pricing for the real product and, when enabled, the paper product. */
 export function PricingSection({
   activePricingTiers, enableRealPaperStock, formData, handleDomainAttrChange, handleInputChange, setTierPrices,
-  tierPrices, onAddPricingTier,
+  tierPrices, onAddPricingTier, title = '2. Inventory & Pricing',
 }: PricingSectionProps) {
   const tiersEnabled = useFeatureFlagsStore(s => s.flags?.pricing_tiers === true);
   const [isAddingTier, setIsAddingTier] = useState(false);
@@ -63,7 +64,7 @@ export function PricingSection({
         <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
           <Tag className="w-4 h-4" />
         </div>
-        <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">2. Inventory & Pricing</span>
+        <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">{title}</span>
       </div>
 
       <div className="flex flex-col gap-4">

@@ -118,6 +118,9 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
     staffDataMaskingConfig: JSON.stringify(overrides.staffDataMaskingConfig !== undefined ? overrides.staffDataMaskingConfig : staffDataMaskingConfig),
     emergencyPanicConfig: JSON.stringify(overrides.emergencyPanicConfig !== undefined ? overrides.emergencyPanicConfig : emergencyPanicConfig),
     shopClosingConfig: JSON.stringify(overrides.shopClosingConfig !== undefined ? overrides.shopClosingConfig : shopClosingConfig),
+    whatsNewLang: overrides.whatsNewLang ?? ctx.form.whatsNewLang,
+    autoWhatsAppSend: overrides.autoWhatsAppSend !== undefined ? overrides.autoWhatsAppSend : ctx.form.autoWhatsAppSend,
+    showFullyPaidCashInLedger: overrides.showFullyPaidCashInLedger !== undefined ? overrides.showFullyPaidCashInLedger : ctx.form.showFullyPaidCashInLedger,
     features: JSON.stringify(overrides.featureFlags !== undefined ? overrides.featureFlags : featureFlags)
   });
 
@@ -744,6 +747,8 @@ export function useSettingsLoader(ctx: UseSettingsLoaderContext) {
         staffDataMaskingConfig: finalStaffDataMasking,
         emergencyPanicConfig: finalEmergencyPanic,
         shopClosingConfig: finalShopClosing,
+        autoWhatsAppSend: allSettings['auto_whatsapp_send'] === true || allSettings['auto_whatsapp_send'] === 'true',
+        showFullyPaidCashInLedger: allSettings['show_fully_paid_cash_in_ledger'] !== undefined ? allSettings['show_fully_paid_cash_in_ledger'] !== false && allSettings['show_fully_paid_cash_in_ledger'] !== 'false' : ctx.form.showFullyPaidCashInLedger,
         featureFlags: finalFlags
       }));
 

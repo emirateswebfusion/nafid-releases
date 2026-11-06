@@ -1,3 +1,6 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
+import { listGrades } from '../../../data/grades';
+import { loadProductVariants } from '../variantProducts';
 import type React from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { listProducts, getProductPricing } from '../../../data/products';
@@ -54,14 +57,29 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
     setView('add');
   };
 
-  const openEdit = (product: Product) => {
+  const openEdit = async (product: Product) => {
+    let loadedVariants;
+    let availableGrades = grades;
+    try {
+      loadedVariants = await loadProductVariants(tenantId || 'global', product.product_id);
+      // Direct management-page entry may open before the inventory lookups finish loading.
+      if (product.grade_id && !grades.some(grade => grade.grade_id === product.grade_id)) {
+        availableGrades = await listGrades(tenantId || 'global');
+        if (!Array.isArray(availableGrades)) throw new Error('Could not load product grades. Please retry.');
+        ctx.inv.setGrades(availableGrades);
+      }
+    }
+    catch (error) {
+      ctx.inv.setStatusMessage({ text: error instanceof Error ? error.message : 'Could not load variants. Please retry.', type: 'error' });
+      return;
+    }
     lastInteractedProductIdRef.current = product.product_id;
     if (listScrollRef.current) {
       savedScrollTopRef.current = listScrollRef.current.scrollTop;
     }
     setEditingProduct(product);
-    const validGradeId = product.grade_id && grades.some(g => g.grade_id === product.grade_id) ? product.grade_id : '';
-    const appliedGrade = validGradeId ? grades.find(g => g.grade_id === validGradeId) : null;
+    const validGradeId = product.grade_id && availableGrades.some(g => g.grade_id === product.grade_id) ? product.grade_id : '';
+    const appliedGrade = validGradeId ? availableGrades.find(g => g.grade_id === validGradeId) : null;
     const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
     setFormData({
       item_code: product.item_code || '',
@@ -130,7 +148,7 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
       gst_supplier_id: '',
       gst_supplier_name: '',
       gst_bill_number: '',
-      gst_bill_date: new Date().toLocaleDateString('en-CA'),
+      gst_bill_date: storeDate(new Date(), 'en-CA'),
       gst_purchase_is_dummy: false,
     });
     if (isDesktopRuntime()) {
@@ -190,40 +208,7 @@ export function useInventoryFormOpen(ctx: UseInventoryFormOpenContext) {
       }
     }
 
-    const children = ctx.inv.products.filter(p => {
-      const cda = (() => {
-        try {
-          const parsed = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
-          return (parsed || {}) as unknown as Record<string, unknown>;
-        } catch { return {}; }
-      })();
-      return cda.parent_product_id === product.product_id;
-    });
-    if (children.length > 0) {
-      setVariants(children.map(c => {
-        const cda = (() => {
-          try {
-            const parsed = typeof c.domain_attributes === 'string' ? JSON.parse(c.domain_attributes) : c.domain_attributes;
-            return (parsed || {}) as unknown as Record<string, unknown>;
-          } catch { return {}; }
-        })();
-        return {
-          id: c.product_id,
-          product_id: c.product_id,
-          variant_name: String(cda.variant_name || c.name.replace(product.name, '').trim() || 'Variant'),
-          sku_barcode: c.sku_barcode || '',
-          purchase_price: c.purchase_price ?? '',
-          base_price: c.base_price ?? '',
-          offer_price: c.offer_price ?? '',
-          current_stock: c.current_stock ?? 0,
-          paper_stock: c.paper_stock ?? (cda.paper_stock as number | string | undefined) ?? '',
-          paper_mrp: (cda.paper_mrp as number | string | undefined) ?? '',
-          paper_purchase_price: (cda.paper_purchase_price as number | string | undefined) ?? '',
-        };
-      }));
-    } else {
-      setVariants([]);
-    }
+    setVariants(loadedVariants);
 
     setView('edit');
   };

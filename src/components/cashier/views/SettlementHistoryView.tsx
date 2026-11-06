@@ -1,3 +1,4 @@
+import { addCalendarDays, getStoreBusinessDate } from '../../../utils/time/timezoneHelper';
 import React from 'react';
 import { History, Search, X, TrendingUp, DollarSign, TrendingDown, CheckCircle2, ChevronDown, ChevronRight, Receipt, User, Banknote, RotateCcw, Clock, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
@@ -122,12 +123,12 @@ export function SettlementHistoryView({
           if (!matchesSearch) return false;
           if (histDateRange === 'today') return d.business_date && d.business_date.startsWith(todayStr());
           if (histDateRange === '7days') {
-            const limit7 = new Date(); limit7.setDate(limit7.getDate() - 7);
-            return new Date(d.business_date) >= limit7;
+            const limit7 = addCalendarDays(getStoreBusinessDate(), -7);
+            return String(d.business_date || '').slice(0, 10) >= limit7;
           }
           if (histDateRange === '30days') {
-            const limit30 = new Date(); limit30.setDate(limit30.getDate() - 30);
-            return new Date(d.business_date) >= limit30;
+            const limit30 = addCalendarDays(getStoreBusinessDate(), -30);
+            return String(d.business_date || '').slice(0, 10) >= limit30;
           }
           return true;
         });
@@ -230,12 +231,12 @@ export function SettlementHistoryView({
             if (!matchesSearch) return false;
             if (histDateRange === 'today') return d.business_date && d.business_date.startsWith(todayStr());
             if (histDateRange === '7days') {
-              const limit7 = new Date(); limit7.setDate(limit7.getDate() - 7);
-              return new Date(d.business_date) >= limit7;
+              const limit7 = addCalendarDays(getStoreBusinessDate(), -7);
+              return String(d.business_date || '').slice(0, 10) >= limit7;
             }
             if (histDateRange === '30days') {
-              const limit30 = new Date(); limit30.setDate(limit30.getDate() - 30);
-              return new Date(d.business_date) >= limit30;
+              const limit30 = addCalendarDays(getStoreBusinessDate(), -30);
+              return String(d.business_date || '').slice(0, 10) >= limit30;
             }
             return true;
           });

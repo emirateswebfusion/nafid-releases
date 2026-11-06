@@ -1,3 +1,4 @@
+import { storeTime } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { processOfflineAiQuery } from '../../../services/offlineAiService';
@@ -84,7 +85,7 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
       id: 'msg-' + Date.now() + '-user',
       role: 'user',
       content: q,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: storeTime(new Date(), [], { hour: '2-digit', minute: '2-digit' }),
     };
 
     setConversations((prev) =>
@@ -127,7 +128,7 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
         data: res.data,
         chartData: res.chartData,
         suggestedPrompts: res.suggestedPrompts || [],
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: storeTime(new Date(), [], { hour: '2-digit', minute: '2-digit' }),
       };
 
       setConversations((prev) =>
@@ -148,7 +149,7 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
         id: 'msg-' + Date.now() + '-error',
         role: 'assistant',
         content: isMal ? `ഡാറ്റ പരിശോധിക്കുന്നതിൽ തടസ്സം നേരിട്ടു: ${(err as Error).message || 'Error'}.` : `Failed to retrieve data: ${(err as Error).message || 'Error'}.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: storeTime(new Date(), [], { hour: '2-digit', minute: '2-digit' }),
       };
 
       setConversations((prev) =>

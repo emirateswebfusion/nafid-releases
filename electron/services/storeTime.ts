@@ -1,3 +1,5 @@
+import { utcForWallClock } from '../utils/utc.js';
+import { getStoreCountrySetting } from './storeCountryService.js';
 import { toEpochMs } from '../utils/timestamps.js';
 import type { ServiceDb, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
@@ -15,6 +17,7 @@ export function getStoreTimezoneSetting(db: ServiceDb | null | undefined, tenant
       if (typeof tz === 'string' && tz) { new Intl.DateTimeFormat('en', { timeZone: tz }); return tz; }
     }
   } catch { /* ignore */ }
+  try { if (db && tenantId && getStoreCountrySetting(db, tenantId) === 'AE') return 'Asia/Dubai'; } catch { /* Legacy schemas retain the India default. */ }
   return 'Asia/Kolkata';
 }
 
@@ -36,31 +39,7 @@ export function localDate(d: Date = new Date(), tenantId?: string): string {
 
 /** The UTC instant of a store wall-clock time (`dateStr` YYYY-MM-DD, h:m:s in `tz`). */
 export function storeWallClockToUtc(dateStr: string, h: number, m: number, sec: number, tz: string): Date {
-  const [y, mo, d] = dateStr.split('-').map(Number);
-  const baseUtc = new Date(Date.UTC(y, mo - 1, d, h, m, sec));
-  try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hour12: false
-    });
-
-    const getParts = (dt: Date) => {
-      const parts = formatter.formatToParts(dt);
-      const map: Record<string, number> = {};
-      for (const p of parts) {
-        if (p.type !== 'literal') map[p.type] = Number(p.value);
-      }
-      return Date.UTC(map.year, map.month - 1, map.day, map.hour === 24 ? 0 : map.hour, map.minute, map.second);
-    };
-
-    const currentLocalAsUtc = getParts(baseUtc);
-    const diffMs = baseUtc.getTime() - currentLocalAsUtc;
-    return new Date(baseUtc.getTime() + diffMs);
-  } catch {
-    return baseUtc;
-  }
+  return utcForWallClock(dateStr, `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`, tz);
 }
 
 /** Helper to compute start and end UTC bounds for business date range in store timezone */

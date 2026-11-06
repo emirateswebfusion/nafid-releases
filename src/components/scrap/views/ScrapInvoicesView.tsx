@@ -1,10 +1,10 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import React, { Fragment } from 'react';
 import { Layers, Package, Search, X, Recycle, FileText, Pencil, Trash } from 'lucide-react';
 import { CurrencyIcon } from '../../ui/CurrencyIcon';
 import { formatCurrency, formatGroupDate } from '../scrapFormat';
 import { DateRangeFilter } from '../../ui/DateRangeFilter';
-import { parseUTCDate } from '../../../utils/print/receiptGenerator';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import clsx from 'clsx';
 import type { ScrapInvoiceRow } from '../scrapTypes';
@@ -155,7 +155,7 @@ export function ScrapInvoicesView({
                     {/* Date & Status */}
                     <div className="col-span-2 text-center">
                       <div className="text-xs font-semibold text-foreground">
-                        {parseUTCDate(inv.created_at).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' })}
+                        {storeDate(inv.created_at, getStoreLocale(), { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' })}
                       </div>
                       <span className={clsx('inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border',
                         inv.payment_status === 'CREDIT'

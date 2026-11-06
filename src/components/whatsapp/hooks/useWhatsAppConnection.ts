@@ -1,5 +1,6 @@
-import { hasBridge } from '../../../data/client';
-import { settingsApi } from '../../../data/settings';
+import { useState } from 'react';
+import { useSettingsSectionSave } from '../../settings/hooks/useSettingsSectionSave';
+import { setSetting } from '../../../data/settings';
 import { whatsappApi } from '../../../data/whatsapp';
 import type { WhatsAppSettingsState } from './useWhatsAppSettingsState';
 
@@ -12,49 +13,16 @@ export interface UseWhatsAppConnectionContext {
 export function useWhatsAppConnection(ctx: UseWhatsAppConnectionContext) {
   const { effectiveTenantId } = ctx;
   const { setIncludeShopName, setLedgerAlertsEnabled, setLoading, setMsg, setPhone, setQrCode, setShowConfirmDisconnect, setStatus } = ctx.wa;
-  const handleToggleLedgerAlerts = async (enabled: boolean) => {
-    setLedgerAlertsEnabled(enabled);
-    try {
-      if (hasBridge('settingsSet')) {
-        await settingsApi.set({
-          tenant_id: effectiveTenantId,
-          key: 'ledger_whatsapp_enabled',
-          value: enabled,
-        });
-        window.dispatchEvent(new CustomEvent('settings:updated'));
-        setMsg({
-          text: enabled
-            ? 'Ledger WhatsApp transaction alerts enabled!'
-            : 'Ledger WhatsApp transaction alerts disabled!',
-          type: 'success',
-        });
-      }
-    } catch {
-      setMsg({ text: 'Failed to update alert setting', type: 'error' });
-    }
-  };
-
-  const handleToggleIncludeShopName = async (include: boolean) => {
-    setIncludeShopName(include);
-    try {
-      if (hasBridge('settingsSet')) {
-        await settingsApi.set({
-          tenant_id: effectiveTenantId,
-          key: 'ledger_whatsapp_include_shop',
-          value: include,
-        });
-        window.dispatchEvent(new CustomEvent('settings:updated'));
-        setMsg({
-          text: include
-            ? 'Shop name will be included in transaction messages'
-            : 'Shop name excluded from transaction messages',
-          type: 'success',
-        });
-      }
-    } catch {
-      setMsg({ text: 'Failed to update shop name setting', type: 'error' });
-    }
-  };
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const snapshot = JSON.stringify([ctx.wa.ledgerAlertsEnabled, ctx.wa.includeShopName]);
+  const dirty = baseline !== null && snapshot !== baseline;
+  useSettingsSectionSave(dirty, async () => {
+    await setSetting({ tenant_id: effectiveTenantId, key: 'ledger_whatsapp_enabled', value: ctx.wa.ledgerAlertsEnabled });
+    await setSetting({ tenant_id: effectiveTenantId, key: 'ledger_whatsapp_include_shop', value: ctx.wa.includeShopName });
+    setBaseline(null);
+  });
+  const handleToggleLedgerAlerts = async (enabled: boolean) => { setBaseline(current => current ?? snapshot); setLedgerAlertsEnabled(enabled); };
+  const handleToggleIncludeShopName = async (include: boolean) => { setBaseline(current => current ?? snapshot); setIncludeShopName(include); };
 
   const handleConnect = async () => {
     setLoading(true);

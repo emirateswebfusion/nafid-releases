@@ -1,3 +1,4 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuthStore } from '../../store/authStore';
@@ -6,7 +7,6 @@ import clsx from 'clsx';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { Modal } from '../ui/Modal';
 import { FloatToast } from '../ui/FloatToast';
-import { parseUTCDate } from '../../utils/print/receiptGenerator';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import { isDesktopRuntime } from '../../data/client';
 import { pricingTiersApi } from '../../data/pricingTiers';
@@ -376,7 +376,7 @@ export function CustomersPage({
   const filteredInvoices = useMemo(() => {
     if (!billFilterStart && !billFilterEnd) return invoices;
     return invoices.filter(inv => {
-      const key = parseUTCDate(inv.created_at).toLocaleDateString('en-CA', { timeZone: getStoreTimezone() });
+      const key = storeDate(inv.created_at, 'en-CA', { timeZone: getStoreTimezone() });
       if (billFilterStart && key < billFilterStart) return false;
       if (billFilterEnd && key > billFilterEnd) return false;
       return true;

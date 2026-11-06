@@ -1,5 +1,4 @@
 import React from 'react';
-import { RestaurantSettings } from '../../restaurant/settings/RestaurantSettings';
 import { FilingOnlySettings } from '../FilingOnlySettings';
 import { UaeEinvoiceSettings } from '../UaeEinvoiceSettings';
 import { EmergencyPurgeSettings } from '../EmergencyPurgeSettings';
@@ -7,7 +6,6 @@ import { StaffDataMaskingSettings } from '../StaffDataMaskingSettings';
 import { DesignSettings } from '../../design-settings/DesignSettings';
 import { LedgerTerminologySettings } from '../LedgerTerminologySettings';
 import { BillingUICustomizer } from '../../billing-ui-customizer/BillingUICustomizer';
-import { useBillingUIStore } from '../../../store/billingUIStore';
 import { DashboardCardCustomizer } from '../../owner-dashboard/DashboardCardCustomizer';
 import { StoreSettingsTab } from '../tabs/StoreSettingsTab';
 import { WhatsAppSettingsTab } from '../tabs/WhatsAppSettingsTab';
@@ -33,7 +31,7 @@ import type { SettingsFormState } from '../hooks/useSettingsFormState';
 export interface SettingsSectionContentProps {
   activeSection: string;
   featureFlags: FeatureFlags | null;
-  onModulesSaved?: (flags: FeatureFlags) => void;
+  onFlagsChange?: (flags: FeatureFlags) => void;
   fetchPrinters: (showToast?: boolean) => Promise<void>;
   handleChangePassword: (e: React.FormEvent) => Promise<void>;
   handleInstallUpdate: () => void;
@@ -50,7 +48,7 @@ export interface SettingsSectionContentProps {
 
 /** Content of the selected settings section (shop, billing, numbering, printing, tax, sync, hardware, WhatsApp, ... tabs). */
 export function SettingsSectionContent({
-  activeSection, featureFlags, onModulesSaved, fetchPrinters, handleChangePassword, handleInstallUpdate, handleRetryDownload,
+  activeSection, featureFlags, onFlagsChange, fetchPrinters, handleChangePassword, handleInstallUpdate, handleRetryDownload,
   handleToggleFeatureFlag, returnPrefix, returnStartNumber, role, sectionId, setActiveSection, tenantId, form,
 }: SettingsSectionContentProps) {
   const { a4Printer, a4Style, a5Orientation, activeHardwareTab, activeProductsTab, activeWhatsAppTab, appVersion, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, autoWhatsAppSend, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, changingPass, connectCode, copiedCode, copiedFirewallCmd, defaultOpeningBalance, detectedLocalIp, downloadProgress, drainingQueue, effectiveCloudState, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, isDownloading, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, lastChecked, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyRedemptionRate, networkDetails, openCashDrawerOnPending, osPrinters, pass, priceCoding, printersLoading, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, saving, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, setA4Printer, setA4Style, setA5Orientation, setActiveHardwareTab, setActiveProductsTab, setActiveWhatsAppTab, setAutoCloseCashDrawer, setAutoCloseCashDrawerTime, setAutoOpenCashDrawer, setAutoPrintBarcode, setAutoWhatsAppSend, setB2bPrefix, setB2bStartNumber, setB2cPrefix, setB2cStartNumber, setBankAccount, setBankBranch, setBankIfsc, setBankName, setBarcodePrinter, setBillingUIConfig, setBillSettings, setConfirmTurnOffAllModalOpen, setCopiedCode, setCopiedFirewallCmd, setDefaultOpeningBalance, setDrainingQueue, setEffectiveCloudState, setEmergencyPanicConfig, setEnableConvertToGst, setEnablePartyEstimate, setEnablePartyGst, setEnableRealPaperStock, setEnableThreeInvoiceSeries, setGstConversionTaxInclusive, setGstProfitPercentage, setInventoryDefaultView, setInvoiceStartNumber, setLabelCodeType, setLabelShowShopName, setLanHostIp, setLanRole, setLoyaltyAwardOnPending, setLoyaltyEarningRate, setLoyaltyRedemptionRate, setMessage, setNetworkDetails, setOpenCashDrawerOnPending, setPass, setPreviewFormat, setPreviewStyle, setPriceCoding, setPrintFormat, setPrintWidth, setPurchaseBillPrefix, setPurchaseBillStartNumber, setQuotationPrefix, setQuotationStartNumber, setReceiptFont, setReceiptPrinter, setReturnPrefix, setReturnStartNumber, setScale, setScrapBillSettings, setScrapPrefix, setScrapStartNumber, setServiceChargeBarcode, setShopAddress, setShopClosingConfig, setShopEmail, setShopGstin, setShopNameLocal, setShopPhone, setShopState, setShopWebsite, setShowBulkSheet, setShowCashRegister, setShowConfirmPass, setShowFullyPaidCashInLedger, setShowLanHelpModal, setShowNewPass, setShowOldPass, setShowPaperOnlyProducts, setShowPaperStockInEstimate, setShowPaperStockInGst, setShowPriceOverrideMrp, setShowPriceTiersInInventory, setShowProductGstBadge, setShowProductOffers, setShowUpiQr, setShowZeroPaperStock, setStaffDataMaskingConfig, setStockReportDefaultView, setVatPriceInclusive, setStoreCountryState, setStoreTimezoneState, setSyncFrequency, setSyncMode, setTerminalCode, setTestingNetwork, setThermalStyle, setTimeFormat, setUpiId, setWhatsNewLang, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showBulkSheet, showConfirmPass, showFullyPaidCashInLedger, showLanHelpModal, showNewPass, showOldPass, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, vatPriceInclusive, storeCountry, storeTimezone, syncFrequency, syncMode, terminalCode, testingNetwork, thermalStyle, timeFormat, updateInfo, updateReady, updateStatus, upiId, whatsNewLang } = form;
@@ -80,7 +78,6 @@ export function SettingsSectionContent({
           config={billingUIConfig}
           onChange={(newCfg) => {
             setBillingUIConfig(newCfg);
-            useBillingUIStore.getState().updateConfig(newCfg);
           }}
         />
       );
@@ -151,7 +148,7 @@ export function SettingsSectionContent({
 
     case 'billing':
       return (
-        <BillingRulesTab
+        <BillingRulesTab featureFlags={featureFlags} onToggleFeature={handleToggleFeatureFlag}
           billingUIConfig={billingUIConfig} setBillingUIConfig={setBillingUIConfig}
           enableConvertToGst={enableConvertToGst} setEnableConvertToGst={setEnableConvertToGst}
           showPriceOverrideMrp={showPriceOverrideMrp} setShowPriceOverrideMrp={setShowPriceOverrideMrp}
@@ -305,10 +302,10 @@ export function SettingsSectionContent({
       );
 
     case 'restaurant':
-      return <RestaurantSettings />;
+      return <p className="text-sm text-muted-foreground">Manage tables on the Tables page and preparation stations on the Kitchen page. Food and extras are Inventory items.</p>;
     case 'features':
       return (
-        <FeaturesTab onSaved={onModulesSaved}
+        <FeaturesTab onFlagsChange={onFlagsChange}
           featureFlags={featureFlags}
           handleToggleFeatureFlag={handleToggleFeatureFlag}
           setConfirmTurnOffAllModalOpen={setConfirmTurnOffAllModalOpen}

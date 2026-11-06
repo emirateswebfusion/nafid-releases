@@ -1,3 +1,4 @@
+import { parseUTCDate } from '../../utils/time/utc';
 import { useState, useMemo } from 'react';
 import { ManagedGspModal } from './views/ManagedGspModal';
 import { CardTerminalPlatformModal } from './views/CardTerminalPlatformModal';
@@ -121,9 +122,9 @@ export default function SuperDashboard() {
     }
 
     if (sortBy === 'newest') {
-      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      result.sort((a, b) => parseUTCDate(b.created_at).getTime() - parseUTCDate(a.created_at).getTime());
     } else if (sortBy === 'oldest') {
-      result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      result.sort((a, b) => parseUTCDate(a.created_at).getTime() - parseUTCDate(b.created_at).getTime());
     } else if (sortBy === 'alphabetical') {
       result.sort((a, b) => a.name.localeCompare(b.name));
     }

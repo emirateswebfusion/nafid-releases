@@ -38,3 +38,5 @@ export const SuperDashboard = lazy(() => import('../super-dashboard/SuperDashboa
 export function preloadBilling(): void {
   void loadBilling();
 }
+
+export const VariantsManager = lazy(() => import('../variants/VariantsManager').then(m => ({ default: m.VariantsManager })));

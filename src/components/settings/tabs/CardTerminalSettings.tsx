@@ -1,3 +1,4 @@
+import { useSettingsSectionSave } from '../hooks/useSettingsSectionSave';
 import React, { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, CreditCard, Loader2, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
@@ -23,6 +24,7 @@ export const CardTerminalSettings: React.FC = () => {
   const tenantId = useAuthStore(s => s.tenantId) || 'global';
   const available = hasCardTerminal();
   const [config, setConfig] = useState<CardTerminalConfig | null>(null);
+  const [saved, setSaved] = useState<CardTerminalConfig | null>(null);
   const [providers, setProviders] = useState<CardTerminalProvider[]>([]);
   const [ports, setPorts] = useState<string[]>([]);
   const [rows, setRows] = useState<CardTerminalTransaction[]>([]);
@@ -38,7 +40,7 @@ export const CardTerminalSettings: React.FC = () => {
       cardTerminalApi.getStatus(), cardTerminalApi.listPorts(),
       cardTerminalApi.listTransactions({ tenant_id: tenantId, limit: 20 }), cardTerminalApi.listUnresolved({ tenant_id: tenantId }),
     ]);
-    setConfig(status.config);
+    setConfig(status.config); setSaved(status.config);
     setProviders(status.providers);
     setPorts(portList.map(p => p.path));
     setRows(recent);
@@ -49,23 +51,20 @@ export const CardTerminalSettings: React.FC = () => {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- load() sets state only after awaiting the bridge (mount fetch).
   useEffect(() => { void load(); }, [load]);
 
+  useSettingsSectionSave(!!config && JSON.stringify(config) !== JSON.stringify(saved), async () => {
+    if (!config) return;
+    const next = { ...config, enabled: false };
+    await setSetting({ tenant_id: tenantId, key: 'card_terminal_config', value: next });
+    setConfig(next); setSaved(next);
+  });
   if (!available) return <p className="text-sm text-muted-foreground">Card terminals need the desktop app.</p>;
   if (!config) return message ? <p role="alert" className="text-sm text-red-600">{message.text}</p> : <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />;
 
   const update = (patch: Partial<CardTerminalConfig>) => setConfig({ ...config, ...patch });
-  const save = async () => {
-    setBusy(true);
-    try {
-      await setSetting({ tenant_id: tenantId, key: 'card_terminal_config', value: { ...config, enabled: false } });
-      setMessage({ ok: true, text: 'Card terminal settings saved for this computer.' });
-    } catch (err) {
-      setMessage({ ok: false, text: (err as Error).message });
-    } finally { setBusy(false); }
-  };
   const test = async () => {
     setBusy(true);
     try {
-      await setSetting({ tenant_id: tenantId, key: 'card_terminal_config', value: config });
+      if (JSON.stringify(config) !== JSON.stringify(saved)) throw new Error('Save Changes before checking this setup.');
       const res = await cardTerminalApi.test();
       setMessage({ ok: res.ok, text: res.message });
     } catch { setMessage({ ok: false, text: 'Could not check terminal setup. Please try again.' });
@@ -138,7 +137,6 @@ export const CardTerminalSettings: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy} onClick={save} className={clsx(BUTTON, 'bg-primary text-primary-foreground border-primary')}>Save</button>
         <button type="button" disabled={busy} onClick={test} className={BUTTON}>{busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}Check setup status</button>
         <button type="button" onClick={() => void load()} className={BUTTON}><RefreshCw className="w-3.5 h-3.5" />Refresh</button>
       </div>

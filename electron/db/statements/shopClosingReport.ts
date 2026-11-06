@@ -37,13 +37,7 @@ export const findInvoicesByConvertedFrom_ = (db: Db) => db.prepare(`
           AND (i.is_held IS NULL OR i.is_held = 0)
           AND (i.is_deleted IS NULL OR i.is_deleted = 0)
           AND ${counterSalePredicate('i')} AND ${countsInRevenue('i')}
-          AND (
-            date(COALESCE(i.settled_at, i.created_at)) = ?
-            OR date(COALESCE(i.settled_at, i.created_at)) = ?
-            OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
-            OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
-            OR COALESCE(i.settled_at, i.created_at) LIKE ?
-          )
+          AND (julianday(COALESCE(i.settled_at, i.created_at)) BETWEEN julianday(?) AND julianday(?))
         ORDER BY COALESCE(i.settled_at, i.created_at) ASC
       `);
 
@@ -51,13 +45,7 @@ export const findCashTransactions = (db: Db) => db.prepare(`
         SELECT type, amount, category, notes, transaction_date
         FROM cash_transactions
         WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-          AND (
-            date(transaction_date) = ?
-            OR date(transaction_date) = ?
-            OR substr(transaction_date, 1, 10) = ?
-            OR substr(transaction_date, 1, 10) = ?
-            OR transaction_date LIKE ?
-          )
+          AND (julianday(transaction_date) BETWEEN julianday(?) AND julianday(?))
         ORDER BY transaction_date ASC
       `);
 
@@ -67,13 +55,7 @@ export const findPartyLedger = (db: Db) => db.prepare(`
         FROM party_ledger pl
         LEFT JOIN parties p ON pl.party_id = p.party_id
         WHERE (pl.tenant_id = ? OR pl.tenant_id = 'global' OR pl.tenant_id IS NULL)
-          AND (
-            date(pl.transaction_date) = ?
-            OR date(pl.transaction_date) = ?
-            OR substr(pl.transaction_date, 1, 10) = ?
-            OR substr(pl.transaction_date, 1, 10) = ?
-            OR pl.transaction_date LIKE ?
-          )
+          AND (julianday(pl.transaction_date) BETWEEN julianday(?) AND julianday(?))
           AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
           AND (pl.description NOT LIKE '%Opening Balance%' OR pl.description IS NULL)
           AND (pl.description NOT LIKE 'Credit Sale%' OR pl.description IS NULL)
@@ -88,13 +70,7 @@ export const findStaffTransactions = (db: Db) => db.prepare(`
         FROM staff_transactions st
         LEFT JOIN staff s ON st.staff_id = s.staff_id
         WHERE (st.tenant_id = ? OR st.tenant_id = 'global' OR st.tenant_id IS NULL)
-          AND (
-            date(st.transaction_date) = ?
-            OR date(st.transaction_date) = ?
-            OR substr(st.transaction_date, 1, 10) = ?
-            OR substr(st.transaction_date, 1, 10) = ?
-            OR st.transaction_date LIKE ?
-          )
+          AND (julianday(st.transaction_date) BETWEEN julianday(?) AND julianday(?))
         ORDER BY st.transaction_date ASC
       `);
 
@@ -105,13 +81,7 @@ export const findScrapTransactions = (db: Db) => db.prepare(`
         LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
         WHERE (st.tenant_id = ? OR st.tenant_id = 'global' OR st.tenant_id IS NULL)
           AND (st.is_deleted IS NULL OR st.is_deleted = 0)
-          AND (
-            date(st.transaction_date) = ?
-            OR date(st.transaction_date) = ?
-            OR substr(st.transaction_date, 1, 10) = ?
-            OR substr(st.transaction_date, 1, 10) = ?
-            OR st.transaction_date LIKE ?
-          )
+          AND (julianday(st.transaction_date) BETWEEN julianday(?) AND julianday(?))
         ORDER BY st.transaction_date ASC
       `);
 
@@ -119,13 +89,7 @@ export const countReturns = (db: Db) => db.prepare(`
         SELECT COUNT(*) AS ret_count, COALESCE(SUM(grand_total), 0) AS ret_total
         FROM returns
         WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id IS NULL)
-          AND (
-            date(return_date) = ?
-            OR date(return_date) = ?
-            OR substr(return_date, 1, 10) = ?
-            OR substr(return_date, 1, 10) = ?
-            OR return_date LIKE ?
-          )
+          AND (julianday(return_date) BETWEEN julianday(?) AND julianday(?))
       `);
 
 export const pragmaTableInfo = (db: Db) => db.prepare(`PRAGMA table_info(purchase_bills)`);
@@ -192,13 +156,5 @@ export const sumPurchaseBillsForDate = (db: Db, amountCol: 'grand_total' | 'tota
         SELECT COUNT(*) AS pb_count, COALESCE(SUM(${amountCol}), 0) AS pb_total
         FROM purchase_bills
         WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id IS NULL)
-          AND (
-            date(bill_date) = ?
-            OR date(bill_date) = ?
-            OR substr(bill_date, 1, 10) = ?
-            OR substr(bill_date, 1, 10) = ?
-            OR bill_date LIKE ?
-            OR date(created_at) = ?
-            OR substr(created_at, 1, 10) = ?
-          )
+          AND ((length(bill_date) = 10 AND bill_date IN (?, ?)) OR (COALESCE(length(bill_date), 0) != 10 AND julianday(COALESCE(NULLIF(bill_date, ''), created_at)) BETWEEN julianday(?) AND julianday(?)))
       `);

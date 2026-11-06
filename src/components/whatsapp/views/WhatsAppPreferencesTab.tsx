@@ -48,7 +48,7 @@ function OnOffBadge({ on }: { on: boolean }) {
   );
 }
 
-/** Automations & Bills tab: customer bills sent on checkout and ledger transaction alerts. Changes save immediately. */
+/** Automations & Bills tab: customer bills sent on checkout and ledger transaction alerts. Changes apply through the main Settings save action. */
 export function WhatsAppPreferencesTab({
   autoSendEnabled, handleTabSelect, handleToggleIncludeShopName, handleToggleLedgerAlerts, onAutoSendChange,
   shopName, tenantId, wa,
@@ -115,7 +115,7 @@ export function WhatsAppPreferencesTab({
         </span>
       </button>
 
-      <p className="text-[11px] text-muted-foreground text-center">Changes on this tab are saved immediately.</p>
+      <p className="text-[11px] text-muted-foreground text-center">Apply these changes with Save Changes at the top of Settings.</p>
     </div>
   );
 }

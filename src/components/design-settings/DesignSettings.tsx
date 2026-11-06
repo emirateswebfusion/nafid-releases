@@ -1,6 +1,7 @@
+import { useDesignDraft } from './useDesignDraft';
 import { useState, useId } from 'react';
 import { CheckCircle2, Shield, Lock } from 'lucide-react';
-import { useThemeStore, COLOR_PRESETS, FONT_PRESETS, LIGHT_THEME_PRESETS, DARK_THEME_PRESETS } from '../../store/themeStore';
+import { COLOR_PRESETS, FONT_PRESETS, LIGHT_THEME_PRESETS, DARK_THEME_PRESETS } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { isAdminRole } from '../../utils/security/permissions';
 import { DensityScaleSection } from './views/DensityScaleSection';
@@ -28,7 +29,7 @@ export function DesignSettings() {
     darkThemeBase,
     setDarkThemeBase,
     resetDesignDefaults,
-  } = useThemeStore();
+  } = useDesignDraft();
 
   const { role } = useAuthStore();
   const isAdmin = isAdminRole(role);
@@ -63,7 +64,7 @@ export function DesignSettings() {
     if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(clean)) {
       setPrimaryColor(clean);
       setCustomHexInput(clean);
-      showNotice('Custom accent color applied');
+      showNotice('Custom accent color selected');
     }
   };
 
@@ -73,7 +74,7 @@ export function DesignSettings() {
     if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(clean)) {
       setLightThemeBase(clean);
       setCustomLightBgInput(clean);
-      showNotice('Custom light surface applied');
+      showNotice('Custom light surface selected');
     }
   };
 
@@ -83,7 +84,7 @@ export function DesignSettings() {
     if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(clean)) {
       setDarkThemeBase(clean);
       setCustomDarkBgInput(clean);
-      showNotice('Custom dark surface applied');
+      showNotice('Custom dark surface selected');
     }
   };
 

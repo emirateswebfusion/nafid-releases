@@ -480,7 +480,7 @@ export function getPendingPrintProducts({ tenant_id, limit, date, dateEnd, only_
     const db = getDb();
     if (!tenant_id) return [];
     
-    const { statement, params } = productsSql.getPendingPrintProductsStatement(db, { tenant_id, only_pending, date, dateEnd, limit });
+    const { statement, params } = productsSql.getPendingPrintProductsStatement(db, { tenant_id, only_pending, date, dateEnd, limit, dateRange: date ? getUtcRangeForStoreDateRange(date, dateEnd || date, tenant_id) : undefined });
     
     return statement.all(...params);
   } catch (error) {

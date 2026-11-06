@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { Search, RefreshCw, ShoppingCart } from 'lucide-react';
 import clsx from 'clsx';
 import { getStoreProfile } from '../../../utils/localization/storeProfile';
@@ -98,7 +99,7 @@ export function EcomOrdersTab({
                     </td>
 
                     <td className="px-3 py-2 text-muted-foreground font-medium">
-                      {order.created_at ? new Date(order.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
+                      {order.created_at ? storeDate(order.created_at, 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
                     </td>
 
                     <td className="px-3 py-2">

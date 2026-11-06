@@ -1,3 +1,5 @@
+import { parseUTCDate } from '../../utils/time/utc';
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import type React from 'react';
 import { Receipt, Package, Users, Handshake } from 'lucide-react';
@@ -40,7 +42,7 @@ export type InvoiceItemRow = Awaited<ReturnType<typeof import('../../data/invoic
 export function timeAgo(dateStr: string | null): string {
   if (!dateStr) return 'unknown';
   try {
-    const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+    const date = parseUTCDate(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
     const diffMs = Date.now() - date.getTime();
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -58,8 +60,8 @@ export function timeAgo(dateStr: string | null): string {
 export function formatDate(dateStr: string | null): string {
   if (!dateStr) return 'N/A';
   try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString(getStoreLocale(), {
+    const d = parseUTCDate(dateStr);
+    return storeDate(d, getStoreLocale(), {
       day: '2-digit',
       month: 'short',
       year: 'numeric',

@@ -1,3 +1,5 @@
+import { storeCalendarDate } from '../../utils/time/timezoneHelper';
+import { storeDate } from '../../utils/time/dateDisplay';
 import { useState, useRef, useEffect } from 'react';
 import { Calendar, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
@@ -94,8 +96,8 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left', 
   const [open, setOpen] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(startDate);
   const [tempEndDate, setTempEndDate] = useState(endDate);
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(storeCalendarDate().getMonth());
+  const [currentYear, setCurrentYear] = useState(storeCalendarDate().getFullYear());
   const [effectiveAlign, setEffectiveAlign] = useState<'left' | 'right'>(align);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -319,7 +321,7 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left', 
                 day.dateStr < tempEndDate;
               const isRangeSelected = tempStartDate && tempEndDate && tempStartDate !== tempEndDate;
               
-              const todayStr = new Date().toLocaleDateString('en-CA');
+              const todayStr = storeDate(new Date(), 'en-CA');
               const isToday = day.dateStr === todayStr;
 
               return (

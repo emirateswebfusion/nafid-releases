@@ -1,3 +1,4 @@
+import { storeDateTime } from '../../utils/time/dateDisplay';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Store, Package, ShoppingCart, Settings, RefreshCw, X, TrendingUp } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
@@ -513,7 +514,7 @@ export function EcommercePortal({ onClose }: EcommercePortalProps) {
               <div>
                 <h3 className="text-sm font-bold text-foreground">Order #{selectedOrder.order_number || selectedOrder.id}</h3>
                 <span className="text-xs text-muted-foreground font-mono">
-                  {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString() : 'Recent'}
+                  {selectedOrder.created_at ? storeDateTime(selectedOrder.created_at) : 'Recent'}
                 </span>
               </div>
               <button

@@ -106,11 +106,16 @@ export function LoginScreen() {
   useEffect(() => {
     if (hasBridge('authGetTerminalConfig')) {
       authApi.getTerminalConfig().then((cfg) => {
+        let preferEmail = false;
+        try {
+          preferEmail = sessionStorage.getItem('auth_prefer_email') === 'true';
+          if (preferEmail) sessionStorage.removeItem('auth_prefer_email');
+        } catch { /* ignore */ }
         if (cfg?.isConfigured) {
           setTerminalConfigured(true);
           if (cfg.shop_name) setShopName(cfg.shop_name);
           setLastUser({ name: cfg.user_name || '', role: cfg.role || '' });
-          setTab('pin');
+          if (!preferEmail) setTab('pin');
         }
       }).catch(() => {});
     }

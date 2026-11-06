@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { useEffect } from 'react';
@@ -51,7 +52,7 @@ export function DashboardHeader({
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
           </div>
           <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
-            {new Date().toLocaleDateString('en-US', { timeZone: getStoreTimezone(), weekday: 'long', month: 'long', day: 'numeric' })}
+            {storeDate(new Date(), 'en-US', { timeZone: getStoreTimezone(), weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

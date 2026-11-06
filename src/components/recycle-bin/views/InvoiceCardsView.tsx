@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { Trash2, RotateCcw, Eye } from 'lucide-react';
 import { formatAmount } from '../../../utils/pricing/money';
@@ -56,7 +57,7 @@ export function InvoiceCardsView({
 
                     {/* Date & Payment Method */}
                     <div className="mt-2 text-[11px] text-muted-foreground flex items-center justify-between">
-                      <span>Billed: {inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A'}</span>
+                      <span>Billed: {inv.created_at ? storeDate(inv.created_at) : 'N/A'}</span>
                       <span className="font-semibold text-foreground/80 uppercase text-[10px] bg-muted px-1.5 py-0.2 rounded">
                         {inv.payment_method || 'CASH'}
                       </span>

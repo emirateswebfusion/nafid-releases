@@ -1,3 +1,4 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { getStoreTimezone, toStoreWallClock } from '../../utils/time/timezoneHelper';
 import { parseUTCDate } from '../../utils/print/receiptGenerator';
@@ -5,7 +6,7 @@ import { parseUTCDate } from '../../utils/print/receiptGenerator';
 export const formatDate = (d: string) => {
   if (!d) return '—';
   const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
+  return storeDate(d, getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 export { formatDateTime } from '../../utils/time/dateDisplay';

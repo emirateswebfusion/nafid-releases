@@ -9,6 +9,8 @@ export function toIsoTimestamp(d: Date | string | number = new Date()): string {
  * unparseable. */
 export function toEpochMs(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null;
+  if (v instanceof Date) return Number.isFinite(v.getTime()) ? v.getTime() : null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
   const str = String(v).trim();
   const iso = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(str) ? str.replace(' ', 'T') : str.replace(' ', 'T') + 'Z';
   const ms = new Date(iso).getTime();

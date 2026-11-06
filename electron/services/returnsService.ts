@@ -1,3 +1,4 @@
+import { toIsoTimestamp } from '../utils/timestamps.js';
 import { reconcileInvoicePoints } from './loyaltyService.js';
 import type { InvoiceItem, InvoiceRow, ReturnRow, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
@@ -54,7 +55,7 @@ export function createReturn(payload: {
       upsertCustomerRecord(db, returnData.tenant_id || 'global', returnData.customer_name, returnData.customer_phone, null);
     }
     const now = localTimestamp();
-    const occurredAt = returnData.return_date ? new Date(returnData.return_date).toISOString() : now;
+    const occurredAt = returnData.return_date ? toIsoTimestamp(returnData.return_date) : now;
     returnsSql.insertReturn(db).run(
       returnData.return_id, returnData.invoice_id, returnData.tenant_id, returnData.user_id || null,
       returnData.return_number, returnData.customer_name || null, returnData.customer_phone || null,

@@ -265,21 +265,16 @@ export const listProductSalesQuantities = (db: Db, dateClause: string | number) 
     `);
 
 /** Builds and prepares the dynamic query of `getPendingPrintProducts` (filters appended in code; user values are bound). */
-export function getPendingPrintProductsStatement(db: Db, args: { tenant_id: string; only_pending: boolean; date: string | undefined; dateEnd: string | undefined; limit: number }) {
-  const { tenant_id, only_pending, date, dateEnd, limit } = args;
+export function getPendingPrintProductsStatement(db: Db, args: { tenant_id: string; only_pending: boolean; date: string | undefined; dateEnd: string | undefined; limit: number; dateRange?: { startUtc: string; endUtc: string } }) {
+  const { tenant_id, only_pending, dateRange, limit } = args;
   let query = "SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 AND current_stock > 0";
   const params: unknown[] = [tenant_id];
   if (only_pending) {
     query += " AND print_status = 'PENDING'";
   }
-  if (date) {
-    if (dateEnd) {
-      query += " AND date(created_at) BETWEEN ? AND ?";
-      params.push(date, dateEnd);
-    } else {
-      query += " AND date(created_at) = ?";
-      params.push(date);
-    }
+  if (dateRange) {
+    query += " AND julianday(created_at) BETWEEN julianday(?) AND julianday(?)";
+    params.push(dateRange.startUtc, dateRange.endUtc);
   }
   query += " ORDER BY created_at ASC";
   if (limit) { query += " LIMIT ?"; params.push(limit); }

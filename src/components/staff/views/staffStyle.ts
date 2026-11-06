@@ -1,3 +1,5 @@
+import { parseUTCDate } from '../../../utils/time/utc';
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type { StaffMember } from '../staffTypes';
 
@@ -36,7 +38,7 @@ export function balanceTone(balance?: number | null): { text: string; label: str
 
 export function formatStaffDate(dateStr?: string | null): string {
   if (!dateStr) return 'Not recorded';
-  const d = new Date(dateStr);
+  const d = parseUTCDate(dateStr);
   if (isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString(getStoreLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
+  return storeDate(d, getStoreLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
 }

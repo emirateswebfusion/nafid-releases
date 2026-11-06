@@ -5,8 +5,8 @@ import { Button } from '../../ui/Button';
 import type { Product } from '../../../data/products';
 import type { DiningTable, DraftLine, RestaurantOrder } from '../../../data/restaurant';
 import { formatCurrency } from '../../../utils/pricing/money';
-import { groupsForProduct, menuUnitPrice, minutesSince, orderValue, serviceChargeAmount, serviceChargeMode } from '../restaurantRules';
-import { getStoreVatInclusive, isUaeStore } from '../../../utils/localization/storeProfile';
+import { menuUnitPrice, minutesSince, orderValue, serviceChargeAmount } from '../restaurantRules';
+import { getStoreVatInclusive } from '../../../utils/localization/storeProfile';
 import { channelStyle, formatElapsed } from '../ui/restaurantStyle';
 import type { RestaurantData } from '../hooks/useRestaurantData';
 import type { OrderActions } from '../hooks/useOrderActions';
@@ -43,7 +43,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
   const table: DiningTable | undefined = data.setup.tables.find(t => t.table_id === order.table_id);
   const siblings = data.active.orders.filter(o => o.order_id !== order.order_id && o.table_id && o.table_id === order.table_id);
   const locked = order.status === 'BILLING';
-  const applyServiceCharge = serviceChargeMode(isUaeStore()) === 'automatic' || guestAgreed;
+  const applyServiceCharge = guestAgreed;
   const draftValue = drafts.reduce((s, d) => s + d.quantity * (d.unit_price + d.modifiers.reduce((m, x) => m + x.price, 0)), 0);
 
   const addDraft = (product: Product, choice: { quantity: number; modifiers: DraftLine['modifiers']; note: string | null; seat: number | null }) => {
@@ -61,8 +61,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
 
   const pick = (product: Product) => {
     if (locked) return;
-    if (groupsForProduct(product, data.setup.modifierGroups).length > 0) setPicking(product);
-    else addDraft(product, { quantity: 1, modifiers: [], note: null, seat: null });
+    setPicking(product);
   };
 
   const send = async () => {
@@ -75,7 +74,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
   const draftQty = drafts.reduce((s, d) => s + d.quantity, 0);
   const itemsValue = orderValue(lines) + draftValue;
   const charge = applyServiceCharge ? serviceChargeAmount(itemsValue, data.serviceCharge, order.order_type) : 0;
-  const askCharge = !locked && serviceChargeMode(isUaeStore()) === 'ask' && serviceChargeAmount(itemsValue, data.serviceCharge, order.order_type) > 0;
+  const askCharge = !locked && serviceChargeAmount(itemsValue, data.serviceCharge, order.order_type) > 0;
   const title = order.order_type === 'DINE_IN' ? `Table ${table?.label ?? '?'}` : order.order_type === 'DELIVERY' ? 'Delivery' : 'Takeaway';
   const Icon = order.order_type === 'DINE_IN' ? UtensilsCrossed : order.order_type === 'DELIVERY' ? Bike : ShoppingBag;
   const channel = channelStyle(order.channel);
@@ -91,8 +90,8 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 sm:p-6 xl:h-full xl:flex-row">
       <div className="flex min-h-0 flex-1 flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={onBack} className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold hover:bg-muted"><ArrowLeft className="h-4 w-4" />{order.order_type === 'DINE_IN' ? 'Tables' : 'Orders'}</button>
+        {(locked || tableBills.length > 1) && <div className="flex flex-wrap items-center gap-2">
+          {locked && <button type="button" onClick={onBack} className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold hover:bg-muted"><ArrowLeft className="h-4 w-4" />{order.order_type === 'DINE_IN' ? 'Tables' : 'Orders'}</button>}
           {tableBills.length > 1 && (
             <div className="flex rounded-xl border border-border bg-card p-1">
               {tableBills.map((b, i) => (
@@ -101,7 +100,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
               ))}
             </div>
           )}
-        </div>
+        </div>}
         {locked ? (
           <div className="m-auto flex max-w-sm flex-col items-center gap-3 text-center">
             <div className="rounded-3xl bg-amber-500/15 p-5 text-amber-600"><Receipt className="h-10 w-10" /></div>
@@ -109,7 +108,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
             <p className="text-sm text-muted-foreground">This order is open in Billing{order.billing_terminal && order.billing_terminal !== data.active.terminal ? ' on another terminal' : ''}. Reopen it to add items.</p>
             <Button variant="outline" onClick={() => void actions.releaseClaim(order)}><Undo2 className="mr-2 h-4 w-4" />Reopen order</Button>
           </div>
-        ) : <MenuGrid products={menu} modifierGroups={data.setup.modifierGroups} draftCounts={draftCounts} onPick={pick} />}
+        ) : <MenuGrid onBack={onBack} backLabel={order.order_type === 'DINE_IN' ? 'Back to Tables' : 'Back to Orders'} products={menu} modifierGroups={[]} draftCounts={draftCounts} onPick={pick} />}
       </div>
 
       <aside className="flex w-full xl:w-[380px] xl:shrink-0 min-h-0 flex-col overflow-hidden rounded-[20px] border border-border bg-card shadow-sm">
@@ -178,7 +177,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
       </aside>
 
       {picking && (
-        <ModifierPicker product={picking} groups={groupsForProduct(picking, data.setup.modifierGroups)} modifiers={data.setup.modifiers}
+        <ModifierPicker product={picking} groups={[]} modifiers={[]}
           onCancel={() => setPicking(null)} onConfirm={choice => { addDraft(picking, choice); setPicking(null); }} />
       )}
       {(dialog === 'void' || dialog === 'split' || dialog === 'cancel') && (

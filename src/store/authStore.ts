@@ -66,7 +66,7 @@ function decodeJwtPayload(token: string): { exp?: number; role?: string; permiss
   }
 }
 
-function isTokenExpired(token: string): boolean {
+export function isTokenExpired(token: string): boolean {
   const payload = decodeJwtPayload(token);
   if (!payload) return true;
   return payload.exp ? payload.exp * 1000 < Date.now() : false;

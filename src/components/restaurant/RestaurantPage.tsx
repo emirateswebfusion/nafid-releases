@@ -1,3 +1,5 @@
+import { TablesManager } from './views/TablesManager';
+import { RestaurantManageView } from './views/RestaurantManageView';
 import { useFeatureFlagsStore } from '../../config/featureFlags';
 import { useCallback, useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
@@ -35,6 +37,7 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
   const data = useRestaurantData(tenant);
   const actions = useOrderActions({ tenantId: tenant, userId, shopName: shopName || '', data, onClose });
   const { setMessage } = actions;
+  const [managing, setManaging] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [opening, setOpening] = useState<{ type: OrderType; table?: DiningTable } | null>(null);
   // Unsent items per order live in an app-level store, so leaving an order or this screen does not drop them.
@@ -57,11 +60,12 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
       <div className="flex min-w-0 flex-1 flex-col">
-        <RestaurantTopBar title={TITLES[view]} view={view} onClose={onClose} stats={stats} subtitle={shopName || undefined}
+        <RestaurantTopBar title={view === 'floor' ? 'Tables & Orders' : TITLES[view]} view={view} onClose={onClose} stats={stats} subtitle={shopName || undefined} onManage={!selected && view === 'kitchen' && can('restaurant.manage') ? () => setManaging(true) : undefined}
           onNewTakeaway={!selected && takeawayEnabled && (view === 'floor' || view === 'tokens') ? () => startOrder('TAKEAWAY') : undefined}
           onNewDelivery={!selected && takeawayEnabled && (view === 'floor' || view === 'tokens') ? () => startOrder('DELIVERY') : undefined} />
+        {view === 'floor' && !selected && <nav aria-label="Tables navigation" className="flex gap-2 border-b border-border bg-card px-6 py-3"><button type="button" aria-current={!managing ? 'page' : undefined} className={`rounded-lg px-4 py-2 text-sm font-semibold ${!managing ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} onClick={() => setManaging(false)}>Orders & seating</button>{can('restaurant.manage') && <button type="button" aria-current={managing ? 'page' : undefined} className={`rounded-lg px-4 py-2 text-sm font-semibold ${managing ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} onClick={() => setManaging(true)}>Tables</button>}</nav>}
         <main className="min-h-0 flex-1 overflow-y-auto bg-muted/[0.02]">
-          {data.loading ? (
+          {managing && view === 'floor' ? <TablesManager tenantId={tenant} tables={data.setup.tables} onChanged={data.refreshSetup} /> : managing ? <RestaurantManageView tenantId={tenant} data={data} kitchen={view === 'kitchen'} onClose={() => setManaging(false)} /> : data.loading ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 p-5">
               {Array.from({ length: 12 }, (_, i) => <div key={i} className="h-[132px] animate-pulse rounded-2xl bg-muted" />)}
             </div>
@@ -71,7 +75,7 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
               setDrafts={update => updateDrafts(selected.order_id, update)} />
           ) : view === 'floor' ? (
             <FloorView tables={data.setup.tables} active={data.active} unsentOrderIds={Object.keys(drafts)} onOpenOrder={o => setSelectedId(o.order_id)}
-              onFreeTable={table => startOrder('DINE_IN', table)} onSetup={() => { onClose(); window.dispatchEvent(new CustomEvent('open-restaurant-setup')); }} />
+              onFreeTable={table => startOrder('DINE_IN', table)} onSetup={() => { if (can('restaurant.manage')) setManaging(true); }} />
           ) : view === 'tokens' ? (
             <TokenOrdersView active={data.active} onOpenOrder={o => setSelectedId(o.order_id)} onNew={type => startOrder(type)} />
           ) : (

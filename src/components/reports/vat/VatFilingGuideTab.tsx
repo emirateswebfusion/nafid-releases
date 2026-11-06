@@ -1,3 +1,4 @@
+import { getStoreBusinessDate } from '../../../utils/time/timezoneHelper';
 import { useState } from 'react';
 import {
   ExternalLink, Copy, Check, FileText, CheckCircle2,
@@ -62,7 +63,7 @@ export function VatFilingGuideTab({
   // Manual Ack modal state
   const [showAckModal, setShowAckModal] = useState(false);
   const [ackNumber, setAckNumber] = useState('');
-  const [ackDate, setAckDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [ackDate, setAckDate] = useState(() => getStoreBusinessDate());
   const [ackNotes, setAckNotes] = useState('');
   const [isSubmittingAck, setIsSubmittingAck] = useState(false);
 

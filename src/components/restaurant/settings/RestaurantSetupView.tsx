@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChefHat, LayoutGrid, ListPlus, Percent } from 'lucide-react';
+import type { restaurantApi } from '../../../data/restaurant';
 import type { RestaurantData } from '../hooks/useRestaurantData';
 import { TablesSetup } from './TablesSetup';
 import { StationsSetup } from './StationsSetup';
@@ -10,12 +11,13 @@ type SetupTab = 'tables' | 'stations' | 'modifiers' | 'service';
 
 const TABS: { key: SetupTab; label: string; hint: string; icon: typeof LayoutGrid }[] = [
   { key: 'tables', label: 'Tables', hint: 'Tables and seating areas', icon: LayoutGrid },
-  { key: 'stations', label: 'Kitchen & printers', hint: 'Stations, their categories and printer on this PC', icon: ChefHat },
-  { key: 'modifiers', label: 'Add-ons', hint: 'Extras and choices offered with items', icon: ListPlus },
-  { key: 'service', label: 'Service charge', hint: 'Optional charge and its tax rate', icon: Percent },
+  { key: 'stations', label: 'Kitchen routing', hint: 'Choose which preparation area handles each menu category', icon: ChefHat },
+  { key: 'modifiers', label: 'Item extras & choices', hint: 'Extra cheese, toppings, spice levels and other item options', icon: ListPlus },
+  { key: 'service', label: 'Bill service charge', hint: 'An optional percentage added to the bill; not a menu item', icon: Percent },
 ];
 
 interface RestaurantSetupViewProps {
+  api?: typeof restaurantApi;
   tenantId: string;
   data: RestaurantData;
   categories: string[];
@@ -25,27 +27,31 @@ interface RestaurantSetupViewProps {
 }
 
 /** Restaurant setup with a side menu: one section at a time, each in its own card. */
-export function RestaurantSetupView({ tenantId, data, categories, onChanged, onError, onInfo }: RestaurantSetupViewProps) {
+export function RestaurantSetupView({ api, tenantId, data, categories, onChanged, onError, onInfo }: RestaurantSetupViewProps) {
   const [tab, setTab] = useState<SetupTab>('tables');
   const current = TABS.find(t => t.key === tab)!;
   return (
-    <div className="flex min-h-0 flex-col gap-5 lg:flex-row">
-      <aside className="grid shrink-0 grid-cols-2 gap-2 lg:block lg:w-56 lg:space-y-1">
+    <div className="flex min-h-0 flex-col gap-5">
+      <div className="grid grid-cols-3 gap-3" aria-label="Food service setup summary">
+        {[['Tables', data.setup.tables.length], ['Preparation areas', data.setup.stations.length], ['Extra-choice groups', data.setup.modifierGroups.length]].map(([label, count]) => <div key={label} className="rounded-xl border border-border bg-card p-4"><p className="text-xl font-bold tabular-nums">{count}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></div>)}
+      </div>
+      <p className="text-xs text-muted-foreground">Set up seating, kitchen routing and menu extras. Apply all changes together with Save Changes at the top.</p>
+      <aside className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4">
         {TABS.map(t => (
-          <button key={t.key} type="button" onClick={() => setTab(t.key)}
-            className={`flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition ${tab === t.key ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-muted'}`}>
+          <button key={t.key} type="button" aria-pressed={tab === t.key} onClick={() => setTab(t.key)}
+            className={`flex w-full items-start gap-3 border border-border rounded-xl px-4 py-4 text-left transition ${tab === t.key ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-muted'}`}>
             <t.icon className={`mt-0.5 h-5 w-5 shrink-0 ${tab === t.key ? 'text-primary' : 'text-muted-foreground'}`} />
             <span><span className="block text-xs font-bold">{t.label}</span><span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{t.hint}</span></span>
           </button>
         ))}
       </aside>
-      <section className="min-w-0 flex-1 rounded-[28px] border border-border bg-card p-5 shadow-sm sm:p-6">
+      <section className="min-w-0 flex-1 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
         <h2 className="text-sm font-bold">{current.label}</h2>
         <p className="mb-5 mt-1 text-xs text-muted-foreground">{current.hint}</p>
-        {tab === 'tables' && <TablesSetup tenantId={tenantId} tables={data.setup.tables} onChanged={onChanged} onError={onError} />}
-        {tab === 'stations' && <StationsSetup tenantId={tenantId} stations={data.setup.stations} categories={categories} onChanged={onChanged} onError={onError} onInfo={onInfo} />}
-        {tab === 'modifiers' && <ModifiersSetup tenantId={tenantId} groups={data.setup.modifierGroups} modifiers={data.setup.modifiers} categories={categories} onChanged={onChanged} onError={onError} />}
-        {tab === 'service' && <ServiceChargeSetup tenantId={tenantId} value={data.serviceCharge} onChanged={onChanged} onError={onError} />}
+        <div hidden={tab !== 'tables'}> <TablesSetup api={api} tenantId={tenantId} tables={data.setup.tables} onChanged={onChanged} onError={onError} /></div>
+        <div hidden={tab !== 'stations'}> <StationsSetup api={api} tenantId={tenantId} stations={data.setup.stations} categories={categories} onChanged={onChanged} onError={onError} onInfo={onInfo} /></div>
+        <div hidden={tab !== 'modifiers'}> <ModifiersSetup api={api} tenantId={tenantId} groups={data.setup.modifierGroups} modifiers={data.setup.modifiers} categories={categories} onChanged={onChanged} onError={onError} /></div>
+        <div hidden={tab !== 'service'}> <ServiceChargeSetup tenantId={tenantId} value={data.serviceCharge} onChanged={onChanged} onError={onError} /></div>
       </section>
     </div>
   );

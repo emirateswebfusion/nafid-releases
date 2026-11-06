@@ -1,3 +1,4 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
@@ -39,7 +40,7 @@ interface ReturnItem extends Rows.ReturnItemsRow {
 function formatDate(dateStr: string | null) {
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
-  return d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
+  return storeDate(d, getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {

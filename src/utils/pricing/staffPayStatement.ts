@@ -1,3 +1,4 @@
+import { parseUTCDate } from '../time/utc';
 /**
  * Monthly pay statement of one staff member, built from their ledger rows.
  *
@@ -48,7 +49,7 @@ export function buildPayStatement(rows: PayLedgerRow[], month: Date, timeZone = 
   for (const row of rows) {
     const raw = String(row.transaction_date || '').trim();
     const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
-    const instant = new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw.replace(' ', 'T')}Z`);
+    const instant = parseUTCDate(/[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw.replace(' ', 'T')}Z`);
     if (!raw || isNaN(instant.getTime())) continue;
     const time = dateOnly ? raw : format.format(instant);
     if (time >= end) continue;

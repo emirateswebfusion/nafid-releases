@@ -3,7 +3,6 @@ import type * as B from '../billingTypes';
 import React from 'react';
 import type { DeductionState } from './DeductionEditor';
 import clsx from 'clsx';
-import { Gift, X } from 'lucide-react';
 import { useCartStore } from '../../../store/cartStore';
 import { useTabStore } from '../../../store/tabStore';
 import { formatCurrency } from '../BillingConstants';
@@ -137,7 +136,6 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
   setIsEditingTotal,
   setLocalDiscText,
   setOverrideTotalInput,
-  setShowLoyaltyRedemption,
   sgst,
   showDescriptionState,
   splitDetails,
@@ -151,7 +149,6 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
   totalTax,
   deductions,
 }) => {
-  const { pointsRedeemedCalc, pointsRedeemedDiscountCalc, setPointsToRedeem } = deductions;
   const items = useCartStore(s => s.items);
   const discountType = useCartStore(s => s.discountType);
   const discountValue = useCartStore(s => s.discountValue);
@@ -286,30 +283,6 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
         </div>
 
         </div>
-
-        {/* Loyalty Redemption Discount in Totals */}
-        {pointsRedeemedDiscountCalc > 0 && (
-          <div className="mx-3 mb-1 px-3 py-2 bg-amber-500/10 border border-amber-500/25 rounded-xl flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Gift className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span className="text-xs font-bold text-amber-700 dark:text-amber-300 truncate">
-                Loyalty Discount ({pointsRedeemedCalc} pts)
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-mono">
-                -{formatCurrency(pointsRedeemedDiscountCalc)}
-              </span>
-              <button
-                onClick={() => { setPointsToRedeem(0); setShowLoyaltyRedemption(false); }}
-                title="Remove Loyalty Discount"
-                className="p-0.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Grand Total + Received + Change */}
         <GrandTotalSection

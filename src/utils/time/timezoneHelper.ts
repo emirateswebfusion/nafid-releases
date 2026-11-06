@@ -1,3 +1,4 @@
+import { parseUTCDate, utcForWallClock } from './utc';
 /**
  * Timezone & UTC Helper Utility
  * Standardizes UTC storage in Database and localized presentation in Store Timezone.
@@ -54,8 +55,8 @@ export function getStoreTimezone(): string {
 /**
  * Returns current business date in Store Timezone (YYYY-MM-DD)
  */
-export function getStoreBusinessDate(timeZone: string = getStoreTimezone()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+export function getStoreBusinessDate(timeZone: string = getStoreTimezone(), value: Date | string | number = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(parseUTCDate(value));
 }
 
 /** An instant from a Date, epoch ms, ISO text, or SQLite UTC text without a zone ("2026-11-02 18:37:00"). */
@@ -80,22 +81,21 @@ export function toStoreWallClock(value: Date | string | number = new Date(), tim
 
 /** The UTC ISO instant of a wall-clock date (`YYYY-MM-DD`) and time (`HH:mm`) in the store timezone. */
 export function storeWallClockToUtcIso(date: string, time: string = '00:00', timeZone: string = getStoreTimezone()): string {
-  const [y, m, d] = date.split('-').map(Number);
-  const [h, min] = (time || '00:00').split(':').map(Number);
-  const wanted = Date.UTC(y, m - 1, d, h || 0, min || 0);
-  // The zone's offset at the instant, found from its wall clock; a second pass settles daylight-saving edges.
-  let instant = wanted;
-  for (let i = 0; i < 2; i++) {
-    const w = toStoreWallClock(new Date(instant), timeZone);
-    const [wy, wm, wd] = w.date.split('-').map(Number);
-    const [wh, wmin] = w.time.split(':').map(Number);
-    instant += wanted - Date.UTC(wy, wm - 1, wd, wh, wmin);
-  }
-  return new Date(instant).toISOString();
+  return utcForWallClock(date, time || '00:00', timeZone).toISOString();
 }
 
 /** The calendar date `days` after (or before, when negative) a `YYYY-MM-DD` date. */
 export function addCalendarDays(date: string, days: number): string {
   const [y, m, d] = date.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** Synthetic local Date for calendar arithmetic only, never timestamp storage. */
+export function storeCalendarDate(value: Date | string | number = new Date()): Date {
+  const day = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : getStoreBusinessDate(getStoreTimezone(), value);
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d, 12);
+}
+export function calendarDateKey(value: Date): string {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
 }

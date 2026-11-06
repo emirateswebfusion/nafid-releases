@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { useCartStore } from '../../../store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from '../../../store/tabStore';
-import { useAuthStore } from '../../../store/authStore';
+import { useAuthStore, isTokenExpired } from '../../../store/authStore';
 import { useScaleStore } from '../../../store/scaleStore';
 import { isAdminRole } from '../../../utils/security/permissions';
 import { isAiAssistantAvailable, type FeatureFlags, type FeatureKey } from '../../../config/featureFlags';
@@ -9,7 +9,7 @@ import { isDesktopRuntime } from '../../../data/client';
 import { isUaeStore } from '../../../utils/localization/storeProfile';
 import { bridgeEvents } from '../../../data/events';
 
-type ScreenFlag = 'setShowGstReports' | 'setShowVatReports' | 'setShowAdsManager' | 'setShowAiAssistant' | 'setShowCashierSettlement' | 'setShowComboManager' | 'setShowCustomersPage' | 'setShowEcommercePortal' | 'setShowFinancialReport' | 'setShowInventoryManager' | 'setShowPartyManager' | 'setShowPaymentsPage' | 'setShowPurchaseBillManager' | 'setShowQuotationManager' | 'setShowRecycleBin' | 'setShowReturnManager' | 'setShowSalesHistory' | 'setShowScrapManager' | 'setShowSessionExpiredModal' | 'setShowSettingsGrades' | 'setShowSettingsManager' | 'setShowSettingsPricingTiers' | 'setShowStaffManager' | 'setShowStockReport' | 'setShowWarrantyManager';
+type ScreenFlag = 'setShowVariantsManager' | 'setShowGstReports' | 'setShowVatReports' | 'setShowAdsManager' | 'setShowAiAssistant' | 'setShowCashierSettlement' | 'setShowComboManager' | 'setShowCustomersPage' | 'setShowEcommercePortal' | 'setShowFinancialReport' | 'setShowInventoryManager' | 'setShowPartyManager' | 'setShowPaymentsPage' | 'setShowPurchaseBillManager' | 'setShowQuotationManager' | 'setShowRecycleBin' | 'setShowReturnManager' | 'setShowSalesHistory' | 'setShowScrapManager' | 'setShowSessionExpiredModal' | 'setShowSettingsGrades' | 'setShowSettingsManager' | 'setShowSettingsPricingTiers' | 'setShowStaffManager' | 'setShowStockReport' | 'setShowWarrantyManager';
 
 /** The App state the screen events drive: one setter per full-screen view plus the targets some screens open with. */
 export type ScreenEventsContext = Record<ScreenFlag, Dispatch<SetStateAction<boolean>>> & {
@@ -29,7 +29,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     ctxRef.current = ctx;
   });
   useEffect(() => {
-    const { enableScrapRef, featureFlagsRef, setShowGstReports, setShowVatReports, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager } = ctxRef.current;
+    const { enableScrapRef, featureFlagsRef, setShowGstReports, setShowVatReports, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowVariantsManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager } = ctxRef.current;
     const canOpen = (key: FeatureKey) => {
       if (key === 'ai_assistant') {
         return isAiAssistantAvailable && (featureFlagsRef.current ? featureFlagsRef.current.ai_assistant !== false : true);
@@ -39,6 +39,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       }
       return Boolean(featureFlagsRef.current?.[key]);
     };
+    const handleOpenVariants = () => { if (canOpen('inventory')) setShowVariantsManager(true); };
     const handleOpenInv = () => { if (canOpen('inventory')) setShowInventoryManager(true); };
     const handleOpenStockReport = () => { if (canOpen('stock_report')) setShowStockReport(true); };
     const handleOpenGstReports = () => {
@@ -126,6 +127,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
 
       setShowQuotationManager(false);
       setShowInventoryManager(false);
+      setShowVariantsManager(false);
       setShowStockReport(false);
       setShowSalesHistory(false);
       setShowRecycleBin(false);
@@ -149,6 +151,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       useCartStore.getState().setRole('BILLER');
       setShowQuotationManager(false);
       setShowInventoryManager(false);
+      setShowVariantsManager(false);
       setShowStockReport(false);
       setShowSalesHistory(false);
       setShowRecycleBin(false);
@@ -174,6 +177,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       setShowSalesHistory(false);
       setShowRecycleBin(false);
       setShowInventoryManager(false);
+      setShowVariantsManager(false);
       setShowStockReport(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
@@ -201,6 +205,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       setShowSalesHistory(false);
       setShowRecycleBin(false);
       setShowInventoryManager(false);
+      setShowVariantsManager(false);
       setShowStockReport(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
@@ -223,6 +228,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       setShowSalesHistory(false);
       setShowRecycleBin(false);
       setShowInventoryManager(false);
+      setShowVariantsManager(false);
       setShowStockReport(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
@@ -247,6 +253,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       }
       setShowQuotationManager(false);
       setShowInventoryManager(false);
+      setShowVariantsManager(false);
       setShowStockReport(false);
       setShowSalesHistory(false);
       setShowRecycleBin(false);
@@ -272,6 +279,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     const handleOpenDashboard = () => {
       setShowQuotationManager(false);
       setShowInventoryManager(false);
+      setShowVariantsManager(false);
       setShowStockReport(false);
       setShowSalesHistory(false);
       setShowRecycleBin(false);
@@ -329,6 +337,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     window.addEventListener('open-staff-manager', handleOpenStaff);
     window.addEventListener('open-settings-manager', handleOpenSettings);
     window.addEventListener('open-settings-grades', handleOpenSettingsGrades);
+    window.addEventListener('open-product-variants', handleOpenVariants);
     window.addEventListener('open-settings-pricing-tiers', handleOpenSettingsPricingTiers);
     window.addEventListener('open-parties-manager', handleOpenParties);
     window.addEventListener('open-scrap-manager', handleOpenScrapManager);
@@ -350,7 +359,13 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     let unsubscribeScale: (() => void) | undefined;
     if (isDesktopRuntime()) {
       const unsub = bridgeEvents.onTokenExpired(() => {
+        const currentToken = useAuthStore.getState().token;
+        if (currentToken && !isTokenExpired(currentToken)) {
+          console.warn('[App] Received token-expired event, but active token is valid. Suppressing session expired modal.');
+          return;
+        }
         console.warn('[App] Cloud session expired or unauthorized. Showing session expired modal...');
+        useAuthStore.getState().setCloudSyncPaused(true, 'Token expired — Cloud Sync paused. Re-login to resume cloud sync.');
         setShowSessionExpiredModal(true);
       });
       if (typeof unsub === 'function') {
@@ -362,7 +377,13 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       });
     }
 
-    const handleOpenSessionExpiredModal = () => setShowSessionExpiredModal(true);
+    const handleOpenSessionExpiredModal = () => {
+      const currentToken = useAuthStore.getState().token;
+      if (currentToken && !isTokenExpired(currentToken) && !useAuthStore.getState().isCloudSyncPaused) {
+        return;
+      }
+      setShowSessionExpiredModal(true);
+    };
     window.addEventListener('open-session-expired-modal', handleOpenSessionExpiredModal);
 
     return () => {
@@ -389,6 +410,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       window.removeEventListener('open-staff-manager', handleOpenStaff);
       window.removeEventListener('open-settings-manager', handleOpenSettings);
       window.removeEventListener('open-settings-grades', handleOpenSettingsGrades);
+      window.removeEventListener('open-product-variants', handleOpenVariants);
       window.removeEventListener('open-settings-pricing-tiers', handleOpenSettingsPricingTiers);
       window.removeEventListener('open-parties-manager', handleOpenParties);
       window.removeEventListener('open-scrap-manager', handleOpenScrapManager);

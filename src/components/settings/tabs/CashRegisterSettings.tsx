@@ -1,3 +1,4 @@
+import { useSettingsSectionSave } from '../hooks/useSettingsSectionSave';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { ArrowDownToLine, BookOpen, CreditCard, Info, Lock } from 'lucide-react';
@@ -61,8 +62,9 @@ export function CashRegisterSettings() {
       await Promise.all(KEYS.map((key, index) => setSetting({ tenant_id: tenantId, key, value: values[index] })));
       setSavedOptions(cur.options);
       setStatus({ text: 'Cash register options saved. Reopen the register to see updated totals.', type: 'success' });
-    } catch {
+    } catch (error) {
       setStatus({ text: 'Could not save all cash register options. Please retry.', type: 'error' });
+      throw error;
     } finally {
       setSaving(false);
     }
@@ -71,22 +73,9 @@ export function CashRegisterSettings() {
   const dirty = JSON.stringify(options) !== JSON.stringify(savedOptions);
   const locked = !ready || saving || !canEdit;
 
-  useEffect(() => {
-    if (ready) {
-      window.dispatchEvent(new CustomEvent('settings:section-dirty', { detail: { dirty } }));
-    }
-  }, [dirty, ready]);
 
-  useEffect(() => {
-    const handleRequestSave = () => {
-      const cur = stateRef.current;
-      if (cur.ready && JSON.stringify(cur.options) !== JSON.stringify(cur.savedOptions)) {
-        void save();
-      }
-    };
-    window.addEventListener('settings:request-save', handleRequestSave);
-    return () => window.removeEventListener('settings:request-save', handleRequestSave);
-  }, [save]);
+
+  useSettingsSectionSave(ready && dirty, save);
 
   return <fieldset disabled={locked} className="space-y-6 min-w-0">
     <legend className="sr-only">Cash register totals and payment display</legend>

@@ -1,3 +1,4 @@
+import { storeDateTime } from '../../../utils/time/dateDisplay';
 import { Plus, ArrowLeftRight, Receipt } from 'lucide-react';
 import { Button } from '../../ui/Button';
 import { formatCurrency } from '../../../utils/pricing/money';
@@ -52,7 +53,7 @@ export function StaffPaymentsTab({ selectedStaff, sm }: StaffPayTabProps) {
                   <p className="text-[13px] font-medium text-foreground truncate">{l.description}</p>
                 </div>
                 <p className="text-[11.5px] text-muted-foreground mt-0.5">
-                  {new Date(l.transaction_date as string).toLocaleString(getStoreLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {storeDateTime(l.transaction_date as string, getStoreLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
               <div className="text-right shrink-0">

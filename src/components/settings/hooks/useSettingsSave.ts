@@ -1,3 +1,4 @@
+import type { SettingsSaveSession } from '../settingsSaveSession';
 import { setStoreCountry, setStoreVatInclusive, isValidTaxRegistration, getStoreProfile } from '../../../utils/localization/storeProfile';
 import { setStoreTimezone } from '../../../utils/time/timezoneHelper';
 import type React from 'react';
@@ -5,7 +6,7 @@ import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { isAdminRole } from '../../../utils/security/permissions';
 import { sanitizeFeatureFlags, DEFAULT_FEATURE_FLAGS, useFeatureFlagsStore } from '../../../config/featureFlags';
-import { setSetting } from '../../../data/settings';
+import { getSetting, setSetting } from '../../../data/settings';
 import { STAFF_DATA_MASKING_KEY } from '../../../utils/security/staffDataMasking';
 import { EMERGENCY_PANIC_CONFIG_KEY } from '../../../utils/security/emergencyPurge';
 import { whatsappApi } from '../../../data/whatsapp';
@@ -22,6 +23,7 @@ import type { SettingsFormState } from './useSettingsFormState';
 
 export interface UseSettingsSaveContext {
   activeSection: string;
+  saveSession: SettingsSaveSession;
   buildSettingsSnapshot: (overrides?: SettingsSnapshotOverrides) => string;
   featureFlags: FeatureFlags | null;
   setInitialSnapshot: React.Dispatch<React.SetStateAction<string>>;
@@ -36,7 +38,7 @@ export interface UseSettingsSaveContext {
 
 export function useSettingsSave(ctx: UseSettingsSaveContext) {
   const { activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix, returnStartNumber, role, shopDomain, updateDomain } = ctx;
-  const { a4Printer, a4Style, a5Orientation, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, defaultOpeningBalance, detectedLocalIp, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyEnabled, loyaltyRedemptionRate, openCashDrawerOnPending, osPrinters, priceCoding, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, serviceChargeProduct, setBarcodePrinter, setEnableScrap, setMessage, setReceiptPrinter, setSaveRevision, setSaving, setServiceChargeProduct, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showFullyPaidCashInLedger, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, vatPriceInclusive, storeCountry, storeTimezone, syncFrequency, syncMode, terminalCode, thermalStyle, timeFormat, upiId } = ctx.form;
+  const { a4Printer, a4Style, a5Orientation, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, defaultOpeningBalance, detectedLocalIp, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyRedemptionRate, openCashDrawerOnPending, osPrinters, priceCoding, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, serviceChargeProduct, setBarcodePrinter, setEnableScrap, setMessage, setReceiptPrinter, setSaveRevision, setSaving, setServiceChargeProduct, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showFullyPaidCashInLedger, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, vatPriceInclusive, storeCountry, storeTimezone, syncFrequency, syncMode, terminalCode, thermalStyle, timeFormat, upiId } = ctx.form;
   const handleSave = async () => {
     if (!isDesktopRuntime()) return;
     setSaving(true); setMessage(null);
@@ -102,6 +104,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
 
       const sanitizedFlags = sanitizeFeatureFlags(featureFlags || DEFAULT_FEATURE_FLAGS);
 
+      const networkConfig = await getSetting<Record<string, unknown>>({ tenant_id: tenantId || 'global', key: 'network_sync_config' });
       const checks: { promise: Promise<unknown>; name: string }[] = [
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_gst_balance', value: enablePartyGst }), name: 'party_gst' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_party_estimate_balance', value: enablePartyEstimate }), name: 'party_estimate' },
@@ -188,21 +191,23 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
           }),
           name: 'shop_closing_config'
         }] : []),
-        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { ...networkConfig, syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
       ];
 
-      // Request section-specific forms (such as Revenue & Filing-only) to persist their changes
-      window.dispatchEvent(new Event('settings:request-save'));
-
       // setSetting resolves to void and throws on failure; other bridge calls resolve to { success, error }.
-      for (const { promise, name } of checks) {
+      const results = await Promise.allSettled(checks.map(async ({ promise, name }) => {
         const res = await promise as { success?: boolean; error?: unknown } | undefined;
         if (res && res.success === false) throw new Error(`${name}: ${res.error}`);
-      }
+      }));
+      const failure = results.find(result => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
 
+      await ctx.saveSession.save();
       setStoreCountry(storeCountry);
       setStoreTimezone(storeTimezone);
       setStoreVatInclusive(vatPriceInclusive);
+      localStorage.setItem('nafid_whats_new_lang', ctx.form.whatsNewLang);
+      localStorage.setItem('auto_whatsapp_send', ctx.form.autoWhatsAppSend ? 'true' : 'false');
       // Notify application and invalidate stale tab reservations
       try {
         useAuthStore.setState({ shopName: shopNameLocal });
@@ -241,6 +246,8 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
       useBillingUIStore.getState().updateConfig(billingUIConfig);
       useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(featureFlags || DEFAULT_FEATURE_FLAGS));
       setEnableScrap(Boolean(featureFlags?.scrap));
+      ctx.form.setShowCashRegister(sanitizedFlags.cash_register);
+      ctx.form.setLoyaltyEnabled(sanitizedFlags.loyalty);
       if (activeSection === 'network') {
         const syncStatusToast = (syncMode === 'LAN' || (syncMode === 'HYBRID' && lanRole === 'SECONDARY'))
           ? `Wifi Sync Active (${lanRole === 'PRIMARY' ? `Primary Master Server IP ${detectedLocalIp || lanHostIp || '192.168.1.100'}:${lanPort}` : `Connected to Master Server ${lanHostIp}:${lanPort}`})`
@@ -304,7 +311,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         enableScrap: Boolean(featureFlags?.scrap),
         showCashRegister: Boolean(featureFlags?.cash_register),
         autoPrintBarcode,
-        loyaltyEnabled,
+        loyaltyEnabled: sanitizedFlags.loyalty,
         loyaltyEarningRate: Number(loyaltyEarningRate) || 100,
         loyaltyRedemptionRate: Number(loyaltyRedemptionRate) || 1,
         loyaltyAwardOnPending,

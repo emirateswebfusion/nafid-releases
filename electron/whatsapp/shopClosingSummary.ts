@@ -1,3 +1,5 @@
+import { storeWallClockToUtc } from '../services/storeTime.js';
+import { findTimeFormat } from '../db/statements/storeTime.js';
 import { getStoreCountrySetting } from '../services/storeCountryService.js';
 import { getRegisterCashEntries, isFrozenDrawer } from '../services/cashDrawerSession.js';
 import { getCashAmountFromInvoice } from '../services/cashDrawerService.js';
@@ -30,6 +32,8 @@ export function buildShopClosingSummaryData(
     }
   }
 
+  const startUtc = storeWallClockToUtc(bDate, 0, 0, 0, tz).toISOString();
+  const endUtc = new Date(storeWallClockToUtc(bDate, 23, 59, 59, tz).getTime() + 999).toISOString();
   const parts = bDate.split('-');
   const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : bDate;
   const dateLike = `${bDate}%`;
@@ -111,19 +115,21 @@ export function buildShopClosingSummaryData(
     } catch { /* ignore */ }
   }
 
+  let hour12 = true;
+  try { const row = findTimeFormat(db).get(tid) as { value?: string } | undefined; hour12 = row?.value?.replace(/"/g, '') !== '24h'; } catch { /* Existing shops use 12-hour clocks. */ }
   // Closing timestamp
   let closingTimestamp = '';
   if (drawer?.closed_at) {
     try {
       const ms = toEpochMs(drawer.closed_at);
       const d = ms !== null ? new Date(ms) : new Date((drawer.closed_at as string | number));
-      closingTimestamp = d.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+      closingTimestamp = d.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12 });
     } catch {
       closingTimestamp = String(drawer.closed_at);
     }
   } else {
     try {
-      closingTimestamp = new Date().toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+      closingTimestamp = new Date().toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12 });
     } catch { /* ignore */ }
   }
 
@@ -149,7 +155,7 @@ export function buildShopClosingSummaryData(
 
   try {
     const invoices = shopClosingReportSql.findInvoicesByConvertedFrom_(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
+      .all(tid, startUtc, endUtc) as Record<string, unknown>[];
 
     if (Array.isArray(invoices)) {
       totalInvoices = invoices.length;
@@ -264,7 +270,7 @@ export function buildShopClosingSummaryData(
     const txRows = drawer && !isFrozenDrawer(db, tid, drawer)
       ? getRegisterCashEntries(db, tid, drawer)
       : shopClosingReportSql.findCashTransactions(db)
-        .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
+        .all(tid, startUtc, endUtc) as Record<string, unknown>[];
 
     if (Array.isArray(txRows)) {
       for (const row of txRows) {
@@ -302,7 +308,7 @@ export function buildShopClosingSummaryData(
 
   try {
     const plRows = shopClosingReportSql.findPartyLedger(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
+      .all(tid, startUtc, endUtc) as Record<string, unknown>[];
 
     if (Array.isArray(plRows)) {
       for (const pl of plRows) {
@@ -346,7 +352,7 @@ export function buildShopClosingSummaryData(
   const staffTransactionItems: Array<{ staffName: string; type: string; amount: number; notes?: string }> = [];
   try {
     const stRows = shopClosingReportSql.findStaffTransactions(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
+      .all(tid, startUtc, endUtc) as Record<string, unknown>[];
 
     if (Array.isArray(stRows)) {
       for (const st of stRows) {
@@ -376,7 +382,7 @@ export function buildShopClosingSummaryData(
 
   try {
     const scrapRows = shopClosingReportSql.findScrapTransactions(db)
-      .all(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>[];
+      .all(tid, startUtc, endUtc) as Record<string, unknown>[];
 
     if (Array.isArray(scrapRows)) {
       for (const sr of scrapRows) {
@@ -405,7 +411,7 @@ export function buildShopClosingSummaryData(
   let returnsAmount = 0;
   try {
     const retRow = shopClosingReportSql.countReturns(db)
-      .get(tid, bDate, altDate, bDate, altDate, dateLike) as Record<string, unknown>;
+      .get(tid, startUtc, endUtc) as Record<string, unknown>;
 
     if (retRow) {
       returnsCount = Number(retRow.ret_count || 0);
@@ -431,7 +437,7 @@ export function buildShopClosingSummaryData(
     } catch { /* ignore */ }
 
     const pbRow = shopClosingReportSql.sumPurchaseBillsForDate(db, amountCol)
-      .get(tid, bDate, altDate, bDate, altDate, dateLike, bDate, bDate) as Record<string, unknown>;
+      .get(tid, bDate, altDate, startUtc, endUtc) as Record<string, unknown>;
 
     if (pbRow) {
       purchasesCount = Number(pbRow.pb_count || 0);

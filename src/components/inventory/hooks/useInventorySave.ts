@@ -1,3 +1,5 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
+import { saveProductVariants, validateVariants } from '../variantProducts';
 import { v4 as uuidv4 } from 'uuid';
 import { isDesktopRuntime } from '../../../data/client';
 import { updateProduct, createProduct, setProductPricing } from '../../../data/products';
@@ -27,6 +29,8 @@ export function useInventorySave(ctx: UseInventorySaveContext) {
       return;
     }
 
+    const variantError = validateVariants(ctx.inv.variants, formData.sku_barcode);
+    if (variantError) { setStatusMessage({ text: variantError, type: 'error' }); return; }
     let finalBarcode = formData.sku_barcode;
     if (!finalBarcode) {
       let prefix = formData.item_code || '';
@@ -70,7 +74,7 @@ export function useInventorySave(ctx: UseInventorySaveContext) {
       : (Number(formData.domain_attributes?.paper_stock) || 0);
 
     const payload = {
-      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending', created_at: new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T') }),
+      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending', created_at: new Date().toISOString() }),
       ...formData,
       category: normalizedCategory,
       sku_barcode: finalBarcode,
@@ -154,7 +158,7 @@ export function useInventorySave(ctx: UseInventorySaveContext) {
             bill_number: formData.gst_bill_number || `TEMP-${Date.now()}`,
             supplier_id: formData.gst_supplier_id || null,
             supplier_name: supplierName,
-            bill_date: formData.gst_bill_date || new Date().toLocaleDateString('en-CA'),
+            bill_date: formData.gst_bill_date || storeDate(new Date(), 'en-CA'),
             invoice_number: null,
             notes: `Auto-created from product: ${formData.name}`,
             total_amount: gstTotal,
@@ -183,55 +187,24 @@ export function useInventorySave(ctx: UseInventorySaveContext) {
           setTotalCount(prev => prev !== null ? prev + 1 : null);
         }
 
-        // Persist per-tier prices (blank = use MRP / clear stored price)
-        const tierRows = Object.entries(tierPrices).map(([pricing_tier_id, price]) => ({
-          pricing_tier_id,
-          price: price === '' ? null : Number(price),
-        }));
-        if (tierRows.length > 0) {
-          await setProductPricing({
-            tenant_id: tenantId || 'unset',
-            product_id: payload.product_id,
-            pricing: tierRows,
-          });
-        }
-
-        // Persist child variants if configured
-        if (ctx.inv.variants && ctx.inv.variants.length > 0) {
-          for (const v of ctx.inv.variants) {
-            const variantDa: Record<string, unknown> = {
-              parent_product_id: payload.product_id,
-              variant_name: v.variant_name,
-              paper_stock: v.paper_stock !== '' && v.paper_stock !== undefined ? Number(v.paper_stock) : undefined,
-              paper_mrp: v.paper_mrp !== '' && v.paper_mrp !== undefined ? Number(v.paper_mrp) : undefined,
-              paper_purchase_price: v.paper_purchase_price !== '' && v.paper_purchase_price !== undefined ? Number(v.paper_purchase_price) : undefined,
-            };
-            const variantPayload = {
-              product_id: v.product_id || uuidv4(),
-              tenant_id: tenantId || 'global',
-              name: `${payload.name} (${v.variant_name})`,
-              sku_barcode: v.sku_barcode,
-              item_code: payload.item_code,
-              category: payload.category,
-              brand_manufacturer: payload.brand_manufacturer,
-              uom: payload.uom,
-              purchase_price: v.purchase_price !== '' ? Number(v.purchase_price) : Number(payload.purchase_price),
-              base_price: v.base_price !== '' ? Number(v.base_price) : Number(payload.base_price),
-              offer_price: v.offer_price !== '' ? Number(v.offer_price) : (payload.offer_price !== null ? Number(payload.offer_price) : null),
-              current_stock: Number(v.current_stock) || 0,
-              reorder_level: v.reorder_level !== undefined && v.reorder_level !== '' ? Number(v.reorder_level) : Number(payload.reorder_level),
-              is_gst_applicable: payload.is_gst_applicable,
-              hsn_sac_code: payload.hsn_sac_code,
-              tax_rate_percent: payload.tax_rate_percent,
-              domain_attributes: JSON.stringify(variantDa),
-              pricing_mode: 'FIXED_PRICE' as const,
-            };
-            if (v.product_id) {
-              await updateProduct(variantPayload);
-            } else {
-              await createProduct(variantPayload);
-            }
+        try {
+          // Blank tier prices clear stored overrides.
+          const tierRows = Object.entries(tierPrices).map(([pricing_tier_id, price]) => ({
+            pricing_tier_id, price: price === '' ? null : Number(price),
+          }));
+          if (tierRows.length > 0) {
+            const result = await setProductPricing({ tenant_id: tenantId || 'unset', product_id: payload.product_id, pricing: tierRows });
+            if (!result.success) throw new Error(result.error || 'Could not save product tier prices.');
           }
+          await saveProductVariants(payload, ctx.inv.variants, (draftId, productId) => {
+            ctx.inv.setVariants(previous => previous.map(variant => variant.id === draftId ? { ...variant, product_id: productId } : variant));
+          });
+        } catch (error) {
+          ctx.inv.setEditingProduct({ ...payload } as Product);
+          setView('edit');
+          setStatusMessage({ text: error instanceof Error ? error.message : 'Could not save variants.', type: 'error' });
+          setLoading(false);
+          return;
         }
 
         // Auto-register custom categories in the Categories & Grades page so they can be managed there

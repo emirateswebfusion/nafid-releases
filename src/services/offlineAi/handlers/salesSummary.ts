@@ -1,3 +1,5 @@
+import { toStoreWallClock } from '../../../utils/time/timezoneHelper';
+import { parseUTCDate } from '../../../utils/time/utc';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { resolveDateRange } from '../dates';
 import { calculatePaymentBreakdown, formatMoney, pad } from '../format';
@@ -62,7 +64,7 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
       const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
       const lastHourInvs = validInvs.filter((i: AiRow) => {
-        const t = new Date(i.created_at as string).getTime();
+        const t = parseUTCDate(i.created_at as string).getTime();
         return t >= oneHourAgo.getTime() && t <= now.getTime();
       });
 
@@ -75,8 +77,8 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
       }
 
       validInvs.forEach((i: AiRow) => {
-        const d = new Date(i.created_at as string);
-        const h = d.getHours();
+        const d = parseUTCDate(i.created_at as string);
+        const h = Number(toStoreWallClock(d).time.slice(0, 2));
         const hStr = `${pad(h)}:00`;
         if (hourlyBuckets[hStr]) {
           hourlyBuckets[hStr].sales += Number(i.grand_total) || 0;
@@ -84,7 +86,7 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
         }
       });
 
-      const chartItems = Object.values(hourlyBuckets).filter(b => b.sales > 0 || (Number(b.hour.slice(0, 2)) >= 9 && Number(b.hour.slice(0, 2)) <= now.getHours()));
+      const chartItems = Object.values(hourlyBuckets).filter(b => b.sales > 0 || (Number(b.hour.slice(0, 2)) >= 9 && Number(b.hour.slice(0, 2)) <= Number(toStoreWallClock(now).time.slice(0, 2))));
 
       const md = isMal
         ? `### ⏱️ മണിക്കൂർ തിരിച്ചുള്ള സെയിൽസ് (Hourly Sales)\n\n` +

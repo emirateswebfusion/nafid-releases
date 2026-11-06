@@ -1,3 +1,4 @@
+import { storeDate, storeTime } from '../../utils/time/dateDisplay';
 import { useState, useEffect, useCallback } from 'react';
 import { Clock, Globe } from 'lucide-react';
 import { getStoreTimezone, SUPPORTED_TIMEZONES } from '../../utils/time/timezoneHelper';
@@ -70,7 +71,7 @@ export function DigitalClock({ className, variant = 'pill' }: DigitalClockProps)
     }
   } catch {
     // Fallback if invalid timezone string
-    const rawTimeString = now.toLocaleTimeString();
+    const rawTimeString = storeTime(now, is12h ? 'en-US' : 'en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     timeMain = rawTimeString;
   }
 
@@ -85,7 +86,7 @@ export function DigitalClock({ className, variant = 'pill' }: DigitalClockProps)
       year: 'numeric',
     });
   } catch {
-    dateStr = now.toDateString();
+    dateStr = storeDate(now, 'en-US');
   }
 
   if (variant === 'card') {

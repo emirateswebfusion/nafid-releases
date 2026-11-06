@@ -1,12 +1,13 @@
 import { localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Receipt, Shield } from 'lucide-react';
-import { useFeatureFlagsStore } from '../../../config/featureFlags';
-import { useBillingUIStore } from '../../../store/billingUIStore';
+import type { FeatureFlags, FeatureKey } from '../../../config/featureFlags';
 import { SettingsCard, ToggleRow } from '../views/SettingsControls';
 import type { SettingsForm } from '../settingsFormTypes';
 
 export interface BillingRulesTabProps {
+  featureFlags: FeatureFlags | null;
+  onToggleFeature: (key: FeatureKey, value?: boolean) => void;
   billingUIConfig: SettingsForm['billingUIConfig']; setBillingUIConfig: SettingsForm['setBillingUIConfig'];
   enableConvertToGst: boolean; setEnableConvertToGst: (v: boolean) => void;
   showPriceOverrideMrp: boolean; setShowPriceOverrideMrp: (v: boolean) => void;
@@ -14,17 +15,15 @@ export interface BillingRulesTabProps {
 
 /** Billing Rules: price override display on the billing page and billing security / staff options. */
 export const BillingRulesTab: React.FC<BillingRulesTabProps> = ({
-  billingUIConfig, setBillingUIConfig,
+  featureFlags, onToggleFeature, billingUIConfig, setBillingUIConfig,
   enableConvertToGst, setEnableConvertToGst,
   showPriceOverrideMrp, setShowPriceOverrideMrp,
 }) => {
-  const { flags: featureFlags } = useFeatureFlagsStore();
   const toggleFlag = (key: 'biller_pin' | 'sales_staff' | 'staff_credit_billing') =>
-    useFeatureFlagsStore.getState().setFlag(key, !featureFlags?.[key]);
+    onToggleFeature(key, !featureFlags?.[key]);
   const togglePurchasePrice = () => {
     const updated = { ...billingUIConfig, showPurchasePriceInPOS: !billingUIConfig.showPurchasePriceInPOS };
     setBillingUIConfig(updated);
-    useBillingUIStore.getState().updateConfig(updated);
   };
 
   return (

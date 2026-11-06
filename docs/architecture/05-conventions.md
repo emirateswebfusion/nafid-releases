@@ -102,3 +102,8 @@ Python, open files with `encoding='utf8', newline=''`.
 - **Fallback:** `whatsNew.ts` provides `getWhatsNewItems()`, resolving active notes -> version cache -> general cache -> evergreen baseline (`DEFAULT_WHATS_NEW`).
 - **Semantic update icons:** App update triggers and notification banners must use purposeful, semantic icons — never decorative or AI-styled icons like `Sparkles`. Use `<Download className="..." />` when an update is available, spinning `<Loader2 className="animate-spin ..." />` during active download, and `<RotateCcw />` when ready to restart.
 - **Guarded install contract:** `app:installUpdate` may run the installer only when `updaterState === 'downloaded'`. Never force-exit the app (`app.exit` / window destroy) when `quitAndInstall` fails: return `{ success: false, error }`, move the updater to `error`, and let the renderer (`updateStore`, `SettingsManager`) re-check and re-download. On success electron-updater quits the app itself and NSIS relaunches it.
+
+
+## Settings draft and save convention
+
+Settings preferences, feature switches and setup edits remain drafts until the single header Save Changes action. Register section-owned async saves with `useSettingsSectionSave` and `SettingsSaveSession`; do not write from input handlers or add section Save buttons. Keep visited sections and nested draft panes mounted across navigation. Await persistence, propagate errors, and keep failed drafts retryable. Runtime stores and caches update only after successful persistence. Existing API writes are not an atomic transaction across sections. Explicit operational actions remain separate. See AGENTS.md rule 18 and the change guide Settings section.

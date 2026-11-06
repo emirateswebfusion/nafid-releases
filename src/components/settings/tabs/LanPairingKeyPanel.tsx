@@ -1,3 +1,4 @@
+import { useSettingsSectionSave } from '../hooks/useSettingsSectionSave';
 import { useEffect, useState } from 'react';
 import { KeyRound, Copy, Check, RefreshCw } from 'lucide-react';
 import { Button } from '../../ui/Button';
@@ -31,27 +32,20 @@ export function LanPairingKeyPanel({ lanRole, setMessage }: Props) {
   const tenantId = useAuthStore((s) => s.tenantId) || 'global';
   const [key, setKey] = useState('');
   const [copied, setCopied] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState('');
 
   useEffect(() => {
     getSetting<Record<string, unknown>>({ tenant_id: tenantId, key: 'network_sync_config' })
-      .then((config) => setKey(typeof config?.lanPairingKey === 'string' ? formatKey(config.lanPairingKey) : ''))
+      .then((config) => { const value = typeof config?.lanPairingKey === 'string' ? formatKey(config.lanPairingKey) : ''; setKey(value); setSaved(value); })
       .catch(() => setKey(''));
   }, [tenantId, lanRole]);
 
-  const save = async (value: string, successText: string) => {
-    setSaving(true);
-    try {
-      const current = (await getSetting<Record<string, unknown>>({ tenant_id: tenantId, key: 'network_sync_config' })) || {};
-      await setSetting({ tenant_id: tenantId, key: 'network_sync_config', value: { ...current, lanPairingKey: value } });
-      setKey(value);
-      setMessage({ type: 'success', text: successText });
-    } catch (err) {
-      setMessage({ type: 'error', text: `Could not save the pairing key: ${err instanceof Error ? err.message : String(err)}` });
-    } finally {
-      setSaving(false);
-    }
-  };
+  useSettingsSectionSave(key !== saved, async () => {
+    if (key.replace(/-/g, '').length !== 16) throw new Error('Enter a complete 16-character shop pairing key.');
+    const current = await getSetting<Record<string, unknown>>({ tenant_id: tenantId, key: 'network_sync_config' }) || {};
+    await setSetting({ tenant_id: tenantId, key: 'network_sync_config', value: { ...current, lanPairingKey: key } });
+    setSaved(key);
+  });
 
   const copy = async () => {
     try {
@@ -81,8 +75,8 @@ export function LanPairingKeyPanel({ lanRole, setMessage }: Props) {
             <Button
               variant="outline"
               size="sm"
-              disabled={saving}
-              onClick={() => save(newKey(), 'New pairing key saved. Enter it on every secondary terminal.')}
+
+              onClick={() => setKey(newKey())}
             >
               <RefreshCw className="w-3.5 h-3.5 mr-1" /> Regenerate
             </Button>
@@ -101,9 +95,7 @@ export function LanPairingKeyPanel({ lanRole, setMessage }: Props) {
               className="font-mono text-xs font-semibold tracking-widest"
               aria-label="Shop pairing key"
             />
-            <Button size="sm" disabled={saving || key.replace(/-/g, '').length < 16} onClick={() => save(key, 'Pairing key saved.')}>
-              Save key
-            </Button>
+
           </div>
           <p className="text-[11px] text-muted-foreground">Enter the key shown on the primary terminal (Settings → Network).</p>
         </>

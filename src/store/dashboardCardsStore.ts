@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { hasBridge } from '../data/client';
-import { settingsApi } from '../data/settings';
+import { setSetting, settingsApi } from '../data/settings';
 
-const DEFAULT_DASHBOARD_CARDS_ORDER = [
+export const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'billing',
   'tables',
   'takeaway-delivery',
@@ -14,6 +14,7 @@ const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'ai-assistant',
   'grades',
   'pricing-tiers',
+  'product-variants',
   'financial-report',
   'gst-reports',
   'stock-print',
@@ -252,3 +253,12 @@ export const useDashboardCardsStore = create<DashboardCardsState>((set, get) => 
     }
   },
 }));
+
+
+/** Awaited Settings save: publish the new order only after durable persistence. */
+export async function saveDashboardCardOrder(order: string[], tenantId?: string | null, userId?: string | null, role?: string | null) {
+  const normalized = normalizeCardOrder(order);
+  await setSetting({ tenant_id: tenantId || 'global', key: getDashboardCardsElectronKey(userId, role), value: normalized });
+  localStorage.setItem(getDashboardCardsStorageKey(tenantId, userId, role), JSON.stringify(normalized));
+  useDashboardCardsStore.setState({ cardOrder: normalized });
+}

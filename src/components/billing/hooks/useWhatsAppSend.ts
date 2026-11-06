@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import type React from 'react';
@@ -108,7 +109,7 @@ export function useWhatsAppSend(ctx: UseWhatsAppSendContext) {
       const waMessage = formatWhatsAppBillMessage({
         shopName: shopNameState || shopName || 'Store',
         invoiceNumber: billNo,
-        date: new Date().toLocaleDateString(getStoreLocale()),
+        date: storeDate(new Date(), getStoreLocale()),
         customerName: customerName || undefined,
         customerPhone: custPhone,
         items: receiptItems.map(i => ({

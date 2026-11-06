@@ -1,3 +1,4 @@
+import { storeTime } from '../../../utils/time/dateDisplay';
 import { CircleCheck, Clock, ShoppingBag, Bike, LayoutGrid, ChefHat, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '../../ui/Button';
@@ -12,6 +13,7 @@ interface TopBarProps {
   onClose: () => void;
   subtitle?: string;
   stats: { freeTables: number; totalTables: number; openOrders: number; ready: number; openValue: number };
+  onManage?: () => void;
   onNewTakeaway?: () => void;
   onNewDelivery?: () => void;
 }
@@ -26,7 +28,7 @@ function useClock() {
 }
 
 /** Standard two-row application header: page actions above a compact operational summary. */
-export function RestaurantTopBar({ title, view, onClose, subtitle, stats, onNewTakeaway, onNewDelivery }: TopBarProps) {
+export function RestaurantTopBar({ title, view, onClose, subtitle, stats, onNewTakeaway, onNewDelivery, onManage }: TopBarProps) {
   const now = useClock();
   const Icon = view === 'floor' ? LayoutGrid : view === 'tokens' ? ShoppingBag : ChefHat;
   const stat = (label: string, value: string) => (
@@ -46,6 +48,7 @@ export function RestaurantTopBar({ title, view, onClose, subtitle, stats, onNewT
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {onManage && <Button variant="outline" onClick={onManage}>{view === 'floor' ? 'Add / Edit Tables' : 'Manage Stations'}</Button>}
           {onNewTakeaway && <Button onClick={onNewTakeaway}><ShoppingBag className="mr-1.5 h-3.5 w-3.5" />Takeaway</Button>}
           {onNewDelivery && <Button variant="outline" onClick={onNewDelivery}><Bike className="mr-1.5 h-3.5 w-3.5" />Delivery</Button>}
           <RedCrossButton onClick={onClose} title="Back to Dashboard" />
@@ -56,7 +59,7 @@ export function RestaurantTopBar({ title, view, onClose, subtitle, stats, onNewT
         {stat('Open orders', String(stats.openOrders))}
         {stat('Ready to serve', String(stats.ready))}
         {stat('Running value', formatCurrency(stats.openValue))}
-        <span className="ml-auto flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><Clock className="h-3 w-3" />{now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="ml-auto flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground"><Clock className="h-3 w-3" />{storeTime(now, undefined, { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
     </header>
   );

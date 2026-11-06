@@ -376,3 +376,24 @@ restaurant mode enabled inherit the child pages only when those new keys are abs
 Configuration lives in Settings > Tables, Kitchen & Food Orders and requires restaurant.manage.
 Billing uses the existing Billing page and order handover; sales remain ordinary invoices in Sales History,
 Financial Report and tax reports. No invoice, order or payment contract changes.
+
+
+### Settings setup save contract
+
+Settings setup now uses a responsive summary and four retained panes: Tables, Kitchen & printers, Add-ons and Service charge. Edits, additions, removals, active switches and printer targets remain drafts until the main Settings Save Changes action. There are no pane Save buttons or writes on blur. `useRestaurantSettingsDraft` stages stable row IDs and invokes existing `restaurantApi` methods only during the awaited save. Service charge registers separately with the same save session. Existing service validation, restaurant.manage permission, schema and sync contracts remain authoritative and unchanged. Test printing remains an explicit operation. See Settings PR #64 and the change guide for retry and partial-write semantics.
+
+
+### Kitchen hardware placement
+
+Kitchen ticket connection targets, paper width and sample printing belong in Settings > Printers & Devices > Kitchen Printers (`KitchenPrinterSettings`). Food Orders retains shared preparation-area/category routing, item extras/choices and the optional bill service charge. Device-local printer configuration registers with the main Settings save session. Test print is an explicit operation using the selected target. Save newly created kitchen stations before assigning their device printers. No schema, IPC or sync contract changes.
+
+
+### Operational restaurant management
+
+Tables > Add / Edit Tables owns table management with explicit Save tables. Kitchen > Manage Stations owns preparation-area/category routing. These entity editors are outside Settings, reuse the draft persistence hook and existing restaurant.manage permission/data APIs. The legacy setup event opens Tables. Settings no longer lists restaurant setup. New order items, including extras, come from Inventory with their own product, price and tax identity. Item selection opens quantity/note options without legacy modifier groups; existing order modifiers are preserved. A configured service charge is opt-in per order rather than selected automatically. Printer connections remain in Printers & Devices. No schema or sync contract changes.
+
+
+Tables navigation now separates Orders & seating from the Tables entity page. `restaurant/views/TablesManager.tsx` owns searchable rows, Add Table/Edit forms and confirmed deletion through restaurantApi. It refreshes saved rows without navigating away. No batch setup form or page-wide Save tables action is used on this page. The main-process occupied-table deletion check remains authoritative. These entity actions are outside Settings; the Settings single-save rule remains unchanged. Regression: tablesManager.ui.test.tsx.
+
+
+Tables entity list uses the full available content width with responsive page padding. Bulk Add Tables remains available alongside Add Table regardless of row count. `BulkTablesDialog` creates at most 200 numbered tables, skips existing names, and retains successful IDs/names across partial-failure retries. It refreshes the list after attempted writes and reports partial failures; batch creation is not atomic. Tests: tablesManager.ui.test.tsx.

@@ -94,6 +94,16 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
       perm: 'products.view'
     },
     {
+      id: 'product-variants',
+      title: 'Product Variants',
+      desc: 'Manage sizes, packs, prices, stock and pricing tiers',
+      icon: Layers,
+      color: 'text-sky-500',
+      bgColor: 'bg-sky-500/10',
+      action: () => window.dispatchEvent(new CustomEvent('open-product-variants')),
+      perm: 'products.view'
+    },
+    {
       id: 'pricing-tiers',
       title: 'Pricing Tiers',
       desc: 'Create dynamic price tiers (Retail, Wholesale…) and set per-tier prices',
@@ -272,6 +282,7 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
     'combo-offers': 'combo_offers',
     grades: 'categories_grades',
     'pricing-tiers': 'pricing_tiers',
+    'product-variants': 'inventory',
     'stock-print': 'stock_report',
     quotations: 'quotations',
     'purchase-bills': 'purchase_bills',

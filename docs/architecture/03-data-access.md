@@ -247,4 +247,8 @@ server golden change is limited to the feature_flags conflict condition.
 fields. The local `last_active_terminal_session` setting is written with sync_status LOCAL under global;
 it contains display context only, never credentials. Auth token/offline session save and logout preserve
 this context through `authSessionService` and `terminalSession`. PIN authentication still validates the
-staff hash, tenant status, active status and login permissions. No cloud/LAN payload changes.
+staff hash, tenant status, active status and login permissions. Quick PIN login (`auth:loginWithPin`)
+preserves an existing valid cloud session for the same tenant instead of wiping on-disk credentials,
+updating the session user and keeping background sync active (`isCloudSyncPaused: false`). Offline-only
+PIN login sets `isCloudSyncPaused: true` without raising false expiry errors. Clicking resume sync
+prioritizes the email/password login tab. No cloud/LAN payload changes.

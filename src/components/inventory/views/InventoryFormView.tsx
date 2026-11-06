@@ -12,7 +12,7 @@ import { CoreSection } from './form/CoreSection';
 import { VariantsSection, type ProductVariantItem } from './form/VariantsSection';
 
 export interface InventoryFormViewProps {
-  view: 'list' | 'add' | 'edit' | 'variants';
+  view: 'list' | 'add' | 'edit';
   loading: boolean;
   handleFormKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   firstInputRef: React.RefObject<HTMLInputElement | null>;
@@ -160,6 +160,10 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
               onAddPricingTier={onAddPricingTier}
             />
 
+            <VariantsSection variants={variants} setVariants={setVariants} formData={formData}
+              enableRealPaperStock={enableRealPaperStock} activePricingTiers={activePricingTiers}
+              onAddPricingTier={onAddPricingTier} />
+
             {/* Section 3: Discount & Offers */}
             <DiscountSection
               formData={formData} handleDiscountFlatChange={handleDiscountFlatChange}
@@ -169,17 +173,6 @@ export const InventoryFormView: React.FC<InventoryFormViewProps> = ({
             {/* Section 4: Stock */}
             <StockSection
               formData={formData} handleInputChange={handleInputChange}
-            />
-
-            {/* Section: Product Variants & Sizes */}
-            <VariantsSection
-              variants={variants}
-              setVariants={setVariants}
-              enableRealPaperStock={enableRealPaperStock}
-              defaultBasePrice={formData.base_price}
-              defaultPurchasePrice={formData.purchase_price}
-              defaultPaperMrp={typeof formData.domain_attributes?.paper_mrp === 'number' || typeof formData.domain_attributes?.paper_mrp === 'string' ? formData.domain_attributes.paper_mrp : ''}
-              defaultPaperPurchasePrice={typeof (formData.domain_attributes as Record<string, unknown>)?.paper_purchase_price === 'number' || typeof (formData.domain_attributes as Record<string, unknown>)?.paper_purchase_price === 'string' ? String((formData.domain_attributes as Record<string, unknown>).paper_purchase_price) : ''}
             />
 
             {/* Section 4: Domain Attributes */}

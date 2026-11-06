@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CashRegisterSettings } from '../../src/components/settings/tabs/CashRegisterSettings';
 import { ReturnCashRegisterNote } from '../../src/components/returns/ReturnCashRegisterNote';
@@ -9,18 +9,22 @@ vi.mock('../../src/data/settings', () => ({ getSetting: mocks.get, setSetting: m
 vi.mock('../../src/store/authStore', () => ({ useAuthStore: (selector: (state: { tenantId: string; role: string }) => unknown) => selector({ tenantId: 't', role: mocks.role }) }));
 vi.mock('../../src/components/ui/Select', () => ({ Select: ({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: Array<{value: string; label: string}> }) => <select aria-label="Ledger date option" value={value} onChange={e => onChange(e.target.value)}>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }));
 
+import { SettingsSaveContext } from '../../src/components/settings/hooks/useSettingsSectionSave';
+import { SettingsSaveSession } from '../../src/components/settings/settingsSaveSession';
+let session: SettingsSaveSession;
+const changed = () => {};
 afterEach(cleanup);
-beforeEach(() => { mocks.get.mockReset().mockResolvedValue(null); mocks.set.mockReset().mockResolvedValue(undefined); mocks.role = 'ADMIN'; });
+beforeEach(() => { session = new SettingsSaveSession(); mocks.get.mockReset().mockResolvedValue(null); mocks.set.mockReset().mockResolvedValue(undefined); mocks.role = 'ADMIN'; });
 
 describe('cash register settings controls', () => {
   it('loads defaults and saves owner-selected exclusions and payment methods', async () => {
-    render(<CashRegisterSettings />);
+    render(<SettingsSaveContext.Provider value={{ session, changed }}><CashRegisterSettings /></SettingsSaveContext.Provider>);
     await waitFor(() => expect((screen.getByLabelText('Include cash received from scrap sales in Cash In') as HTMLInputElement).disabled).toBe(false));
     fireEvent.click(screen.getByLabelText('Include cash received from scrap sales in Cash In'));
     fireEvent.click(screen.getByLabelText('Deduct cash return refunds from the cash register'));
     fireEvent.change(screen.getByLabelText('Ledger date option'), { target: { value: 'today' } });
     fireEvent.click(screen.getByLabelText('UPI'));
-    window.dispatchEvent(new Event('settings:request-save'));
+    await act(async () => { await session.save().catch(() => undefined); });
     await waitFor(() => expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_include_scrap_sales', value: false }));
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_deduct_returns', value: false });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_ledger_mode', value: 'today' });
@@ -29,17 +33,17 @@ describe('cash register settings controls', () => {
   it('restores saved options and keeps staff controls disabled', async () => {
     mocks.role = 'STAFF';
     mocks.get.mockImplementation(({ key }: { key: string }) => Promise.resolve(key === 'cash_register_payment_methods' ? ['CARD'] : key === 'cash_register_ledger_mode' ? 'off' : false));
-    render(<CashRegisterSettings />);
+    render(<SettingsSaveContext.Provider value={{ session, changed }}><CashRegisterSettings /></SettingsSaveContext.Provider>);
     await waitFor(() => expect((screen.getByLabelText('CARD') as HTMLInputElement).checked).toBe(true));
     expect((screen.getByLabelText('Deduct cash return refunds from the cash register') as HTMLInputElement).checked).toBe(false);
     expect(screen.getByLabelText('CARD').closest('fieldset')?.disabled).toBe(true);
   });
   it('shows a save failure instead of claiming success', async () => {
     mocks.set.mockRejectedValue(new Error('failed'));
-    render(<CashRegisterSettings />);
+    render(<SettingsSaveContext.Provider value={{ session, changed }}><CashRegisterSettings /></SettingsSaveContext.Provider>);
     await waitFor(() => expect((screen.getByLabelText('Include cash received from scrap sales in Cash In') as HTMLInputElement).disabled).toBe(false));
     fireEvent.click(screen.getByLabelText('Include cash received from scrap sales in Cash In'));
-    window.dispatchEvent(new Event('settings:request-save'));
+    await act(async () => { await session.save().catch(() => undefined); });
     await screen.findByText(/Could not save all cash register options/);
   });
 });

@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
@@ -86,7 +87,7 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
       if (taxPercentageFilter) parts.push(`${taxPercentageFilter}pct`);
       if (filterDate) parts.push(filterDate);
       if (filterDateEnd && filterDateEnd !== filterDate) parts.push(`to-${filterDateEnd}`);
-      parts.push(new Date().toLocaleDateString('en-CA'));
+      parts.push(storeDate(new Date(), 'en-CA'));
       const filename = parts.join('_') + '.csv';
 
       const headers = [
