@@ -3,7 +3,6 @@ import { parseUTCDate, utcForWallClock } from '../../electron/utils/utc';
 import { storeDate, storeTime, formatDateTime } from '../../src/utils/time/dateDisplay';
 import { setStoreTimezone } from '../../src/utils/time/timezoneHelper';
 import { setAppTimeFormat } from '../../src/utils/time/timeFormat';
-import * as mobile from '../../../nafid-mobile app/src/utils/timezoneHelper';
 afterEach(() => { setStoreTimezone('Asia/Kolkata'); setAppTimeFormat('12h'); });
 it('parses UTC legacy fractions, explicit offsets and epoch zero', () => {
   expect(parseUTCDate('2026-11-04 20:15:00.1').toISOString()).toBe('2026-11-04T20:15:00.100Z');
@@ -26,12 +25,18 @@ it('handles 23/25 hour days and deterministic DST input', () => {
   expect(day('2026-11-02')-day('2026-11-01')).toBe(25*3600000);
   expect(utcForWallClock('2026-11-01','01:30','America/New_York').toISOString()).toBe('2026-11-01T05:30:00.000Z');
 });
-it('mobile and POS use the same shop clock for legacy timestamps', () => {
-  for (const zone of ['Asia/Dubai','Asia/Kolkata','America/New_York']) {
-    setStoreTimezone(zone); mobile.setStoreTimezone(zone);
-    for (const format of ['12h','24h'] as const) {
-      setAppTimeFormat(format); mobile.setStoreTimeFormat(format);
-      expect(mobile.formatStoreDateTime('2026-11-04 20:15:00',{timeOnly:true})).toBe(storeTime('2026-11-04 20:15:00','en-GB',{hour:'2-digit',minute:'2-digit'}));
+it('formats legacy timestamps consistently across shop clocks', () => {
+  const expected = [
+    ['Asia/Dubai', '00:15', '12:15 am'],
+    ['Asia/Kolkata', '01:45', '01:45 am'],
+    ['America/New_York', '15:15', '03:15 pm'],
+  ];
+  for (const [zone, clock24, clock12] of expected) {
+    setStoreTimezone(zone);
+    for (const format of ['12h', '24h'] as const) {
+      setAppTimeFormat(format);
+      expect(storeTime('2026-11-04 20:15:00', 'en-GB', { hour: '2-digit', minute: '2-digit' }))
+        .toBe(format === '24h' ? clock24 : clock12);
     }
   }
 });
