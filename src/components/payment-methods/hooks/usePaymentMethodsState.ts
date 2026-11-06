@@ -21,6 +21,8 @@ export function usePaymentMethodsState() {
   const [transactions, setTransactions] = useState<SourceTransaction[]>([]);
   const [loadingTx, setLoadingTx] = useState(false);
   const [txSearch, setTxSearch] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [showNotes, setShowNotes] = useState(false);
   const [txForm, setTxForm] = useState({ type: 'CASH_IN' as 'CASH_IN' | 'CASH_OUT', amount: '', category: '', notes: '', reference_number: '' });
   const [isSavingTx, setIsSavingTx] = useState(false);
@@ -31,7 +33,7 @@ export function usePaymentMethodsState() {
   const [deleteSaving, setDeleteSaving] = useState(false);
 
   return {
-    view, setView, sources, setSources, loading, setLoading, search, setSearch, typeFilter, setTypeFilter,
+    startDate, setStartDate, endDate, setEndDate, view, setView, sources, setSources, loading, setLoading, search, setSearch, typeFilter, setTypeFilter,
     statusMessage, setStatusMessage, copiedId, setCopiedId, editing, setEditing, form, setForm, isSaving,
     setIsSaving, selectedSource, setSelectedSource, transactions, setTransactions, loadingTx, setLoadingTx, txSearch,
     setTxSearch, showNotes, setShowNotes, txForm, setTxForm, isSavingTx, setIsSavingTx, upiPageConfig,

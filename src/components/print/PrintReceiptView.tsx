@@ -1,5 +1,7 @@
+import { readReceiptPointRows, receiptPaymentPanelHtml, type ReceiptPointRow } from '../../utils/print/receiptPaymentPanel';
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
+import { UPI_QR_OPTIONS } from '../../utils/print/upiQr';
 import Barcode from 'react-barcode';
 import { useAuthStore } from '../../store/authStore';
 import { hasBridge } from '../../data/client';
@@ -16,7 +18,7 @@ const FONT_MAP: Record<string, string> = {
 
 type ReceiptRow =
   | { type: 'text'; value: string; lhMultiplier: number }
-  | { type: 'qr'; payload: string }
+  | { type: 'qr'; payload: string; points: ReceiptPointRow[] }
   | { type: 'prominent'; value: string }
   | { type: 'barcode'; payload: string };
 
@@ -38,11 +40,15 @@ function parseReceiptToRows(input: string): ReceiptRow[] {
 
   const activeLines = lines.slice(startIdx, endIdx + 1);
 
-  activeLines.forEach((line) => {
+  let consumedUntil = -1;
+  activeLines.forEach((line, index) => {
+    if (index <= consumedUntil) return;
     if (line.includes('[[QR:')) {
       const match = line.match(/\[\[QR:([^\]]+)\]\]/);
       if (match) {
-        rows.push({ type: 'qr', payload: match[1] });
+        const points = readReceiptPointRows(activeLines, index);
+        consumedUntil = index + points.length;
+        rows.push({ type: 'qr', payload: match[1], points });
         return;
       }
     }
@@ -149,9 +155,7 @@ export function PrintReceiptView({ text }: { text: string }) {
     Promise.all(
       qrPayloads.map(async (payload) => {
         const url = await QRCode.toDataURL(payload, {
-          width: 360,
-          margin: 2,
-          errorCorrectionLevel: 'M',
+          ...UPI_QR_OPTIONS,
           color: { dark: '#000000', light: '#ffffff' },
         });
         return [payload, url] as const;
@@ -360,31 +364,7 @@ export function PrintReceiptView({ text }: { text: string }) {
             );
           }
 
-          const qrSrc = qrImages[row.payload];
-          return qrSrc ? (
-            <div key={`qr-${index}`} style={{ width: '100%', padding: '6px 0', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <img
-                src={qrSrc}
-                alt="UPI QR Code"
-                style={{ width: '140px', height: '140px', imageRendering: 'pixelated', display: 'block', margin: '0 auto' }}
-              />
-              <div style={{ fontSize: '10px', fontWeight: 800, marginTop: '2px', textAlign: 'center' }}>Scan & Pay via UPI</div>
-            </div>
-          ) : (
-            <pre key={`qr-fallback-${index}`} style={{
-              margin: 0,
-              padding: 0,
-              fontSize,
-              fontFamily,
-              whiteSpace: 'pre',
-              color: 'black',
-              fontWeight: 700,
-              lineHeight: lh,
-              textAlign: 'left',
-            }}>
-              [QR LOADING]
-            </pre>
-          );
+          return <div key={`qr-${index}`} dangerouslySetInnerHTML={{ __html: receiptPaymentPanelHtml(qrImages[row.payload] || null, row.points) }} />;
         })}
       </div>
     </div>

@@ -5050,6 +5050,12 @@ BALANCE DUE               275.50
 │ Goods once sold will not be t│
 │ Thank you!                   │
 ├──────────────────────────────┤
+[[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+│Bill Points          │   28.00│
+│Used Point           │      20│
+│Used Amt             │   20.00│
+│Balance Points       │  108.00│
+├──────────────────────────────┤
 │                              │
 │   For NAFID HARDWARE & PAINTS│
 │                              │
@@ -5060,12 +5066,6 @@ BALANCE DUE               275.50
 [[PROMINENT:Net Total: ₹2709.00]]
 ├──────────────────────────────┤
 │  Thank You... Visit Again !  │
-├──────────────────────────────┤
-[[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
-│Bill Points          │   28.00│
-│Used Point           │      20│
-│Used Amt             │   20.00│
-│Balance Points       │  108.00│
 ├──────────────────────────────┤
 └──────────────────────────────┘
 ",
@@ -5133,6 +5133,12 @@ BALANCE DUE               275.50
 │ Goods once sold will not be taken back.│
 │ Thank you!                             │
 ├────────────────────────────────────────┤
+[[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
+│Bill Points                    │   28.00│
+│Used Point                     │      20│
+│Used Amt                       │   20.00│
+│Balance Points                 │  108.00│
+├────────────────────────────────────────┤
 │                                        │
 │             For NAFID HARDWARE & PAINTS│
 │                                        │
@@ -5143,12 +5149,6 @@ BALANCE DUE               275.50
 [[PROMINENT:Net Total: ₹2709.00]]
 ├────────────────────────────────────────┤
 │       Thank You... Visit Again !       │
-├────────────────────────────────────────┤
-[[QR:upi://pay?pa=shop%40upi&pn=Nafid%20Hardware%20%26&am=2709.00&cu=INR]]
-│Bill Points                    │   28.00│
-│Used Point                     │      20│
-│Used Amt                       │   20.00│
-│Balance Points                 │  108.00│
 ├────────────────────────────────────────┤
 └────────────────────────────────────────┘
 ",
@@ -6272,6 +6272,14 @@ PAYMENT DUE DATE      2026-10-30
 Goods once sold will not be take
            Thank you!           
 --------------------------------
+
+         LOYALTY POINTS         
+Previous Balance             100
+Earned This Bill             +28
+Redeemed                     -20
+Discount Value            -20.00
+Balance                      108
+--------------------------------
    Thank you for your visit!    
        Have a great day!        
 ================================
@@ -6345,6 +6353,14 @@ PAYMENT DUE DATE                2026-10-30
             TERMS & CONDITIONS            
  Goods once sold will not be taken back.  
                 Thank you!                
+------------------------------------------
+
+              LOYALTY POINTS              
+Previous Balance                       100
+Earned This Bill                       +28
+Redeemed                               -20
+Discount Value                      -20.00
+Balance                                108
 ------------------------------------------
         Thank you for your visit!         
             Have a great day!             

@@ -9,7 +9,16 @@ describe('product search results', () => {
   it('lists combos first, mapped into product rows', () => {
     const rows = buildProductSearchResults([p('Rice Plate')], [{ combo_id: 'c1', name: 'Rice Combo', combo_price: 99, items: [] }], 'rice', opts);
     expect(ids(rows)).toEqual(['c1', 'Rice Plate']);
-    expect(rows[0]).toMatchObject({ isCombo: true, uom: 'Combo', base_price: 99, current_stock: 999 });
+    expect(rows[0]).toMatchObject({ isCombo: true, uom: 'Combo', base_price: 99, current_stock: 0 });
+  });
+
+  it('derives combo stock from the limiting component and required quantity', () => {
+    const stock = (items: unknown[]) => buildProductSearchResults([], [{ combo_id: 'c', items }], 'pigeon', opts)[0].current_stock;
+    expect(stock([{ product_stock: 12, quantity: 1 }, { product_stock: 11, quantity: 1 }])).toBe(11);
+    expect(stock([{ product_stock: 12, quantity: 2 }, { product_stock: 11, quantity: 1 }])).toBe(6);
+    expect(stock([{ product_stock: -1, quantity: 1 }])).toBe(0);
+    expect(stock([{ product_stock: null, quantity: 1 }])).toBe(0);
+    expect(stock([{ product_stock: 12, quantity: 0 }])).toBe(0);
   });
 
   it('matches barcode, item code, brand, category and HSN, not only the name', () => {

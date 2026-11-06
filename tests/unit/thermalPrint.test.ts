@@ -18,6 +18,20 @@ function compile(name: string) {
   }).outputText;
 }
 
+describe('compact receipt UPI QR', () => {
+  it.each([58, 76, 80])('keeps the QR at 25 mm on %s mm rolls', async width => {
+    const payload = 'upi://pay?pa=shop%40upi&pn=Test%20Store&am=125.50&cu=INR';
+    const dom = new JSDOM(await buildReceiptHtml(`Total 125.50\n[[QR:${payload}]]`, width));
+    const image = dom.window.document.querySelector('img');
+    expect(image?.style.width).toBe('25mm');
+    expect(image?.style.maxWidth).toBe('100%');
+    expect(image?.style.height).toBe('auto');
+    expect(image?.getAttribute('src')).toMatch(/^data:image\/png;base64,/);
+    expect(dom.window.document.body.textContent).toContain('Total 125.50');
+    expect(dom.window.document.body.textContent).not.toContain('[[QR:');
+  });
+});
+
 describe('thermal paper layout', () => {
   it.each([58, 76, 80])('uses one inset and keeps the body inside %s mm paper', async width => {
     const dom = new JSDOM(await buildReceiptHtml('Item     10.00', width));

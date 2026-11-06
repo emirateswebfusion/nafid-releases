@@ -1,9 +1,9 @@
+import { preserveInvoiceItemOrder } from '../invoiceItemOrder.js';
 import { getDb } from '../../db/localDb.js';
 import { BATCH_SIZE, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
 import { pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
 import * as salesDocsSyncSql from '../../db/statements/sync/salesDocsSync.js';
-
 /** Sales documents sync: invoices, quotations and warranties (push and pull). */
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
 export async function syncInvoices(token: string, tenantId: string) {
@@ -227,7 +227,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
             // Replace items per invoice so lines removed from an edited bill are deleted
             // locally too — otherwise they resurrect and reappear on reprints.
             deleteItems.run(currentInv.invoice_id, currentInv.tenant_id);
-            for (const item of currentInv.items) {
+            for (const item of preserveInvoiceItemOrder(currentInv.items, existingRows)) {
               // Prefer: server-returned pieces_sold → previously saved local value → null
               const preservedPcs = item.pieces_sold != null
                 ? Number(item.pieces_sold)

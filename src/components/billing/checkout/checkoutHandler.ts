@@ -24,6 +24,7 @@ import { printingApi } from '../../../data/printing';
 import { quotationsApi } from '../../../data/quotations';
 import { returnsApi } from '../../../data/returns';
 import { sendConfiguredBill } from '../../../data/whatsappSharing';
+import { calculateLoyaltyPoints } from '../../../utils/pricing/loyalty';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
 import { listParties } from '../../../data/parties';
 import { cardAmountOf, runCardTerminalStep, settleCardTerminalStep } from '../../app/cardTerminalStep';
@@ -205,8 +206,9 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       const previousPointsBalance = loyaltyEnabled ? Number(loyaltyCustomerData.pointsBalance) || 0 : 0;
       const hasCustomerForPoints = Boolean(loyaltyCustomerData.customerId || (customerPhone && customerPhone.trim()));
       const shouldAwardPointsNow = paymentMethod !== 'PENDING' || loyaltyAwardOnPending;
+      const earningConfig = await getSetting<{ includeTax?: boolean }>({ tenant_id: tenantId || 'global', key: 'loyalty_config' });
       const pointsEarned = loyaltyEnabled && hasCustomerForPoints && shouldAwardPointsNow
-        ? Math.floor(displayGrandTotal / (loyaltyEarningRate > 0 ? loyaltyEarningRate : 100))
+        ? calculateLoyaltyPoints(displayGrandTotal, totalTax, { earningRate: loyaltyEarningRate, includeTax: earningConfig?.includeTax })
         : 0;
       const pointsRedeemed = loyaltyEnabled && pointsToRedeem > 0
         ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0)
@@ -331,7 +333,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         previousPointsBalance: previousPointsBalance > 0 ? previousPointsBalance : undefined,
         pointsRedeemed: pointsRedeemed > 0 ? pointsRedeemed : undefined,
         pointsRedeemedDiscount: pointsRedeemedDiscount > 0 ? pointsRedeemedDiscount : undefined,
-        remainingPointsBalance: remainingPointsBalance > 0 ? remainingPointsBalance : undefined,
+        remainingPointsBalance: loyaltyEnabled && hasCustomerForPoints ? remainingPointsBalance : undefined,
         scrapDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
         returnDeduction: storeReturnDeduction || undefined, returnInvoiceNumber: storeReturnInvoiceNumber || undefined,
         ...(effectiveFinalPaymentMethod === 'CREDIT'

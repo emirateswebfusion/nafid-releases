@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { DateRangeFilter } from '../../ui/DateRangeFilter';
 import { Landmark, Smartphone, CreditCard, Search, X } from 'lucide-react';
 import type { PaymentMethodsState } from '../hooks/usePaymentMethodsState';
 
@@ -12,7 +13,7 @@ export function PaymentSourceFilters({
 }: PaymentSourceFiltersProps) {
   const { search, setSearch, setTypeFilter, sources, typeFilter } = pmState;
   return (
-    <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-card/60 dark:bg-card/40 border border-border/60 p-3.5 rounded-3xl backdrop-blur-md shadow-sm select-none">
+    <div className="relative z-20 flex flex-col md:flex-row gap-4 items-center justify-between bg-card/60 dark:bg-card/40 border border-border/60 p-3.5 rounded-3xl backdrop-blur-md shadow-sm select-none">
       
       {/* Segmented Filter Pills */}
       <div className="flex items-center gap-1.5 p-1 bg-muted/50 rounded-2xl w-full md:w-auto overflow-x-auto">
@@ -65,6 +66,9 @@ export function PaymentSourceFilters({
         </button>
       </div>
 
+      <div className="flex items-center gap-3 w-full md:w-auto flex-wrap md:justify-end">
+      <DateRangeFilter align="right" startDate={pmState.startDate} endDate={pmState.endDate}
+        onChange={(start, end) => { pmState.setStartDate(start); pmState.setEndDate(end); }} />
       {/* Search Box */}
       <div className="relative w-full md:w-72">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 pointer-events-none" />
@@ -83,6 +87,7 @@ export function PaymentSourceFilters({
             <X className="w-3.5 h-3.5" />
           </button>
         )}
+      </div>
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ export const insertAdjustment = (db: Db) => db.prepare(`INSERT INTO loyalty_tran
   (transaction_id, tenant_id, customer_id, invoice_id, transaction_type, points, points_balance_before, points_balance_after, reference_number, description, created_by, created_at, updated_at, sync_status)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, ?, 'PENDING')`);
 export const updateCustomer = (db: Db) => db.prepare(`UPDATE customers SET total_points_earned = total_points_earned + ?, total_points_redeemed = total_points_redeemed + ?, current_points_balance = ?, updated_at = ?, sync_status = 'PENDING' WHERE customer_id = ? AND tenant_id = ?`);
-export const updateBalance = (db: Db) => db.prepare("UPDATE invoices SET remaining_points_balance = ?, updated_at = ?, sync_status = 'PENDING' WHERE invoice_id = ?");
+export const updateBalance = (db: Db) => db.prepare("UPDATE invoices SET previous_points_balance = ? - points_earned + points_redeemed, remaining_points_balance = ?, updated_at = ?, sync_status = 'PENDING' WHERE invoice_id = ?");
 
 export const updateEarned = (db: Db) => db.prepare("UPDATE invoices SET points_earned = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?");
 

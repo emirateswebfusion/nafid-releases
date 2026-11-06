@@ -3,7 +3,7 @@ import type { Db } from '../types.js';
 /** SQL used by electron/sync/entities/salesDocsSync.ts. Each factory prepares its statement on the given connection. */
 
 export const selectInvoices = (db: Db) => db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`);
-export const selectInvoiceItems = (db: Db) => db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
+export const selectInvoiceItems = (db: Db) => db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) ORDER BY rowid ASC`);
 export const updateInvoices = (db: Db) => db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
 export const insertInvoices = (db: Db) => db.prepare(`
     INSERT INTO invoices (
@@ -146,7 +146,7 @@ export const updatePartyLedger2 = (db: Db) => db.prepare(`
                   WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
                     AND is_deleted = 1
                 `);
-export const selectInvoiceItems2 = (db: Db) => db.prepare('SELECT item_id, pieces_sold, billing_type, uom FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?');
+export const selectInvoiceItems2 = (db: Db) => db.prepare('SELECT item_id, pieces_sold, billing_type, uom FROM invoice_items WHERE invoice_id = ? AND tenant_id = ? ORDER BY rowid ASC');
 export const selectQuotations = (db: Db) => db.prepare(`SELECT * FROM quotations WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL)`);
 export const selectQuotationItems = (db: Db) => db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`);
 export const updateQuotations = (db: Db) => db.prepare(`UPDATE quotations SET sync_status = 'SYNCED', tenant_id = ? WHERE quotation_id = ?`);

@@ -86,6 +86,7 @@ export function useSettingsFormState() {
   const [showCashRegister, setShowCashRegister] = useState(false);
   const [autoPrintBarcode, setAutoPrintBarcode] = useState(true);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [loyaltyIncludeTax, setLoyaltyIncludeTax] = useState(true);
   const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
   const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
   const [loyaltyAwardOnPending, setLoyaltyAwardOnPending] = useState(false);
@@ -164,7 +165,7 @@ export function useSettingsFormState() {
     printWidth, setPrintWidth, thermalStyle, setThermalStyle, a4Style, setA4Style, previewFormat, setPreviewFormat,
     previewStyle, setPreviewStyle, bankName, setBankName, bankAccount, setBankAccount, bankIfsc, setBankIfsc,
     bankBranch, setBankBranch, enableScrap, setEnableScrap, showCashRegister, setShowCashRegister, autoPrintBarcode,
-    setAutoPrintBarcode, loyaltyEnabled, setLoyaltyEnabled, loyaltyEarningRate, setLoyaltyEarningRate,
+    setAutoPrintBarcode, loyaltyIncludeTax, setLoyaltyIncludeTax, loyaltyEnabled, setLoyaltyEnabled, loyaltyEarningRate, setLoyaltyEarningRate,
     loyaltyRedemptionRate, setLoyaltyRedemptionRate, loyaltyAwardOnPending, setLoyaltyAwardOnPending, enablePartyGst,
     setEnablePartyGst, enablePartyEstimate, setEnablePartyEstimate, enableRealPaperStock, setEnableRealPaperStock,
     showPaperStockInGst, setShowPaperStockInGst, showPaperStockInEstimate, setShowPaperStockInEstimate,

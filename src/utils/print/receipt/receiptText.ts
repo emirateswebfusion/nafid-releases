@@ -94,7 +94,7 @@ function createReceiptTextContext(data: ReceiptData, widthCm: number, charsPerLi
     const tw = 12;
     let out = t + '\n';
     out += centerText('LOYALTY POINTS', charsPerLine) + '\n';
-    if (data.previousPointsBalance != null && data.previousPointsBalance > 0) {
+    if (data.previousPointsBalance != null && data.previousPointsBalance !== 0) {
       out += `${padRight('Previous Balance', lw)}  ${padLeft(data.previousPointsBalance.toFixed(0), tw)}\n`;
     }
     if (data.pointsEarned && data.pointsEarned > 0) {

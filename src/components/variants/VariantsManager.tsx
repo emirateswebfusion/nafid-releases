@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Layers, Search, Plus, Pencil, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { Layers, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { deleteProduct, type Product } from '../../data/products';
 import { hasPermission } from '../../utils/security/permissions';
-import { formatCurrency } from '../../utils/pricing/money';
 import { loadVariantCatalog, variantAttributes } from '../inventory/variantProducts';
-import { InventoryManager } from '../inventory/InventoryManager';
+import { VariantEditor } from './views/VariantEditor';
+import { VariantProductPicker } from './views/VariantProductPicker';
+import { VariantsHeader } from './views/VariantsHeader';
 import { Modal } from '../ui/Modal';
-import { RedCrossButton } from '../ui/RedCrossButton';
+import { Button } from '../ui/Button';
+import { FloatToast } from '../ui/FloatToast';
+import { buildVariantRows, filterVariantRows } from './variantCatalog';
+import { VariantPriceTable } from './views/VariantPriceTable';
 
-/** Catalog-wide management uses the canonical product form for every write. */
+/** Catalog-wide variants use the shared variant editor and persistence. */
 export function VariantsManager({ onClose }: { onClose: () => void }) {
   const user = useAuthStore();
   const { tenantId } = user;
@@ -18,8 +22,12 @@ export function VariantsManager({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
-  const [editor, setEditor] = useState<Product | null | undefined>(undefined);
+  const [variant, setVariant] = useState('');
+  const [productId, setProductId] = useState('');
+  const [editor, setEditor] = useState<{ parent: Product; product?: Product } | null>(null);
+  const [picking, setPicking] = useState(false);
   const [deleting, setDeleting] = useState<Product | null>(null);
+  const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const canEdit = hasPermission(user, 'products.edit');
   const canCreate = hasPermission(user, 'products.create');
@@ -35,17 +43,12 @@ export function VariantsManager({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial catalog read.
     void load();
   }, [load]);
-  const groups = useMemo(() => {
-    const children = new Map<string, Product[]>();
-    for (const product of products) {
-      const parent = variantAttributes(product.domain_attributes).parent_product_id;
-      if (typeof parent === 'string') children.set(parent, [...(children.get(parent) || []), product]);
-    }
-    return products.filter(product => children.has(product.product_id)).map(parent => ({ parent, variants: children.get(parent.product_id) || [] }));
-  }, [products]);
-  const filtered = groups.filter(group => (!category || group.parent.category === category) &&
-    [group.parent, ...group.variants].some(product => `${product.name} ${product.sku_barcode || ''}`.toLowerCase().includes(search.trim().toLowerCase())));
-  const categories = [...new Set(groups.map(group => group.parent.category).filter(Boolean))];
+  const rows = useMemo(() => buildVariantRows(products), [products]);
+  const filtered = filterVariantRows(rows, search, category, variant, productId);
+  const parents = [...new Map(rows.flatMap(row => row.parent ? [[row.parent.product_id, row.parent] as const] : [])).values()];
+  const categories = [...new Set(rows.map(row => row.parent?.category || row.product.category).filter((value): value is string => Boolean(value)))].sort();
+  const variantNames = [...new Map(rows.map(row => [row.name.toLowerCase(), row.name])).entries()].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true }));
+  const resetFilters = () => { setSearch(''); setCategory(''); setVariant(''); setProductId(''); };
   const remove = async () => {
     if (!deleting || !canDelete || busy) return;
     setBusy(true);
@@ -57,36 +60,34 @@ export function VariantsManager({ onClose }: { onClose: () => void }) {
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not delete variant.'); }
     finally { setBusy(false); }
   };
-  if (editor !== undefined) return <InventoryManager initialProduct={editor} onClose={() => { setEditor(undefined); void load(); }} />;
+  const editVariant = (product: Product) => {
+    const parentId = variantAttributes(product.domain_attributes).parent_product_id;
+    const parent = products.find(candidate => candidate.product_id === parentId);
+    if (parent) setEditor({ parent, product });
+  };
   return <div className="fixed inset-0 z-40 flex flex-col bg-background">
-    <header className="border-b border-border bg-card px-6 py-4 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3"><div className="p-2 rounded-xl bg-primary/10 text-primary"><Layers className="w-5 h-5" /></div>
-          <div><h1 className="text-base font-bold">Product Variants</h1><p className="text-xs text-muted-foreground">Manage sizes and packs with their own prices, stock and pricing tiers.</p></div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button type="button" aria-label="Refresh variants" onClick={() => void load()} disabled={loading} className="p-2 rounded-lg hover:bg-muted"><RefreshCw className="w-4 h-4" /></button>
-          {canCreate && <button type="button" onClick={() => setEditor(null)} className="flex items-center gap-2 bg-primary text-primary-foreground rounded-xl px-3 py-2 text-xs font-bold"><Plus className="w-4 h-4" />Add Product</button>}
-          <RedCrossButton onClick={onClose} title="Close Product Variants" />
-        </div>
-      </div>
-      <div className="flex gap-3 flex-wrap items-center">
-        <div className="relative flex-1"><Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" /><input aria-label="Search variants" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search product, variant or barcode" className="w-full rounded-xl bg-background border border-border pl-9 pr-3 py-2 text-sm" /></div>
-        <select aria-label="Filter variant category" value={category} onChange={event => setCategory(event.target.value)} className="rounded-xl bg-background border border-border px-3 py-2 text-sm"><option value="">All categories</option>{categories.map(value => <option key={value} value={value || ''}>{value}</option>)}</select>
-        <span className="text-xs text-muted-foreground">{groups.length} products · {groups.reduce((sum, group) => sum + group.variants.length, 0)} variants</span>
-      </div>
-    </header>
-    <main className="flex-1 overflow-auto p-6 space-y-4">
+    <VariantsHeader count={rows.length} loading={loading} canCreate={canCreate} search={search} category={category} productId={productId}
+      parents={parents} categories={categories} onSearch={setSearch} onCategory={setCategory} onProduct={setProductId}
+      onReset={resetFilters} onRefresh={() => void load()} onAdd={() => setPicking(true)} onClose={onClose} />
+    {rows.length > 0 && <div className="flex shrink-0 gap-2 items-center overflow-x-auto border-b border-border bg-card px-4 sm:px-6 py-2" role="group" aria-label="Variant names">
+      <Button size="sm" variant={variant === '' ? 'default' : 'outline'} aria-pressed={variant === ''} onClick={() => setVariant('')}>All variants <span className="ml-2 opacity-70">{rows.length}</span></Button>
+      {variantNames.map(([key, label]) => <Button key={key} size="sm" variant={variant === key ? 'default' : 'outline'} aria-pressed={variant === key} onClick={() => setVariant(key)}>{label} <span className="ml-2 opacity-70">{rows.filter(row => row.name.toLowerCase() === key).length}</span></Button>)}
+      {variant && <Button variant="ghost" size="sm" onClick={resetFilters}>Clear filters</Button>}
+    </div>}
+    <main className="flex-1 min-h-0 flex flex-col p-3 sm:p-4 gap-3">
       {error && <p role="alert" className="rounded-xl bg-destructive/10 text-destructive p-3 text-sm">{error}</p>}
-      {loading ? <Loader2 aria-label="Loading variants" className="mx-auto my-12 w-6 h-6 animate-spin" /> : filtered.length === 0 ? <div className="text-center rounded-2xl border border-dashed border-border p-12 text-muted-foreground"><h2 className="font-bold">{groups.length ? 'No matching variants' : 'No product variants yet'}</h2><p className="text-sm mt-2">Open a product and choose Add Variant below Inventory &amp; Pricing.</p></div> : filtered.map(group => <section key={group.parent.product_id} className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between gap-3 p-4 bg-muted/30 border-b border-border"><div><h2 className="font-bold text-sm">{group.parent.name}</h2><p className="text-xs text-muted-foreground">{group.parent.category || 'Uncategorized'} · {group.variants.length} variants</p></div>
-          {canEdit && <button type="button" onClick={() => setEditor(group.parent)} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-bold"><Pencil className="w-3.5 h-3.5" />Manage Variants &amp; Prices</button>}
-        </div>
-        <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-xs text-muted-foreground bg-muted/10"><tr>{['Variant', 'Barcode', 'Purchase', 'MRP', 'Selling price', 'Stock', 'Actions'].map(label => <th key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
-          <tbody>{group.variants.map(variant => <tr key={variant.product_id} className="border-t border-border hover:bg-muted/20"><td className="px-4 py-3 font-semibold">{String(variantAttributes(variant.domain_attributes).variant_name || variant.name)}</td><td className="px-4 py-3 font-mono text-xs">{variant.sku_barcode}</td><td className="px-4 py-3">{formatCurrency(variant.purchase_price || 0)}</td><td className="px-4 py-3">{formatCurrency(variant.base_price || 0)}</td><td className="px-4 py-3">{formatCurrency(variant.offer_price ?? variant.base_price ?? 0)}</td><td className="px-4 py-3">{variant.current_stock} {variant.uom}</td><td className="px-4 py-3">{canDelete && <button type="button" aria-label={`Delete ${variant.name}`} onClick={() => setDeleting(variant)} className="p-2 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 className="w-4 h-4" /></button>}</td></tr>)}</tbody>
-        </table></div>
-      </section>)}
+      <div className="flex items-center justify-between text-xs text-muted-foreground" aria-live="polite"><span>{loading ? 'Loading catalog…' : `Showing ${filtered.length} of ${rows.length} variants`}</span><span>{parents.length} products · {variantNames.length} variant names</span></div>
+      {loading ? <div role="status" className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 aria-label="Loading variants" className="w-5 h-5 animate-spin" />Loading variants…</div> : filtered.length === 0 ?
+        <div className="flex flex-1 items-center justify-center p-6"><div className="max-w-md text-center space-y-3">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary"><Layers className="w-6 h-6" /></div>
+          <h2 className="font-bold text-foreground">{error ? 'Could not load variants' : rows.length ? 'No matching variants' : 'No variants yet'}</h2>
+          <p className="text-sm text-muted-foreground">{error ? 'Refresh the list to try again.' : rows.length ? 'Try another search or clear the filters to see all variants.' : 'Add sizes, packs or other options to an existing product. Their prices and stock will appear here.'}</p>
+          {error ? <Button variant="outline" onClick={() => void load()}>Retry</Button> : rows.length ? <Button variant="outline" onClick={resetFilters}>Clear filters</Button> : canCreate && <Button onClick={() => setPicking(true)}>Add your first variant</Button>}
+        </div></div> : <div className="flex-1 min-h-0 overflow-auto rounded-2xl border border-border bg-card shadow-xs"><VariantPriceTable rows={filtered} canEdit={canEdit} canDelete={canDelete} onEdit={editVariant} onDelete={setDeleting} /></div>}
     </main>
+    {picking && <VariantProductPicker products={products} onClose={() => setPicking(false)} onSelect={parent => { setPicking(false); setEditor({ parent }); }} />}
+    {editor && <VariantEditor {...editor} tenantId={tenantId || 'global'} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); setSaved(true); void load(); }} />}
+    <FloatToast message={saved ? 'Variant saved successfully.' : null} onClose={() => setSaved(false)} />
     <Modal isOpen={Boolean(deleting)} onClose={() => { if (!busy) setDeleting(null); }} title="Delete Variant" className="max-w-md">
       <div role="dialog" aria-modal="true" aria-labelledby="delete-variant-title" className="space-y-4">
         <h2 id="delete-variant-title" className="font-bold">Delete {deleting?.name}?</h2>

@@ -88,3 +88,16 @@ it('invoice pull retains the combo recipe and service classification', async () 
   expect(raw.prepare('SELECT combo_id,combo_details,is_service_item FROM invoice_items').get())
     .toMatchObject({ combo_id: 'combo', combo_details, is_service_item: 1 });
 });
+
+
+it('keeps locally saved bill order when the cloud returns the same lines in a different order', async () => {
+  raw.exec(`INSERT INTO invoice_items(item_id,invoice_id,tenant_id,product_id,name,quantity,unit_price,tax_amount,total)
+    VALUES ('second','inv','t','p','Second',1,10,0,10);`);
+  const line = (item_id: string) => ({ item_id, product_id: 'p', name: item_id, quantity: 1, unit_price: 10, tax_amount: 0, total: 10 });
+  state.rows = [{ invoice_id: 'inv', tenant_id: 't', invoice_number: 'INV', invoice_type: 'GST',
+    subtotal: 20, tax_total: 0, grand_total: 20, is_deleted: 0, stock_applied: 1,
+    updated_at: '2026-10-30T10:00:00Z', items: [line('second'), line('line')] }];
+  await pullInvoices('token', 't');
+  expect(raw.prepare('SELECT item_id FROM invoice_items WHERE invoice_id = ? ORDER BY rowid').all('inv')
+    .map(row => row.item_id)).toEqual(['line', 'second']);
+});

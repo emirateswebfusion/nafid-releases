@@ -38,19 +38,20 @@ describe('Shop Closing Gross Sales & Discount Reconciliation', () => {
 
       // Verify message formatting
       const message = formatClosingWhatsAppMessage(summary, DEFAULT_CHECKLIST);
-      expect(message).toContain('• Gross Sales: ₹1,350.00');
+      expect(message).toContain('• Gross Sales (before discounts): ₹1,350.00');
+      expect(message).toContain('• Sales Today: *₹1,200.00*');
       expect(message).toContain('• Total Discount: -₹150.00');
       expect(message).toContain('• Net Sales: *₹1,000.00*');
 
       // Gross sales appears before Net Sales in the sales summary section
-      const grossIdx = message.indexOf('Gross Sales: ₹1,350.00');
+      const grossIdx = message.indexOf('Gross Sales (before discounts): ₹1,350.00');
       const netIdx = message.indexOf('Net Sales: *₹1,000.00*');
       expect(grossIdx).toBeGreaterThan(-1);
       expect(netIdx).toBeGreaterThan(grossIdx);
 
       // Preview helper in UI matches sent format
       const previewMsg = generateWhatsAppClosingMessage(summary, DEFAULT_CHECKLIST);
-      expect(previewMsg).toContain('• Gross Sales: ₹1,350.00');
+      expect(previewMsg).toContain('• Gross Sales (before discounts): ₹1,350.00');
       expect(previewMsg).toContain('• Total Discount: -₹150.00');
       expect(previewMsg).toContain('• Net Sales: *₹1,000.00*');
     } finally {
@@ -87,9 +88,9 @@ describe('Shop Closing Gross Sales & Discount Reconciliation', () => {
 
       const message = formatClosingWhatsAppMessage(summary, DEFAULT_CHECKLIST);
       expect(message).toContain('• Net Sales: *₹500.00*');
-      expect(message).toContain('• Gross Sales: ₹500.00');
-      expect(generateWhatsAppClosingMessage(summary, DEFAULT_CHECKLIST)).toContain('• Gross Sales: ₹500.00');
-      expect(formatClosingWhatsAppMessage(summary, { ...DEFAULT_CHECKLIST, grossSales: false })).not.toContain('• Gross Sales:');
+      expect(message).toContain('• Gross Sales (before discounts): ₹500.00');
+      expect(generateWhatsAppClosingMessage(summary, DEFAULT_CHECKLIST)).toContain('• Gross Sales (before discounts): ₹500.00');
+      expect(formatClosingWhatsAppMessage(summary, { ...DEFAULT_CHECKLIST, grossSales: false })).not.toContain('• Gross Sales (before discounts):');
       expect(message).not.toContain('• Total Discount:');
     } finally {
       memory.close();

@@ -1,4 +1,4 @@
-import { UserCheck, GitMerge, UserPlus, Edit3, Trash2, LogOut, RefreshCw, Filter } from 'lucide-react';
+import { UserCheck, UserPlus, Edit3, Trash2, LogOut, RefreshCw, Filter } from 'lucide-react';
 import clsx from 'clsx';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import { useAuthStore } from '../../../store/authStore';
@@ -15,8 +15,6 @@ export interface CustomerPageHeaderProps {
   setFilterActive: (v: boolean) => void;
   setFilterCredit: (v: 'all' | 'credit' | 'no-credit') => void;
   setFilterPricingTier: (v: string) => void;
-  cleaningDuplicates: boolean;
-  handleCleanDuplicates: () => void;
   isOwner: boolean;
   handleAddCustomerClick: () => void;
   handleEditCustomerClick: (cust: Customer) => void;
@@ -39,8 +37,6 @@ export function CustomerPageHeader({
   setFilterActive,
   setFilterCredit,
   setFilterPricingTier,
-  cleaningDuplicates,
-  handleCleanDuplicates,
   isOwner,
   handleAddCustomerClick,
   handleEditCustomerClick,
@@ -114,17 +110,6 @@ export function CustomerPageHeader({
             >
               <RefreshCw className={clsx("w-3.5 h-3.5", isResyncing && "animate-spin text-primary")} />
               <span className="hidden sm:inline">{isResyncing ? 'Syncing...' : 'Re-sync'}</span>
-            </button>
-          )}
-          {view === 'list' && (
-            <button
-              onClick={handleCleanDuplicates}
-              disabled={cleaningDuplicates}
-              className="h-9 px-3 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border/50 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-              title="Scan and merge duplicate customer and credit ledger records"
-            >
-              <GitMerge className={`w-3.5 h-3.5 ${cleaningDuplicates ? 'animate-spin' : 'text-amber-500'}`} />
-              <span className="hidden sm:inline">{cleaningDuplicates ? 'Merging...' : 'Merge Duplicates'}</span>
             </button>
           )}
           {view === 'list' && isOwner && (

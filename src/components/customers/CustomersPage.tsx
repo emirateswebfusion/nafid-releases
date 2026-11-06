@@ -61,7 +61,6 @@ export function CustomersPage({
   const [filterCredit, setFilterCredit] = useState<'all' | 'credit' | 'no-credit'>('all');
   const [filterOverdue, setFilterOverdue] = useState(false);
   const [filterPricingTier, setFilterPricingTier] = useState<string>('');
-  const [cleaningDuplicates, setCleaningDuplicates] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
 
   const handleResyncCustomers = async () => {
@@ -230,9 +229,9 @@ export function CustomersPage({
     setSelectedCustomer, setView, setVisibleCount, showStatus, tenantId, visibleCount,
   });
 
-  const { handleConfirmDeleteCustomer, handleCleanDuplicates, handleRecalculateCustomerPoints, handleOpenInvoiceDetail, handleEditBillFromCustomerModal, handleNavigateToParty } = useCustomerActions({
+  const { handleConfirmDeleteCustomer, handleRecalculateCustomerPoints, handleOpenInvoiceDetail, handleEditBillFromCustomerModal, handleNavigateToParty } = useCustomerActions({
     customerToDelete, invoiceItems, loadCustomers, matchedParty, onClose, onOpenParty, selectedCustomer,
-    setCleaningDuplicates, setCustomers, setCustomerToDelete, setDeleteModalOpen, setDeleteSaving,
+    setCustomers, setCustomerToDelete, setDeleteModalOpen, setDeleteSaving,
     setInvoiceItems, setItemsLoading, setLoyaltyTxs, setMatchedPartyToDelete, setRecalculatingPoints,
     setSelectedCustomer, setView, setViewingInvoice, showStatus, tenantId, viewingInvoice,
   });
@@ -406,8 +405,6 @@ export function CustomersPage({
         setFilterActive={setFilterActive}
         setFilterCredit={setFilterCredit}
         setFilterPricingTier={setFilterPricingTier}
-        cleaningDuplicates={cleaningDuplicates}
-        handleCleanDuplicates={handleCleanDuplicates}
         isOwner={isOwner}
         handleAddCustomerClick={handleAddCustomerClick}
         handleEditCustomerClick={handleEditCustomerClick}

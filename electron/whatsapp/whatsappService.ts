@@ -146,7 +146,7 @@ async function startWhatsAppConnection(): Promise<void> {
         console.log(`[WhatsApp] Connection closed. Reason code: ${statusCode}, Reconnecting: ${shouldReconnect}`);
 
         currentQrBase64 = null;
-        connectionStatus = 'disconnected';
+        connectionStatus = shouldReconnect ? 'connecting' : 'disconnected';
         connectedPhone = null;
         sock = null;
 
