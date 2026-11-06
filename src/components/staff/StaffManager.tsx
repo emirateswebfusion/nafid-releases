@@ -1,3 +1,4 @@
+import { getStoreBusinessDate } from '../../utils/time/timezoneHelper';
 import { useEffect, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { Users, UserPlus, Upload } from 'lucide-react';
@@ -217,7 +218,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       roleTouched: false,
       permissionsTouched: false,
       accessToggleTouched: false,
-      joining_date: staff.joining_date || new Date().toISOString().split('T')[0],
+      joining_date: staff.joining_date || getStoreBusinessDate(),
       monthly_salary: staff.monthly_salary || 0,
       status: staff.status,
       biller_pin: '',
@@ -614,7 +615,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   roleTouched: false,
                   permissionsTouched: false,
                   accessToggleTouched: false,
-                  joining_date: new Date().toISOString().split('T')[0],
+                  joining_date: getStoreBusinessDate(),
                   monthly_salary: 0,
                   status: 'ACTIVE',
                   biller_pin: '',

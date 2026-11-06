@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { defaultQuotationTerms } from '../../../utils/localization/quotationTerms';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
@@ -132,7 +133,7 @@ export function useSaveQuotation(ctx: UseSaveQuotationContext) {
           shopGstin: shopGstin || undefined,
           shopState: shopState || undefined,
           quotationNumber,
-          date: new Date().toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' }),
+          date: storeDate(new Date(), getStoreLocale(), { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' }),
           validUntil: '15 Days from Issue Date',
           billerName: userName || undefined,
           customerName: customerName || undefined,

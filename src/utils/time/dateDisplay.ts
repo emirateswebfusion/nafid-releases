@@ -1,19 +1,19 @@
 import { getStoreProfile } from '../localization/storeProfile';
 import { getStoreTimezone } from './timezoneHelper';
-import { parseUTCDate, getAppTimeFormat } from '../print/receiptGenerator';
-
-/** Display helpers for stored UTC timestamps, in the store timezone. Empty / missing values show as an em dash. */
-
-/** "26 Oct 2026, 09:30 am" (12 / 24 h per the app time format). */
-export function formatDateTime(d: string | null | undefined): string {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleString(getStoreProfile().locale, { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
+import { parseUTCDate } from './utc';
+import { getAppTimeFormat } from './timeFormat';
+type DateValue = Date | string | number | null | undefined;
+function display(value: DateValue, kind: 'date' | 'time' | 'datetime', locales?: Intl.LocalesArgument, options: Intl.DateTimeFormatOptions = {}): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const instant = parseUTCDate(value);
+  if (Number.isNaN(instant.getTime())) return '—';
+  const dateOnly = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const format = { ...options, timeZone: dateOnly ? 'UTC' : getStoreTimezone(), ...(kind !== 'date' || options.hour || options.timeStyle ? { hour12: getAppTimeFormat() !== '24h' } : {}) };
+  const locale = locales || getStoreProfile().locale;
+  return kind === 'date' ? instant.toLocaleDateString(locale, format) : kind === 'time' ? instant.toLocaleTimeString(locale, format) : instant.toLocaleString(locale, format);
 }
-
-/** "26 Oct 2026". */
-export function formatShortDate(d: string | null | undefined): string {
-  if (!d) return '—';
-  const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleDateString(getStoreProfile().locale, { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
-}
+export function storeDate(value: DateValue, locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string { return display(value, 'date', locales, options); }
+export function storeTime(value: DateValue, locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string { return display(value, 'time', locales, options); }
+export function storeDateTime(value: DateValue, locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions): string { return display(value, 'datetime', locales, options); }
+export function formatDateTime(value: DateValue): string { return display(value, 'datetime', undefined, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+export function formatShortDate(value: DateValue): string { return display(value, 'date', undefined, { day: '2-digit', month: 'short', year: 'numeric' }); }

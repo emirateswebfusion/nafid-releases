@@ -1,3 +1,4 @@
+import { getStoreBusinessDate, storeCalendarDate, calendarDateKey } from '../../../utils/time/timezoneHelper';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthStore } from '../../../store/authStore';
 import { vatApi } from '../../../data/vat';
@@ -26,16 +27,16 @@ export function useVatReport() {
   const [shopTrn, setShopTrn] = useState('');
   const [shopEmirate, setShopEmirate] = useState('DUBAI');
 
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => getStoreBusinessDate(), []);
   const [periodType, setPeriodType] = useState<VatPeriodType>('quarter');
 
   const [selectedMonth, setSelectedMonth] = useState(() => {
-    const d = new Date();
+    const d = storeCalendarDate();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
   const [selectedQuarter, setSelectedQuarter] = useState<'Q1' | 'Q2' | 'Q3' | 'Q4'>(() => {
-    const month = new Date().getMonth() + 1;
+    const month = storeCalendarDate().getMonth() + 1;
     if (month <= 3) return 'Q1';
     if (month <= 6) return 'Q2';
     if (month <= 9) return 'Q3';
@@ -43,9 +44,9 @@ export function useVatReport() {
   });
 
   const [customStart, setCustomStart] = useState(() => {
-    const d = new Date();
+    const d = storeCalendarDate();
     d.setDate(1);
-    return d.toISOString().split('T')[0];
+    return calendarDateKey(d);
   });
   const [customEnd, setCustomEnd] = useState(todayStr);
   const [refreshIndex, setRefreshIndex] = useState(0);
@@ -63,7 +64,7 @@ export function useVatReport() {
       return { fromDate: start, toDate: end };
     }
     if (periodType === 'quarter') {
-      const year = new Date().getFullYear();
+      const year = storeCalendarDate().getFullYear();
       let startM = 1;
       let endM = 3;
       if (selectedQuarter === 'Q2') { startM = 4; endM = 6; }
@@ -191,7 +192,7 @@ export function useVatReport() {
 
   const currentPeriodKey = useMemo(() => {
     if (periodType === 'quarter') {
-      const year = new Date().getFullYear();
+      const year = storeCalendarDate().getFullYear();
       return `${year}-${selectedQuarter}`;
     }
     if (periodType === 'month') {

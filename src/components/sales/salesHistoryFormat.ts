@@ -1,3 +1,4 @@
+import { storeDate, storeTime } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import type { Invoice } from '../../data/invoices';
 import type { PaymentSource } from '../../data/paymentSources';
@@ -46,8 +47,8 @@ export function formatDate(dateStr: string) {
     const d = parseUTCDate(dateStr);
     if (isNaN(d.getTime())) return { date: '-', time: '-' };
     return {
-      date: d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
-      time: d.toLocaleTimeString(getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
+      date: storeDate(d, getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
+      time: storeTime(d, getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
     };
   } catch {
     return { date: '-', time: '-' };
@@ -60,8 +61,8 @@ export function formatGroupDate(dateStr?: string | null) {
     const tz = getStoreTimezone();
     const d = parseUTCDate(dateStr);
     if (isNaN(d.getTime())) return '-';
-    const dayName = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, weekday: 'long' });
-    const dateStrFormatted = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dayName = storeDate(d, getStoreLocale(), { timeZone: tz, weekday: 'long' });
+    const dateStrFormatted = storeDate(d, getStoreLocale(), { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' });
     return `${dateStrFormatted} ${dayName}`;
   } catch {
     return '-';
@@ -99,7 +100,7 @@ export function groupByDay(invoices: Invoice[]) {
   const tz = getStoreTimezone();
   const map = new Map<string, number>();
   for (const inv of invoices) {
-    const day = parseUTCDate(inv.created_at).toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short' });
+    const day = storeDate(inv.created_at, getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short' });
     map.set(day, (map.get(day) || 0) + getInvoiceNetTotal(inv));
   }
   return Array.from(map, ([date, sales]) => ({ date, sales }));

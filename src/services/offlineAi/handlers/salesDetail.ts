@@ -1,3 +1,4 @@
+import { parseUTCDate } from '../../../utils/time/utc';
 import { hasBridge } from '../../../data/client';
 import { productsApi } from '../../../data/products';
 import { resolveDateRange } from '../dates';
@@ -361,8 +362,8 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
       const invs = await fetchInvoices('2000-01-01', '2099-12-31');
       const validInvs = invs.filter((i: AiRow) => !i.converted_to_invoice_id && !['HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'].includes(i.invoice_type as string));
       const sorted = [...validInvs].sort((a: AiRow, b: AiRow) => {
-        const tA = new Date(a.created_at || a.invoice_date || 0).getTime();
-        const tB = new Date(b.created_at || b.invoice_date || 0).getTime();
+        const tA = parseUTCDate(a.created_at || a.invoice_date || 0).getTime();
+        const tB = parseUTCDate(b.created_at || b.invoice_date || 0).getTime();
         return tB - tA;
       });
       const latest = sorted[0];

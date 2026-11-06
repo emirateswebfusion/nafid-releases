@@ -1,3 +1,4 @@
+import { getUtcRangeForStoreDateRange, getStoreTimezoneSetting, parseCleanDate } from './storeTime.js';
 /**
  * UAE VAT Return 201 & FTA Audit Service — Electron main process.
  *
@@ -258,14 +259,16 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
     }
 
     const db = getDb();
+    const timezone = getStoreTimezoneSetting(db, tenant_id);
     const activeEmirate = normalizeEmirate(shop_emirate);
 
     // 1. Fetch raw database records
-    const invoices = vatSql.findInvoicesForVatReport(db).all(tenant_id, from_date, to_date) as RawInvoiceRow[];
-    const invoiceItems = vatSql.findInvoiceItemsForVatReport(db).all(tenant_id, from_date, to_date) as RawInvoiceItemRow[];
-    const returns = vatSql.findReturnsForVatReport(db).all(tenant_id, from_date, to_date) as RawReturnRow[];
-    const purchases = vatSql.findPurchasesForVatReport(db).all(tenant_id, from_date, to_date) as RawPurchaseRow[];
-    const purchaseItems = vatSql.findPurchaseItemsForVatReport(db).all(tenant_id, from_date, to_date) as RawPurchaseItemRow[];
+    const { startUtc, endUtc } = getUtcRangeForStoreDateRange(from_date, to_date, tenant_id);
+    const invoices = vatSql.findInvoicesForVatReport(db).all(tenant_id, startUtc, endUtc) as RawInvoiceRow[];
+    const invoiceItems = vatSql.findInvoiceItemsForVatReport(db).all(tenant_id, startUtc, endUtc) as RawInvoiceItemRow[];
+    const returns = vatSql.findReturnsForVatReport(db).all(tenant_id, startUtc, endUtc) as RawReturnRow[];
+    const purchases = vatSql.findPurchasesForVatReport(db).all({ tenant_id, from_date, to_date, startUtc, endUtc }) as RawPurchaseRow[];
+    const purchaseItems = vatSql.findPurchaseItemsForVatReport(db).all({ tenant_id, from_date, to_date, startUtc, endUtc }) as RawPurchaseItemRow[];
 
     // Group items by parent
     const invoiceItemMap = new Map<string, RawInvoiceItemRow[]>();
@@ -362,7 +365,7 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
       salesAudit.push({
         invoiceId: inv.invoice_id,
         invoiceNumber: inv.invoice_number,
-        invoiceDate: inv.created_at.split(' ')[0],
+        invoiceDate: parseCleanDate(inv.created_at, timezone),
         customerName: inv.customer_name || 'Retail Customer',
         customerTrn: inv.customer_gstin || null,
         invoiceType,
@@ -405,7 +408,7 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
         returnId: ret.return_id,
         returnNumber: ret.return_number,
         creditNoteNumber,
-        returnDate: ret.created_at.split(' ')[0],
+        returnDate: parseCleanDate(ret.created_at, timezone),
         originalInvoiceNumber: ret.original_invoice_number || null,
         originalInvoiceDate: ret.original_invoice_date || null,
         customerName: ret.customer_name || 'Customer',
@@ -473,7 +476,7 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
       purchaseAudit.push({
         purchaseBillId: pb.purchase_bill_id,
         billNumber: pb.bill_number,
-        billDate: (pb.bill_date || pb.created_at).split(' ')[0],
+        billDate: parseCleanDate(pb.bill_date || pb.created_at, timezone),
         supplierInvoiceNumber: pb.invoice_number || null,
         supplierName: pb.supplier_name,
         supplierTrn: pb.supplier_trn || null,

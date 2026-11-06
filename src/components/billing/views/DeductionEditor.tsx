@@ -41,7 +41,7 @@ export interface DeductionEditorProps {
 }
 
 export function DeductionEditor({ deductions }: DeductionEditorProps) {
-  const { customerPointsBalance, effectiveDeductionMode, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setDeductionTabMode, setHardwareError, setPointsToRedeem, setReturnDeductionDropdownStyle, setReturnDeductionResults, setReturnDeductionSearchMode, setReturnDeductionSearchQuery, setScrapDeductionDropdownStyle, setScrapDeductionResults, setScrapDeductionSearchQuery, tenantId } = deductions;
+  const { customerPointsBalance, effectiveDeductionMode, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setDeductionTabMode, setHardwareError, setPointsToRedeem, setReturnDeductionDropdownStyle, setReturnDeductionResults, setReturnDeductionSearchMode, setReturnDeductionSearchQuery, setScrapDeductionDropdownStyle, setScrapDeductionResults, setScrapDeductionSearchQuery, tenantId } = deductions;
   const clearReturnDeduction = useCartStore(s => s.clearReturnDeduction);
   const clearScrapDeduction = useCartStore(s => s.clearScrapDeduction);
   const isQuotationMode = useCartStore(s => s.isQuotationMode);
@@ -53,6 +53,7 @@ export function DeductionEditor({ deductions }: DeductionEditorProps) {
   const storeReturnInvoiceNumber = useCartStore(s => s.returnInvoiceNumber);
   const storeScrapDeduction = useCartStore(s => s.scrapDeduction);
   const storeScrapInvoiceNumber = useCartStore(s => s.scrapInvoiceNumber);
+
 
   return (
       <div className={clsx(
@@ -73,97 +74,6 @@ export function DeductionEditor({ deductions }: DeductionEditorProps) {
                   ? "border-emerald-500/25 bg-emerald-500/[0.01]"
                   : "border-border/60 bg-muted/5"
         )}>
-          {/* Applied Credits Summary Row */}
-          {(storeScrapDeduction > 0 || storeReturnDeduction > 0 || pointsRedeemedDiscountCalc > 0) && (
-            <div className="p-2 space-y-1.5 bg-muted/40 border-b border-border/50">
-              <div className="flex items-center justify-between px-1 mb-0.5">
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Applied Credits</p>
-                {((storeScrapDeduction > 0 ? 1 : 0) + (storeReturnDeduction > 0 ? 1 : 0) + (pointsRedeemedDiscountCalc > 0 ? 1 : 0)) > 1 && (
-                  <span className="text-[9px] font-bold text-foreground bg-primary/10 px-2 py-0.5 rounded-full">
-                    Total Adj: -{formatCurrency((storeScrapDeduction || 0) + (storeReturnDeduction || 0) + (pointsRedeemedDiscountCalc || 0))}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 items-center">
-                {storeScrapDeduction > 0 && (
-                  <div className="flex items-center justify-between p-1.5 bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/10 rounded-xl transition-all duration-200 min-w-0">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <div className="p-1 bg-orange-500/10 text-orange-600 rounded-lg shrink-0">
-                        <Recycle className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[8px] font-black text-orange-600 uppercase tracking-wider leading-none">Scrap Credit</p>
-                        <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{storeScrapInvoiceNumber}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0 ml-1">
-                      <span className="text-[11px] font-black text-orange-600">-{formatCurrency(storeScrapDeduction)}</span>
-                      <button
-                        type="button"
-                        onClick={() => clearScrapDeduction()}
-                        title="Remove Scrap Credit"
-                        className="p-0.5 text-orange-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {storeReturnDeduction > 0 && (
-                  <div className="flex items-center justify-between p-1.5 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 rounded-xl transition-all duration-200 min-w-0">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <div className="p-1 bg-rose-500/10 text-rose-600 rounded-lg shrink-0">
-                        <ArrowLeftRight className="w-3.5 h-3.5 text-rose-600" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[8px] font-black text-rose-600 uppercase tracking-wider leading-none">Return Credit</p>
-                        <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{storeReturnInvoiceNumber}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0 ml-1">
-                      <span className="text-[11px] font-black text-rose-600">-{formatCurrency(storeReturnDeduction)}</span>
-                      <button
-                        type="button"
-                        onClick={() => clearReturnDeduction()}
-                        title="Remove Return Credit"
-                        className="p-0.5 text-rose-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {pointsRedeemedDiscountCalc > 0 && (
-                  <div className="flex items-center justify-between p-1.5 bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 rounded-xl transition-all duration-200 min-w-0">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <div className="p-1 bg-emerald-500/10 text-emerald-600 rounded-lg shrink-0">
-                        <Coins className="w-3.5 h-3.5 text-emerald-600" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wider leading-none">Points Credit</p>
-                        <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{pointsRedeemedCalc} pts</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0 ml-1">
-                      <span className="text-[11px] font-black text-emerald-600">-{formatCurrency(pointsRedeemedDiscountCalc)}</span>
-                      <button
-                        type="button"
-                        onClick={() => setPointsToRedeem(0)}
-                        title="Remove Points Credit"
-                        className="p-0.5 text-emerald-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Deduction Tabs (Scrap / Return / Points) */}
           {(isScrapModuleEnabled || isReturnModuleEnabled || isLoyaltyModuleEnabled) && (
             <div>
@@ -184,6 +94,7 @@ export function DeductionEditor({ deductions }: DeductionEditorProps) {
                   >
                     <Recycle className="w-3.5 h-3.5" />
                     <span>Scrap</span>
+                    {storeScrapDeduction > 0 && <span className="text-[10px] font-bold tabular-nums whitespace-nowrap">-{formatCurrency(storeScrapDeduction)}</span>}
                     <span className="inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
                   </button>
                 )}
@@ -204,6 +115,7 @@ export function DeductionEditor({ deductions }: DeductionEditorProps) {
                   >
                     <ArrowLeftRight className="w-3.5 h-3.5" />
                     <span>Return</span>
+                    {storeReturnDeduction > 0 && <span className="text-[10px] font-bold tabular-nums whitespace-nowrap">-{formatCurrency(storeReturnDeduction)}</span>}
                     <span className="inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
                   </button>
                 )}
@@ -223,6 +135,7 @@ export function DeductionEditor({ deductions }: DeductionEditorProps) {
                   >
                     <Coins className="w-3.5 h-3.5" />
                     <span>Points</span>
+                    {pointsRedeemedDiscountCalc > 0 && <span className="text-[10px] font-bold tabular-nums whitespace-nowrap">-{formatCurrency(pointsRedeemedDiscountCalc)}</span>}
                     <span className="inline-flex items-center justify-center min-w-[20px] h-4 px-1 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">Alt+L</span>
                   </button>
                 )}
@@ -238,7 +151,7 @@ export function DeductionEditor({ deductions }: DeductionEditorProps) {
                           <Recycle className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">Scrap #{storeScrapInvoiceNumber}: -{formatCurrency(storeScrapDeduction)} applied</span>
                         </div>
-                        <button type="button" onClick={() => clearScrapDeduction()} className="text-orange-600/70 hover:text-destructive p-0.5 cursor-pointer shrink-0">
+                        <button type="button" title="Remove Scrap Credit" onClick={() => clearScrapDeduction()} className="text-orange-600/70 hover:text-destructive p-0.5 cursor-pointer shrink-0">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -279,7 +192,7 @@ export function DeductionEditor({ deductions }: DeductionEditorProps) {
                           <ArrowLeftRight className="w-3.5 h-3.5 shrink-0" />
                           <span className="truncate">Return #{storeReturnInvoiceNumber}: -{formatCurrency(storeReturnDeduction)} applied</span>
                         </div>
-                        <button type="button" onClick={() => clearReturnDeduction()} className="text-rose-600/70 hover:text-destructive p-0.5 cursor-pointer shrink-0">
+                        <button type="button" title="Remove Return Credit" onClick={() => clearReturnDeduction()} className="text-rose-600/70 hover:text-destructive p-0.5 cursor-pointer shrink-0">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>

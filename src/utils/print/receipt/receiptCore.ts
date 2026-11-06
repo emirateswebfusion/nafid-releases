@@ -1,3 +1,5 @@
+import { parseUTCDate } from '../../time/utc';
+import { getAppTimeFormat } from '../../time/timeFormat';
 import { getStoreLocale } from '../../localization/storeProfile';
 import { splitTaxAmount } from '../../pricing/checkoutLines';
 import { getStoreTimezone } from '../../time/timezoneHelper';
@@ -195,53 +197,8 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?
   };
 }
 
-let appTimeFormat: '12h' | '24h' = '12h';
-
-export function setAppTimeFormat(format: '12h' | '24h') {
-  appTimeFormat = format;
-}
-
-export function getAppTimeFormat(): '12h' | '24h' {
-  return appTimeFormat;
-}
-
-export function parseUTCDate(dateInput: Date | string | number | null | undefined): Date {
-  if (!dateInput) return new Date();
-  if (dateInput instanceof Date) return dateInput;
-  if (typeof dateInput === 'number') return new Date(dateInput);
-
-  const dateStr = String(dateInput).trim();
-  if (!dateStr) return new Date();
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d));
-  }
-
-  // If string explicitly contains UTC 'Z' or offset like +04:00, let Date parse absolute instant
-  if (/Z$/i.test(dateStr) || /[+-]\d{2}:?\d{2}$/.test(dateStr)) {
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) return d;
-  }
-
-  // Standard SQL / SQLite datetime stored in UTC (e.g. "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DDTHH:mm:ss")
-  const match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?/);
-  if (match) {
-    const [_, y, m, d, hh, mm, ss, ms] = match;
-    return new Date(Date.UTC(
-      Number(y),
-      Number(m) - 1,
-      Number(d),
-      Number(hh),
-      Number(mm),
-      Number(ss || 0),
-      Number((ms || '0').substring(0, 3))
-    ));
-  }
-
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? new Date(dateInput as string) : d;
-}
+export { parseUTCDate } from '../../time/utc';
+export { setAppTimeFormat, getAppTimeFormat } from '../../time/timeFormat';
 
 export function formatBillDateTime(date: Date | string | number): string {
   const d = parseUTCDate(date);
@@ -262,7 +219,7 @@ export function formatBillDateTime(date: Date | string | number): string {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      hour12: appTimeFormat !== '24h'
+      hour12: getAppTimeFormat() !== '24h'
     });
     return `${datePart}, ${timeStr}`;
   } catch {

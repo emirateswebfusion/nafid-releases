@@ -1,3 +1,4 @@
+import { storeDate } from '../time/dateDisplay';
 import { resolveQuotationTerms } from '../localization/quotationTerms';
 import { quotationNetRate } from '../pricing/quotationPrice';
 import { getStoreLocale } from '../localization/storeProfile';
@@ -737,7 +738,7 @@ export function generateQuotationHtml(data: QuotationPrintData): string {
     </div>
 
     <div class="system-footer">
-      This is a computer-generated quotation issued on ${escapeHtml(new Date().toLocaleDateString(getStoreLocale()))}.
+      This is a computer-generated quotation issued on ${escapeHtml(storeDate(new Date(), getStoreLocale()))}.
     </div>
   </div>
 </body>

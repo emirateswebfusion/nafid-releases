@@ -26,7 +26,7 @@ import {
 } from '../../electron/services/localAuthService';
 vi.mock('../../electron/sync/syncWorker', () => ({setSyncActive: vi.fn()}));
 vi.mock('../../electron/services/syncService', () => ({isLanSyncConfigured: () => false}));
-import { saveToken, saveOfflineSession, clearToken } from '../../electron/services/authSessionService';
+import { saveToken, saveOfflineSession, clearToken, loginWithPin } from '../../electron/services/authSessionService';
 import { saveStaff } from '../../electron/services/staffService';
 
 describe('Quick PIN Login & Staff Security', () => {
@@ -239,6 +239,29 @@ describe('Quick PIN Login & Staff Security', () => {
     const value=raw!.prepare("SELECT value FROM settings WHERE key='last_active_terminal_session'").get()?.value;
     expect(String(value)).not.toContain('fixture');expect(String(value)).not.toContain('jwt_token');
     expect(fs.readdirSync(state.directory)).toEqual([]);
+  });
+
+  it('preserves valid cloud token when staff authenticates with PIN on configured shop', () => {
+    const tenantId = 'shop-cloud';
+    saveToken({
+      tenant_id: tenantId,
+      user_id: 'owner-1',
+      user_name: 'Shop Owner',
+      shop_name: 'Cloud Metals',
+      role: 'ADMIN',
+      email: 'owner@example.test',
+      jwt_token: 'valid.jwt.token'
+    });
+    raw!.prepare("INSERT INTO staff (staff_id, tenant_id, staff_code, name, role_designation, biller_pin_hash, status, is_deleted) VALUES ('staff-pin', 'shop-cloud', 'S1', 'Cashier', 'STAFF', ?, 'ACTIVE', 0)").run(hashStaffPin('1234', tenantId));
+    const res = loginWithPin({ pin: '1234', tenant_id: tenantId });
+    expect(res.success).toBe(true);
+    expect((res as { token?: string }).token).toBe('valid.jwt.token');
+    expect(getTerminalConfig()).toMatchObject({ tenant_id: tenantId, user_name: 'Cashier' });
+    const configPath = path.join(state.directory, 'config.json');
+    expect(fs.existsSync(configPath)).toBe(true);
+    const saved = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    expect(saved.jwt_token).toBe('valid.jwt.token');
+    expect(saved.user_name).toBe('Cashier');
   });
 
 });

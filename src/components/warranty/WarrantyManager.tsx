@@ -1,7 +1,8 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useRef } from 'react';
 import { parseUTCDate } from '../../utils/print/receiptGenerator';
-import { getStoreTimezone } from '../../utils/time/timezoneHelper';
+import { getStoreTimezone, addCalendarDays, getStoreBusinessDate } from '../../utils/time/timezoneHelper';
 import { useAuthStore } from '../../store/authStore';
 import { Plus, Search, Printer, Shield, ShieldCheck, Trash, Trash2, AlertCircle, RefreshCw, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -55,7 +56,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     brand: '',
     product_name: '',
     product_details: '',
-    purchase_date: new Date().toLocaleDateString('en-CA'),
+    purchase_date: storeDate(new Date(), 'en-CA'),
     warranty_period_days: 365,
     notes: '',
   });
@@ -63,7 +64,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
   const printRef = useRef<HTMLDivElement>(null);
 
   const expiryDate = form.purchase_date && form.warranty_period_days
-    ? new Date(new Date(form.purchase_date).getTime() + form.warranty_period_days * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA')
+    ? addCalendarDays(form.purchase_date, form.warranty_period_days)
     : '';
 
   useEffect(() => {
@@ -109,7 +110,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
           brand: '',
           product_name: '',
           product_details: '',
-          purchase_date: new Date().toLocaleDateString('en-CA'),
+          purchase_date: storeDate(new Date(), 'en-CA'),
           warranty_period_days: 365,
           notes: '',
         });
@@ -180,7 +181,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
             </div>
             ${content}
             <div class="footer">
-              <p>This warranty is valid from ${parseUTCDate(warranty.purchase_date).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })} to ${parseUTCDate(warranty.expiry_date).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })}</p>
+              <p>This warranty is valid from ${storeDate(warranty.purchase_date, getStoreLocale(), { timeZone: getStoreTimezone() })} to ${storeDate(warranty.expiry_date, getStoreLocale(), { timeZone: getStoreTimezone() })}</p>
               <p>Please present this card for any warranty service.</p>
             </div>
             <div class="stamp">
@@ -215,12 +216,11 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
 
   const formatDate = (dateStr: string) => {
     const tz = getStoreTimezone();
-    const d = parseUTCDate(dateStr);
-    return d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'long', year: 'numeric' });
+    return storeDate(dateStr, getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'long', year: 'numeric' });
   };
 
-  const isExpired = (expiry: string) => new Date(expiry) < new Date();
-  const daysRemaining = (expiry: string) => Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const isExpired = (expiry: string) => storeDate(expiry, 'en-CA') < getStoreBusinessDate();
+  const daysRemaining = (expiry: string) => Math.max(0, Math.ceil((parseUTCDate(storeDate(expiry, 'en-CA')).getTime() - parseUTCDate(getStoreBusinessDate()).getTime()) / (1000 * 60 * 60 * 24)));
 
   const filtered = warranties.filter(w => {
     if (!search) return true;

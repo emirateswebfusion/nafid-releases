@@ -199,6 +199,7 @@ export async function clearAuthAndNotify() {
     clearTimeout(syncState.syncCycleTimerId);
     syncState.syncCycleTimerId = null;
   }
+  notifyOnlineStatus(false, 'NONE');
   if (!syncState.authExpiredNotified) {
     syncState.authExpiredNotified = true;
     const win = BrowserWindow.getAllWindows()[0];

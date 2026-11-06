@@ -31,12 +31,12 @@ export function InventoryHeader({
       <div className="flex items-center justify-between gap-4 px-4 sm:px-6 py-3 select-none">
         <div className="flex items-center gap-3 min-w-0">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-            {view === 'list' ? <Package className="w-4 h-4" /> : view === 'add' ? <PackagePlus className="w-4 h-4" /> : view === 'variants' ? <Layers className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+            {view === 'list' ? <Package className="w-4 h-4" /> : view === 'add' ? <PackagePlus className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
           </div>
           <div className="flex-1 min-w-0 text-left">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
-                {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : view === 'variants' ? 'Product Variants & Sizes' : `Edit: ${editingProduct?.name}`}
+                {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : `Edit: ${editingProduct?.name}`}
               </h1>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
@@ -49,15 +49,6 @@ export function InventoryHeader({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {view === 'variants' && (
-            <button
-              type="button"
-              onClick={() => setView('list')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground hover:bg-accent text-xs font-semibold cursor-pointer"
-            >
-              Back to Inventory
-            </button>
-          )}
           {view === 'list' && (
             <>
               {onSyncCatalog && (
@@ -217,17 +208,6 @@ export function InventoryHeader({
                   triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-3 py-2 rounded-lg h-auto text-xs font-medium bg-background"
                 />
               </div>
-
-              {/* Variants Action */}
-              <button
-                type="button"
-                onClick={() => setView('variants')}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary font-semibold transition-all duration-200 active:scale-95 py-2 px-3.5 cursor-pointer shrink-0 whitespace-nowrap text-sm ml-auto"
-                title="Manage Product Variants & Sizes"
-              >
-                <Layers className="w-4 h-4" />
-                <span>Variants</span>
-              </button>
 
               {/* Primary Action - Add Product */}
               <button

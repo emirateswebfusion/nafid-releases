@@ -1,3 +1,5 @@
+import { parseUTCDate } from '../../utils/time/utc';
+import { storeDate } from '../../utils/time/dateDisplay';
 import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
@@ -90,14 +92,14 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       res = res.filter(b => !b.invoice_number);
     }
     if (dateFrom) {
-      const from = new Date(dateFrom);
+      const from = parseUTCDate(dateFrom);
       from.setHours(0, 0, 0, 0);
-      res = res.filter(b => new Date(b.bill_date as string) >= from);
+      res = res.filter(b => parseUTCDate(b.bill_date as string) >= from);
     }
     if (dateTo) {
-      const to = new Date(dateTo);
+      const to = parseUTCDate(dateTo);
       to.setHours(23, 59, 59, 999);
-      res = res.filter(b => new Date(b.bill_date as string) <= to);
+      res = res.filter(b => parseUTCDate(b.bill_date as string) <= to);
     }
     return res;
   }, [bills, filterType, filterInvoice, dateFrom, dateTo, billSummaries]);
@@ -105,7 +107,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [showAddForm, setShowAddForm] = useState(false);
   const [supplierName, setSupplierName] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [billDate, setBillDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [billDate, setBillDate] = useState(storeDate(new Date(), 'en-CA'));
   const [billNotes, setBillNotes] = useState('');
   const [suppliers, setSuppliers] = useState<Awaited<ReturnType<typeof partiesApi.getParties>>>([]);
   const [isSavingAll, setIsSavingAll] = useState(false);
@@ -265,7 +267,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     setSupplierName(bill.supplier_name);
     setSupplierSearch('');
     setSupplierId(bill.supplier_id as string);
-    setBillDate(bill.bill_date || new Date().toLocaleDateString('en-CA'));
+    setBillDate(bill.bill_date || storeDate(new Date(), 'en-CA'));
     setBillNotes(bill.notes || '');
     setBillType(bill.bill_type as 'GST' | 'ESTIMATE');
     setShowAddForm(true);

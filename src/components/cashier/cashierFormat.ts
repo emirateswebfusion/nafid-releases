@@ -1,3 +1,4 @@
+import { storeTime, storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 /** Cashier settlement helpers: payment methods / options, labels and colours, time and business-date formatting. */
 import { Banknote, CreditCard, Smartphone, Wallet, FileText, SplitSquareHorizontal } from 'lucide-react';
@@ -18,7 +19,7 @@ export const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeo
 export function formatTime(d: string | null): string {
   if (!d) return '';
   const tz = getStoreTimezone();
-  return parseUTCDate(d).toLocaleTimeString(getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
+  return storeTime(parseUTCDate(d), getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 }
 
 export function todayStr(): string {
@@ -34,13 +35,13 @@ export function formatBusinessDate(d: string | null | undefined): string {
     const [year, month, day] = parts;
     date = new Date(Number(year), Number(month) - 1, Number(day));
   } else {
-    date = new Date(d);
+    date = parseUTCDate(d);
   }
   if (isNaN(date.getTime())) return String(d);
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
-  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+  const dayName = storeDate(cleanStr, 'en-US', { weekday: 'long' }).toUpperCase();
   return `${day}-${month}-${year} ${dayName}`;
 }
 
@@ -66,7 +67,7 @@ export function formatDate(dateStr: string | null | undefined) {
   const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   return {
-    date: d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString(getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
+    date: storeDate(d, getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
+    time: storeTime(d, getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
   };
 }

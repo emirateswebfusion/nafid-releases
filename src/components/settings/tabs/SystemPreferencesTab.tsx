@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import React, { useMemo, useEffect } from 'react';
 import { Download, RotateCcw, AlertCircle, CheckCircle2, Loader2, Bell, Globe, RefreshCw, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
@@ -113,7 +114,7 @@ export const SystemPreferencesTab: React.FC<SystemPreferencesTabProps> = ({
                       <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0"><Download className="w-4.5 h-4.5" /></div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-foreground">v{updateInfo.version} {updateReady ? 'Ready to Install' : isDownloading ? 'Downloading...' : 'Available'}</p>
-                        {updateInfo.releaseDate && (<p className="text-xs text-muted-foreground/70 mt-0.5">Released {new Date(updateInfo.releaseDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>)}
+                        {updateInfo.releaseDate && (<p className="text-xs text-muted-foreground/70 mt-0.5">Released {storeDate(updateInfo.releaseDate, 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>)}
                       </div>
                       <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[9px] font-extrabold rounded-lg border border-blue-500/20 shrink-0 uppercase tracking-wider">{updateReady ? 'READY' : isDownloading ? 'DOWNLOADING' : 'NEW'}</span>
                     </div>

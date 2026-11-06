@@ -1,3 +1,4 @@
+import { getStoreBusinessDate } from '../../../utils/time/timezoneHelper';
 import { localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { parsePrintFormat } from '../../../utils/print/printFormatHelper';
@@ -221,7 +222,7 @@ export function useCustomerInvoiceExports(ctx: UseCustomerInvoiceExportsContext)
       const link = document.createElement('a');
       link.href = url;
       const safeName = String(inv.invoice_number).replace(/[^a-zA-Z0-9._-]+/g, '-');
-      link.download = `invoice-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `invoice-${safeName}-${getStoreBusinessDate()}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

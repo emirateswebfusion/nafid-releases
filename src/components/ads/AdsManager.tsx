@@ -1,3 +1,4 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import React, { useCallback, useState, useEffect } from 'react';
 import { Megaphone, Plus, Eye, Trash2, Loader2, X, Image as ImageIcon, Phone, Flame, ToggleLeft, ToggleRight, RefreshCw, Heart, Share2 } from 'lucide-react';
 import clsx from 'clsx';
@@ -279,7 +280,7 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
                     <div>
                       <h4 className="text-xs font-bold text-foreground leading-tight">{ad.shop_name}</h4>
                       <span className="text-[10px] text-muted-foreground">
-                        {new Date(ad.created_at).toLocaleDateString()}
+                        {storeDate(ad.created_at)}
                       </span>
                     </div>
                   </div>

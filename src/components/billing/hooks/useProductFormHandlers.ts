@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { isUaeStore } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import type React from 'react';
@@ -492,7 +493,7 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
           bill_number: `AUTO-BILL-${Date.now()}`,
           supplier_id: null,
           supplier_name: 'Unknown Supplier',
-          bill_date: new Date().toLocaleDateString('en-CA'),
+          bill_date: storeDate(new Date(), 'en-CA'),
           invoice_number: null,
           notes: `Auto-created on fly from billing page for product: ${newProductName.trim()}`,
           total_amount: totalAmt,
@@ -641,7 +642,7 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
             bill_number: `AUTO-BILL-${Date.now()}-${i}`,
             supplier_id: null,
             supplier_name: 'Unknown Supplier',
-            bill_date: new Date().toLocaleDateString('en-CA'),
+            bill_date: storeDate(new Date(), 'en-CA'),
             invoice_number: null,
             notes: `Auto-created on fly from billing page for product: ${item.name.trim()}`,
             total_amount: totalAmt,

@@ -1,3 +1,4 @@
+import { getStoreBusinessDate } from '../../utils/time/timezoneHelper';
 import { useSettingsSectionSave } from './hooks/useSettingsSectionSave';
 import { useCallback, useEffect, useState } from 'react';
 import { Building, CloudCog, Loader2 } from 'lucide-react';
@@ -30,7 +31,7 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
   const tenant_id = tenantId || 'global';
   const [seller, setSeller] = useState<SellerForm>(EMPTY_SELLER);
   const [overview, setOverview] = useState<EinvoiceOverview | null>(null);
-  const [cloud, setCloud] = useState({ mode: 'OFF' as EinvoiceMode, provider_id: 'sandbox', environment: 'SANDBOX' as AspEnvironment, start_date: new Date().toISOString().slice(0, 10) });
+  const [cloud, setCloud] = useState({ mode: 'OFF' as EinvoiceMode, provider_id: 'sandbox', environment: 'SANDBOX' as AspEnvironment, start_date: getStoreBusinessDate() });
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [savedSeller, setSavedSeller] = useState('');
   const [savedCloud, setSavedCloud] = useState('');
@@ -41,7 +42,7 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
     try {
       const data = await einvoiceCloud.getOverview();
       setOverview(data);
-      const nextCloud = { mode: data.settings.mode, provider_id: data.settings.provider_id, environment: data.settings.environment, start_date: data.settings.start_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10) };
+      const nextCloud = { mode: data.settings.mode, provider_id: data.settings.provider_id, environment: data.settings.environment, start_date: data.settings.start_date?.slice(0, 10) ?? getStoreBusinessDate() };
       setCloud(nextCloud); setSavedCloud(JSON.stringify(nextCloud));
     } catch (err) {
       setMessage({ text: `Cloud settings unavailable: ${err instanceof Error ? err.message : 'offline'}`, ok: false });

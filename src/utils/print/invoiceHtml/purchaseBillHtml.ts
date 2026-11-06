@@ -1,8 +1,8 @@
+import { storeDate, storeDateTime } from '../../time/dateDisplay';
 import { getStoreLocale } from '../../localization/storeProfile';
 import { getCurrencyPrefix } from '../../localization/storeProfile';
 import { isUaeStore } from '../../localization/storeProfile';
 import { generateUaeInvoiceHtml } from '../uaeInvoice';
-import { parseUTCDate } from '../receiptGenerator';
 import { getStoreTimezone } from '../../time/timezoneHelper';
 import { splitTaxAmount } from '../../pricing/checkoutLines';
 
@@ -83,7 +83,7 @@ export function generatePurchaseBillHtml(
   const finalTotal = Math.round(grandTotal);
 
   const taxSplit = splitTaxAmount(totalTax);
-  const formattedDate = bill.bill_date ? parseUTCDate(bill.bill_date).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const formattedDate = bill.bill_date ? storeDate(bill.bill_date, getStoreLocale(), { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   return `<!DOCTYPE html>
 <html>
@@ -340,7 +340,7 @@ export function generatePurchaseBillHtml(
 
   <div class="footer-sign">
     <div>
-      <div style="font-size: 10px; color: #9ca3af;">Generated on ${new Date().toLocaleString(getStoreLocale(), { timeZone: getStoreTimezone() })}</div>
+      <div style="font-size: 10px; color: #9ca3af;">Generated on ${storeDateTime(new Date(), getStoreLocale(), { timeZone: getStoreTimezone() })}</div>
     </div>
     <div class="sign-box">
       Authorized Signatory

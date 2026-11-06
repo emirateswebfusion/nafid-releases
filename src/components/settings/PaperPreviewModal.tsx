@@ -1,3 +1,4 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { localizeCurrencyText } from '../../utils/localization/storeProfile';
 import { useState, useMemo, useEffect } from 'react';
@@ -44,7 +45,7 @@ function createSampleReceiptData(
     showUpiQr: false,
     showProductOffers,
     invoiceNumber: 'INV-001',
-    date: new Date().toLocaleDateString(getStoreLocale()),
+    date: storeDate(new Date(), getStoreLocale()),
     billerName: bs.showBillerName !== false ? 'Admin' : undefined,
     items: SAMPLE_ITEMS,
     subtotal: SAMPLE_SUBTOTAL,
@@ -91,7 +92,7 @@ function createSampleInvoiceData(
     bankBranch: shopInfo?.bankBranch,
     upiId: 'nafid@upi',
     invoiceNumber: 'INV-001',
-    date: new Date().toLocaleDateString(getStoreLocale()),
+    date: storeDate(new Date(), getStoreLocale()),
     billerName: bs.showBillerName !== false ? 'Admin' : undefined,
     items: SAMPLE_ITEMS as InvoiceItemDisplay[],
     subtotal: SAMPLE_SUBTOTAL,

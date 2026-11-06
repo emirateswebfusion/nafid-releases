@@ -1,3 +1,4 @@
+import { parseUTCDate } from '../../../utils/time/utc';
 import { useCartStore } from '../../../store/cartStore';
 import { useTabStore, type TabSnapshot, saveStoredTabs } from '../../../store/tabStore';
 import { isDesktopRuntime } from '../../../data/client';
@@ -94,11 +95,11 @@ export function useQuotationActions(ctx: UseQuotationActionsContext) {
       itemsToSet = (q as Quotation & { items: QuotationItem[] }).items;
     }
     if (itemsToSet.length > 1) {
-      const timestamps = itemsToSet.map((i: QuotationItem) => i.created_at ? new Date(i.created_at).getTime() : 0).filter(Boolean);
+      const timestamps = itemsToSet.map((i: QuotationItem) => i.created_at ? parseUTCDate(i.created_at).getTime() : 0).filter(Boolean);
       const uniqueTs = Array.from(new Set(timestamps));
       if (uniqueTs.length > 1) {
         const latestTs = Math.max(...uniqueTs);
-        itemsToSet = itemsToSet.filter((i: QuotationItem) => (i.created_at ? new Date(i.created_at).getTime() : 0) === latestTs);
+        itemsToSet = itemsToSet.filter((i: QuotationItem) => (i.created_at ? parseUTCDate(i.created_at).getTime() : 0) === latestTs);
       }
     }
     setQuotationItems(itemsToSet);

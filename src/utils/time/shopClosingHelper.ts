@@ -1,3 +1,4 @@
+import { storeDate, storeTime } from './dateDisplay';
 import { withNafidFooter } from '../print/messageFooter';
 import { getCurrencyPrefix, localizeCurrencyText } from '../localization/storeProfile';
 import { formatCurrency } from '../pricing/money';
@@ -457,8 +458,8 @@ export function getSampleClosingSummary(shopName: string = 'My Store'): ShopClos
   return {
     tenantId: 'global',
     shopName,
-    businessDate: new Date().toLocaleDateString('en-GB'),
-    closingTimestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    businessDate: storeDate(new Date(), 'en-GB'),
+    closingTimestamp: storeTime(new Date(), 'en-US', { hour: '2-digit', minute: '2-digit' }),
     closingStaffName: 'Alex Morgan',
     closingStaffRole: 'Cashier / Store Staff',
     registerStatus: 'CLOSED',

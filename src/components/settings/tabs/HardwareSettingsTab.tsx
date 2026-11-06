@@ -1,3 +1,4 @@
+import { KitchenPrinterSettings } from './KitchenPrinterSettings';
 import React from 'react';
 import { Printer, Globe, Usb, FileText, Scale, RefreshCw, CreditCard } from 'lucide-react';
 import clsx from 'clsx';
@@ -51,6 +52,7 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
                 { id: 'barcode', label: 'Barcode Printer', icon: Printer },
                 { id: 'a4', label: 'A4 & A5 Printer', icon: FileText },
                 { id: 'scale', label: 'Weighing Scale', icon: Scale },
+                { id: 'kitchen', label: 'Kitchen Printers', icon: Printer },
                 { id: 'card', label: 'Card Terminal', icon: CreditCard },
               ].map((tab) => {
                 const Icon = tab.icon;
@@ -90,6 +92,7 @@ export const HardwareSettingsTab: React.FC<HardwareSettingsTabProps> = ({
 
             {/* Render selected hardware settings card */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm">
+              <div hidden={activeHardwareTab !== 'kitchen'}><KitchenPrinterSettings /></div>
               {activeHardwareTab === 'receipt' && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 pb-4 border-b border-border">

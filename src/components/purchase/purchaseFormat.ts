@@ -1,3 +1,4 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 /** Purchase bill screen helpers: date formatting and the focusable fields of the bill form (keyboard navigation). */
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
@@ -8,7 +9,7 @@ export const formatDate = (d: string | null) => {
   const tz = getStoreTimezone();
   const date = parseUTCDate(d);
   if (isNaN(date.getTime())) return d;
-  return date.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
+  return storeDate(d, getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 export const getPurchaseBillFocusables = (root: ParentNode): HTMLElement[] =>

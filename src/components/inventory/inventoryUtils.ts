@@ -1,3 +1,4 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import type { Product as ProductRow } from '../../data/products';
 
 import type { Product as DataProduct } from '../../data/products';
@@ -39,6 +40,6 @@ export const DEFAULT_FORM = {
   gst_supplier_id: '',
   gst_supplier_name: '',
   gst_bill_number: '',
-  gst_bill_date: new Date().toLocaleDateString('en-CA'),
+  gst_bill_date: storeDate(new Date(), 'en-CA'),
   gst_purchase_is_dummy: false,
 };

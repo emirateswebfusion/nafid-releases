@@ -1,10 +1,10 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Loader2, Search, X, Plus, Clock } from 'lucide-react';
 import clsx from 'clsx';
 import { formatCurrency } from '../BillingConstants';
-import { parseUTCDate } from '../../../utils/print/receiptGenerator';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
 import type { InvoiceType } from '../../../store/cartStore';
@@ -188,7 +188,7 @@ export function BillingSearchBar({ getTierPriceForProduct, handleSearchKey, hand
                   </div>
                   <div className="text-right shrink-0">
                     <span className="text-sm font-mono font-black text-foreground block">{formatCurrency(inv.grand_total)}</span>
-                    <span className="text-[10px] text-muted-foreground mt-0.5 block">{parseUTCDate(inv.created_at).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })}</span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5 block">{storeDate(inv.created_at, getStoreLocale(), { timeZone: getStoreTimezone() })}</span>
                   </div>
                 </button>
               ))}

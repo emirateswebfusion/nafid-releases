@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from '../../electron/db/statements/types';
 import { sumCashSalesInWindow } from '../../electron/db/statements/cashDrawer';
-import { findInvoices, findInvoices2, getPendingInvoicesStatement } from '../../electron/db/statements/cashier';
+import { findInvoices2, getPendingInvoicesStatement } from '../../electron/db/statements/cashier';
 import { getInvoicesSummaryStatement } from '../../electron/db/statements/invoices';
 
 let sqlite: DatabaseSync;
@@ -55,7 +55,7 @@ describe('BOS conversion copies never collect a second payment', () => {
   it('lists only the original collection in the cash register', () => {
     bill('bos', 'BILL_OF_SUPPLY', 'CASH', 100);
     bill('gst', 'GST', 'CASH', 118, 'bos');
-    const rows = findInvoices2(db).all('shop', day, `${day}%`, day);
+    const rows = findInvoices2(db).all('shop', `${day}T00:00:00.000Z`, `${day}T23:59:59.999Z`);
     expect(rows.map(row => (row as { invoice_id: string }).invoice_id)).toEqual(['bos']);
   });
   it('does not offer an unpaid GST copy for a second settlement', () => {
@@ -67,7 +67,8 @@ describe('BOS conversion copies never collect a second payment', () => {
   it('drawer history count and collection exclude the GST copy', () => {
     bill('bos', 'BILL_OF_SUPPLY', 'CASH', 100);
     bill('gst', 'GST', 'CASH', 118, 'bos');
-    expect(findInvoices(db).get('shop', 10, 0)).toMatchObject({ settled_count: 1, total_collected: 100 });
+    const bills = findInvoices2(db).all('shop', `${day}T00:00:00.000Z`, `${day}T23:59:59.999Z`) as { received_amount: number }[];
+    expect({ settled_count: bills.length, total_collected: bills.reduce((sum, bill) => sum + bill.received_amount, 0) }).toEqual({ settled_count: 1, total_collected: 100 });
   });
   it('sales summary keeps the original revenue while tax filing shows the GST copy', () => {
     bill('bos', 'BILL_OF_SUPPLY', 'CASH', 100);

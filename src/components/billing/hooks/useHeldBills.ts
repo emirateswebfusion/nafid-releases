@@ -1,3 +1,4 @@
+import { parseUTCDate } from '../../../utils/time/utc';
 import type * as B from '../billingTypes';
 import React, { useCallback } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
@@ -61,7 +62,7 @@ export function useHeldBills(ctx: UseHeldBillsContext) {
       const stored: B.HeldBill[] = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       const now = Date.now();
       const valid = stored.filter((b) => {
-        const time = new Date(b.heldAt as string).getTime();
+        const time = parseUTCDate(b.heldAt as string).getTime();
         return !isNaN(time) && (now - time < 24 * 60 * 60 * 1000);
       });
       if (valid.length !== stored.length) {

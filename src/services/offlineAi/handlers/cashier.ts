@@ -1,3 +1,4 @@
+import { getStoreBusinessDate } from '../../../utils/time/timezoneHelper';
 import { cashierApi } from '../../../data/cashier';
 import { hasBridge } from '../../../data/client';
 import { resolveDateRange } from '../dates';
@@ -126,7 +127,7 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
     }
 
     case 'CASH_DRAWER_UNSETTLED_STATUS': {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getStoreBusinessDate();
       let settlements: AiRow[] = [];
       if (hasBridge('dbCashierGetDaySettlements')) {
         try {

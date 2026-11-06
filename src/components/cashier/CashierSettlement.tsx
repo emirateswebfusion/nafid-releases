@@ -1,3 +1,4 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
@@ -310,7 +311,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   useEffect(() => {
     if (!drawer && tenantId && !loading) {
       cashierApi.getHistory({ tenant_id: tenantId, limit: 10 }).then(history => {
-        const today = new Date().toLocaleDateString('en-CA');
+        const today = storeDate(new Date(), 'en-CA');
         const entry = Array.isArray(history) ? history.find(h => h.status === 'OPEN' && h.business_date < today) : null;
         if (entry) {
           setYesterdayNotClosed(true);
@@ -446,10 +447,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     if (!dateStr) return 'Unknown Date';
     const d = parseUTCDate(dateStr);
     if (isNaN(d.getTime())) return 'Unknown Date';
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const dayName = d.toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone(), weekday: 'long' });
+    const [yyyy, mm, dd] = storeDate(dateStr, 'en-CA').split('-');
+    const dayName = storeDate(dateStr, getStoreLocale(), { timeZone: getStoreTimezone(), weekday: 'long' });
     return `${dd}/${mm}/${yyyy} ${dayName}`;
   };
 

@@ -1,7 +1,8 @@
+import { storeDate, storeDateTime } from '../time/dateDisplay';
 import { getStoreLocale } from '../localization/storeProfile';
 import { getCurrencyPrefix } from '../localization/storeProfile';
 import { parseUTCDate } from './receiptGenerator';
-import { getStoreTimezone } from '../time/timezoneHelper';
+import { getStoreTimezone, getStoreBusinessDate } from '../time/timezoneHelper';
 import type { TerminologyLabels } from '../../store/terminologyStore';
 
 const DEFAULT_TERMINOLOGY_LABELS: TerminologyLabels = {
@@ -143,11 +144,11 @@ export function calculateLedgerStatement(
 
   // Sort strictly in chronological order (Oldest first)
   const sorted = [...activeEntries].sort((a, b) => {
-    const timeA = new Date(a.transaction_date).getTime();
-    const timeB = new Date(b.transaction_date).getTime();
+    const timeA = parseUTCDate(a.transaction_date).getTime();
+    const timeB = parseUTCDate(b.transaction_date).getTime();
     if (timeA !== timeB) return timeA - timeB;
-    const catA = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const catB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    const catA = a.created_at ? parseUTCDate(a.created_at).getTime() : 0;
+    const catB = b.created_at ? parseUTCDate(b.created_at).getTime() : 0;
     return catA - catB;
   });
 
@@ -214,7 +215,7 @@ export function calculateLedgerStatement(
   for (const entry of calculatedEntries) {
     const d = parseUTCDate(entry.transaction_date);
     const key = !isNaN(d.getTime())
-      ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      ? (/^\d{4}-\d{2}-\d{2}$/.test(entry.transaction_date) ? entry.transaction_date : getStoreBusinessDate(getStoreTimezone(), d)).slice(0, 7)
       : 'other';
     if (!monthGroupsMap.has(key)) {
       monthGroupsMap.set(key, []);
@@ -226,9 +227,7 @@ export function calculateLedgerStatement(
   for (const [key, items] of monthGroupsMap.entries()) {
     let title = 'Transactions';
     if (key !== 'other') {
-      const [y, m] = key.split('-').map(Number);
-      const d = new Date(y, m - 1, 1);
-      title = d.toLocaleDateString(getStoreLocale(), { month: 'long', year: 'numeric' });
+      title = storeDate(`${key}-01`, getStoreLocale(), { month: 'long', year: 'numeric' });
     }
     const mCredit = items.reduce((sum, item) => sum + (Number(item.credit_amount) || 0), 0);
     const mDebit = items.reduce((sum, item) => sum + (Number(item.debit_amount) || 0), 0);
@@ -246,7 +245,7 @@ export function calculateLedgerStatement(
     if (!dStr) return '';
     try {
       const d = parseUTCDate(dStr);
-      return d.toLocaleDateString(getStoreLocale(), { timeZone, day: '2-digit', month: 'short', year: 'numeric' });
+      return storeDate(d, getStoreLocale(), { timeZone, day: '2-digit', month: 'short', year: 'numeric' });
     } catch {
       return dStr;
     }
@@ -334,7 +333,7 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
     timezone
   );
 
-  const nowFormatted = new Date().toLocaleString(getStoreLocale(), {
+  const nowFormatted = storeDateTime(new Date(), getStoreLocale(), {
     timeZone: timezone,
     day: '2-digit',
     month: 'short',
@@ -381,7 +380,7 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
       for (const entry of group.entries) {
         const d = parseUTCDate(entry.transaction_date);
         const dateFormatted = !isNaN(d.getTime())
-          ? d.toLocaleDateString(getStoreLocale(), { timeZone: timezone, day: '2-digit', month: 'short' })
+          ? storeDate(d, getStoreLocale(), { timeZone: timezone, day: '2-digit', month: 'short' })
           : entry.transaction_date.slice(0, 10);
         const yearFormatted = !isNaN(d.getTime()) ? d.getFullYear() : '';
 

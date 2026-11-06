@@ -9,7 +9,7 @@ import { ScrollText } from '../../ui/ScrollText';
 import { type Product } from '../inventoryUtils';
 
 export interface InventoryTableViewProps {
-  view: 'list' | 'add' | 'edit' | 'variants';
+  view: 'list' | 'add' | 'edit';
   isAllSelected: boolean;
   isSomeSelected: boolean;
   handleToggleSelectAll: () => void;

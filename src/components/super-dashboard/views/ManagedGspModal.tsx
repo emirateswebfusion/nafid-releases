@@ -1,3 +1,4 @@
+import { storeDate, storeDateTime } from '../../../utils/time/dateDisplay';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Landmark, X, CheckCircle2, AlertTriangle, Loader2, RefreshCw,
@@ -284,7 +285,7 @@ export function ManagedGspModal({ isOpen, onClose }: ManagedGspModalProps) {
                       Active Config: <strong className="text-foreground font-mono">{existingConfig.provider_id}</strong> ({existingConfig.status || 'CONFIGURED'})
                     </span>
                     <span>
-                      {existingConfig.updated_at ? 'Updated: ' + new Date(existingConfig.updated_at).toLocaleDateString() : ''}
+                      {existingConfig.updated_at ? 'Updated: ' + storeDate(existingConfig.updated_at) : ''}
                     </span>
                   </div>
                 )}
@@ -419,7 +420,7 @@ export function ManagedGspModal({ isOpen, onClose }: ManagedGspModalProps) {
                         </span>
                       </div>
                       <span className="text-[10px] text-muted-foreground font-mono">
-                        {new Date(log.created_at).toLocaleString()}
+                        {storeDateTime(log.created_at)}
                       </span>
                     </div>
                   ))}

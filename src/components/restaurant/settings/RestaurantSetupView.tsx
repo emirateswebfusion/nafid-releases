@@ -11,9 +11,9 @@ type SetupTab = 'tables' | 'stations' | 'modifiers' | 'service';
 
 const TABS: { key: SetupTab; label: string; hint: string; icon: typeof LayoutGrid }[] = [
   { key: 'tables', label: 'Tables', hint: 'Tables and seating areas', icon: LayoutGrid },
-  { key: 'stations', label: 'Kitchen & printers', hint: 'Stations, their categories and printer on this PC', icon: ChefHat },
-  { key: 'modifiers', label: 'Add-ons', hint: 'Extras and choices offered with items', icon: ListPlus },
-  { key: 'service', label: 'Service charge', hint: 'Optional charge and its tax rate', icon: Percent },
+  { key: 'stations', label: 'Kitchen routing', hint: 'Choose which preparation area handles each menu category', icon: ChefHat },
+  { key: 'modifiers', label: 'Item extras & choices', hint: 'Extra cheese, toppings, spice levels and other item options', icon: ListPlus },
+  { key: 'service', label: 'Bill service charge', hint: 'An optional percentage added to the bill; not a menu item', icon: Percent },
 ];
 
 interface RestaurantSetupViewProps {
@@ -33,13 +33,13 @@ export function RestaurantSetupView({ api, tenantId, data, categories, onChanged
   return (
     <div className="flex min-h-0 flex-col gap-5">
       <div className="grid grid-cols-3 gap-3" aria-label="Food service setup summary">
-        {[['Tables', data.setup.tables.length], ['Kitchen stations', data.setup.stations.length], ['Add-on groups', data.setup.modifierGroups.length]].map(([label, count]) => <div key={label} className="rounded-xl border border-border bg-card p-4"><p className="text-xl font-bold tabular-nums">{count}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></div>)}
+        {[['Tables', data.setup.tables.length], ['Preparation areas', data.setup.stations.length], ['Extra-choice groups', data.setup.modifierGroups.length]].map(([label, count]) => <div key={label} className="rounded-xl border border-border bg-card p-4"><p className="text-xl font-bold tabular-nums">{count}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></div>)}
       </div>
       <p className="text-xs text-muted-foreground">Set up seating, kitchen routing and menu extras. Apply all changes together with Save Changes at the top.</p>
       <aside className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4">
         {TABS.map(t => (
           <button key={t.key} type="button" aria-pressed={tab === t.key} onClick={() => setTab(t.key)}
-            className={`flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition ${tab === t.key ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-muted'}`}>
+            className={`flex w-full items-start gap-3 border border-border rounded-xl px-4 py-4 text-left transition ${tab === t.key ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-muted'}`}>
             <t.icon className={`mt-0.5 h-5 w-5 shrink-0 ${tab === t.key ? 'text-primary' : 'text-muted-foreground'}`} />
             <span><span className="block text-xs font-bold">{t.label}</span><span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{t.hint}</span></span>
           </button>

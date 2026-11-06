@@ -1,3 +1,4 @@
+import { storeDateTime, storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
@@ -55,7 +56,7 @@ export function usePurchaseCsvExport(ctx: UsePurchaseCsvExportContext) {
         const taxableAmount = (b.total_amount ?? 0) - totalGst;
         return [
           escape(b.bill_number),
-          escape(new Date(b.bill_date as string).toLocaleString(getStoreLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-')),
+          escape(storeDateTime(b.bill_date as string, getStoreLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-')),
           escape(b.supplier_name),
           escape((b as typeof b & { supplier_gstin?: string }).supplier_gstin || ''),
           escape((b.total_amount ?? 0).toFixed(2)),
@@ -68,7 +69,7 @@ export function usePurchaseCsvExport(ctx: UsePurchaseCsvExportContext) {
 
       const typeLabel = filterType === 'ALL' ? 'All' : filterType;
       const searchLabel = searchQuery ? `_search-${searchQuery}` : '';
-      const dateStr = new Date().toLocaleDateString('en-CA');
+      const dateStr = storeDate(new Date(), 'en-CA');
       const filename = `purchase-bills_${typeLabel}${searchLabel}_${dateStr}.csv`;
 
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

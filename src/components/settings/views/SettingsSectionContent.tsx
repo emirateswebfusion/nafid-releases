@@ -1,5 +1,4 @@
 import React from 'react';
-import { RestaurantSettings } from '../../restaurant/settings/RestaurantSettings';
 import { FilingOnlySettings } from '../FilingOnlySettings';
 import { UaeEinvoiceSettings } from '../UaeEinvoiceSettings';
 import { EmergencyPurgeSettings } from '../EmergencyPurgeSettings';
@@ -303,7 +302,7 @@ export function SettingsSectionContent({
       );
 
     case 'restaurant':
-      return <RestaurantSettings />;
+      return <p className="text-sm text-muted-foreground">Manage tables on the Tables page and preparation stations on the Kitchen page. Food and extras are Inventory items.</p>;
     case 'features':
       return (
         <FeaturesTab onFlagsChange={onFlagsChange}

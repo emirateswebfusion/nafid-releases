@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { ListPlus, Search, X } from 'lucide-react';
+import { ArrowLeft, ListPlus, Search, X } from 'lucide-react';
 import type { Product } from '../../../data/products';
 import type { ModifierGroup } from '../../../data/restaurant';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { groupsForProduct, menuUnitPrice } from '../restaurantRules';
 
 interface MenuGridProps {
+  onBack?: () => void;
+  backLabel?: string;
   products: Product[];
   modifierGroups: ModifierGroup[];
   /** Quantity of each product already on the unsent draft, shown on its tile. */
@@ -14,7 +16,7 @@ interface MenuGridProps {
 }
 
 /** Touch menu: category rail on the left, search, one large tile per item with its price. */
-export function MenuGrid({ products, modifierGroups, draftCounts, onPick }: MenuGridProps) {
+export function MenuGrid({ products, modifierGroups, draftCounts, onPick, onBack, backLabel = 'Back to Tables' }: MenuGridProps) {
   const [category, setCategory] = useState('');
   const [query, setQuery] = useState('');
   const categories = useMemo(() => {
@@ -35,10 +37,13 @@ export function MenuGrid({ products, modifierGroups, draftCounts, onPick }: Menu
   );
   return (
     <div className="flex h-full min-h-0 gap-3">
-      <aside className="flex w-44 shrink-0 flex-col gap-1 overflow-y-auto rounded-2xl border border-border/60 bg-card p-2">
+      <aside className="flex w-44 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card p-2">
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
         <div className="px-2 pb-1 pt-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Menu</div>
         {railItem('', 'All items', products.length)}
         {categories.map(([c, n]) => railItem(c, c, n))}
+        </div>
+        {onBack && <div className="mt-2 shrink-0 border-t border-border pt-2"><button type="button" onClick={onBack} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-4 text-sm font-bold text-primary shadow-sm transition hover:border-primary/40 hover:bg-primary/20 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"><ArrowLeft className="h-5 w-5 shrink-0" /><span>{backLabel}</span></button></div>}
       </aside>
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <div className="relative">

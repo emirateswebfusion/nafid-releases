@@ -24,8 +24,8 @@ export const findInvoicesForGstReport = (db: Db) => db.prepare(`
   WHERE i.tenant_id = ?
     AND i.invoice_type NOT IN ('SCRAP', 'RETURN')
     AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-    AND date(i.created_at) >= date(?)
-    AND date(i.created_at) <= date(?)
+    AND julianday(i.created_at) >= julianday(?)
+    AND julianday(i.created_at) <= julianday(?)
   ORDER BY i.created_at ASC
 `);
 
@@ -56,8 +56,8 @@ export const findInvoiceItemsForGstReport = (db: Db) => db.prepare(`
   WHERE i.tenant_id = ?
     AND i.invoice_type NOT IN ('SCRAP', 'RETURN')
     AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-    AND date(i.created_at) >= date(?)
-    AND date(i.created_at) <= date(?)
+    AND julianday(i.created_at) >= julianday(?)
+    AND julianday(i.created_at) <= julianday(?)
 `);
 
 export const findReturnsForGstReport = (db: Db) => db.prepare(`
@@ -85,8 +85,8 @@ export const findReturnsForGstReport = (db: Db) => db.prepare(`
     r.created_at
   FROM returns r
   WHERE r.tenant_id = ?
-    AND date(r.created_at) >= date(?)
-    AND date(r.created_at) <= date(?)
+    AND julianday(r.created_at) >= julianday(?)
+    AND julianday(r.created_at) <= julianday(?)
   ORDER BY r.created_at ASC
 `);
 
@@ -116,8 +116,8 @@ export const findReturnItemsForGstReport = (db: Db) => db.prepare(`
   JOIN returns r ON r.return_id = ri.return_id
   LEFT JOIN products p ON p.product_id = ri.product_id
   WHERE r.tenant_id = ?
-    AND date(r.created_at) >= date(?)
-    AND date(r.created_at) <= date(?)
+    AND julianday(r.created_at) >= julianday(?)
+    AND julianday(r.created_at) <= julianday(?)
 `);
 
 export const findInvoiceDocStats = (db: Db) => db.prepare(`
@@ -129,8 +129,8 @@ export const findInvoiceDocStats = (db: Db) => db.prepare(`
   FROM invoices
   WHERE tenant_id = ?
     AND invoice_type NOT IN ('SCRAP', 'RETURN')
-    AND date(created_at) >= date(?)
-    AND date(created_at) <= date(?)
+    AND julianday(created_at) >= julianday(?)
+    AND julianday(created_at) <= julianday(?)
 `);
 
 export const findCreditNoteDocStats = (db: Db) => db.prepare(`
@@ -141,8 +141,8 @@ export const findCreditNoteDocStats = (db: Db) => db.prepare(`
     0 as cancelled_docs
   FROM returns
   WHERE tenant_id = ?
-    AND date(created_at) >= date(?)
-    AND date(created_at) <= date(?)
+    AND julianday(created_at) >= julianday(?)
+    AND julianday(created_at) <= julianday(?)
 `);
 
 export const getLocalGstFilings = (db: Db) => db.prepare(`

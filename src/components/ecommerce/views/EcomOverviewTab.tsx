@@ -1,3 +1,4 @@
+import { storeTime } from '../../../utils/time/dateDisplay';
 import { Package, Clock, ShoppingCart, DollarSign, Wifi, WifiOff, RefreshCw, Store, Upload, ChevronRight, Copy, Zap, Server } from 'lucide-react';
 import clsx from 'clsx';
 import { getStoreProfile } from '../../../utils/localization/storeProfile';
@@ -255,7 +256,7 @@ export function EcomOverviewTab({
             <div className="p-2.5 rounded-xl bg-background/60 border border-border/50">
               <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Last Sync</span>
               <span className="font-mono text-foreground text-xs mt-0.5 block truncate">
-                {settings?.last_sync_at ? new Date(settings.last_sync_at).toLocaleTimeString() : 'Never'}
+                {settings?.last_sync_at ? storeTime(settings.last_sync_at) : 'Never'}
               </span>
             </div>
 

@@ -1,3 +1,4 @@
+import { getStoreBusinessDate } from '../../../utils/time/timezoneHelper';
 import { useState, useEffect, useCallback } from 'react';
 import {
   FileSpreadsheet, FileCode, CheckCircle2,
@@ -78,7 +79,7 @@ export function GstComplianceFilingTab({
   // Manual filing dialog state
   const [showManualModal, setShowManualModal] = useState(false);
   const [arnInput, setArnInput] = useState('');
-  const [filingDateInput, setFilingDateInput] = useState(() => new Date().toISOString().split('T')[0]);
+  const [filingDateInput, setFilingDateInput] = useState(() => getStoreBusinessDate());
 
   // Derive taxable & tax from current report
   const taxableValue = report?.summary?.total_taxable_value ?? 0;

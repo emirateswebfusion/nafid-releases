@@ -1,3 +1,4 @@
+import { storeTime } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Banknote, RefreshCw, Clock, History, DollarSign, AlertTriangle } from 'lucide-react';
@@ -120,7 +121,7 @@ export function CashierHeader({
                 {lastSyncTime && (
                   <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-medium text-muted-foreground/70 bg-muted/50 border border-border/50">
                     <Clock className="w-2.5 h-2.5" />
-                    {new Date(lastSyncTime).toLocaleTimeString(getStoreLocale(), { hour: '2-digit', minute: '2-digit', hour12: true })}
+                    {storeTime(lastSyncTime, getStoreLocale(), { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </span>
                 )}
               </div>

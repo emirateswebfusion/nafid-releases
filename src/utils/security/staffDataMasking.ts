@@ -1,3 +1,4 @@
+import { storeCalendarDate } from '../time/timezoneHelper';
 /**
  * Staff Data Masking & Privacy Utility
  * Allows shop owners/administrators to mask or override aggregate stock valuations
@@ -137,7 +138,7 @@ export function getStaffSalesDateScope(
     return { startDate: null, endDate: null, isLocked: false, scopeLabel: 'All Records' };
   }
 
-  const now = new Date();
+  const now = storeCalendarDate();
   const formatYmd = (d: Date) => {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');

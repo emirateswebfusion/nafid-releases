@@ -1,3 +1,4 @@
+import { setAppTimeFormat } from '../utils/time/timeFormat';
 import { useEffect, useState } from 'react';
 import { getSetting } from '../data/settings';
 import { bridgeEvents } from '../data/events';
@@ -16,8 +17,9 @@ export function useStoreProfile(tenantId: string | null, authenticated: boolean)
     const load = async () => {
       const request = ++revision;
       try {
-        const [country, inclusive, timezone, arabicPrint] = await Promise.all(['store_country', 'vat_price_inclusive', 'store_timezone', UAE_ARABIC_PRINT_KEY].map(key => getSetting({ tenant_id: tenantId || 'global', key })));
+        const [country, inclusive, timezone, arabicPrint, timeFormat] = await Promise.all(['store_country', 'vat_price_inclusive', 'store_timezone', UAE_ARABIC_PRINT_KEY, 'time_format'].map(key => getSetting({ tenant_id: tenantId || 'global', key })));
         if (disposed || request !== revision) return;
+        setAppTimeFormat(timeFormat === '24h' ? '24h' : '12h');
         setStoreCountry(country); setStoreVatInclusive(inclusive); setStoreTimezone(timezone); setUaeArabicPrint(arabicPrint);
         setLoadedTenant(previous => ({ tenant: tenantId || 'global', revision: (previous?.revision || 0) + 1 }));
       } catch (error) { console.error('[StoreProfile] Unable to load shop settings', error); }

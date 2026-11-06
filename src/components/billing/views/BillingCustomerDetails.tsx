@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
@@ -303,7 +304,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
         if (isCreditTx) {
           const projectedDueDate = new Date();
           projectedDueDate.setDate(projectedDueDate.getDate() + creditDays);
-          const dueStr = projectedDueDate.toLocaleDateString(getStoreLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
+          const dueStr = storeDate(projectedDueDate, getStoreLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
           return (
             <div className="mb-2 rounded-xl px-3 py-1.5 border border-indigo-500/20 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-xs flex items-center justify-between gap-2">
               <span className="font-bold flex items-center gap-1">

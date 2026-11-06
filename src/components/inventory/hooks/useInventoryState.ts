@@ -7,7 +7,7 @@ import { type CodeType, DEFAULT_CODE_TYPE } from '../../../config/labelCodeTypes
  * suppliers, tier prices, stock adjustment, barcode printing and dialog flags.
  */
 export function useInventoryState() {
-  const [view, setView] = useState<'list' | 'add' | 'edit' | 'variants'>('list');
+  const [view, setView] = useState<'list' | 'add' | 'edit'>('list');
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);

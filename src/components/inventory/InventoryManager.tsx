@@ -1,5 +1,6 @@
+import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
-import { useRef, useCallback, useMemo, useState } from 'react';
+import { useRef, useCallback, useMemo, useState, useEffect } from 'react';
 import { syncApi } from '../../data/sync';
 import { useAuthStore } from '../../store/authStore';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
@@ -19,7 +20,6 @@ import { AdjustStockModal } from './modals/AdjustStockModal';
 import { BarcodePrintModal } from './modals/BarcodePrintModal';
 import { DeleteProductModal } from './modals/DeleteProductModal';
 import { BulkDeleteProductsModal } from './modals/BulkDeleteProductsModal';
-import { VariantsManager } from '../variants/VariantsManager';
 import { getProductPricing } from '../../data/products';
 import { pricingTiersApi, listPricingTiers } from '../../data/pricingTiers';
 import { isDesktopRuntime } from '../../data/client';
@@ -34,7 +34,7 @@ import { useInventoryListActions } from './hooks/useInventoryListActions';
 import { useInventoryEffects } from './hooks/useInventoryEffects';
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+export function InventoryManager({ onClose, isRestricted: _isRestricted, initialProduct }: { onClose: () => void; isRestricted?: boolean; initialProduct?: Product | null }) {
   useCloseOnEscape(onClose);
   const { tenantId } = useAuthStore();
 
@@ -229,6 +229,13 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const { openAdd, openEdit } = useInventoryFormOpen({
     inv, lastInteractedProductId, listScrollRef, savedScrollTop, tenantId,
   });
+  const initialFormOpened = useRef(false);
+  useEffect(() => {
+    if (initialProduct === undefined || initialFormOpened.current) return;
+    initialFormOpened.current = true;
+    if (initialProduct) void openEdit(initialProduct); else void openAdd();
+  }, [initialProduct, openEdit, openAdd]);
+
 
   const handleDelete = (product: Product) => {
     setDeleteConfirmProduct(product);
@@ -413,8 +420,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     const tz = getStoreTimezone();
     const d = parseUTCDate(dateStr);
     if (isNaN(d.getTime())) return '-';
-    const [dd, mm, yyyy] = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).split('/');
-    const dayName = d.toLocaleDateString(getStoreLocale(), { timeZone: tz, weekday: 'long' });
+    const [dd, mm, yyyy] = storeDate(d, getStoreLocale(), { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).split('/');
+    const dayName = storeDate(d, getStoreLocale(), { timeZone: tz, weekday: 'long' });
     return `${dd}/${mm}/${yyyy} ${dayName}`;
   };
 
@@ -576,24 +583,6 @@ return (
           onAddPricingTier={handleAddPricingTier}
           variants={variants}
           setVariants={setVariants}
-        />
-      )}
-
-      {/* ── VARIANTS VIEW ──────────────────────────────────────────────── */}
-      {view === 'variants' && (
-        <VariantsManager
-          onClose={() => setView('list')}
-          enableRealPaperStock={enableRealPaperStock}
-          onOpenInventoryForm={(productId) => {
-            if (productId) {
-              const prod = products.find(p => p.product_id === productId);
-              if (prod) {
-                openEdit(prod);
-                return;
-              }
-            }
-            openAdd();
-          }}
         />
       )}
 

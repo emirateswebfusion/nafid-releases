@@ -1,3 +1,4 @@
+import { storeTime } from '../../../utils/time/dateDisplay';
 import { WhatsAppIcon } from '../../ui/WhatsAppIcon';
 import { Button } from '../../ui/Button';
 import { Loader2, Send } from 'lucide-react';
@@ -48,7 +49,7 @@ export function ClosingPreviewPanel({
             </div>
           </div>
           <span className="text-[10px] text-white/50 font-mono">
-            {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {storeTime(new Date(), [], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
 

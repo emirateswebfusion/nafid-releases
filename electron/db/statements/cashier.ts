@@ -54,7 +54,7 @@ export const updateCashTransactionDrawerId = (db: Db) => db.prepare(`
         UPDATE cash_transactions 
         SET drawer_id = ? 
         WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
-          AND (substr(transaction_date, 1, 10) = ? OR date(transaction_date) = ?)
+          AND (julianday(transaction_date) BETWEEN julianday(?) AND julianday(?))
       `);
 
 export const insertCashierAuditLog = (db: Db) => db.prepare(`
@@ -160,14 +160,12 @@ export const insertCashierAuditLog3 = (db: Db) => db.prepare(`
 export const findCashDrawerByBusinessDate = (db: Db) => db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`);
 
 
-export const findCashTransactions = (db: Db) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`);
+export const findCashTransactions = (db: Db) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (julianday(transaction_date) BETWEEN julianday(?) AND julianday(?)) ORDER BY transaction_date DESC`);
 
 export const findInvoices = (db: Db) => db.prepare(`
       SELECT cd.*,
         u1.name as opened_by_name,
-        u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND ${counterSalePredicate('i')} AND ${countsInRevenue('i')} AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND ${counterSalePredicate('i')} AND ${countsInRevenue('i')} AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
+        u2.name as closed_by_name
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
@@ -185,15 +183,13 @@ export const findInvoices2 = (db: Db) => db.prepare(`
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
         AND (
-          date(COALESCE(i.settled_at, i.created_at)) = ? 
-          OR COALESCE(i.settled_at, i.created_at) LIKE ? 
-          OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
+          julianday(COALESCE(i.settled_at, i.created_at)) BETWEEN julianday(?) AND julianday(?)
         )
         AND (i.is_deleted IS NULL OR i.is_deleted = 0)
       ORDER BY COALESCE(i.settled_at, i.updated_at, i.created_at) DESC
     `);
 
-export const findCashTransactions2 = (db: Db) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND substr(transaction_date, 1, 10) >= ? AND substr(transaction_date, 1, 10) <= ? ORDER BY transaction_date DESC`);
+export const findCashTransactions2 = (db: Db) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND julianday(transaction_date) BETWEEN julianday(?) AND julianday(?) ORDER BY transaction_date DESC`);
 
 export const findCashierAuditLog = (db: Db) => db.prepare(`SELECT * FROM cashier_audit_log WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) ORDER BY performed_at DESC LIMIT ? OFFSET ?`);
 
@@ -207,7 +203,7 @@ export const findCashCategoriesByCategoryId = (db: Db) => db.prepare(`SELECT * F
 export const deleteCashCategoryByCategoryId = (db: Db) => db.prepare(`DELETE FROM cash_categories WHERE category_id = ? AND tenant_id = ?`);
 
 /** Dynamic SQL: `placeholders` must be built from trusted values (placeholders/column lists), never user input. */
-export const listCashTransactionsForDrawersOrDate = (db: Db, placeholders: string | number) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`);
+export const listCashTransactionsForDrawersOrDate = (db: Db, placeholders: string | number) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (drawer_id IN (${placeholders}) OR julianday(transaction_date) BETWEEN julianday(?) AND julianday(?)) ORDER BY transaction_date DESC`);
 
 /** Builds and prepares the dynamic query of `getPendingInvoices` (filters appended in code; user values are bound). */
 export function getPendingInvoicesStatement(db: Db, args: { tenant_id: string; search: string | undefined }) {

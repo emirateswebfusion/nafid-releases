@@ -1,3 +1,4 @@
+import { getStoreBusinessDate } from '../../../utils/time/timezoneHelper';
 import { useState } from 'react';
 import { type StaffMember, type StaffLedgerRow, type StaffAttendanceRow } from '../staffTypes';
 
@@ -34,7 +35,7 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
     roleTouched: false,
     permissionsTouched: false,
     accessToggleTouched: false,
-    joining_date: new Date().toISOString().split('T')[0],
+    joining_date: getStoreBusinessDate(),
     monthly_salary: 0,
     status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
     biller_pin: '',
@@ -51,7 +52,7 @@ const [activeTab, setActiveTab] = useState<'directory' | 'salary' | 'payments' |
   // Detail Data for Selected Staff
   const [ledgerEntries, setLedgerEntries] = useState<StaffLedgerRow[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<StaffAttendanceRow[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(getStoreBusinessDate().slice(0, 7));
   // Toggle Staff Active / Inactive Status
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 

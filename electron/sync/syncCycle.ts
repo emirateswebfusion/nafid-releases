@@ -235,17 +235,17 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         return;
       }
 
-      notifyOnlineStatus(true, activeRoute);
-
-        if (endpoints.primaryRoute === 'LAN' && endpoints.primaryUrl.includes('127.0.0.1')) {
-          console.log('[SyncWorker] Primary Master in LAN mode active. Local SQLite database is master for LAN terminals.');
-          notifyCycleComplete(sender);
-          return;
-        }
+      if (endpoints.primaryRoute === 'LAN' && endpoints.primaryUrl.includes('127.0.0.1')) {
+        notifyOnlineStatus(true, activeRoute);
+        console.log('[SyncWorker] Primary Master in LAN mode active. Local SQLite database is master for LAN terminals.');
+        notifyCycleComplete(sender);
+        return;
+      }
 
       const config = getAuthConfig();
       if (!config) {
         console.warn('[SyncWorker] No JWT token found. Please log in to enable cloud sync.');
+        notifyOnlineStatus(false, 'NONE');
         return;
       }
 
@@ -256,6 +256,8 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         await clearAuthAndNotify();
         return;
       }
+
+      notifyOnlineStatus(true, activeRoute);
       if (activeRoute === 'CLOUD' && outboxEnabled(tenant_id)) {
         try {
           if (await runOutboxSync(jwt_token, tenant_id, sender)) notifyRenderer('outbox-sync');

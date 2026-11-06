@@ -1,9 +1,9 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import { Recycle } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
 import { formatCurrency } from '../BillingConstants';
-import { parseUTCDate } from '../../../utils/print/receiptGenerator';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 
 interface ScrapInvoiceViewModalProps {
@@ -65,7 +65,7 @@ export function ScrapInvoiceViewModal({
                     <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(3)}</div>
                     <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
                     <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
-                    <div className="col-span-2 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString(getStoreLocale(), { timeZone: getStoreTimezone() })}</div>
+                    <div className="col-span-2 text-center text-xs text-muted-foreground">{storeDate(tx.created_at, getStoreLocale(), { timeZone: getStoreTimezone() })}</div>
                   </div>
                 ))}
               </div>

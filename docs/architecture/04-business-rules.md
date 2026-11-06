@@ -472,9 +472,39 @@ Returns > Record credit note uses `returns/creditNote.ts` and canonical returnPr
 - `last_active_terminal_session` stores only shop/user display context in a LOCAL global setting on
   this PC. Login and logout update it without storing a PIN or granting access. A legacy multi-shop
   PC without remembered context requires email login instead of selecting an arbitrary first tenant.
+- Quick PIN login preserves an existing valid cloud session for the same shop/tenant. Local PIN
+  authentications update user and permission state without wiping terminal cloud credentials, preventing
+  spurious "token expired" alerts while keeping background sync connected. An offline PIN login sets
+  `isCloudSyncPaused: true` without cloud calls. Resuming expired cloud sync prioritizes the Email/Password login view.
 
 Coverage: `scrapCashReconciliation`, `shopClosingGrossAmount`, `quickPinLogin`, `releaseFixes.ui`,
 `whatsappBillBreakdown`, `whatsappTaxBreakdown`, `staffPayStatement`, and print characterization.
+
+
+### Product variants
+
+`components/inventory/variantProducts.ts` owns draft validation, complete paged child lookup,
+edit hydration and child/tier persistence. The form repeats the canonical `PricingSection` below
+Inventory & Pricing for each named variant (S, XL, packs). Each has independent purchase/MRP/offer,
+real/paper stock, reorder level, unit and tier overrides. Names must be nonblank and unique within
+the parent. Sibling/parent barcodes must differ; price/tier values must be finite and nonnegative.
+Explicit zero prices are retained; a blank offer clears the child offer and a blank tier clears its override.
+
+Variants remain existing product rows linked by `domain_attributes.parent_product_id` and
+`variant_name`; tiers remain existing product-pricing rows. No schema/IPC/sync contract changes.
+Editing preserves other child fields and attributes. A failed child or tier write keeps the draft
+open with an error and retains successful product IDs for retry. Existing IPC writes are separate
+transactions, so a failed multi-variant save can leave already-saved rows; retry completes them.
+Removing an unsaved section removes only the draft; saved variants use the explicit recycle-bin
+flow on the standalone Product Variants page.
+
+The dashboard page follows inventory/products.view and gates create/edit/delete using existing
+products permissions. It searches/filter groups across the complete catalog and delegates edits
+to the same product form. It replaces the inventory toolbar Variants button/subview.
+Coverage: variantProducts, variantsSection.ui and variantPersistence (real SQLite/service roundtrip,
+independent tiers, preserved parent/sibling stock and tenant isolation).
+`inventoryVariantSave.ui` proves failure/retry retains parent and child IDs; `variantsManager.ui`
+proves search, parent-form delegation, read-only access, deletion confirmation and refresh recovery.
 
 
 ### Settings: one explicit Save Changes action
@@ -509,4 +539,5 @@ and a failing/retried section. It does not prove installed native hardware behav
 
 ### Shared display clock contract
 
-The root architecture's application-wide time contract applies to every module, including restaurant pages, reports, AI replies, receipts and exports. Use `storeDate`, `storeTime`, `storeDateTime` from `src/utils/time/dateDisplay.ts`; these enforce the current shared timezone and 12/24-hour setting. Pass date-only strings unchanged. Use `getStoreBusinessDate` for current-day defaults, `toStoreWallClock` / `storeWallClockToUtcIso` for editable timestamp inputs, and `storeCalendarDate` / `calendarDateKey` only for calendar arithmetic, never storage. The renderer re-exports the pure main-process UTC parser to keep one implementation. Main-process report services convert calendar filters once with `getUtcRangeForStoreDateRange`, then statement factories compare `julianday` instants. Purchase document dates remain calendar labels. Tests: `timeContract.test.ts`, `timezoneHelper.test.ts`, `storeTime.test.ts`, `invoiceDateFilters.test.ts`.
+The root architecture's application-wide time contract applies to every module, including restaurant pages, reports, AI replies, receipts and exports. Use `storeDate`, `storeTime`, `storeDateTime` from `src/utils/time/dateDisplay.ts`; these enforce the current shared timezone and 12/24-hour setting. Pass date-only strings unchanged. Use `getStoreBusinessDate` for current-day defaults, `toStoreWallClock` / `storeWallClockToUtcIso` for editable timestamp inputs, and `storeCalendarDate` / `calendarDateKey` only for calendar arithmetic, never storage. The renderer re-exports the pure main-process UTC parser to keep one implementation. Main-process report services convert calendar filters once with `getUtcRangeForStoreDateRange`, then statement factories compare `julianday` instants. Purchase document dates remain calendar labels. Tests: `timeContract.test.ts`, `shopDayQueries.test.ts`, `timeDisplayArchitecture.test.ts`, `shopClockProfile.ui.test.tsx`, `timezoneHelper.test.ts`, `storeTime.test.ts`, `invoiceDateFilters.test.ts`.
+

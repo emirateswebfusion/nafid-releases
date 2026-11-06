@@ -14,6 +14,7 @@ export const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'ai-assistant',
   'grades',
   'pricing-tiers',
+  'product-variants',
   'financial-report',
   'gst-reports',
   'stock-print',

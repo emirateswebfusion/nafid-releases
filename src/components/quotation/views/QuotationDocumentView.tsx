@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { UaeQuotationDocumentView } from './UaeQuotationDocumentView';
 import { getStoreLocale, isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { useRef } from 'react';
@@ -322,7 +323,7 @@ export function QuotationDocumentView({
 
       {/* Footer Note */}
       <p className="text-[9px] sm:text-[10px] text-black text-center pt-2 sm:pt-3 border-t border-slate-200 mt-2">
-        This is a computer-generated quotation issued on {new Date().toLocaleDateString(getStoreLocale())}.
+        This is a computer-generated quotation issued on {storeDate(new Date(), getStoreLocale())}.
       </p>
     </div>
   );

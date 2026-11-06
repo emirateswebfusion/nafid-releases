@@ -1,3 +1,6 @@
+import { storeCalendarDate, calendarDateKey } from '../../../utils/time/timezoneHelper';
+import { parseUTCDate } from '../../../utils/time/utc';
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { useState } from 'react';
 import clsx from 'clsx';
 import {
@@ -26,18 +29,18 @@ export function StaffSalaryTab({ onChangeSalary, selectedStaff, sm }: StaffSalar
   const { ledgerEntries, setShowTxnModal, setTxnData } = sm;
   const locale = getStoreLocale();
   const [monthOffset, setMonthOffset] = useState(0);
-  const today = new Date();
+  const today = storeCalendarDate();
   const month = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
   const isCurrentMonth = monthOffset === 0;
-  const monthName = month.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
-  const monthShort = month.toLocaleDateString(locale, { month: 'long' });
+  const monthName = storeDate(calendarDateKey(month), locale, { month: 'long', year: 'numeric' });
+  const monthShort = storeDate(calendarDateKey(month), locale, { month: 'long' });
 
   const statement = buildPayStatement(ledgerEntries, month);
   const salaryAmount = Number(selectedStaff.monthly_salary) || 0;
 
   const addedMonths = ledgerEntries
     .filter(l => l.reference_type === 'SALARY_ACCRUAL')
-    .sort((a, b) => new Date(b.transaction_date as string).getTime() - new Date(a.transaction_date as string).getTime())
+    .sort((a, b) => parseUTCDate(b.transaction_date as string).getTime() - parseUTCDate(a.transaction_date as string).getTime())
     .slice(0, 6);
 
   const openTxn = (type: TxnType, amount: number, notes = '') => {
@@ -45,7 +48,7 @@ export function StaffSalaryTab({ onChangeSalary, selectedStaff, sm }: StaffSalar
     setTxnData({ type, amount: Math.max(0, amount), payment_method: moneyMoves ? 'CASH' : 'N/A', notes });
     setShowTxnModal(true);
   };
-  const addSalary = () => openTxn('SALARY_ACCRUAL', salaryAmount, today.toLocaleDateString(locale, { month: 'long', year: 'numeric' }));
+  const addSalary = () => openTxn('SALARY_ACCRUAL', salaryAmount, storeDate(calendarDateKey(today), locale, { month: 'long', year: 'numeric' }));
 
   const lines: { label: string; value: number; sign: '+' | '−' | ''; show: boolean }[] = [
     { label: 'Carried from earlier months', value: statement.carriedForward, sign: '', show: statement.carriedForward !== 0 },
@@ -184,7 +187,7 @@ export function StaffSalaryTab({ onChangeSalary, selectedStaff, sm }: StaffSalar
                 {addedMonths.map(l => (
                   <div key={l.ledger_id} className="px-5 py-2.5 flex items-center justify-between text-[13px]">
                     <span className="text-foreground">
-                      {new Date(l.transaction_date as string).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}
+                      {storeDate(l.transaction_date as string, locale, { month: 'long', year: 'numeric' })}
                     </span>
                     <span className="tabular-nums font-medium text-emerald-600 dark:text-emerald-400">+ {formatCurrency(l.debit_amount)}</span>
                   </div>

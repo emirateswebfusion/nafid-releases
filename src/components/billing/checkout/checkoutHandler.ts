@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { isUaeStore, isValidTaxRegistration } from '../../../utils/localization/storeProfile';
@@ -389,7 +390,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
             const days = Number((matchedParty as B.DirectoryRecord).credit_period_days) || 30;
             const d = new Date();
             d.setDate(d.getDate() + days);
-            return d.toLocaleDateString(getStoreLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
+            return storeDate(d, getStoreLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
           })(),
           creditPeriodDays: Number((matchedParty as B.DirectoryRecord).credit_period_days) || 30,
         } : {}),
@@ -631,7 +632,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           const waMessage = formatWhatsAppBillMessage({
             shopName: receiptData.shopName || shopName || 'Store',
             invoiceNumber: confirmedInvoiceNumber,
-            date: receiptData.date || new Date().toLocaleDateString(getStoreLocale()),
+            date: receiptData.date || storeDate(new Date(), getStoreLocale()),
             customerName: customerName || undefined,
             customerPhone: custPhone,
             items: (receiptItems || []).map((i) => ({

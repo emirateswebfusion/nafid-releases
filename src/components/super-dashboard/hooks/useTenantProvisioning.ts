@@ -1,3 +1,4 @@
+import { storeTime } from '../../../utils/time/dateDisplay';
 import type React from 'react';
 import { superAdminCloud } from '../../../data/cloud/superAdmin';
 import { type TenantAdmin } from '../superDashboardTypes';
@@ -84,7 +85,7 @@ export function useTenantProvisioning(ctx: UseTenantProvisioningContext) {
     setProvisionLogs([]);
     setProvisionProgress(0);
 
-    const timestamp = () => new Date().toLocaleTimeString([], { hour12: false });
+    const timestamp = () => storeTime(new Date(), [], { hour12: false });
     const appendLog = (msg: string) => setProvisionLogs(prev => [...prev, `[${timestamp()}] ${msg}`]);
 
     appendLog('🔌 Initializing platform provisioning pipeline...');

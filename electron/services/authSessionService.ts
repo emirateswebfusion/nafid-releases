@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { localSaveUser, localAuthenticatePin } from './localAuthService.js';
 import { setSyncActive } from '../sync/syncWorker.js';
 import * as syncService from './syncService.js';
+import { cloudTokenUnusable } from '../sync/syncAuth.js';
 import {
   getConfigPath,
   getEncryptedPath,
@@ -68,11 +69,14 @@ export function saveOfflineSession(value: unknown) {
       if (!encrypted) throw new Error('Unable to encrypt offline session');
       fs.writeFileSync(getOfflineSessionPath(), encrypted);
 
-      // Offline authentication must not leave an older cloud token active.
-      const encryptedPath = getEncryptedPath();
-      const configPath = getConfigPath();
-      if (fs.existsSync(encryptedPath)) fs.unlinkSync(encryptedPath);
-      if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+      // Only remove cloud token if it belonged to a different tenant
+      const existingAuth = readAuthPayload();
+      if (existingAuth?.tenant_id && existingAuth.tenant_id !== session.tenant_id) {
+        const encryptedPath = getEncryptedPath();
+        const configPath = getConfigPath();
+        if (fs.existsSync(encryptedPath)) fs.unlinkSync(encryptedPath);
+        if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+      }
 
       // Keep sync worker alive if terminal is configured for LAN or HYBRID peer sync
       try {
@@ -94,6 +98,13 @@ export function loginWithPin(payload: Parameters<typeof localAuthenticatePin>[0]
     try {
       const res = localAuthenticatePin(payload);
       if (res.success && res.user) {
+        const existing = readAuthPayload();
+        const hasValidCloudToken = Boolean(
+          existing?.jwt_token &&
+          existing?.tenant_id === res.user.tenant_id &&
+          !cloudTokenUnusable(existing.jwt_token)
+        );
+
         const session = {
           tenant_id: res.user.tenant_id,
           user_id: res.user.user_id,
@@ -103,6 +114,20 @@ export function loginWithPin(payload: Parameters<typeof localAuthenticatePin>[0]
           restricted_page: null,
           permissions: res.user.permissions,
         };
+
+        if (hasValidCloudToken && existing) {
+          const updatedPayload = {
+            ...existing,
+            user_id: res.user.user_id,
+            user_name: res.user.name,
+            role: res.user.role,
+            permissions: res.user.permissions,
+          };
+          saveToken(updatedPayload);
+          setSyncActive(true);
+          return { ...res, token: existing.jwt_token };
+        }
+
         const saved = saveOfflineSession(session);
         if (!saved.success) return saved;
       }

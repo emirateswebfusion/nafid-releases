@@ -1,3 +1,4 @@
+import { getUtcRangeForStoreDateRange, getStoreTimezoneSetting, parseCleanDate } from './storeTime.js';
 /**
  * GSTR-1 Report Service — Electron main process.
  *
@@ -143,7 +144,7 @@ export interface B2BInvoice {
   sgst: number;
 }
 
-function buildB2B(invoices: InvoiceRow[]): B2BInvoice[] {
+function buildB2B(invoices: InvoiceRow[], timezone: string): B2BInvoice[] {
   return invoices
     .filter(inv => isB2B(inv) && !inv.is_deleted)
     .map(inv => {
@@ -153,7 +154,7 @@ function buildB2B(invoices: InvoiceRow[]): B2BInvoice[] {
         gstin: inv.customer_gstin!.trim(),
         customer_name: inv.customer_name || null,
         invoice_number: inv.invoice_number,
-        invoice_date: inv.created_at.slice(0, 10),
+        invoice_date: parseCleanDate(inv.created_at, timezone),
         invoice_value: round2(inv.grand_total),
         pos,
         reverse_charge: 'N',
@@ -180,7 +181,7 @@ export interface B2CLInvoice {
   igst: number;
 }
 
-function buildB2CL(invoices: InvoiceRow[]): B2CLInvoice[] {
+function buildB2CL(invoices: InvoiceRow[], timezone: string): B2CLInvoice[] {
   return invoices
     .filter(inv =>
       !isB2B(inv) &&
@@ -195,7 +196,7 @@ function buildB2CL(invoices: InvoiceRow[]): B2CLInvoice[] {
       const rate = taxableValue > 0 ? round2((totalTax / taxableValue) * 100) : 0;
       return {
         invoice_number: inv.invoice_number,
-        invoice_date: inv.created_at.slice(0, 10),
+        invoice_date: parseCleanDate(inv.created_at, timezone),
         invoice_value: round2(inv.grand_total),
         pos,
         applicable_tax_rate: rate,
@@ -321,14 +322,14 @@ export interface CDNUREntry {
   sgst: number;
 }
 
-function buildCDNR(returns: ReturnRow[]): CDNREntry[] {
+function buildCDNR(returns: ReturnRow[], timezone: string): CDNREntry[] {
   return returns
     .filter(r => r.customer_gstin && r.customer_gstin.trim().length >= 15)
     .map(r => ({
       gstin: r.customer_gstin!.trim(),
       customer_name: r.customer_name || null,
       note_number: r.credit_note_number || r.return_number,
-      note_date: r.created_at.slice(0, 10),
+      note_date: parseCleanDate(r.created_at, timezone),
       note_type: r.note_type || 'C',
       original_invoice_number: r.original_invoice_number || null,
       original_invoice_date: r.original_invoice_date || null,
@@ -342,7 +343,7 @@ function buildCDNR(returns: ReturnRow[]): CDNREntry[] {
     }));
 }
 
-function buildCDNUR(returns: ReturnRow[]): CDNUREntry[] {
+function buildCDNUR(returns: ReturnRow[], timezone: string): CDNUREntry[] {
   return returns
     .filter(r => !(r.customer_gstin && r.customer_gstin.trim().length >= 15))
     .map(r => {
@@ -351,7 +352,7 @@ function buildCDNUR(returns: ReturnRow[]): CDNUREntry[] {
       const rate = taxable > 0 ? round2((totalTax / taxable) * 100) : 0;
       return {
         note_number: r.credit_note_number || r.return_number,
-        note_date: r.created_at.slice(0, 10),
+        note_date: parseCleanDate(r.created_at, timezone),
         note_type: r.note_type || 'C',
         supply_type: r.supply_type || 'INTRA',
         original_invoice_number: r.original_invoice_number || null,
@@ -530,21 +531,23 @@ export function getGstReport(payload: GstPeriodFilter & { shop_state_code?: stri
     const db = getDb();
     const { tenant_id, from_date, to_date, shop_state_code = '00' } = payload;
 
-    const invoices = gstSql.findInvoicesForGstReport(db).all(tenant_id, from_date, to_date) as InvoiceRow[];
-    const items = gstSql.findInvoiceItemsForGstReport(db).all(tenant_id, from_date, to_date) as InvoiceItemRow[];
-    const returns = gstSql.findReturnsForGstReport(db).all(tenant_id, from_date, to_date) as ReturnRow[];
-    const returnItems = gstSql.findReturnItemsForGstReport(db).all(tenant_id, from_date, to_date) as ReturnItemRow[];
+    const { startUtc, endUtc } = getUtcRangeForStoreDateRange(from_date, to_date, tenant_id);
+    const invoices = gstSql.findInvoicesForGstReport(db).all(tenant_id, startUtc, endUtc) as InvoiceRow[];
+    const items = gstSql.findInvoiceItemsForGstReport(db).all(tenant_id, startUtc, endUtc) as InvoiceItemRow[];
+    const returns = gstSql.findReturnsForGstReport(db).all(tenant_id, startUtc, endUtc) as ReturnRow[];
+    const returnItems = gstSql.findReturnItemsForGstReport(db).all(tenant_id, startUtc, endUtc) as ReturnItemRow[];
 
-    const invDocStats = gstSql.findInvoiceDocStats(db).get(tenant_id, from_date, to_date) as { from_doc: string | null; to_doc: string | null; total_docs: number; cancelled_docs: number } | undefined;
-    const cnDocStats = gstSql.findCreditNoteDocStats(db).get(tenant_id, from_date, to_date) as { from_doc: string | null; to_doc: string | null; total_docs: number; cancelled_docs: number } | undefined;
+    const invDocStats = gstSql.findInvoiceDocStats(db).get(tenant_id, startUtc, endUtc) as { from_doc: string | null; to_doc: string | null; total_docs: number; cancelled_docs: number } | undefined;
+    const cnDocStats = gstSql.findCreditNoteDocStats(db).get(tenant_id, startUtc, endUtc) as { from_doc: string | null; to_doc: string | null; total_docs: number; cancelled_docs: number } | undefined;
 
+    const timezone = getStoreTimezoneSetting(db, tenant_id);
     const activeInvoices = invoices.filter(i => !i.is_deleted);
 
-    const b2b = buildB2B(activeInvoices);
-    const b2cl = buildB2CL(activeInvoices);
+    const b2b = buildB2B(activeInvoices, timezone);
+    const b2cl = buildB2CL(activeInvoices, timezone);
     const b2cs = buildB2CS(activeInvoices, returns, shop_state_code);
-    const cdnr = buildCDNR(returns);
-    const cdnur = buildCDNUR(returns);
+    const cdnr = buildCDNR(returns, timezone);
+    const cdnur = buildCDNUR(returns, timezone);
     const hsn = buildHSN(items, returnItems);
     const validationIssues = validate(activeInvoices, returns);
 

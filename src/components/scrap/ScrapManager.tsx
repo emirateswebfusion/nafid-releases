@@ -362,14 +362,14 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     }
 
     if (invoiceDateFrom) {
-      const from = new Date(invoiceDateFrom);
+      const from = parseUTCDate(invoiceDateFrom);
       from.setHours(0, 0, 0, 0);
-      const to = new Date(invoiceDateTo || invoiceDateFrom);
+      const to = parseUTCDate(invoiceDateTo || invoiceDateFrom);
       to.setHours(23, 59, 59, 999);
       const d = inv.created_at ? parseUTCDate(inv.created_at) : null;
       if (!d || isNaN(d.getTime()) || d < from || d > to) return false;
     } else if (invoiceDateTo) {
-      const to = new Date(invoiceDateTo);
+      const to = parseUTCDate(invoiceDateTo);
       to.setHours(23, 59, 59, 999);
       const d = inv.created_at ? parseUTCDate(inv.created_at) : null;
       if (!d || isNaN(d.getTime()) || d > to) return false;

@@ -9,7 +9,7 @@ import { pullCashCategories, pullCashDrawer, pullCashTransactions, pullCashierAu
 import { pullQuotations, pullWarranties, syncQuotations, syncWarranties } from './entities/salesDocsSync.js';
 import { getAuthConfig, getSyncIntervalMs } from './syncConfig.js';
 import { pullLightweightPendingBills, runSyncCycle } from './syncCycle.js';
-import { getTotalPendingRecords, notifyRenderer } from './syncProgress.js';
+import { getTotalPendingRecords, notifyOnlineStatus, notifyRenderer } from './syncProgress.js';
 import { checkSyncConnectivity, clearAuthAndNotify, cursorKey, getSyncEndpoints, tableContentHashes } from './syncTransport.js';
 import * as syncWorkerSql from '../db/statements/sync/syncWorker.js';
 
@@ -380,7 +380,11 @@ export async function runInitialSync(sender?: WebContents) {
 
   if (!config || (!isLanRoute && cloudTokenUnusable(config.jwt_token))) {
     console.warn('[SyncWorker] runInitialSync skipped: Auth token is missing or expired. Cloud sync paused.');
-    clearAuthAndNotify();
+    syncState.isSyncActive = false;
+    notifyOnlineStatus(false, 'NONE');
+    if (config?.jwt_token && config.jwt_token !== LAN_PLACEHOLDER_TOKEN && cloudTokenUnusable(config.jwt_token)) {
+      clearAuthAndNotify();
+    }
     return { success: false, error: 'Auth token expired or missing' };
   }
   syncState.authExpiredNotified = false;

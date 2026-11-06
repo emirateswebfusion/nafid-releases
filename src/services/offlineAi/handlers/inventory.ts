@@ -1,3 +1,4 @@
+import { parseUTCDate } from '../../../utils/time/utc';
 import { formatMoney, formatQty } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
@@ -205,7 +206,7 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
       const expired = products.filter((p: AiRow) => p.expiry_date && p.expiry_date < today && (Number(p.stock_quantity) || 0) > 0);
       const nearExpiry = products.filter((p: AiRow) => {
         if (!p.expiry_date || p.expiry_date < today) return false;
-        const diffDays = Math.round((new Date(p.expiry_date).getTime() - new Date(today).getTime()) / (86400000));
+        const diffDays = Math.round((parseUTCDate(p.expiry_date).getTime() - parseUTCDate(today).getTime()) / (86400000));
         return diffDays <= 30 && (Number(p.stock_quantity) || 0) > 0;
       });
 

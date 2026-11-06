@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/data/settings', () => ({ getSetting: vi.fn().mockResolvedValue(null), setSetting: vi.fn().mockResolvedValue(undefined), getAllSettings: vi.fn().mockResolvedValue({}) }));
+vi.mock('../../src/data/restaurant', () => ({ restaurantApi: { getSetup: vi.fn().mockResolvedValue({ stations: [], tables: [], modifierGroups: [] }), getPrinterConfig: vi.fn().mockResolvedValue({ widthMm: 80, stations: {} }), savePrinterConfig: vi.fn().mockResolvedValue({ success: true }) } }));
 
 const { SETTINGS_SECTIONS } = await import('../../src/components/settings/settingsSections');
 const { SettingsSectionContent } = await import('../../src/components/settings/views/SettingsSectionContent');

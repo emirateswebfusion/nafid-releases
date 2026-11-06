@@ -1,3 +1,4 @@
+import { storeDate } from '../../../utils/time/dateDisplay';
 import { BookOpen } from 'lucide-react';
 import clsx from 'clsx';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
@@ -50,7 +51,7 @@ export function StaffLedgerTab({
               {ledgerEntries.map(l => (
                 <tr key={l.ledger_id} className="hover:bg-muted/30 transition-colors">
                   <td className={clsx(STAFF_TD, 'text-muted-foreground whitespace-nowrap tabular-nums')}>
-                    {new Date(l.transaction_date as string).toLocaleDateString(getStoreLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {storeDate(l.transaction_date as string, getStoreLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}
                   </td>
                   <td className={clsx(STAFF_TD, 'font-medium text-foreground')}>
                     <div className="flex items-center gap-2">
