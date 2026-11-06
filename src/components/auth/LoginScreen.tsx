@@ -16,6 +16,9 @@ type Tab = 'pin' | 'login' | 'register' | 'forgot-password' | 'reset-password';
 export function LoginScreen() {
   const login = useAuthStore(state => state.login);
 
+  const [requireCloud] = useState(() => {
+    try { return sessionStorage.getItem('auth_prefer_email') === 'true'; } catch { return false; }
+  });
   const [tab, setTab] = useState<Tab>('login');
   const [shopName, setShopName] = useState('');
   const [lastUser, setLastUser] = useState({ name: '', role: '' });
@@ -52,7 +55,8 @@ export function LoginScreen() {
     if (!password) errors.password = 'Please enter your password';
     if (Object.keys(errors).length) { setFieldErrors(errors); return; }
     setLoading(true);
-    const res = await login(email.trim(), password);
+    const res = await login(email.trim(), password, undefined, { requireCloud });
+    if (res.success) { try { sessionStorage.removeItem('auth_prefer_email'); } catch { /* ignore */ } }
     if (!res.success) setError(typeof res.error === 'string' ? res.error : ((res.error as unknown as { message?: string })?.message || 'Login failed.'));
     setLoading(false);
   };
@@ -106,22 +110,18 @@ export function LoginScreen() {
   useEffect(() => {
     if (hasBridge('authGetTerminalConfig')) {
       authApi.getTerminalConfig().then((cfg) => {
-        let preferEmail = false;
-        try {
-          preferEmail = sessionStorage.getItem('auth_prefer_email') === 'true';
-          if (preferEmail) sessionStorage.removeItem('auth_prefer_email');
-        } catch { /* ignore */ }
         if (cfg?.isConfigured) {
           setTerminalConfigured(true);
           if (cfg.shop_name) setShopName(cfg.shop_name);
           setLastUser({ name: cfg.user_name || '', role: cfg.role || '' });
-          if (!preferEmail) setTab('pin');
+          if (!requireCloud) setTab('pin');
         }
       }).catch(() => {});
     }
-  }, []);
+  }, [requireCloud]);
 
   const switchTab = (t: Tab) => {
+    if (t === 'pin') { try { sessionStorage.removeItem('auth_prefer_email'); } catch { /* ignore */ } }
     setTab(t);
     clearMessages();
     setShowPassword(false);

@@ -1,5 +1,6 @@
+import { FloatToast } from '../ui/FloatToast';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { RefreshCw, Trash2, CheckCheck, AlertCircle, Download } from 'lucide-react';
+import { RefreshCw, Trash2, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { getSetting } from '../../data/settings';
 import { listInvoices, getInvoiceItems } from '../../data/invoices';
@@ -18,7 +19,6 @@ import {
   getStaffSalesDateScope 
 } from '../../utils/security/staffDataMasking';
 import { useCartStore } from '../../store/cartStore';
-import clsx from 'clsx';
 import { Modal } from '../ui/Modal';
 import { RedCrossButton } from '../ui/RedCrossButton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../../utils/print/upiConfig';
@@ -508,46 +508,22 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
 
+      <div className="fixed bottom-5 right-5 z-[999999] flex flex-col gap-2 max-w-md pointer-events-none">
       {/* ─── TOAST ─── */}
       {reprintSuccess && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto max-w-md">
-          <div className="p-2 rounded-xl bg-emerald-500/25 text-emerald-400 shrink-0">
-            <CheckCheck className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0 leading-snug">
-            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">PRINT SUCCESS</span>
-            <span className="text-white font-black text-xs block truncate">Invoice reprinted successfully!</span>
-          </div>
-        </div>
+        <FloatToast message="Invoice reprinted successfully!" onClose={() => setReprintSuccess(false)} title="PRINT SUCCESS" stackItem />
       )}
 
       {/* ─── CONVERSION TOAST ─── */}
       {toast && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto max-w-md">
-          <div className={clsx("p-2 rounded-xl shrink-0", toast.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
-            {toast.type === 'success' ? <CheckCheck className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-          </div>
-          <div className="flex-1 min-w-0 leading-snug">
-            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
-              {toast.type === 'success' ? 'SUCCESS' : 'PRINT & ACTION ALERT'}
-            </span>
-            <span className="text-white font-bold text-xs block leading-tight">{toast.text}</span>
-          </div>
-        </div>
+        <FloatToast message={toast} onClose={() => setToast(null)} stackItem />
       )}
 
       {/* ─── EXPORT TOAST ─── */}
       {exportStatusMsg && (
-        <div className="fixed top-4 right-4 z-[60] px-5 py-3 bg-card border border-border rounded-2xl flex items-center gap-2.5 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
-          {isExporting
-            ? <RefreshCw className="w-4 h-4 text-emerald-500 animate-spin shrink-0" />
-            : <Download className="w-4 h-4 text-emerald-500 shrink-0" />
-          }
-          <span className={exportStatusMsg.startsWith('Export failed') ? 'text-destructive' : 'text-foreground'}>
-            {exportStatusMsg}
-          </span>
-        </div>
+        <FloatToast message={exportStatusMsg} type={exportStatusMsg.startsWith('Export failed') ? 'error' : 'info'} onClose={() => setExportStatusMsg(null)} duration={0} stackItem />
       )}
+      </div>
 
       {/* ─── HEADER ─── */}
       <SalesHistoryHeader

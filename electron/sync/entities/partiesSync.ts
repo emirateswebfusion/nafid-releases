@@ -2,7 +2,7 @@ import { getDb } from '../../db/localDb.js';
 import { syncState } from '../syncState.js';
 import { BATCH_SIZE, FETCH_TIMEOUT_MS, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
-import { clearAuthAndNotify, fetchWithFallback, pullPaginated, pushBatch, reconcilePending, syncPushBody } from '../syncTransport.js';
+import { fetchWithFallback, pullPaginated, pushBatch, reconcilePending, syncPushBody } from '../syncTransport.js';
 import * as partiesSyncSql from '../../db/statements/sync/partiesSync.js';
 import { withSyncApplyGuard } from '../../db/statements/outbox.js';
 
@@ -24,7 +24,6 @@ export async function pullUsers(token: string, tenantId: string): Promise<boolea
       if (response.status === 401) {
         if (syncState.currentActiveRoute === 'CLOUD') {
           console.error('[SyncWorker] Pull users failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
-          await clearAuthAndNotify();
         }
         return false;
       }
@@ -121,7 +120,6 @@ export async function pushCustomers(token: string, tenantId: string): Promise<bo
       if (response.status === 401) {
         if (syncState.currentActiveRoute === 'CLOUD') {
           console.error('[SyncWorker] Push customers failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
-          await clearAuthAndNotify();
         }
       }
       return false;
@@ -267,7 +265,6 @@ export async function pushLoyaltyTransactions(token: string, tenantId: string): 
       if (response.status === 401) {
         if (syncState.currentActiveRoute === 'CLOUD') {
           console.error('[SyncWorker] Push loyalty transactions failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
-          await clearAuthAndNotify();
         }
       }
       return false;

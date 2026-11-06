@@ -259,7 +259,7 @@ Tests: `tests/unit/filingRevenue.test.ts`, `tests/unit/filingOnlySettings.ui.tes
 | Biller PIN (quick user switch) | `BillerPinModal` → `staffApi.verifyBillerPin` |
 | Quick PIN Login (terminal switch) | `QuickPinLogin` → `authApi.loginWithPin` (`localAuthenticatePin`, against staff `biller_pin_hash` scoped to `tenant_id`) |
 | Staff protection | `StaffProfileHeader`, `StaffBasicTab`, `staffService.saveStaff` (prevents self-deactivation and Admin account deactivation) |
-| Expired token | `bridgeEvents.onTokenExpired` / 401 in `fetchApi` → cloud sync paused + session-expired modal |
+| Rejected/expired cloud session | `syncTransport.fetchWithFallback` / `cloudFetch` → cloud sync paused + session-expired modal; only the current credential may be rejected |
 
 Permission keys are the shared contract with the server (`requirePermission('sales.view')`). Admin/owner roles bypass
 checks on both sides. Add a new permission key in **both** `src/utils/security/permissions.ts` (with its UI group/label) and
@@ -267,6 +267,22 @@ checks on both sides. Add a new permission key in **both** `src/utils/security/p
 
 `products.create` requires the explicit `products.create` permission, wildcard, or admin/owner bypass. Other
 `products.*` permissions retain the broad fallback for `products.view`.
+
+### Cloud recovery and offline access
+
+`authStore.login` owns online/offline login decisions and token-save result handling. Recovery from the expiry
+modal passes `{ requireCloud: true }` as the fourth argument: only a valid online response and successful token
+persistence complete recovery. Ordinary login may fall back for network/provider outages (including hosting HTTP
+402), never invalid input, denied credentials/accounts or rate limiting (HTTP 400/401/403/429). Failed local auth
+remains retryable. A domain-confirmation cache failure does not replace a saved online session with an offline one.
+
+`syncTransport` owns cloud 401 handling for the request token/route. Stale rejections and LAN pairing errors cannot
+pause replacement credentials. The typed `onTokenExpired` event can carry `{ token }`; the renderer checks it against
+the active credential, or the tenant's stored terminal credential for a PIN session, without adopting the owner JWT.
+A server rejection is meaningful even before JWT expiry. Reauthentication restarts the cancelled scheduler once.
+See [data access](03-data-access.md#cloud-session-recovery) for backward compatibility and implementation details.
+Tests: `cloudRelogin.ui`, `reloginScreen.ui`, `sessionUnauthorized.ui`, `syncReauthentication`, `syncResumeTimer`;
+server credential-version rules and coverage live in its HTTP API guide and `credentialVersion.test.ts`.
 
 ## 4.4 Domain glossary
 
@@ -541,3 +557,7 @@ and a failing/retried section. It does not prove installed native hardware behav
 
 The root architecture's application-wide time contract applies to every module, including restaurant pages, reports, AI replies, receipts and exports. Use `storeDate`, `storeTime`, `storeDateTime` from `src/utils/time/dateDisplay.ts`; these enforce the current shared timezone and 12/24-hour setting. Pass date-only strings unchanged. Use `getStoreBusinessDate` for current-day defaults, `toStoreWallClock` / `storeWallClockToUtcIso` for editable timestamp inputs, and `storeCalendarDate` / `calendarDateKey` only for calendar arithmetic, never storage. The renderer re-exports the pure main-process UTC parser to keep one implementation. Main-process report services convert calendar filters once with `getUtcRangeForStoreDateRange`, then statement factories compare `julianday` instants. Purchase document dates remain calendar labels. Tests: `timeContract.test.ts`, `shopDayQueries.test.ts`, `timeDisplayArchitecture.test.ts`, `shopClockProfile.ui.test.tsx`, `timezoneHelper.test.ts`, `storeTime.test.ts`, `invoiceDateFilters.test.ts`.
 
+
+### Shared invoice tax-breakup presentation
+
+`src/utils/print/receipt/receiptCore.ts:resolveTaxBreakup` owns the shared tax-breakup visibility, taxable base and CGST/SGST rounding used by thermal receipts and invoice HTML. `invoiceHtml/taxBreakup.ts:renderTaxBreakup` only formats the result; the five Indian invoice styles call it rather than calculating tax independently. `showBosTaxBreakup` controls non-GST documents; zero-tax documents omit the section. UAE documents retain their separate existing VAT layout. Coverage: `pdfTaxBreakup`, `thermalBillTaxBreakup` and `printGenerators.characterization`.

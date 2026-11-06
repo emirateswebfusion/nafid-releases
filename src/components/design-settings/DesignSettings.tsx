@@ -1,6 +1,7 @@
+import { FloatToast } from '../ui/FloatToast';
 import { useDesignDraft } from './useDesignDraft';
 import { useState, useId } from 'react';
-import { CheckCircle2, Shield, Lock } from 'lucide-react';
+import { Shield, Lock } from 'lucide-react';
 import { COLOR_PRESETS, FONT_PRESETS, LIGHT_THEME_PRESETS, DARK_THEME_PRESETS } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { isAdminRole } from '../../utils/security/permissions';
@@ -106,10 +107,7 @@ export function DesignSettings() {
       />
 
       {copiedNotification && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-foreground text-background text-xs font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{copiedNotification}</span>
-        </div>
+        <FloatToast message={copiedNotification} onClose={() => setCopiedNotification(null)} />
       )}
 
       {/* ─── LIVE POS SIMULATION BENTO (Tactile Feedback & Real-Time Validation) ─── */}

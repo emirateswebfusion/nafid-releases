@@ -48,3 +48,19 @@ it('sends the same UAE prefix to online allocation and retains custom series', a
   expect(peekGuaranteedNextInvoiceNumber(db, 'test', 'gst_invoice_counter_config').invoiceNumber).toBe('VAT-008');
   raw.close();
 });
+
+it('bounds online allocation wait and preserves local fallback numbering', async () => {
+  const { raw, db } = shop('IN');
+  const timeout = vi.spyOn(AbortSignal, 'timeout');
+  vi.stubGlobal('fetch', vi.fn((_url: unknown, options: RequestInit) => new Promise((_resolve, reject) => {
+    options.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true });
+  })));
+  const started = performance.now();
+  try {
+    expect(await requestServerInvoiceNumber(db, 'test', undefined, 'invoice_counter_config')).toMatchObject({ success: false, offline: true });
+    expect(timeout).toHaveBeenCalledWith(750);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(getGuaranteedNextInvoiceNumber(db, 'test').invoiceNumber).toBe('TEST-001');
+    expect(getGuaranteedNextInvoiceNumber(db, 'test').invoiceNumber).toBe('TEST-002');
+  } finally { timeout.mockRestore(); raw.close(); }
+});

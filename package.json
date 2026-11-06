@@ -4,7 +4,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "version": "2.2.47",
+  "version": "2.2.48",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently --kill-others \"vite\" \"npm run build:electron && wait-on tcp:5173 && electron .\"",

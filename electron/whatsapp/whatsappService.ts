@@ -254,6 +254,7 @@ async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): 
     width: thermal ? Math.max(300, Math.ceil(widthMm * (96 / 25.4)) + 20) : (isHalfA4 ? 794 : (isA5 ? (isLandscape ? 794 : 560) : (isLandscape ? 1123 : 794))),
     height: thermal ? 800 : (isHalfA4 ? 560 : (isA5 ? (isLandscape ? 560 : 794) : (isLandscape ? 794 : 1123))),
     webPreferences: {
+        backgroundThrottling: false,
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
@@ -468,6 +469,8 @@ export function initWhatsAppIpc(): void {
             if (payload.receiptText) {
               const width = payload.receiptWidthMm === 58 ? 58 : 80;
               html = await buildReceiptHtml(payload.receiptText, width);
+              // Digital receipts get breathing room without changing physical printer geometry.
+              html = html.replace('</head>', '<style>body { width: calc(100% - 6mm) !important; margin-left: 3mm !important; margin-right: 3mm !important; }</style></head>');
               html = html.replace('@page {', `@page { size: ${width}mm 297mm;`);
             }
             pdfBuf = await generatePdfBufferFromHtml(html, Boolean(payload.receiptText));

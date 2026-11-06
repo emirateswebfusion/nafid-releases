@@ -1,12 +1,10 @@
+import { FloatToast } from '../ui/FloatToast';
 import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useRef, useCallback, useMemo, useState, useEffect } from 'react';
 import { syncApi } from '../../data/sync';
 import { useAuthStore } from '../../store/authStore';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
-import clsx from 'clsx';
 import { DataUploadModal } from '../data-upload/DataUploadModal';
-import { RedCrossButton } from '../ui/RedCrossButton';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { isLegacyBillerRole } from '../../utils/security/permissions';
 import { parseUTCDate } from '../../utils/print/receiptGenerator';
@@ -637,22 +635,7 @@ return (
       />
 
       {/* ─── FLOATING TOASTS ─── */}
-      <div className="fixed bottom-5 left-5 z-[9999] flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
-        {statusMessage && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
-              {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
-                {statusMessage.type === 'success' ? 'INVENTORY STATUS' : 'INVENTORY ALERT'}
-              </span>
-              <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
-            </div>
-            <RedCrossButton onClick={() => setStatusMessage(null)} size="sm" />
-          </div>
-        )}
-      </div>
+      <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} title={statusMessage?.type === 'success' ? 'INVENTORY STATUS' : 'INVENTORY ALERT'} duration={0} />
 
       <DataUploadModal
         isOpen={showUploadModal}

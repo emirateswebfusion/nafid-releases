@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, ArrowRightLeft, Ban, Bike, ChefHat, Pencil, Receipt, ScrollText, Scissors, ShoppingBag, Undo2, UserRound, Users, UtensilsCrossed, X } from 'lucide-react';
+import { ArrowRightLeft, Ban, Bike, ChefHat, Pencil, Receipt, ScrollText, Scissors, ShoppingBag, Undo2, UserRound, Users, UtensilsCrossed, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '../../ui/Button';
 import type { Product } from '../../../data/products';
@@ -90,8 +90,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
   return (
     <div className="flex min-h-full flex-col gap-4 p-4 sm:p-6 xl:h-full xl:flex-row">
       <div className="flex min-h-0 flex-1 flex-col gap-3">
-        {(locked || tableBills.length > 1) && <div className="flex flex-wrap items-center gap-2">
-          {locked && <button type="button" onClick={onBack} className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold hover:bg-muted"><ArrowLeft className="h-4 w-4" />{order.order_type === 'DINE_IN' ? 'Tables' : 'Orders'}</button>}
+        {tableBills.length > 1 && <div className="flex flex-wrap items-center gap-2">
           {tableBills.length > 1 && (
             <div className="flex rounded-xl border border-border bg-card p-1">
               {tableBills.map((b, i) => (
@@ -106,7 +105,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
             <div className="rounded-3xl bg-amber-500/15 p-5 text-amber-600"><Receipt className="h-10 w-10" /></div>
             <h2 className="text-lg font-black">Being billed</h2>
             <p className="text-sm text-muted-foreground">This order is open in Billing{order.billing_terminal && order.billing_terminal !== data.active.terminal ? ' on another terminal' : ''}. Reopen it to add items.</p>
-            <Button variant="outline" onClick={() => void actions.releaseClaim(order)}><Undo2 className="mr-2 h-4 w-4" />Reopen order</Button>
+            <Button disabled={actions.working} className="mt-3 min-h-14 w-full max-w-xs justify-center rounded-2xl px-8 py-4 text-base font-bold shadow-sm" onClick={() => void actions.releaseClaim(order)}><Undo2 className="mr-2 h-5 w-5" />{actions.working ? 'Reopening…' : 'Reopen order'}</Button>
           </div>
         ) : <MenuGrid onBack={onBack} backLabel={order.order_type === 'DINE_IN' ? 'Back to Tables' : 'Back to Orders'} products={menu} modifierGroups={[]} draftCounts={draftCounts} onPick={pick} />}
       </div>
@@ -119,7 +118,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
               <div className="text-xl font-black leading-tight">{title}</div>
               <div className="text-xs font-semibold text-muted-foreground">Order {order.order_no} · {formatElapsed(minutesSince(order.opened_at))}</div>
             </div>
-            <button type="button" onClick={() => setDialog('details')} disabled={locked} title="Edit order details"
+            <button type="button" onClick={() => setDialog('details')} disabled={locked || !can('restaurant.orders')} title={locked ? 'Reopen this order before editing details' : 'Edit order details'}
               className="rounded-xl border border-border bg-card p-2 text-muted-foreground hover:text-foreground disabled:opacity-40"><Pencil className="h-4 w-4" /></button>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-bold">
@@ -195,7 +194,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
       )}
       {dialog === 'details' && (
         <OrderDetailsDialog title={`Order ${order.order_no}`} orderType={order.order_type} order={order} staff={data.staff}
-          onCancel={() => setDialog(null)} onSave={async fields => { setDialog(null); await actions.updateOrder(order, fields); }} />
+          onCancel={() => setDialog(null)} onSave={async fields => { const saved = await actions.updateOrder(order, fields); if (saved) { await data.refreshOrders(); setDialog(null); } return !!saved; }} />
       )}
     </div>
   );

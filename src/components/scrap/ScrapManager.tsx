@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useCartStore } from '../../store/cartStore';
 import { parseUTCDate } from '../../utils/print/receiptGenerator';
-import { Loader2, Plus, Trash, Trash2, RefreshCw, AlertCircle, ShoppingCart, Package, CheckCheck } from 'lucide-react';
+import { Loader2, Plus, Trash, Trash2, RefreshCw, AlertCircle, ShoppingCart, Package } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { RedCrossButton } from '../ui/RedCrossButton';
 import { FloatToast } from '../ui/FloatToast';
@@ -409,12 +409,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   }
   return (
     <>
-      {reprintSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
-          <CheckCheck className="w-4 h-4 shrink-0" />
-          <span>Scrap invoice reprinted successfully!</span>
-        </div>
-      )}
+
       <div className="fixed inset-0 z-40 flex flex-col bg-background">
 
         {/* ══════════════════════════════════════════
@@ -728,7 +723,10 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         </div>
       </Modal>
 
-      <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} />
+      <div className="fixed bottom-5 right-5 z-[999999] flex flex-col gap-2 max-w-md pointer-events-none">
+        <FloatToast message={reprintSuccess ? 'Scrap invoice reprinted successfully!' : null} onClose={() => setReprintSuccess(false)} title="PRINT SUCCESS" duration={0} stackItem />
+        <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} stackItem />
+      </div>
     </>
   );
 }

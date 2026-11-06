@@ -14,6 +14,7 @@
 | A use-case combining data calls + a rule (e.g. "find scrap credit") | `components/<feature>/<useCase>.ts` | Calls `src/data/*`; tested with `vi.mock` |
 | Reading/writing local data | `src/data/<domain>.ts` | Existing channel → just call `<domain>Api`; new channel → the 5-step recipe in [03](03-data-access.md#adding-or-changing-an-ipc-channel-5-steps-one-change) |
 | Listening to main-process events | `src/data/events.ts` (`bridgeEvents`) | Return the unsubscribe from your effect |
+| Login, cloud recovery or session expiry | `src/store/authStore.ts`, `components/auth/LoginScreen.tsx`, `components/app/hooks/useScreenEvents.ts`; main `syncTransport.ts` / `syncWorker.ts` | Preserve ordinary offline access and require online/persisted credentials for cloud recovery. Keep expiry event payloads aligned in preload, `global.d.ts`, `data/auth.ts` and `bridgeEvents`. See [recovery contract](03-data-access.md#cloud-session-recovery); run recovery tests plus sync login/no-login and LAN characterization when touching sync |
 | A cloud (online-only) call | `src/data/cloud/<domain>.ts` (`cloudFetch` / `cloudRequest`) | Verify the server route exists |
 | SQL | `electron/db/statements/<domain>.ts` | Intent-named factory `(db: Db) => db.prepare(…)`; bind user values with `?` |
 | Schema / migration | `electron/db/migrations/NNN-*.ts` + `migrations/index.ts` | A new numbered migration (runs once, recorded in `schema_migrations`); never grow the startup baseline (guard R10); mirror synced columns in the server migrations; see 03-data-access §3.4 |
@@ -332,3 +333,24 @@ Tables navigation now separates Orders & seating from the Tables entity page. `r
 
 
 Tables entity list uses the full available content width with responsive page padding. Bulk Add Tables remains available alongside Add Table regardless of row count. `BulkTablesDialog` creates at most 200 numbered tables, skips existing names, and retains successful IDs/names across partial-failure retries. It refreshes the list after attempted writes and reports partial failures; batch creation is not atomic. Tests: tablesManager.ui.test.tsx.
+
+
+OrderDetailsDialog awaits create/update results, locks duplicate submission and dismissal while saving, and retains entered fields on failure. Parent screens close only on confirmed success and refresh order rows. Customer identity is editable for dine-in as well as takeaway/delivery. Previously assigned staff names survive unavailable staff-directory entries. Billing-claimed orders require reopening before editing. Existing update API and persistence contracts are unchanged. Regression: orderDetailsDialog.ui.test.tsx.
+
+### Toast notification ownership
+
+Use `components/ui/FloatToast` for every transient success, error, warning or informational notification. BillingToasts, ComboStatusToast, RestaurantToast and recycle-bin ToastStack are state adapters only; they render the shared component. Keep concurrent messages stacked, preserve existing timers and recycle-bin actions, and use `duration={0}` when the caller owns expiry or a message must remain visible. Browser alerts and copied toast styling are prohibited. See conventions > Toast notifications.
+
+### Review notes: notification and print ownership
+
+Toast presentation changes are covered by `floatToast.ui` (replacement timers, caller-owned expiry, actions, simultaneous billing outcomes and persistent restaurant errors) and `toastArchitecture` (browser alerts, alternate libraries and copied toast visuals). The FloatToast action uses the shared Button primitive; Ecommerce notification state stays in `useEcommerceState`. UI acceptance exercised Settings > Printers & Devices > Refresh Printers in the isolated module fixture without saving shop preferences. Sales payment collection closes after a confirmed update and reports success through its existing showToast adapter.
+
+Invoice HTML tax-breakup presentation belongs in `utils/print/invoiceHtml/taxBreakup.ts`, reusing `receipt/receiptCore.ts:resolveTaxBreakup`; see the business-rules reference. Hidden print/PDF windows disable background throttling in `electron/hardware/printer.ts` and `electron/whatsapp/whatsappService.ts`. Digital thermal receipt PDF margins are applied in the WhatsApp PDF path, preserving physical printer geometry. Source tests do not replace physical printer or packaged-installer acceptance.
+
+Architecture review validation (6 November 2026): app and Electron typechecks passed; the full two-worker Vitest run passed 194 files / 1,135 tests without unhandled errors; architecture guard passed with zero bridge violations, misplaced SQL and oversized files; lint ratchet passed with zero errors/warnings. The Settings layout test now mocks cloud reads and drains pending updates during cleanup. This evidence covers the current POS source tree; it does not certify other app changes, a shipped installer or physical printer output.
+
+### Billing print latency and payment completion (6 November 2026)
+
+The default online invoice-number allocation deadline in electron/services/invoiceNumberService.ts is 750 ms (previously 3000 ms). Checkout still awaits allocation and uses the existing local allocator on failure; this is a bounded network wait, not a guarantee of total print latency. Explicit caller deadlines (BOS conversion: 1500 ms) remain authoritative. Regression: uaeNumbering.characterization.test.ts exercises an actual abort and confirms sequential local fallback numbers; thermalPrint.test.ts covers readiness and single-job printing.
+
+Sales History payment collection closes its dialog immediately after confirmed persistence and reports success through the existing shared toast adapter. Do not add a presentation-only delay before the next action. Existing list refresh and cashier notification remain in place. No numbering payload, database schema, permission or sync contract changed. Physical printer and live WhatsApp timing still require runtime acceptance.

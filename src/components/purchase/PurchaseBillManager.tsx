@@ -1,13 +1,13 @@
+import { FloatToast } from '../ui/FloatToast';
 import { parseUTCDate } from '../../utils/time/utc';
 import { storeDate } from '../../utils/time/dateDisplay';
 import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { X, Trash2, User, CheckCircle2, AlertCircle, Save, Tag, RefreshCw, UserPlus } from 'lucide-react';
+import { X, Trash2, User, AlertCircle, Save, Tag, RefreshCw, UserPlus } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { Modal } from '../ui/Modal';
-import { RedCrossButton } from '../ui/RedCrossButton';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { isDesktopRuntime } from '../../data/client';
 import { partiesApi } from '../../data/parties';
@@ -469,22 +469,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       />
 
       {/* ─── FLOATING TOASTS ─── */}
-      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
-        {statusMessage && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-            <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
-              {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            </div>
-            <div className="flex-1 min-w-0 leading-snug">
-              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
-                {statusMessage.type === 'success' ? 'PURCHASE STATUS' : 'PURCHASE ALERT'}
-              </span>
-              <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
-            </div>
-            <RedCrossButton onClick={() => setStatusMessage(null)} size="sm" />
-          </div>
-        )}
-      </div>
+      <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} title={statusMessage?.type === 'success' ? 'PURCHASE STATUS' : 'PURCHASE ALERT'} duration={0} />
 
       {/* ── LIST VIEW ── */}
       {!showAddForm && (

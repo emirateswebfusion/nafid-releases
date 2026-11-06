@@ -171,6 +171,7 @@ export function initPrinter() {
         width: isHalfA4 ? 794 : (isA5 ? (isLandscape ? 794 : 560) : (isLandscape ? 1123 : 794)),
         height: isHalfA4 ? 560 : (isA5 ? (isLandscape ? 560 : 794) : (isLandscape ? 794 : 1123)),
         webPreferences: {
+        backgroundThrottling: false,
           preload: path.join(__dirname, '../preload.js'),
           contextIsolation: true,
           nodeIntegration: false,
@@ -403,6 +404,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
       height: windowHeight,
       useContentSize: true,
       webPreferences: {
+        backgroundThrottling: false,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
@@ -451,6 +453,7 @@ function printBulkBarcodeUSB(items: BulkPrintItem[], deviceName: string, widthMm
       height: windowHeight,
       useContentSize: true,
       webPreferences: {
+        backgroundThrottling: false,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
@@ -569,6 +572,7 @@ function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: bool
       width: winWidth,
       height: winHeight,
       webPreferences: {
+        backgroundThrottling: false,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
@@ -713,11 +717,12 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80, tenantId: str
       height: 4000,
       useContentSize: true,
       webPreferences: {
+        backgroundThrottling: false,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        backgroundThrottling: false,
+
       }
     });
 

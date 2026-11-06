@@ -444,19 +444,13 @@ export function formatTaxBreakupSection(
   centerText: (text: string, width: number) => string,
   sepChar: string = '-'
 ): string {
-  if (!data.tax || data.tax <= 0) return '';
-  const isGst = data.invoiceType === 'GST' || Boolean(data.isB2B);
-  if (!isGst && data.billSettings?.showBosTaxBreakup === false) return '';
-
-  const hasIgst = Boolean(data.igst && data.igst > 0);
-  const split = splitTaxAmount(data.tax);
-  const effectiveCgst = (data.cgst && data.cgst > 0) ? data.cgst : (!hasIgst ? split.cgst : 0);
-  const effectiveSgst = (data.sgst && data.sgst > 0) ? data.sgst : (!hasIgst ? split.sgst : 0);
-  const rawTaxable = (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05)
-    ? data.subtotal
-    : Math.max(0, data.grandTotal - data.tax);
-  const taxableVal = rawTaxable.toFixed(2);
-  const totalTaxVal = data.tax.toFixed(2);
+  const breakup = resolveTaxBreakup(data);
+  if (!breakup) return '';
+  const hasIgst = breakup.igst > 0;
+  const effectiveCgst = breakup.cgst;
+  const effectiveSgst = breakup.sgst;
+  const taxableVal = breakup.taxable.toFixed(2);
+  const totalTaxVal = breakup.total.toFixed(2);
   const sep = sepChar.repeat(charsPerLine);
 
   let out = '';
@@ -507,4 +501,19 @@ export function formatTaxBreakupSection(
 
   out += sep + '\n';
   return out;
+}
+
+export function resolveTaxBreakup(data: Pick<ReceiptData, 'tax' | 'invoiceType' | 'isB2B' | 'billSettings' | 'igst' | 'cgst' | 'sgst' | 'subtotal' | 'grandTotal'>) {
+  if (!data.tax || data.tax <= 0) return undefined;
+  const isGst = data.invoiceType === 'GST' || Boolean(data.isB2B);
+  if (!isGst && data.billSettings?.showBosTaxBreakup === false) return undefined;
+
+  const hasIgst = Boolean(data.igst && data.igst > 0);
+  const split = splitTaxAmount(data.tax);
+  const effectiveCgst = (data.cgst && data.cgst > 0) ? data.cgst : (!hasIgst ? split.cgst : 0);
+  const effectiveSgst = (data.sgst && data.sgst > 0) ? data.sgst : (!hasIgst ? split.sgst : 0);
+  const rawTaxable = (data.subtotal > 0 && Math.abs(data.subtotal + data.tax - data.grandTotal) < 0.05)
+    ? data.subtotal
+    : Math.max(0, data.grandTotal - data.tax);
+  return { taxable: rawTaxable, cgst: effectiveCgst, sgst: effectiveSgst, igst: data.igst || 0, total: data.tax };
 }

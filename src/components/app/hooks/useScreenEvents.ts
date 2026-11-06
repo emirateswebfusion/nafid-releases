@@ -8,6 +8,7 @@ import { isAiAssistantAvailable, type FeatureFlags, type FeatureKey } from '../.
 import { isDesktopRuntime } from '../../../data/client';
 import { isUaeStore } from '../../../utils/localization/storeProfile';
 import { bridgeEvents } from '../../../data/events';
+import { authApi } from '../../../data/auth';
 
 type ScreenFlag = 'setShowVariantsManager' | 'setShowGstReports' | 'setShowVatReports' | 'setShowAdsManager' | 'setShowAiAssistant' | 'setShowCashierSettlement' | 'setShowComboManager' | 'setShowCustomersPage' | 'setShowEcommercePortal' | 'setShowFinancialReport' | 'setShowInventoryManager' | 'setShowPartyManager' | 'setShowPaymentsPage' | 'setShowPurchaseBillManager' | 'setShowQuotationManager' | 'setShowRecycleBin' | 'setShowReturnManager' | 'setShowSalesHistory' | 'setShowScrapManager' | 'setShowSessionExpiredModal' | 'setShowSettingsGrades' | 'setShowSettingsManager' | 'setShowSettingsPricingTiers' | 'setShowStaffManager' | 'setShowStockReport' | 'setShowWarrantyManager';
 
@@ -358,9 +359,22 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     let unsubscribeTokenExpired: (() => void) | undefined;
     let unsubscribeScale: (() => void) | undefined;
     if (isDesktopRuntime()) {
-      const unsub = bridgeEvents.onTokenExpired(() => {
-        const currentToken = useAuthStore.getState().token;
-        if (currentToken && !isTokenExpired(currentToken)) {
+      const unsub = bridgeEvents.onTokenExpired(async (session) => {
+        const snapshot = useAuthStore.getState();
+        if (!snapshot.isAuthenticated) return;
+        let currentToken = snapshot.token;
+        // PIN users may use the terminal's cloud credential without owning that JWT themselves.
+        if (session && !currentToken) {
+          try {
+            const stored = await authApi.getToken();
+            const current = useAuthStore.getState();
+            if (!current.isAuthenticated || current.token !== snapshot.token || current.tenantId !== snapshot.tenantId || current.userId !== snapshot.userId) return;
+            if (stored?.tenant_id !== current.tenantId) return;
+            currentToken = stored?.jwt_token || null;
+          } catch { return; }
+        }
+        if (session && session.token !== currentToken) return;
+        if (!session && currentToken && !isTokenExpired(currentToken)) {
           console.warn('[App] Received token-expired event, but active token is valid. Suppressing session expired modal.');
           return;
         }

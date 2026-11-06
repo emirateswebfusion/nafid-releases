@@ -1,5 +1,8 @@
 import { bindBridge } from './client';
 
+/** Identifies the cloud session rejected by the sync worker, so delayed events cannot reject a newer login. */
+export interface RejectedCloudSession { token: string }
+
 /** User returned by `localAuthenticateUser` after an offline password check. */
 export interface OfflineAuthenticatedUser {
   user_id: string;

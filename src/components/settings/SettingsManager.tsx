@@ -1,10 +1,10 @@
+import { FloatToast } from '../ui/FloatToast';
 import { SettingsSaveSession } from './settingsSaveSession';
 import { SettingsSaveContext } from './hooks/useSettingsSectionSave';
 import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useMemo } from 'react';
-import { Settings, Save, Loader2, CheckCircle2, AlertCircle, X, Power } from 'lucide-react';
+import { Settings, Save, Loader2, AlertCircle, X, Power } from 'lucide-react';
 import { useCartStore } from '../../store/cartStore';
-import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
 import { Skeleton } from '../ui/Skeleton';
 import { Modal } from '../ui/Modal';
@@ -223,22 +223,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
   const renderMessage = () => {
     if (!message) return null;
     return (
-      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-2 w-full max-w-md pointer-events-none">
-        <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
-          <div className={clsx("p-2 rounded-xl shrink-0", message.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
-            {message.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-          </div>
-          <div className="flex-1 min-w-0 leading-snug">
-            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
-              {message.title || (message.type === 'success' ? 'SETTINGS SAVED' : 'SETTINGS ALERT')}
-            </span>
-            <span className="text-white font-bold text-xs block leading-tight">{message.text}</span>
-          </div>
-          <button onClick={() => setMessage(null)} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <FloatToast message={message} onClose={() => setMessage(null)} title={message.title || (message.type === 'success' ? 'SETTINGS SAVED' : 'SETTINGS ALERT')} duration={0} />
     );
   };
 
