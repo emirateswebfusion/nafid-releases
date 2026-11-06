@@ -117,11 +117,12 @@ let diagnosticCdp;
     assert.equal(hash(path.join(unpack, 'resources', file)), hash(path.join(release, 'win-unpacked/resources', file)), `Final EXE matches unpacked ${file}`);
   }
   const runtime = Object.fromEntries(fs.readFileSync(path.join(unpack, 'resources/app.env'), 'utf8').trim().split(/\r?\n/).filter(line => line && !line.startsWith('#')).map(line => { const i = line.indexOf('='); return [line.slice(0, i), line.slice(i + 1)]; }));
-  const { RUNTIME_ENV_KEYS } = require('../../scripts/runtime-env.cjs');
+  const { RUNTIME_ENV_KEYS, validateProductionCloudEnv } = require('../../scripts/runtime-env.cjs');
   // Validate against the canonical allow-list without exposing runtime values or credentials.
   for (const key of Object.keys(runtime)) assert.ok(RUNTIME_ENV_KEYS.includes(key), `Allowed runtime key ${key}`);
   for (const key of ['VITE_CLOUD_API', 'VENDORA_CLOUD_API']) { const url = new URL(runtime[key]); assert.equal(url.protocol, 'https:'); assert.ok(!/localhost|example|127\.0\.0\.1/.test(url.hostname)); }
   assert.equal(runtime.VITE_CLOUD_API, runtime.VENDORA_CLOUD_API);
+  validateProductionCloudEnv(runtime);
   assert.equal(runtime.UPDATES_REPO_URL, 'https://github.com/emirateswebfusion/nafid-releases');
   const updater = fs.readFileSync(path.join(unpack, 'resources/app-update.yml'), 'utf8');
   assert.match(updater, /owner: emirateswebfusion/); assert.match(updater, /repo: nafid-releases/); assert.doesNotMatch(updater, /token:/i);
@@ -129,7 +130,7 @@ let diagnosticCdp;
   assert.ok(latest.includes(`version: ${version}`)); assert.ok(latest.includes(exe)); assert.ok(latest.includes(hash(path.join(release, exe), 'sha512', 'base64')));
   report.sha256 = hash(path.join(release, exe)); report.checks.finalArtifact = true;
   const nativeScript = path.join(evidence, 'native.cjs');
-  fs.writeFileSync(nativeScript, `const assert=require('node:assert/strict'); const p=${JSON.stringify(path.join(unpack, 'resources'))}; const Database=require(p+'/app.asar/node_modules/better-sqlite3'); const db=new Database(':memory:');assert.equal(db.prepare('SELECT 42 AS result').get().result,42);db.close();assert.equal(require(p+'/app.asar/package.json').version,${JSON.stringify(version)});console.log('packaged-native-and-version-ok');`);
+  fs.writeFileSync(nativeScript, `const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'); const p=${JSON.stringify(path.join(unpack, 'resources'))}; const Database=require(p+'/app.asar/node_modules/better-sqlite3'); const db=new Database(':memory:');assert.equal(db.prepare('SELECT 42 AS result').get().result,42);db.close();assert.equal(require(p+'/app.asar/package.json').version,${JSON.stringify(version)});const assets=p+'/app.asar/dist/assets';assert.ok(fs.readdirSync(assets).filter(f=>f.endsWith('.js')).some(f=>fs.readFileSync(path.join(assets,f),'utf8').includes(${JSON.stringify(runtime.VITE_CLOUD_API)})),'Renderer must contain the approved production backend');console.log('packaged-native-version-and-endpoint-ok');`);
   command(path.join(unpack, 'Nafid.exe'), [nativeScript], { ...process.env, ELECTRON_RUN_AS_NODE: '1' });
   report.checks.packagedNative = true;
   report.signature = command('pwsh.exe', ['-NoProfile', '-Command', `(Get-AuthenticodeSignature -LiteralPath '${path.join(release, exe).replaceAll("'", "''")}').Status`]).trim();

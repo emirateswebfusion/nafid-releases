@@ -51,11 +51,12 @@ let mount;
   for (const file of ['app.asar', 'app.env', 'app-update.yml']) assert.equal(hash(path.join(mounted, file)), hash(path.join(resources, file)), `DMG payload matches ${file}`);
   command('hdiutil', ['detach', mount]); mount = null;
   report.checks.finalDmg = true;
-  const { RUNTIME_ENV_KEYS } = require('../../scripts/runtime-env.cjs');
+  const { RUNTIME_ENV_KEYS, validateProductionCloudEnv } = require('../../scripts/runtime-env.cjs');
   const env = Object.fromEntries(fs.readFileSync(path.join(resources, 'app.env'), 'utf8').trim().split(/\r?\n/).map(line => { const i = line.indexOf('='); return [line.slice(0, i), line.slice(i + 1)]; }));
   for (const key of Object.keys(env)) assert.ok(RUNTIME_ENV_KEYS.includes(key));
   for (const key of ['VITE_CLOUD_API', 'VENDORA_CLOUD_API']) { const url = new URL(env[key]); assert.equal(url.protocol, 'https:'); assert.ok(!/localhost|example|127\.0\.0\.1/.test(url.hostname)); }
   assert.equal(env.VITE_CLOUD_API, env.VENDORA_CLOUD_API);
+  validateProductionCloudEnv(env);
   assert.equal(env.UPDATES_REPO_URL, 'https://github.com/emirateswebfusion/nafid-releases');
   assert.match(fs.readFileSync(path.join(resources, 'app-update.yml'), 'utf8'), /repo: nafid-releases/);
   report.checks.publicConfiguration = true;

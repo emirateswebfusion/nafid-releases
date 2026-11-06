@@ -7,6 +7,12 @@ This is the canonical release gate for Nafid POS. It applies to every agent, dev
 - Build a clean, reviewed source tree that passed `verify` and `lint:ratchet`. Record its commit and version. Exclude unrelated uncommitted work. The source tag must identify the exact shipped tree; rebuild if source or build settings change after validation.
 - Each release worktree must have its own writable `node_modules`. Share the package-manager download store, not a dependency-directory junction: package-manager/packager operations can rewrite links to an ephemeral worktree and break the original checkout when it is removed.
 - Supply the approved production settings before both renderer compilation and packaging. Do not package with missing, blank, development, localhost, or placeholder cloud URLs. Renderer build-time settings and main-process runtime settings must agree.
+- The approved backend is `https://nafid.vercel.app`, owned by `PRODUCTION_CLOUD_API` in `scripts/runtime-env.cjs`.
+  `validateProductionCloudEnv` blocks packaging and final Windows/Mac artifact validation when either cloud key differs.
+  Both release workflows must supply this address (`runtimeEnv.test.ts` checks them). A backend-account migration must
+  update the renderer build environment, packaged `resources/app.env`, workflows and this approval together; changing
+  only backend hosting settings cannot change an already-installed app. Before release, probe the approved `/health`
+  and verify login availability without customer credentials. A healthy unrelated hostname is not release evidence.
 - Keep credentials on the build machine. `scripts/runtime-env.cjs` owns the public runtime allow-list; do not expand it to include tokens or signing secrets. Preserve configured signing credentials instead of erasing them.
 
 ## Platform scope
@@ -55,6 +61,17 @@ Record the source commit/tree, version, CI result, packaged configuration checks
 Merge and remove temporary release branches/worktrees after publication. Before removing a worktree, verify its absolute path, preserve required artifacts, and ensure dependency links in the main checkout do not point into it. A local repair does not establish that other shops have upgraded; provide older-version recovery instructions when necessary.
 
 ## Incident that motivated this gate
+
+On 6 November 2026, customer logs contained repeated HTTP 402 / `DEPLOYMENT_DISABLED` on cloud pushes and pulls.
+The v2.2.49 Windows/Mac workflow environments still selected `nafid-eta.vercel.app`, while the local production env
+selected the confirmed replacement `nafid.vercel.app`. Public probes reproduced 402 on the former and 200 on the
+latter. The release workflow defaults were corrected and endpoint validation added. This is a source correction;
+affected installed apps still need a newly built, fully validated installer. Do not overwrite v2.2.49 release assets.
+
+Endpoint correction verification: app/Electron typechecks, architecture guard, zero-error/zero-warning lint and all
+eight runtime-env tests passed. Full unit run: 1,224 passed, six trial-storage failures from restricted temp-file
+rename permissions; all nine trial-storage tests passed in the unrestricted rerun, alongside the eight endpoint
+tests. Packaged-check scripts passed syntax validation; no new installer was built or published in this correction.
 
 On 4 November 2026, the published v2.2.40 installer was confirmed to omit `app-update.yml` and ship an empty `app.env`. The installed app reported a generic download failure before it could read its update feed, and cloud sync lacked its base URL. v2.2.41's final installer configuration and public feed were verified, and v2.2.40 received a recovery notice. Future releases must validate the packaged configuration, not infer correctness from a successful build or source tests.
 

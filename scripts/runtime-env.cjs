@@ -6,6 +6,17 @@
 const fs = require('fs');
 const path = require('path');
 
+// Approved production backend. Update release workflows and the endpoint regression tests together on migration.
+const PRODUCTION_CLOUD_API = 'https://nafid.vercel.app';
+
+function validateProductionCloudEnv(env) {
+  for (const key of ['VITE_CLOUD_API', 'VENDORA_CLOUD_API']) {
+    if (env[key] !== PRODUCTION_CLOUD_API) {
+      throw new Error(`${key} must match the approved production backend; refusing to package a stale endpoint`);
+    }
+  }
+}
+
 const RUNTIME_ENV_KEYS = [
   'VITE_CLOUD_API',
   'VENDORA_CLOUD_API',
@@ -22,4 +33,4 @@ function writeRuntimeEnv(env, file) {
   return written;
 }
 
-module.exports = { RUNTIME_ENV_KEYS, writeRuntimeEnv };
+module.exports = { RUNTIME_ENV_KEYS, writeRuntimeEnv, PRODUCTION_CLOUD_API, validateProductionCloudEnv };

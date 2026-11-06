@@ -17,7 +17,7 @@ if (fs.existsSync(rceditCache)) {
 }
 
 
-const { writeRuntimeEnv } = require('./scripts/runtime-env.cjs');
+const { writeRuntimeEnv, validateProductionCloudEnv } = require('./scripts/runtime-env.cjs');
 
 // Installers and update metadata are published to a PUBLIC releases-only repo (UPDATES_REPO_URL), so installed
 // apps update without any token. GH_TOKEN stays on the build machine and is used only to upload the release.
@@ -27,6 +27,7 @@ const productionEnvFile = path.join(__dirname, '.env.production');
 const releaseEnv = fs.existsSync(productionEnvFile) ? require('dotenv').parse(fs.readFileSync(productionEnvFile)) : process.env;
 const repoUrl = releaseEnv.UPDATES_REPO_URL || process.env.UPDATES_REPO_URL || '';
 const runtimeEnvFile = path.join(__dirname, 'release', 'runtime', 'app.env');
+validateProductionCloudEnv(releaseEnv);
 writeRuntimeEnv(releaseEnv, runtimeEnvFile);
 
 const legacyParts = (releaseEnv.LEGACY_PRIVATE_REPO_URL || process.env.LEGACY_PRIVATE_REPO_URL || '').replace(/^https?:\/\/[^\/]+\//, '').split('/');

@@ -26,8 +26,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     env:
-      VITE_CLOUD_API: https://nafid-eta.vercel.app
-      VENDORA_CLOUD_API: https://nafid-eta.vercel.app
+      VITE_CLOUD_API: https://nafid.vercel.app
+      VENDORA_CLOUD_API: https://nafid.vercel.app
       VENDORA_SYNC_INTERVAL_MINUTES: '2.0'
       ALLOWED_CONNECT_ORIGINS: https://nafid-server.vercel.app,https://nafid.vercel.app,https://vendora-server.vercel.app,https://vendora-server-ruby.vercel.app,https://clients3.google.com,https://nafid-web-portal.vercel.app,https://nafid.emirateswebfusion.com
       UPDATES_REPO_URL: https://github.com/emirateswebfusion/nafid-releases

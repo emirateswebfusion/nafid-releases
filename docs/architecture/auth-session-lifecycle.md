@@ -58,6 +58,14 @@ successfully reached the empty-login validation route, so the customer's origina
 exactly. The dedicated main login path removes that renderer-origin dependency; it does not establish that CORS was
 the customer's sole cause. A previous **Cloud Synced** badge likewise was not proof of completed uploads.
 
+Subsequent customer logs and the reconnect screenshot established a separate, concrete hosting failure: repeated
+HTTP 402 / `DEPLOYMENT_DISABLED`. The v2.2.49 release workflows selected the retired `nafid-eta.vercel.app`
+endpoint, which reproduced that response; the owner confirmed `nafid.vercel.app` as the replacement production
+backend, whose health probe returned 200. Changing backend hosting does not rewrite renderer build-time URLs or
+the installed `resources/app.env`. See [release validation](release-validation.md) for the corrected configuration,
+mandatory endpoint checks and the need for a new validated installer. Earlier session fixes cannot restore a disabled
+cloud deployment by themselves.
+
 ## Verification
 
 Relevant suites: `quickPinLogin`, `pinSessionReadiness.ui`, `cloudLoginService`, `cloudLoginBridge.ui`,
