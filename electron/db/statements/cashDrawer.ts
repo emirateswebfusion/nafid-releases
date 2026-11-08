@@ -164,9 +164,11 @@ export const updatePaymentSourceCurrentBalance = (db: Db) => db.prepare(`UPDATE 
 /** Cash entries with current ledger values; ledger ids are stored in the existing category field. */
 export const listRegisterCashTransactions = (db: Db) => db.prepare(`
   SELECT t.*, l.ledger_id, l.transaction_date AS ledger_date,
-    l.credit_amount, l.debit_amount, l.payment_method AS ledger_method, l.is_deleted AS ledger_deleted
+    l.credit_amount, l.debit_amount, l.payment_method AS ledger_method, l.is_deleted AS ledger_deleted,
+    p.name AS party_name
   FROM cash_transactions t
   LEFT JOIN party_ledger l ON t.category = 'PARTY_LEDGER:' || l.ledger_id
+  LEFT JOIN parties p ON l.party_id = p.party_id
   WHERE (t.tenant_id = ? OR t.tenant_id IN ('global', 'unset') OR t.tenant_id IS NULL)
     AND (t.drawer_id = ? OR ((t.drawer_id IS NULL OR t.drawer_id NOT IN (SELECT drawer_id FROM cash_drawer))
       AND datetime(t.transaction_date) > datetime(?) AND (? IS NULL OR datetime(t.transaction_date) <= datetime(?))))
@@ -209,7 +211,7 @@ export const insertLinkedLedgerCashEntry = (db: Db) => db.prepare(`
     (SELECT drawer_id FROM cash_drawer WHERE tenant_id = l.tenant_id AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1),
     CASE WHEN l.credit_amount > l.debit_amount THEN 'CASH_OUT' ELSE 'CASH_IN' END,
     ABS(l.credit_amount - l.debit_amount), 'PARTY_LEDGER:' || l.ledger_id, l.description,
-    l.created_by, l.created_by_name, CURRENT_TIMESTAMP, 'PENDING'
+    l.created_by, l.created_by_name, COALESCE(l.transaction_date, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), 'PENDING'
   FROM party_ledger l WHERE l.tenant_id = ? AND l.ledger_id = ? AND UPPER(l.payment_method) = 'CASH'
     AND COALESCE(l.is_deleted, 0) = 0 AND ABS(l.credit_amount - l.debit_amount) > 0
   ON CONFLICT(transaction_id) DO NOTHING

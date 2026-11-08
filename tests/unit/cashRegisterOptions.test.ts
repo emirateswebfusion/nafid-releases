@@ -17,7 +17,8 @@ function fixture() {
     CREATE TABLE invoices (tenant_id TEXT, converted_from_invoice_id TEXT, payment_method TEXT, grand_total REAL, received_amount REAL, split_details TEXT, invoice_type TEXT, is_held INTEGER, is_deleted INTEGER, settled_at TEXT, created_at TEXT);
     ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1;
     CREATE TABLE cash_transactions (tenant_id TEXT, drawer_id TEXT, type TEXT, amount REAL, category TEXT, transaction_date TEXT, transaction_id TEXT PRIMARY KEY, notes TEXT, entered_by TEXT, entered_by_name TEXT, sync_status TEXT);
-    CREATE TABLE party_ledger (ledger_id TEXT, transaction_date TEXT, credit_amount REAL, debit_amount REAL, payment_method TEXT, is_deleted INTEGER, tenant_id TEXT DEFAULT 't', description TEXT, created_by TEXT, created_by_name TEXT);
+    CREATE TABLE parties (party_id TEXT, tenant_id TEXT, name TEXT);
+    CREATE TABLE party_ledger (ledger_id TEXT, party_id TEXT, transaction_date TEXT, credit_amount REAL, debit_amount REAL, payment_method TEXT, is_deleted INTEGER, tenant_id TEXT DEFAULT 't', description TEXT, created_by TEXT, created_by_name TEXT);
     CREATE TABLE returns (tenant_id TEXT, grand_total REAL, refund_method TEXT, created_at TEXT, return_id TEXT DEFAULT 'r', return_number TEXT DEFAULT 'RET-1', user_id TEXT);
     INSERT INTO invoices (tenant_id, converted_from_invoice_id, payment_method, grand_total, received_amount, split_details, invoice_type, is_held, is_deleted, settled_at, created_at) VALUES ('t', NULL, 'CASH', 100, 100, NULL, 'GST', 0, 0, NULL, '2026-10-27T05:00:00Z');
     INSERT INTO cash_transactions (tenant_id, drawer_id, type, amount, category, transaction_date) VALUES ('t', 'd', 'CASH_IN', 30, 'SCRAP_SALE', '2026-10-27T05:00:00Z');
@@ -79,6 +80,17 @@ describe('shared cash register totals', () => {
     expect(computeDrawerTotals(db, 't', drawer).cash_in).toBe(mode === 'all' ? 70 : 30);
     sql.close();
   });
+  it('excludes even same-day party receipts when raw unquoted string setting is off', () => {
+    const { sql, db, drawer } = fixture();
+    sql.prepare("INSERT INTO settings (tenant_id, key, value) VALUES ('t', 'cash_register_ledger_mode', 'off')").run();
+    sql.exec(`INSERT INTO party_ledger (ledger_id, transaction_date, credit_amount, debit_amount, payment_method, is_deleted) VALUES ('l-today', '2026-10-27T05:00:00Z', 0, 10000, 'CASH', 0);
+      INSERT INTO cash_transactions (tenant_id, drawer_id, type, amount, category, transaction_date) VALUES ('t', 'd', 'CASH_IN', 10000, 'PARTY_LEDGER:l-today', '2026-10-27T05:00:00Z')`);
+    const entries = getRegisterCashEntries(db, 't', drawer);
+    expect(entries.some(e => e.category === 'Party Receipt')).toBe(false);
+    expect(computeDrawerTotals(db, 't', drawer).cash_in).toBe(30);
+    expect(computeDrawerTotals(db, 't', drawer).expected).toBe(160);
+    sql.close();
+  });
   it('uses the same filtered cash flow in the WhatsApp closing overview', () => {
     const { sql, db, drawer, setting } = fixture();
     setting('cash_register_include_scrap_sales', false);
@@ -137,6 +149,23 @@ describe('shared cash register totals', () => {
     const { sql, db, drawer } = fixture();
     sql.exec('DELETE FROM returns');
     expect(computeDrawerTotals(db, 't', drawer).cash_out).toBe(0);
+    sql.close();
+  });
+  it('includes party name in notes and preserves ledger transaction timestamp in feed', () => {
+    const { sql, db, drawer, setting } = fixture();
+    setting('cash_register_ledger_mode', 'today');
+    sql.exec(`INSERT INTO parties (party_id, tenant_id, name) VALUES ('p1', 't', 'Al Noor Trading');
+      INSERT INTO party_ledger (ledger_id, party_id, transaction_date, credit_amount, debit_amount, payment_method, is_deleted, description)
+      VALUES ('l1', 'p1', '2026-10-27T10:15:00.000Z', 0, 500, 'CASH', 0, 'Advance payment');
+      INSERT INTO cash_transactions (tenant_id, drawer_id, type, amount, category, notes, transaction_date)
+      VALUES ('t', 'd', 'CASH_IN', 500, 'PARTY_LEDGER:l1', 'Advance payment', '2026-10-27T06:15:00.000Z');`);
+    const entries = getRegisterCashEntries(db, 't', drawer);
+    const entry = entries.find(r => r.source === 'ledger');
+    expect(entry).toBeDefined();
+    expect(entry?.category).toBe('Party Receipt');
+    expect(entry?.notes).toBe('Al Noor Trading — Advance payment');
+    expect(entry?.party_name).toBe('Al Noor Trading');
+    expect(entry?.transaction_date).toBe('2026-10-27T10:15:00.000Z');
     sql.close();
   });
 });

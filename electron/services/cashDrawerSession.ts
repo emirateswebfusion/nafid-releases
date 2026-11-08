@@ -156,11 +156,13 @@ interface CashRegisterEntry extends CashTransactionRow {
   created_at: string | null; updated_at: string | null; reference_number: string | null;
   sync_status: string | null; row_version: number; origin: string | null;
   source?: 'ledger' | 'return';
+  party_name?: string | null;
 }
 
 interface RegisterCashEntry extends CashRegisterEntry {
   ledger_id?: string; ledger_date?: string; credit_amount?: number; debit_amount?: number;
   ledger_method?: string; ledger_deleted?: number;
+  party_name?: string;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -199,11 +201,19 @@ export function getRegisterCashEntries(db: Db, tenantId: string, drawer: DrawerR
         if (timestamp === null || new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(timestamp)) !== businessDate) continue;
       }
     }
+    const partyName = row.party_name?.trim();
+    const existingNotes = row.notes?.trim();
+    const displayNotes = (linkedLedger && partyName)
+      ? (existingNotes ? `${partyName} — ${existingNotes}` : partyName)
+      : row.notes;
+    const effectiveTxDate = (linkedLedger && row.ledger_date) ? row.ledger_date : row.transaction_date;
+
     entries.push({
       transaction_id: row.transaction_id, tenant_id: row.tenant_id, drawer_id: row.drawer_id, type, amount,
       category: linkedLedger ? (type === 'CASH_IN' ? 'Party Receipt' : 'Party Payment') : row.category,
-      notes: row.notes, reference_number: row.reference_number, entered_by: row.entered_by,
-      entered_by_name: row.entered_by_name, transaction_date: row.transaction_date,
+      notes: displayNotes, reference_number: row.reference_number, entered_by: row.entered_by,
+      entered_by_name: row.entered_by_name, transaction_date: effectiveTxDate,
+      party_name: partyName || undefined,
       sync_status: row.sync_status, created_at: row.created_at, updated_at: row.updated_at,
       row_version: row.row_version, origin: row.origin, source: linkedLedger ? 'ledger' : undefined,
     });

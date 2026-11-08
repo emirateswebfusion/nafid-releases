@@ -5,7 +5,7 @@ export function getCashRegisterPreferences(db: Db, tenantId: string) {
   const read = (key: string): unknown => {
     const row = findDrawerSetting(db).get(tenantId, key, tenantId) as { value?: unknown } | undefined;
     if (typeof row?.value !== 'string') return row?.value;
-    try { return JSON.parse(row.value); } catch { return undefined; }
+    try { return JSON.parse(row.value); } catch { return row.value; }
   };
   const ledger = read('cash_register_ledger_mode');
   const methods = read('cash_register_payment_methods');

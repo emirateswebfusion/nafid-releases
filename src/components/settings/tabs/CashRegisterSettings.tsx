@@ -65,6 +65,7 @@ export function CashRegisterSettings() {
       const values = [cur.options.scrap, cur.options.returns, cur.options.ledger, cur.options.methods];
       await Promise.all(KEYS.map((key, index) => setSetting({ tenant_id: tenantId, key, value: values[index] })));
       setSavedOptions(cur.options);
+      window.dispatchEvent(new CustomEvent('settings:updated'));
       setStatus({ text: 'Cash register options saved. Reopen the register to see updated totals.', type: 'success' });
     } catch (error) {
       setStatus({ text: 'Could not save all cash register options. Please retry.', type: 'error' });
