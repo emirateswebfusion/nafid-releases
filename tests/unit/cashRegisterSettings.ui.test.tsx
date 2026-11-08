@@ -7,7 +7,6 @@ import { ReturnCashRegisterNote } from '../../src/components/returns/ReturnCashR
 const mocks = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), role: 'ADMIN' }));
 vi.mock('../../src/data/settings', () => ({ getSetting: mocks.get, setSetting: mocks.set }));
 vi.mock('../../src/store/authStore', () => ({ useAuthStore: (selector: (state: { tenantId: string; role: string }) => unknown) => selector({ tenantId: 't', role: mocks.role }) }));
-vi.mock('../../src/components/ui/Select', () => ({ Select: ({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: Array<{value: string; label: string}> }) => <select aria-label="Ledger date option" value={value} onChange={e => onChange(e.target.value)}>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select> }));
 
 import { SettingsSaveContext } from '../../src/components/settings/hooks/useSettingsSectionSave';
 import { SettingsSaveSession } from '../../src/components/settings/settingsSaveSession';
@@ -22,12 +21,13 @@ describe('cash register settings controls', () => {
     await waitFor(() => expect((screen.getByLabelText('Include cash received from scrap sales in Cash In') as HTMLInputElement).disabled).toBe(false));
     fireEvent.click(screen.getByLabelText('Include cash received from scrap sales in Cash In'));
     fireEvent.click(screen.getByLabelText('Deduct cash return refunds from the cash register'));
-    fireEvent.change(screen.getByLabelText('Ledger date option'), { target: { value: 'today' } });
+    // Ledger defaults to today; toggle to all to verify option change
+    fireEvent.click(screen.getByLabelText('Include past dates / all entries'));
     fireEvent.click(screen.getByLabelText('UPI'));
     await act(async () => { await session.save().catch(() => undefined); });
     await waitFor(() => expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_include_scrap_sales', value: false }));
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_deduct_returns', value: false });
-    expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_ledger_mode', value: 'today' });
+    expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_ledger_mode', value: 'all' });
     expect(mocks.set).toHaveBeenCalledWith({ tenant_id: 't', key: 'cash_register_payment_methods', value: ['UPI'] });
   });
   it('restores saved options and keeps staff controls disabled', async () => {
@@ -36,6 +36,7 @@ describe('cash register settings controls', () => {
     render(<SettingsSaveContext.Provider value={{ session, changed }}><CashRegisterSettings /></SettingsSaveContext.Provider>);
     await waitFor(() => expect((screen.getByLabelText('CARD') as HTMLInputElement).checked).toBe(true));
     expect((screen.getByLabelText('Deduct cash return refunds from the cash register') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText('Show party ledger cash entries in the Cash Register') as HTMLInputElement).checked).toBe(false);
     expect(screen.getByLabelText('CARD').closest('fieldset')?.disabled).toBe(true);
   });
   it('shows a save failure instead of claiming success', async () => {

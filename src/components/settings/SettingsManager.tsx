@@ -2,7 +2,7 @@ import { FloatToast } from '../ui/FloatToast';
 import { SettingsSaveSession } from './settingsSaveSession';
 import { SettingsSaveContext } from './hooks/useSettingsSectionSave';
 import { localizeTaxText } from '../../utils/localization/storeProfile';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Settings, Save, Loader2, AlertCircle, X, Power } from 'lucide-react';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
@@ -60,12 +60,23 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
   const saveContext = useMemo(() => ({ session: saveSession, changed: () => refreshSections(v => v + 1) }), [saveSession]);
   const [visited, setVisited] = useState<string[]>([initialSection || (isAdminRole(role) ? 'store' : 'hardware')]);
   const [activeSection, setActiveSection] = useState(isAdminRole(role) ? (initialSection || 'store') : 'hardware');
-  const selectSection = (id: string) => {
+  const selectSection = useCallback((id: string) => {
     setVisited(current => current.includes(id) ? current : [...current, id]);
     setActiveSection(id);
     if (id === 'hardware') setActiveHardwareTab('receipt');
     if (id === 'products') setActiveProductsTab('coding');
-  };
+  }, [setActiveHardwareTab, setActiveProductsTab]);
+
+  useEffect(() => {
+    const handleOpenSection = (e: Event) => {
+      const ce = e as CustomEvent<string>;
+      if (ce.detail) {
+        selectSection(ce.detail);
+      }
+    };
+    window.addEventListener('open-settings-section', handleOpenSection);
+    return () => window.removeEventListener('open-settings-section', handleOpenSection);
+  }, [selectSection]);
 
   const shopDomain = useCartStore((state) => state.shopDomain);
   const [localDomain] = useState(shopDomain || 'GENERAL');

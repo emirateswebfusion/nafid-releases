@@ -1,7 +1,7 @@
 import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import React from 'react';
-import { Receipt } from 'lucide-react';
+import { Receipt, Calendar } from 'lucide-react';
 import { Input } from '../../ui/Input';
 import type { SettingsForm } from '../settingsFormTypes';
 
@@ -43,6 +43,30 @@ export const NumberingSettingsTab: React.FC<NumberingSettingsTabProps> = ({
 }) => {
   return (
           <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Quick FY Banner */}
+            <div className="flex items-center justify-between p-4 rounded-2xl border border-primary/20 bg-primary/5 gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-foreground block truncate">
+                    Starting a new Financial Year?
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Reset invoice counters to 001 and manage rollover in Financial Year.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-settings-section', { detail: 'financial_year' }))}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer shrink-0"
+              >
+                Financial Year →
+              </button>
+            </div>
+
             {/* Card 3: Invoice Counter & Series */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-blue-500/20 transition-all duration-300">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">

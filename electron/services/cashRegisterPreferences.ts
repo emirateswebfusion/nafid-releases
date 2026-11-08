@@ -12,7 +12,7 @@ export function getCashRegisterPreferences(db: Db, tenantId: string) {
   return {
     includeScrapSales: read('cash_register_include_scrap_sales') !== false,
     deductReturns: read('cash_register_deduct_returns') !== false,
-    ledgerMode: ledger === 'off' || ledger === 'today' ? ledger : 'all',
+    ledgerMode: ledger === 'off' || ledger === 'all' ? ledger : 'today',
     paymentMethods: Array.isArray(methods) ? methods.filter((m): m is string => typeof m === 'string' && ['UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE'].includes(m)) : [],
   };
 }

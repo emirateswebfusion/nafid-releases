@@ -4,13 +4,16 @@ import { Clock, Globe } from 'lucide-react';
 import { getStoreTimezone, SUPPORTED_TIMEZONES } from '../../utils/time/timezoneHelper';
 import { getAppTimeFormat } from '../../utils/print/receiptGenerator';
 import clsx from 'clsx';
+import { FinancialYearDropup } from './FinancialYearDropup';
 
 interface DigitalClockProps {
   className?: string;
-  variant?: 'card' | 'pill' | 'footer';
+  variant?: 'card' | 'pill' | 'footer' | 'header';
+  showSeconds?: boolean;
+  showDate?: boolean;
 }
 
-export function DigitalClock({ className, variant = 'pill' }: DigitalClockProps) {
+export function DigitalClock({ className, variant = 'pill', showSeconds, showDate = true }: DigitalClockProps) {
   const [now, setNow] = useState<Date>(new Date());
   const [storeTz, setStoreTz] = useState<string>(getStoreTimezone());
   const [timeFmt, setTimeFmt] = useState<'12h' | '24h'>(getAppTimeFormat());
@@ -129,6 +132,57 @@ export function DigitalClock({ className, variant = 'pill' }: DigitalClockProps)
     );
   }
 
+  if (variant === 'header') {
+    let headerDateStr = '';
+    if (showDate) {
+      try {
+        headerDateStr = now.toLocaleDateString('en-US', {
+          timeZone: storeTz,
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+        });
+      } catch {
+        headerDateStr = storeDate(now, 'en-US');
+      }
+    }
+
+    const withSeconds = showSeconds ?? false;
+    let timeFormatted: string;
+    try {
+      timeFormatted = now.toLocaleTimeString(is12h ? 'en-US' : 'en-GB', {
+        timeZone: storeTz,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: withSeconds ? '2-digit' : undefined,
+        hour12: is12h,
+      });
+    } catch {
+      timeFormatted = storeTime(
+        now,
+        is12h ? 'en-US' : 'en-GB',
+        withSeconds
+          ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+          : { hour: '2-digit', minute: '2-digit' }
+      );
+    }
+
+    const tzCode = tzShortLabel.split(' ')[0] || 'IST';
+
+    return (
+      <div className={clsx('flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium leading-none', className)}>
+        {showDate && headerDateStr && (
+          <>
+            <span>{headerDateStr}</span>
+            <span className="text-muted-foreground/50">•</span>
+          </>
+        )}
+        <span className="font-mono font-semibold text-foreground/90">{timeFormatted}</span>
+        <span className="px-1.5 py-0.2 rounded bg-muted text-[9px] font-bold text-muted-foreground uppercase tracking-wider">{tzCode}</span>
+      </div>
+    );
+  }
+
   if (variant === 'footer') {
     return (
       <div
@@ -136,22 +190,8 @@ export function DigitalClock({ className, variant = 'pill' }: DigitalClockProps)
           'flex items-center gap-2 text-xs text-muted-foreground select-none flex-wrap',
           className
         )}
-        title={`Store Timezone: ${tzMatch?.label || storeTz} (${is12h ? '12h format' : '24h format'})`}
       >
-        <div className="flex items-center gap-1.5 font-mono font-extrabold text-foreground bg-card px-2.5 py-1 rounded-lg border border-border/80 shadow-2xs">
-          <Clock className="w-3.5 h-3.5 text-primary animate-pulse shrink-0" />
-          <span>{timeMain}</span>
-          {is12h && amPmStr && (
-            <span className="text-[10px] font-extrabold text-primary uppercase">
-              {amPmStr}
-            </span>
-          )}
-        </div>
-        <span className="hidden sm:inline text-muted-foreground/60">•</span>
-        <span className="hidden sm:inline font-medium text-[11px]">{dateStr}</span>
-        <span className="hidden md:inline px-1.5 py-0.5 rounded bg-muted text-[9px] font-bold text-muted-foreground/80 uppercase">
-          {tzShortLabel.split(' ')[0]}
-        </span>
+        <FinancialYearDropup />
         <span className="text-muted-foreground/60">•</span>
         <span className="font-semibold text-foreground/80">© {now.getFullYear()} Nafid</span>
       </div>

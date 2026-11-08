@@ -45,7 +45,7 @@ src/
     pricing/              productDiscounts (product/variant drafts and MRP recalculation), money, line pricing, checkout lines, pricing tiers, invoice numbering, sales-history amounts/tax
     print/                receipt / invoice / quotation / ledger generators (receipt/, invoiceHtml/ split by style), UPI, WhatsApp bill;
                           UAE documents: uaeInvoice (A4 + thermal), uaeLabels (English/Arabic labels, titles, Arabic setting)
-    time/                 store time zone, date display, shop closing (business day)
+    time/                 store time zone, date display, shop closing (business day), financial year lifecycle and rollover
     security/             permissions, staff data masking, emergency purge
   services/               long-running renderer services (offline AI engine, FusionCart client)
     offlineAi/            offline AI engine: intentParser + intentRules* (question → intent), handlers/<domain>

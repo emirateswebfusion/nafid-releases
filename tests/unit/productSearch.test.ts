@@ -7,9 +7,18 @@ const ids = (rows: { product_id: string }[]) => rows.map(r => r.product_id);
 
 describe('product search results', () => {
   it('lists combos first, mapped into product rows', () => {
-    const rows = buildProductSearchResults([p('Rice Plate')], [{ combo_id: 'c1', name: 'Rice Combo', combo_price: 99, items: [] }], 'rice', opts);
+    const rows = buildProductSearchResults([p('Rice Plate')], [{ combo_id: 'c1', name: 'Rice Combo', combo_price: 99, items: [{ product_stock: 5, quantity: 1 }] }], 'rice', opts);
     expect(ids(rows)).toEqual(['c1', 'Rice Plate']);
-    expect(rows[0]).toMatchObject({ isCombo: true, uom: 'Combo', base_price: 99, current_stock: 0 });
+    expect(rows[0]).toMatchObject({ isCombo: true, uom: 'Combo', base_price: 99, current_stock: 5 });
+  });
+
+  it('places in-stock items before out-of-stock items while preserving relevance rank within each group', () => {
+    const outOfStock = p('Rice A', { current_stock: 0 });
+    const inStock = p('Rice B', { current_stock: 5 });
+    const outOfStockCombo = { combo_id: 'c_out', name: 'Rice Combo Out', combo_price: 50, items: [] };
+    const inStockCombo = { combo_id: 'c_in', name: 'Rice Combo In', combo_price: 50, items: [{ product_stock: 2, quantity: 1 }] };
+    const rows = buildProductSearchResults([outOfStock, inStock], [outOfStockCombo, inStockCombo], 'rice', opts);
+    expect(ids(rows)).toEqual(['c_in', 'Rice B', 'c_out', 'Rice A']);
   });
 
   it('derives combo stock from the limiting component and required quantity', () => {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { FilingOnlySettings } from '../FilingOnlySettings';
+import { FinancialYearSettings } from '../FinancialYearSettings';
 import { UaeEinvoiceSettings } from '../UaeEinvoiceSettings';
 import { EmergencyPurgeSettings } from '../EmergencyPurgeSettings';
 import { StaffDataMaskingSettings } from '../StaffDataMaskingSettings';
@@ -89,6 +90,8 @@ export function SettingsSectionContent({
       );
     case 'filing_only':
       return <FilingOnlySettings tenantId={tenantId} />;
+    case 'financial_year':
+      return <FinancialYearSettings tenantId={tenantId} terminalCode={terminalCode} />;
     case 'uae_einvoice':
       return <UaeEinvoiceSettings tenantId={tenantId} />;
     case 'store':

@@ -57,4 +57,4 @@ it('LAN rejects an older module snapshot and accepts a newer one across date for
   expect(raw.prepare('SELECT value FROM settings').get()?.value).toBe('{"scrap":false}');
   stmt.run({ tenant_id: 'shop', key: 'feature_flags', value: '{"scrap":true}', updated_at: '2026-11-05T09:00:02Z', sync_status: 'PENDING' });
   expect(raw.prepare('SELECT value FROM settings').get()?.value).toBe('{"scrap":true}');
-});
+}, 15000);

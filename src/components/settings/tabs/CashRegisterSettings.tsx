@@ -5,12 +5,11 @@ import { ArrowDownToLine, BookOpen, CreditCard, Info, Lock } from 'lucide-react'
 import { getSetting, setSetting } from '../../../data/settings';
 import { useAuthStore } from '../../../store/authStore';
 import { isAdminRole } from '../../../utils/security/permissions';
-import { Select } from '../../ui/Select';
 import { SwitchField } from '../views/SettingsControls';
 
 const KEYS = ['cash_register_include_scrap_sales', 'cash_register_deduct_returns', 'cash_register_ledger_mode', 'cash_register_payment_methods'] as const;
 const METHODS = ['UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE'];
-const DEFAULT_OPTIONS = { scrap: true, returns: true, ledger: 'all', methods: [] as string[] };
+const DEFAULT_OPTIONS = { scrap: true, returns: true, ledger: 'today', methods: [] as string[] };
 type Options = typeof DEFAULT_OPTIONS;
 
 function GroupTitle({ icon: Icon, title, hint }: { icon: typeof Info; title: string; hint: string }) {
@@ -45,7 +44,12 @@ export function CashRegisterSettings() {
     let active = true;
     Promise.all(KEYS.map(key => getSetting({ tenant_id: tenantId, key }))).then(([scrap, returns, ledger, methods]) => {
       if (!active) return;
-      const loaded = { scrap: scrap !== false, returns: returns !== false, ledger: ledger === 'off' || ledger === 'today' ? ledger : 'all', methods: Array.isArray(methods) ? methods.filter((m): m is string => typeof m === 'string' && METHODS.includes(m)) : [] };
+      const loaded = {
+        scrap: scrap !== false,
+        returns: returns !== false,
+        ledger: ledger === 'off' || ledger === 'all' ? ledger : 'today',
+        methods: Array.isArray(methods) ? methods.filter((m): m is string => typeof m === 'string' && METHODS.includes(m)) : [],
+      };
       setOptions(loaded); setSavedOptions(loaded);
       setReady(true);
     }).catch(() => { if (active) setStatus({ text: 'Could not load cash register options. Reopen settings to retry.', type: 'error' }); });
@@ -73,8 +77,6 @@ export function CashRegisterSettings() {
   const dirty = JSON.stringify(options) !== JSON.stringify(savedOptions);
   const locked = !ready || saving || !canEdit;
 
-
-
   useSettingsSectionSave(ready && dirty, save);
 
   return <fieldset disabled={locked} className="space-y-6 min-w-0">
@@ -99,15 +101,53 @@ export function CashRegisterSettings() {
 
     <div>
       <GroupTitle icon={BookOpen} title="Direct cash ledger entries" hint="Cash received or paid directly in party ledgers" />
-      <div className="p-4 bg-muted/30 border border-border rounded-2xl space-y-2.5">
-        <Select value={options.ledger} onChange={ledger => update({ ledger })} options={[
-          { value: 'off', label: 'Exclude ledger entries' },
-          { value: 'today', label: 'Include entries dated the register business day' },
-          { value: 'all', label: 'Include entries entered during this session, with any date' },
-        ]} disabled={locked} />
+      <div className="p-4 bg-muted/30 border border-border rounded-2xl space-y-3">
+        <SwitchField
+          id="cash-register-ledger-toggle"
+          label="Show party ledger cash entries in the Cash Register"
+          description="Reflect direct cash transactions from party and supplier ledger in the register drawer."
+          checked={options.ledger !== 'off'}
+          onChange={checked => update({ ledger: checked ? 'today' : 'off' })}
+          disabled={locked}
+        />
+        {options.ledger !== 'off' && (
+          <div className="pt-2 border-t border-border/50 pl-1 space-y-2">
+            <p className="text-[11px] font-bold text-foreground uppercase tracking-wider">Entries to include:</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className={clsx(
+                'flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all',
+                options.ledger === 'today' ? 'bg-primary/10 border-primary text-primary' : 'bg-background border-border text-muted-foreground hover:text-foreground',
+              )}>
+                <input
+                  type="radio"
+                  name="cash-register-ledger-scope"
+                  className="accent-[var(--primary)]"
+                  checked={options.ledger === 'today'}
+                  onChange={() => update({ ledger: 'today' })}
+                  disabled={locked}
+                />
+                <span>Today only (register business day)</span>
+              </label>
+              <label className={clsx(
+                'flex items-center gap-2.5 p-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all',
+                options.ledger === 'all' ? 'bg-primary/10 border-primary text-primary' : 'bg-background border-border text-muted-foreground hover:text-foreground',
+              )}>
+                <input
+                  type="radio"
+                  name="cash-register-ledger-scope"
+                  className="accent-[var(--primary)]"
+                  checked={options.ledger === 'all'}
+                  onChange={() => update({ ledger: 'all' })}
+                  disabled={locked}
+                />
+                <span>Include past dates / all entries</span>
+              </label>
+            </div>
+          </div>
+        )}
         <p className="flex items-start gap-2 text-[11px] text-muted-foreground leading-relaxed">
           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          Older ledger cash entries use their cash-entry date because their original ledger date was not linked. Drawers closed before session tracking keep their saved cash totals.
+          When 'Today only' is selected, old/backdated ledger entries are excluded from the register.
         </p>
       </div>
     </div>
