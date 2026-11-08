@@ -3,6 +3,7 @@ import { storeDate } from '../../utils/time/dateDisplay';
 import { useState, useRef, useEffect } from 'react';
 import { Calendar, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
+import { getCurrentFinancialYear, getPreviousFinancialYear } from '../../utils/time/financialYear';
 
 interface DateRangeFilterProps {
   startDate: string;
@@ -263,6 +264,54 @@ export function DateRangeFilter({ startDate, endDate, onChange, align = 'left', 
           "absolute top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 animate-in fade-in slide-in-from-top-2 max-h-[calc(100vh-180px)] overflow-y-auto",
           effectiveAlign === 'right' ? "right-0" : "left-0"
         )}>
+          {/* Quick Presets row */}
+          <div className="flex items-center gap-1.5 mb-2.5 pb-2 border-b border-border/60 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => {
+                const today = storeDate(new Date(), 'en-CA');
+                setTempStartDate(today);
+                setTempEndDate(today);
+                const [y, m] = today.split('-').map(Number);
+                setCurrentYear(y);
+                setCurrentMonth(m - 1);
+              }}
+              className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const currentFy = getCurrentFinancialYear();
+                setTempStartDate(currentFy.startDate);
+                setTempEndDate(currentFy.endDate);
+                const [y, m] = currentFy.startDate.split('-').map(Number);
+                setCurrentYear(y);
+                setCurrentMonth(m - 1);
+              }}
+              className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-primary/10 hover:bg-primary/20 text-primary transition-colors shrink-0 cursor-pointer"
+              title={`${getCurrentFinancialYear().label} (${getCurrentFinancialYear().startDate} to ${getCurrentFinancialYear().endDate})`}
+            >
+              {getCurrentFinancialYear().shortLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const prevFy = getPreviousFinancialYear(getCurrentFinancialYear());
+                setTempStartDate(prevFy.startDate);
+                setTempEndDate(prevFy.endDate);
+                const [y, m] = prevFy.startDate.split('-').map(Number);
+                setCurrentYear(y);
+                setCurrentMonth(m - 1);
+              }}
+              className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
+              title={`${getPreviousFinancialYear(getCurrentFinancialYear()).label} (${getPreviousFinancialYear(getCurrentFinancialYear()).startDate} to ${getPreviousFinancialYear(getCurrentFinancialYear()).endDate})`}
+            >
+              {getPreviousFinancialYear(getCurrentFinancialYear()).shortLabel}
+            </button>
+          </div>
+
           {/* Header Split */}
           <div className="grid grid-cols-2 border-b border-border pb-2 mb-2">
             <div className="px-1">

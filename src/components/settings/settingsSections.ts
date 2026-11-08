@@ -1,6 +1,6 @@
 import {
   Settings, Printer, Wifi, EyeOff, Palette, Store, Package, Monitor, Shield, FileText, Power, BookOpen, Layers,
-  AlertOctagon, LayoutGrid, Landmark, Hash, Receipt, Wallet, Users, Tags, KeyRound, RefreshCw, ShoppingCart, FileCheck2,
+  AlertOctagon, LayoutGrid, Landmark, Hash, Receipt, Wallet, Users, Tags, KeyRound, RefreshCw, ShoppingCart, FileCheck2, Calendar,
 } from 'lucide-react';
 import type { StoreCountry } from '../../utils/localization/storeProfile';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
@@ -40,6 +40,9 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { id: 'numbering', label: 'Invoice Numbering', icon: Hash, ownerOnly: true,
         description: 'Terminal code, invoice starting number, B2B / B2C series, and scrap, quotation, return and purchase bill counters.',
         keywords: 'invoice counter prefix terminal series b2b b2c scrap quotation return purchase number' },
+      { id: 'financial_year', label: 'Financial Year', icon: Calendar, ownerOnly: true,
+        description: 'Active fiscal year, audit period locking, and annual year-end rollover wizard.',
+        keywords: 'financial year fiscal closing period lock fy carry forward balance rollover' },
       { id: 'uae_einvoice', label: 'UAE E-Invoicing', icon: FileCheck2, ownerOnly: true, countries: ['AE'],
         description: 'Peppol PINT AE e-invoices for business and government buyers: seller identity, service provider, sending status and received supplier invoices.',
         keywords: 'einvoice e-invoice peppol pint asp fta trn tin trade licence inbound supplier' },

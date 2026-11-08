@@ -1,11 +1,10 @@
-import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { useEffect } from 'react';
 import { Button } from '../../ui/Button';
 import { isAdminRole, formatRoleName } from '../../../utils/security/permissions';
-import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
 import clsx from 'clsx';
+import { DigitalClock } from '../DigitalClock';
 import { SlidersHorizontal, LayoutGrid, Grid3x3, Sun, Moon, Settings, LogOut, RotateCcw, Download, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';
 import { useUpdateStore } from '../../../store/updateStore';
@@ -52,9 +51,7 @@ export function DashboardHeader({
             </h1>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
           </div>
-          <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
-            {storeDate(new Date(), 'en-US', { timeZone: getStoreTimezone(), weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
+          <DigitalClock variant="header" showSeconds={true} className="mt-1" />
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <div className="hidden sm:flex items-center gap-2">

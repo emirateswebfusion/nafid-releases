@@ -26,7 +26,7 @@ export interface ProductSearchOptions {
 }
 
 /**
- * The billing search dropdown: combos first, then products whose fields match the query, at most 50 rows.
+ * The billing search dropdown: in-stock combos and products first, then out-of-stock items, at most 50 rows.
  * A product matches when barcode, item code, name, brand, category or HSN contain the whole query (as typed,
  * without spaces, or without special characters), or when every query word matches. Only one service-charge row.
  */
@@ -142,7 +142,17 @@ export function buildProductSearchResults(
     deduped.push(p);
   }
 
-  return [...comboResults, ...deduped].slice(0, 50) as ProductSearchResult[];
+  const isStocked = (item: { current_stock?: number | null; is_service_item?: number | null; name?: string | null }) =>
+    Number(item.is_service_item) === 1 ||
+    String(item.name || '').trim().toLowerCase() === 'service charge' ||
+    Number(item.current_stock || 0) > 0;
+
+  const inStockCombos = comboResults.filter(isStocked);
+  const inStockProducts = deduped.filter(isStocked);
+  const outOfStockCombos = comboResults.filter(c => !isStocked(c));
+  const outOfStockProducts = deduped.filter(p => !isStocked(p));
+
+  return [...inStockCombos, ...inStockProducts, ...outOfStockCombos, ...outOfStockProducts].slice(0, 50) as ProductSearchResult[];
 }
 
 /** A product row of the most-sold strip, as the most-sold IPC returns it (untyped). */

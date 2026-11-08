@@ -13,6 +13,17 @@ Empty or invalid requirements and negative availability return zero. Thus 12 and
 pieces at one each yield 11 combos; two pieces of the first yield 6.
 Tests: `productSearch.test.ts`, `comboStock.test.ts`. No IPC or sync contract changes.
 
+### Billing product search ordering
+
+`src/components/billing/productSearch.ts` (`buildProductSearchResults`) partitions billing search results by inventory availability:
+1. In-stock combos (`current_stock > 0`)
+2. In-stock products (`current_stock > 0` or service items)
+3. Out-of-stock combos (`current_stock <= 0`)
+4. Out-of-stock products (`current_stock <= 0` and non-service items)
+
+Within each availability partition, query relevance ranking from `sortProductsBySearchPriority` is preserved. At most 50 rows are returned.
+Tests: `tests/unit/productSearch.test.ts`. No IPC or sync contract changes.
+
 ## 4.1 Canonical rule modules (renderer)
 
 | Rule | Module | Tests |
@@ -30,6 +41,7 @@ Tests: `productSearch.test.ts`, `comboStock.test.ts`. No IPC or sync contract ch
 | Permissions: keys, groups, legacy `restricted_page` conversion, `hasPermission`, `isAdminRole` | `src/utils/security/permissions.ts` | — (add tests when touched) |
 | Pricing tiers applied to products | `src/utils/pricing/pricingTierHelper.ts` | — |
 | Store timezone and UTC parsing | `src/utils/time/timezoneHelper.ts` | — |
+| Financial Year: India (Apr-Mar) & UAE (Jan-Dec) fiscal cycles, year-end rollover and period locking | `src/utils/time/financialYear.ts` | `tests/unit/financialYear.test.ts`, `tests/unit/financialYearSettings.ui.test.tsx` |
 | Staff data masking | `src/utils/security/staffDataMasking.ts` | — |
 | Staff monthly pay statement (carried forward, salary added, extras, advances, store purchases, deductions, paid, balance) and total payable to staff | `src/utils/pricing/staffPayStatement.ts` (`buildPayStatement`, `totalPayableToStaff`) | `tests/unit/staffPayStatement.test.ts` |
 | Party roles, parsing, billing and purchase eligibility | `src/data/partyRoles.ts` | `tests/unit/partyRoles.test.ts` |
@@ -170,7 +182,7 @@ See [data access](03-data-access.md#saved-invoice-line-order). Tests: `invoiceIt
   Turning them off excludes the corresponding cash flow without changing the underlying scrap/return document.
   Cash returns are derived from persisted return rows in the drawer session; old RETURN_REFUND cash transactions
   are excluded to prevent double counting and stale deductions after a return is deleted.
-- `cash_register_ledger_mode` defaults to `all` (current behavior); `off` excludes manual ledger cash,
+- `cash_register_ledger_mode` defaults to `today`; `off` excludes manual ledger cash,
   `today` includes only entries dated the drawer business day in the store timezone. Both date modes select entries
   recorded in this drawer session; `all` permits any ledger document date, without recounting all historical cash.
 - New manual CASH ledger creations (and entries edited to CASH) atomically write one idempotent cash transaction with category
@@ -625,3 +637,13 @@ The root architecture's application-wide time contract applies to every module, 
 ### Payment Methods date-range display
 
 Payment Methods overview filters sources by `last_transaction_date`; this is latest activity, not a historical balance report. Its metric cards and available balances remain lifetime/current values. The selected source ledger applies the shared inclusive shop-calendar range to `transaction_date`, combined with text search. Cash-in/out summary totals reflect those visible entries; saved running balances remain historical ledger values. Clearing both dates includes undated entries; an active range excludes missing or invalid dates. `components/payment-methods/paymentDateFilter.ts` owns matching through canonical timezone/calendar utilities; `tests/unit/paymentDateFilter.test.ts` covers boundaries, one-sided ranges and invalid values. No financial posting, IPC or sync contract changes.
+
+### Financial Year lifecycle, rollover and audit period locking
+
+`src/utils/time/financialYear.ts` owns fiscal calendar calculation, rollover prefix suggestions, and period lock verification:
+- **Fiscal Calendar Boundaries**: Auto-detected via `getStoreCountry()`. India (IN) follows April 1 to March 31 (`04-01` to `03-31`); UAE (AE) and others follow January 1 to December 31 (`01-01` to `12-31`). Leap-year endings are handled cleanly.
+- **Rollover & Counter Safety**: When transitioning into a new financial year, resetting the invoice sequence counter to 1 without changing the prefix would violate unique invoice constraints against previous fiscal years in the same shop. `generateSuggestedPrefix` constructs fiscal prefixes (e.g. `POS1-2627-` or `POS1-2026-`) ensuring counters restart from 001 without collision.
+- **Audit Period Locking**: Prior financial years can be locked (`lockedYearIds`, `lockPriorYears`), preventing modifying, settling or deleting historical vouchers in closed audit periods. `isDateInLockedFiscalYear(dateStr, config, country)` checks document dates against locked boundaries.
+- **Settings & Single Save**: `FinancialYearSettings.tsx` adheres to AGENTS.md Rule 18 via `useSettingsSectionSave`; toggle preferences stay in a draft until the header Save Changes action. The annual rollover wizard is an explicit operational action requiring confirmation via `ConfirmFinancialYearModal.tsx`.
+- **UI Integration**: Filter presets (`This FY`, `Prev FY`) are integrated into `DateRangeFilter.tsx` and `FinancialReport.tsx`. Active status and navigation are surfaced in `FinancialYearDropup.tsx` in the status bar.
+- Tests: `tests/unit/financialYear.test.ts`, `tests/unit/financialYearSettings.ui.test.tsx`.

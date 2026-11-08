@@ -21,6 +21,7 @@ import { scrapApi } from '../../data/scrap';
 import { useFeatureFlagsStore } from '../../config/featureFlags';
 import { RestaurantReportView } from '../restaurant/views/RestaurantReportView';
 import { hasPermission } from '../../utils/security/permissions';
+import { getCurrentFinancialYear, getPreviousFinancialYear } from '../../utils/time/financialYear';
 
 interface FinancialReportProps {
   onClose: () => void;
@@ -61,7 +62,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
   const { role, permissions } = useAuthStore();
   const { tenantId, shopName } = useAuthStore();
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'custom'>('month');
+  const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'current_fy' | 'prev_fy' | 'custom'>('month');
   
   // Custom Date Range State
   const todayStr = getStoreBusinessDate();
@@ -90,7 +91,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
   });
 
   // Calculate Date Filters
-  const handleRangeChange = (range: 'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'custom') => {
+  const handleRangeChange = (range: 'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'current_fy' | 'prev_fy' | 'custom') => {
     setDateRange(range);
     if (range === 'today') {
       setStartDate(todayStr);
@@ -116,6 +117,14 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       q.setMonth(q.getMonth() - 3);
       setStartDate(calendarDateKey(q));
       setEndDate(todayStr);
+    } else if (range === 'current_fy') {
+      const fy = getCurrentFinancialYear();
+      setStartDate(fy.startDate);
+      setEndDate(fy.endDate);
+    } else if (range === 'prev_fy') {
+      const fy = getPreviousFinancialYear(getCurrentFinancialYear());
+      setStartDate(fy.startDate);
+      setEndDate(fy.endDate);
     }
   };
 
