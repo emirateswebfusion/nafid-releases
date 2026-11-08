@@ -186,8 +186,9 @@ See [data access](03-data-access.md#saved-invoice-line-order). Tests: `invoiceIt
   `today` includes only entries dated the drawer business day in the store timezone. Both date modes select entries
   recorded in this drawer session; `all` permits any ledger document date, without recounting all historical cash.
 - New manual CASH ledger creations (and entries edited to CASH) atomically write one idempotent cash transaction with category
-  `PARTY_LEDGER:<ledger_id>`. The cash feed resolves the current ledger amount, direction, payment method and deletion
-  state. These derived entries are edited in the Ledger, and return refunds in Return History, not deleted in Cash Register.
+  `PARTY_LEDGER:<ledger_id>`. The cash feed resolves the current ledger amount, direction, payment method, party name (attached to notes as
+  `<party_name> — <description>` or `<party_name>`) and exact ledger timestamp (`ledger_date`) to prevent naive timezone drift.
+  These derived entries are edited in the Ledger, and return refunds in Return History, not deleted in Cash Register.
 - Legacy `Party Payment` / `Party Receipt` cash transactions have no ledger id. Their original ledger date and later
   edits cannot be recovered reliably; today-only uses the cash-entry date. Migrating/relinking historical entries
   needs a separate decision. The first manual cash entry starts a zero-opening drawer when none is open;

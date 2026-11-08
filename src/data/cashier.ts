@@ -3,7 +3,7 @@ import type { CashDrawerRow, CashTransactionsRow } from './dbRows';
 
 /** Drawer row returned by `cashierService.getDrawer` (`SELECT * FROM cash_drawer`). */
 export type CashDrawerViewRow = CashDrawerRow & { payment_totals?: Record<string, number> };
-export type CashTransactionViewRow = CashTransactionsRow & { source?: 'ledger' | 'return' };
+export type CashTransactionViewRow = CashTransactionsRow & { source?: 'ledger' | 'return'; party_name?: string | null };
 export type CashDrawerResult = CashDrawerViewRow | null | { error: string };
 
 /** Cash drawer, settlements and cash transactions. Channel catalog — the only way UI code reaches these IPC channels. */
