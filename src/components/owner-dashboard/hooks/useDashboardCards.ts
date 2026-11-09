@@ -1,5 +1,5 @@
 import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
-import { ShoppingCart, FileText, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw, LayoutGrid, ShoppingBag, ChefHat } from 'lucide-react';
+import { ShoppingCart, FileText, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw, Bell, LayoutGrid, ShoppingBag, ChefHat } from 'lucide-react';
 import { cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../../../config/featureFlags';
 import { hasPermission } from '../../../utils/security/permissions';
 import type { FeatureFlags } from '../../../config/featureFlags';
@@ -261,6 +261,15 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
       bgColor: 'bg-red-500/10',
       action: () => window.dispatchEvent(new CustomEvent('open-recycle-bin')),
       perm: 'sales.view'
+    },
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      desc: 'Stock alerts, updates and sync warnings in one place',
+      icon: Bell,
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
+      action: () => window.dispatchEvent(new CustomEvent('open-notifications')),
     },
   ];
 

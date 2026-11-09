@@ -10,7 +10,7 @@ import { isUaeStore } from '../../../utils/localization/storeProfile';
 import { bridgeEvents } from '../../../data/events';
 import { authApi } from '../../../data/auth';
 
-type ScreenFlag = 'setShowVariantsManager' | 'setShowGstReports' | 'setShowVatReports' | 'setShowAdsManager' | 'setShowAiAssistant' | 'setShowCashierSettlement' | 'setShowComboManager' | 'setShowCustomersPage' | 'setShowEcommercePortal' | 'setShowFinancialReport' | 'setShowInventoryManager' | 'setShowPartyManager' | 'setShowPaymentsPage' | 'setShowPurchaseBillManager' | 'setShowQuotationManager' | 'setShowRecycleBin' | 'setShowReturnManager' | 'setShowSalesHistory' | 'setShowScrapManager' | 'setShowSessionExpiredModal' | 'setShowSettingsGrades' | 'setShowSettingsManager' | 'setShowSettingsPricingTiers' | 'setShowStaffManager' | 'setShowStockReport' | 'setShowWarrantyManager';
+type ScreenFlag = 'setShowVariantsManager' | 'setShowGstReports' | 'setShowVatReports' | 'setShowAdsManager' | 'setShowAiAssistant' | 'setShowCashierSettlement' | 'setShowComboManager' | 'setShowCustomersPage' | 'setShowEcommercePortal' | 'setShowFinancialReport' | 'setShowInventoryManager' | 'setShowNotifications' | 'setShowPartyManager' | 'setShowPaymentsPage' | 'setShowPurchaseBillManager' | 'setShowQuotationManager' | 'setShowRecycleBin' | 'setShowReturnManager' | 'setShowSalesHistory' | 'setShowScrapManager' | 'setShowSessionExpiredModal' | 'setShowSettingsGrades' | 'setShowSettingsManager' | 'setShowSettingsPricingTiers' | 'setShowStaffManager' | 'setShowStockReport' | 'setShowWarrantyManager';
 
 /** The App state the screen events drive: one setter per full-screen view plus the targets some screens open with. */
 export type ScreenEventsContext = Record<ScreenFlag, Dispatch<SetStateAction<boolean>>> & {
@@ -30,7 +30,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     ctxRef.current = ctx;
   });
   useEffect(() => {
-    const { enableScrapRef, featureFlagsRef, setShowGstReports, setShowVatReports, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowVariantsManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager } = ctxRef.current;
+    const { enableScrapRef, featureFlagsRef, setShowGstReports, setShowVatReports, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowVariantsManager, setShowNotifications, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager } = ctxRef.current;
     const canOpen = (key: FeatureKey) => {
       if (key === 'ai_assistant') {
         return isAiAssistantAvailable && (featureFlagsRef.current ? featureFlagsRef.current.ai_assistant !== false : true);
@@ -274,6 +274,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       setShowFinancialReport(false);
       setShowAiAssistant(false);
       setShowAdsManager(false);
+      setShowNotifications(false);
       setRestrictedActivePage('BILLING');
     };
 
@@ -300,6 +301,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       setShowFinancialReport(false);
       setShowAiAssistant(false);
       setShowAdsManager(false);
+      setShowNotifications(false);
       setRestrictedActivePage('');
     };
 
@@ -335,6 +337,8 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       setShowRecycleBin(true);
     };
     window.addEventListener('open-recycle-bin', handleOpenRecycleBin);
+    const handleOpenNotifications = () => setShowNotifications(true);
+    window.addEventListener('open-notifications', handleOpenNotifications);
     window.addEventListener('open-staff-manager', handleOpenStaff);
     window.addEventListener('open-settings-manager', handleOpenSettings);
     window.addEventListener('open-settings-grades', handleOpenSettingsGrades);
@@ -421,6 +425,7 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
       window.removeEventListener('open-gst-reports', handleOpenGstReports);
       window.removeEventListener('open-vat-reports', handleOpenVatReports);
       window.removeEventListener('open-sales-history', handleOpenHistory);
+      window.removeEventListener('open-notifications', handleOpenNotifications);
       window.removeEventListener('open-staff-manager', handleOpenStaff);
       window.removeEventListener('open-settings-manager', handleOpenSettings);
       window.removeEventListener('open-settings-grades', handleOpenSettingsGrades);

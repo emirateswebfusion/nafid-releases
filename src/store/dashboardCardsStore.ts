@@ -30,6 +30,7 @@ export const DEFAULT_DASHBOARD_CARDS_ORDER = [
   'combo-offers',
   'history',
   'recycle-bin',
+  'notifications',
 ];
 
 function getDashboardCardsStorageKey(
