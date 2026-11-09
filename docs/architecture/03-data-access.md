@@ -126,8 +126,10 @@ stalled request retryable. Non-JSON errors include HTTP status without rendering
 The local IPC channel `auth:resumeCloudSession` is registered through `handle` →
 `services/cloudSessionRecoveryService.ts`. Its renderer DTO (`CloudSessionResumeRequest`, `data/auth.ts`) carries
 `expected_tenant_id`, `expected_user_id`, and typed cloud `credentials`. Preload and `global.d.ts` agree with
-`authApi.resumeCloudSession`. Main compares expected identity against persisted local and remembered terminal
-sessions, rejects another shop, and calls `authSessionService.saveToken(credentials, localSession)`. The cloud user
+`authApi.resumeCloudSession`. Main compares expected identity against the persisted offline session, falling back
+to the cloud auth record, matching startup restoration. Remembered terminal context is display-only: missing or stale
+context must not block recovery, and context alone after logout cannot authorize it. Main rejects a mismatched local
+user/tenant or another shop and calls `authSessionService.saveToken(credentials, localSession)`. The cloud user
 is cached normally; the active user's identity/permissions are preserved separately in `offline-auth.enc` and terminal
 context. Cloud recovery cannot switch the local cashier or raise their permissions. Startup restores that local user
 and independently checks the same tenant's cloud credential. Renderer token auto-recovery never adopts another

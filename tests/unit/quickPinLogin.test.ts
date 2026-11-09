@@ -75,6 +75,28 @@ describe('Quick PIN Login & Staff Security', () => {
     expect(readAuthPayload()).toMatchObject({ jwt_token: token, user_id: 'owner' });
     expect(getTerminalConfig()).toMatchObject({ user_id: 'cashier', role: 'STAFF' });
   });
+  it.each(['missing', 'stale'])('reconnects a restored cloud session with %s terminal display context', (context) => {
+    const expired = `h.${Buffer.from(JSON.stringify({ exp: 1 })).toString('base64url')}.s`;
+    saveToken({ tenant_id: 'shop', user_id: 'owner', role: 'ADMIN', jwt_token: expired });
+    if (context === 'missing') raw!.exec("DELETE FROM settings WHERE key='last_active_terminal_session'");
+    else rememberTerminalSession({ tenant_id: 'old-shop', user_id: 'old-user', role: 'STAFF' });
+    const token = `h.${Buffer.from(JSON.stringify({ exp: 4102444800 })).toString('base64url')}.s`;
+    expect(resumeCloudSession({ expected_tenant_id: 'shop', expected_user_id: 'owner', credentials: {
+      tenant_id: 'shop', user_id: 'owner', role: 'ADMIN', jwt_token: token,
+    } })).toEqual({ success: true });
+    expect(readAuthPayload()).toMatchObject({ jwt_token: token });
+    expect(readOfflineSession()).toMatchObject({ tenant_id: 'shop', user_id: 'owner', role: 'ADMIN' });
+  });
+  it('does not grant recovery from remembered terminal context after sign-out', () => {
+    saveOfflineSession({ tenant_id: 'shop', user_id: 'cashier', role: 'STAFF' });
+    expect(clearToken().success).toBe(true);
+    const token = `h.${Buffer.from(JSON.stringify({ exp: 4102444800 })).toString('base64url')}.s`;
+    expect(resumeCloudSession({ expected_tenant_id: 'shop', expected_user_id: 'cashier', credentials: {
+      tenant_id: 'shop', user_id: 'owner', role: 'ADMIN', jwt_token: token,
+    } }).success).toBe(false);
+    expect(readAuthPayload()).toBeNull();
+    expect(readOfflineSession()).toBeNull();
+  });
   it('rejects recovery for a different shop or a stale local session before writing credentials', () => {
     saveOfflineSession({ tenant_id: 'shop', user_id: 'cashier', role: 'STAFF', permissions: ['sales.create'] });
     const credentials = { tenant_id: 'other-shop', user_id: 'owner', role: 'ADMIN', jwt_token: 'jwt' };
