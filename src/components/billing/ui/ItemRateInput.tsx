@@ -3,6 +3,7 @@ import type * as B from '../billingTypes';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import clsx from 'clsx';
 import { MRP_TIER_ID } from '../../../utils/pricing/pricingTierHelper';
+import { parseAmount } from '../../../utils/pricing/money';
 import { createPortal } from 'react-dom';
 
 interface ItemRateInputProps {
@@ -164,8 +165,8 @@ export function ItemRateInput({
     setIsNavigatingMenu(false);
     const raw = e.target.value;
     setLocalVal(raw);
-    const num = parseFloat(raw);
-    if (!isNaN(num) && num >= 0) {
+    const num = parseAmount(raw);
+    if (num !== null && num >= 0) {
       if (customPpk && customPpk > 0) {
         const kgRate = +(num * customPpk).toFixed(2);
         onUpdateOfferPrice(productId, kgRate);
@@ -182,7 +183,7 @@ export function ItemRateInput({
       setIsFocused(false);
       setIsNavigatingMenu(false);
     }, 150);
-    if (!localVal || isNaN(parseFloat(localVal))) {
+    if (parseAmount(localVal) === null) {
       setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(2));
     }
   };
@@ -390,7 +391,7 @@ export function ItemRateInput({
       <div className={containerClassName || "flex items-center gap-0.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg px-1.5 py-0.5 transition-colors"}>
         <span className={unitClassName || "text-[9px] font-extrabold text-primary"}>{getCurrencyPrefix()}</span>
         <input
-          type="number" step="any" min="0"
+          type="text" inputMode="decimal"
           ref={inputRef}
           className={inputClassName || "w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"}
           value={localVal}

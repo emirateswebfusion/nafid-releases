@@ -48,9 +48,9 @@ export interface QuickProductItemInput {
 
 export const ALL_QUICK_COLUMNS: ColumnDefinition[] = [
   { id: 'name', label: 'Item Name', shortLabel: 'Product Name', required: true, type: 'text', minWidth: 'min-w-[180px]' },
-  { id: 'basePrice', label: 'Rate / MRP', get shortLabel() { return localizeCurrencyText('Rate (₹)'); }, type: 'number', get prefix() { return localizeCurrencyText('₹'); }, minWidth: 'min-w-[100px]' },
+  { id: 'basePrice', label: 'Rate / MRP', get shortLabel() { return localizeCurrencyText('Rate (₹)'); }, type: 'text', get prefix() { return localizeCurrencyText('₹'); }, minWidth: 'min-w-[100px]' },
   { id: 'qty', label: 'Quantity', shortLabel: 'Qty', type: 'number', minWidth: 'min-w-[80px]' },
-  { id: 'purchasePrice', label: 'Purchase Price', get shortLabel() { return localizeCurrencyText('Cost (₹)'); }, type: 'number', get prefix() { return localizeCurrencyText('₹'); }, minWidth: 'min-w-[100px]' },
+  { id: 'purchasePrice', label: 'Purchase Price', get shortLabel() { return localizeCurrencyText('Cost (₹)'); }, type: 'text', get prefix() { return localizeCurrencyText('₹'); }, minWidth: 'min-w-[100px]' },
   { id: 'category', label: 'Category', shortLabel: 'Category', type: 'text', minWidth: 'min-w-[130px]' },
   { id: 'itemCode', label: 'Item Code', shortLabel: 'Code', type: 'text', minWidth: 'min-w-[90px]' },
   { id: 'barcode', label: 'Barcode', shortLabel: 'Barcode', type: 'text', minWidth: 'min-w-[130px]' },

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { formatAmount, formatCurrency } from '../../src/utils/pricing/money';
+import { formatAmount, formatCurrency, parseAmount } from '../../src/utils/pricing/money';
 import { setStoreCountry } from '../../src/utils/localization/storeProfile';
 
 describe('formatCurrency', () => {
@@ -42,6 +42,30 @@ describe('formatCurrency', () => {
   it('never prints a negative zero', () => {
     expect(formatCurrency(-0.001)).toBe('₹0.00');
     expect(formatCurrency(-0.00001, { grouping: false })).toBe('₹0.00');
+  });
+});
+
+describe('parseAmount (TB-2: comma-grouped prices)', () => {
+  it('reads digit-grouping commas instead of collapsing to 0 or 1', () => {
+    expect(parseAmount('1,250')).toBe(1250);
+    expect(parseAmount('12,34,567.50')).toBe(1234567.5);
+    expect(parseAmount('1,234,567.5')).toBe(1234567.5);
+    expect(parseAmount(' 1250 ')).toBe(1250);
+    expect(parseAmount('₹1,250')).toBe(1250);
+    expect(parseAmount('AED 1,250.75')).toBe(1250.75);
+    expect(parseAmount('.5')).toBe(0.5);
+    expect(parseAmount('-50')).toBe(-50);
+    expect(parseAmount(1250)).toBe(1250);
+  });
+
+  it('returns null for empty or non-numeric input', () => {
+    for (const v of ['', '   ', 'abc', '1.2.3', '12a', '-', '.', null, undefined, NaN, Infinity, {}]) {
+      expect(parseAmount(v)).toBeNull();
+    }
+  });
+
+  it('lets formatCurrency show a comma-grouped amount instead of ₹0.00', () => {
+    expect(formatCurrency('1,250')).toBe('₹1,250.00');
   });
 });
 

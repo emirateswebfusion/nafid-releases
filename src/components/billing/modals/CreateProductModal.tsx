@@ -10,6 +10,7 @@ import {
 import Barcode from 'react-barcode';
 import { Select } from '../../ui/Select';
 import clsx from 'clsx';
+import { parseAmount } from '../../../utils/pricing/money';
 import { QuickProductTable } from './quick-product/QuickProductTable';
 import type { QuickProductItemInput } from './quick-product/types';
 
@@ -297,7 +298,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     <div className="relative">
                       {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
                       <input
-                        type="number" step="0.01"
+                        type={prefix ? 'text' : 'number'} step={prefix ? undefined : '0.01'} inputMode="decimal"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={field === 'purchasePrice' ? newProductPurchasePrice : field === 'basePrice' ? newProductBasePrice : field === 'stock' ? newProductStock : newProductReorderLevel}
                         onChange={e => {
@@ -397,7 +398,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                           const val = e.target.value;
                           setNewProductDiscountPercent(val);
                           if (val) {
-                            const mrp = Number(newProductBasePrice) || 0;
+                            const mrp = parseAmount(newProductBasePrice) ?? 0;
                             const pct = parseFloat(val);
                             const flat = mrp > 0 && !isNaN(pct) ? ((mrp * pct) / 100).toFixed(2) : '';
                             setNewProductDiscountFlat(flat);
@@ -418,7 +419,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                           const val = e.target.value;
                           setNewProductDiscountFlat(val);
                           if (val) {
-                            const mrp = Number(newProductBasePrice) || 0;
+                            const mrp = parseAmount(newProductBasePrice) ?? 0;
                             const flat = parseFloat(val);
                             const pct = mrp > 0 && !isNaN(flat) ? ((flat / mrp) * 100).toFixed(2) : '';
                             setNewProductDiscountPercent(pct);
