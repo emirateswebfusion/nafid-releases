@@ -319,7 +319,9 @@ Cloud recovery belongs to the closable `SessionExpiredModal` → `store/cloudSyn
 `authApi.resumeCloudSession` → `cloudSessionRecoveryService`. It stays inside the authenticated POS and never clears
 the cart, resets the domain, logs out or switches the local user. Only an online credential for the current shop may
 restore sync. Main rechecks the expected local session before saving, retaining local identity/permissions separately
-from the cloud user; an owner reconnecting sync cannot turn the active cashier into an administrator. Restart
+from the cloud user; an owner reconnecting sync cannot turn the active cashier into an administrator. The saved offline
+session takes precedence over the cloud auth record. Remembered terminal display context neither authorizes recovery
+after logout nor blocks it when missing or stale. `quickPinLogin` covers these recovery boundaries. Restart
 restores the local user and independently restores cloud availability. Failed/cancelled recovery leaves offline work
 available with Re-Login Needed visible. A domain-confirmation cache failure must not demote an online POS login.
 

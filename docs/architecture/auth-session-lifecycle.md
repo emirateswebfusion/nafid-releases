@@ -17,7 +17,10 @@ successful PIN/password check or from `navigator.onLine`.
 
 The renderer login generation invalidates older online/PIN/startup results after logout or another login starts.
 Late results must not save credentials, restore a signed-out session or reset the current user's cart. IPC persistence
-remains synchronous in main; cloud reconnect separately checks the expected current local user/tenant.
+remains synchronous in main; cloud reconnect separately checks the expected current local user/tenant. The check uses
+the persisted offline session, falling back to the cloud auth record, just as startup does. The remembered terminal
+session is display context only: missing or stale context must not block recovery, and context alone after logout
+must never authorize it. Regression coverage: `quickPinLogin` (restored sessions and signed-out recovery).
 
 ## Desktop login transport
 
