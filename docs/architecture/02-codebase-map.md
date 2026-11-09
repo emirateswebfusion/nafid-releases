@@ -47,6 +47,7 @@ src/
                           UAE documents: uaeInvoice (A4 + thermal), uaeLabels (English/Arabic labels, titles, Arabic setting)
     time/                 store time zone, date display, shop closing (business day), financial year lifecycle and rollover
     security/             permissions, staff data masking, emergency purge
+    notifications/        notification centre rules: which events become notifications, stable ids, read state, filtering
   services/               long-running renderer services (offline AI engine, FusionCart client)
     offlineAi/            offline AI engine: intentParser + intentRules* (question → intent), handlers/<domain>
                           (intent → answer from local data); offlineAiService.ts is the entry point
@@ -183,3 +184,7 @@ See [cloud session recovery](03-data-access.md#cloud-session-recovery).
 ### Payment Methods filtering ownership
 
 `components/payment-methods/PaymentMethods.tsx` orchestrates source and ledger filtering; `hooks/usePaymentMethodsState.ts` owns the shared screen-local range. `paymentDateFilter.ts` matches inclusive store-calendar dates using `utils/time/timezoneHelper.ts`. Both filter toolbars reuse `components/ui/DateRangeFilter.tsx`. Regression coverage: `tests/unit/paymentDateFilter.test.ts`. See the Payment Methods date filters section in `06-change-guide.md` for popup stacking and display semantics.
+
+### Notification centre ownership
+
+`utils/notifications/notifications.ts` owns the pure rules: out-of-stock / low-stock (at or below the reorder level), update-available and cloud-sync-paused notifications, their stable ids (the stock id carries the stock level, so a restocked product that runs low again notifies afresh), read-state application (unread first, then by severity), search/status filtering and the bounded read-id list (`MAX_STORED_READ_IDS`). `store/notificationStore.ts` loads stock alerts through `data/products` (`listProducts` by stock status) and persists read ids per user through `data/settings` (key `notifications_read_<userId>`); it never touches the bridge directly. `components/notifications/hooks/useNotifications.ts` combines the store with the auth and update stores; stock alerts are loaded and shown only when the user has `products.view` (same permission as Inventory), other notifications are visible to everyone. `components/notifications/NotificationsPage.tsx` renders the list and opens the related screen through the existing `open-*` screen events (`open-inventory-manager`, `open-settings-manager`, `open-session-expired-modal`). The dashboard card `notifications` dispatches `open-notifications`, handled in `components/app/hooks/useScreenEvents.ts`. Tests: `tests/unit/notifications.test.ts`, `tests/unit/notificationsPage.ui.test.tsx`.
