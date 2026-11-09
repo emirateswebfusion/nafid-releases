@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useAuthStore } from '../../../store/authStore';
 import { useNotificationStore } from '../../../store/notificationStore';
 import { useUpdateStore } from '../../../store/updateStore';
+import { hasPermission } from '../../../utils/security/permissions';
 import {
   applyReadState, buildSyncPausedNotification, buildUpdateNotification, countUnread,
   type AppNotification,
@@ -25,12 +26,16 @@ export function useNotifications(): UseNotificationsResult {
   const userId = useAuthStore(s => s.userId);
   const isCloudSyncPaused = useAuthStore(s => s.isCloudSyncPaused);
   const cloudSyncReason = useAuthStore(s => s.cloudSyncReason);
+  const role = useAuthStore(s => s.role);
+  const permissions = useAuthStore(s => s.permissions);
   const updateVersion = useUpdateStore(s => s.updateInfo?.version ?? null);
   const { stockNotifications, readIds, isLoading, error, load, markRead, markUnread, markAllRead } = useNotificationStore();
+  // Stock alerts reveal the product catalogue, so they follow the same permission as the Inventory screen.
+  const canViewStock = hasPermission({ role, permissions }, 'products.view');
 
   useEffect(() => {
-    void load(tenantId || 'global', userId);
-  }, [load, tenantId, userId]);
+    void load(tenantId || 'global', userId, canViewStock);
+  }, [load, tenantId, userId, canViewStock]);
 
   const notifications = useMemo(() => {
     const items = [
@@ -46,7 +51,7 @@ export function useNotifications(): UseNotificationsResult {
     unreadCount: countUnread(notifications),
     isLoading,
     error,
-    reload: () => { void load(tenantId || 'global', userId); },
+    reload: () => { void load(tenantId || 'global', userId, canViewStock); },
     markRead: (id) => { void markRead(id); },
     markUnread: (id) => { void markUnread(id); },
     markAllRead: () => { void markAllRead(notifications.filter(n => !n.read).map(n => n.id)); },

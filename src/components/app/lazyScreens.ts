@@ -33,7 +33,7 @@ export const AiAssistant = lazy(() => import('../ai-assistant/AiAssistant').then
 export const EcommercePortal = lazy(() => import('../ecommerce/EcommercePortal').then((m) => ({ default: m.EcommercePortal })));
 export const AdsManager = lazy(() => import('../ads/AdsManager').then((m) => ({ default: m.AdsManager })));
 export const NotificationsPage = lazy(() => import('../notifications/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
-export const SuperDashboard =lazy(() => import('../super-dashboard/SuperDashboard'));
+export const SuperDashboard = lazy(() => import('../super-dashboard/SuperDashboard'));
 
 /** Fetches the billing chunk in the background after sign-in, so the most used screen still opens instantly. */
 export function preloadBilling(): void {

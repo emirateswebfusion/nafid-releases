@@ -25,7 +25,7 @@ beforeEach(() => {
     : [{ product_id: 'p2', name: 'Sunflower Oil 1L', current_stock: 3, reorder_level: 10 }]);
   mocks.getSetting.mockResolvedValue(null);
   mocks.setSetting.mockResolvedValue(undefined);
-  useAuthStore.setState({ tenantId: 'shop', userId: 'u1', isCloudSyncPaused: false, cloudSyncReason: null });
+  useAuthStore.setState({ tenantId: 'shop', userId: 'u1', role: 'ADMIN', permissions: [], isCloudSyncPaused: false, cloudSyncReason: null });
   useUpdateStore.setState({ updateInfo: null });
   useNotificationStore.setState({ stockNotifications: [], readIds: [], scope: null, error: null, isLoading: false });
 });
@@ -69,6 +69,22 @@ it('marks every notification read, including update and sync alerts, and respect
   expect(items()).toHaveLength(0);
   fireEvent.click(screen.getByRole('tab', { name: 'All' }));
   expect(items().every(el => el.getAttribute('data-read') === 'true')).toBe(true);
+});
+
+it('hides stock alerts from staff without products.view and never loads the product list for them', async () => {
+  useUpdateStore.setState({ updateInfo: { version: '9.9.9' } as never });
+  act(() => useAuthStore.setState({ role: 'STAFF', permissions: ['sales.create'] }));
+  render(<NotificationsPage onClose={() => {}} />);
+  await waitFor(() => expect(items()).toHaveLength(1));
+  expect(screen.getByText('Nafid POS v9.9.9 is available')).toBeDefined();
+  expect(screen.queryByText('Basmati Rice 5kg is out of stock')).toBeNull();
+  expect(mocks.listProducts).not.toHaveBeenCalled();
+});
+
+it('shows stock alerts to staff who may view products', async () => {
+  act(() => useAuthStore.setState({ role: 'STAFF', permissions: ['products.view'] }));
+  render(<NotificationsPage onClose={() => {}} />);
+  await waitFor(() => expect(items()).toHaveLength(2));
 });
 
 it('is reachable from the dashboard for every user and opens through the open-notifications event', () => {

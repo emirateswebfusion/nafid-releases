@@ -22,8 +22,8 @@ export interface NotificationState {
   isLoading: boolean;
   error: string | null;
   scope: NotificationScope | null;
-  /** Loads stock alerts and the user's read ids for the shop. */
-  load: (tenantId: string, userId: string | null) => Promise<void>;
+  /** Loads the user's read ids and, when `includeStock` (the user may view products), the shop's stock alerts. */
+  load: (tenantId: string, userId: string | null, includeStock?: boolean) => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markUnread: (id: string) => Promise<void>;
   markAllRead: (ids: readonly string[]) => Promise<void>;
@@ -45,17 +45,17 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   error: null,
   scope: null,
 
-  load: async (tenantId, userId) => {
+  load: async (tenantId, userId, includeStock = true) => {
     const scope = { tenantId, userId };
-    set({ isLoading: true, error: null, scope });
+    set({ isLoading: true, error: null, scope, ...(includeStock ? {} : { stockNotifications: [] }) });
     if (!isDesktopRuntime()) {
       set({ isLoading: false });
       return;
     }
     try {
       const [low, out, storedRead] = await Promise.all([
-        listProducts({ tenant_id: tenantId, stockStatus: 'low_stock', limit: STOCK_NOTIFICATION_LIMIT }),
-        listProducts({ tenant_id: tenantId, stockStatus: 'out_of_stock', limit: STOCK_NOTIFICATION_LIMIT }),
+        includeStock ? listProducts({ tenant_id: tenantId, stockStatus: 'low_stock', limit: STOCK_NOTIFICATION_LIMIT }) : Promise.resolve([]),
+        includeStock ? listProducts({ tenant_id: tenantId, stockStatus: 'out_of_stock', limit: STOCK_NOTIFICATION_LIMIT }) : Promise.resolve([]),
         getSetting({ tenant_id: tenantId, key: notificationReadSettingKey(userId) }),
       ]);
       const current = get().scope;
