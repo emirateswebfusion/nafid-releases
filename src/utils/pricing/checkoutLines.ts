@@ -98,6 +98,9 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
       ...(item.isServiceItem ? { isServiceItem: true } : {}),
       billing_type: item.billing_type,
       uom: item.uom || item.unit,
+      ...(item.isCombo ? { isCombo: true } : {}),
+      ...(item.combo_id ? { combo_id: item.combo_id } : {}),
+      ...(item.combo_items ? { combo_items: item.combo_items } : {}),
       // GST split
       cgst_rate, sgst_rate, igst_rate,
       cgst_amount, sgst_amount, igst_amount,
