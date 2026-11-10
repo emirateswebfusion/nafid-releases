@@ -1,3 +1,6 @@
+import { clarifyProduct } from '../productSelection';
+import { customersApi } from '../../../data/customers';
+import { catalogSellingRate } from '../catalogPrice';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { settingsApi } from '../../../data/settings';
 import { hasBridge } from '../../../data/client';
@@ -129,10 +132,16 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
         ]);
         if (config?.enabled === false || flags?.loyalty === false) return { content: 'Loyalty points are disabled in Settings.', intent: parsed.intent };
       }
-      const md = isMal
-        ? `### 🎁 കസ്റ്റമർ ലോയൽറ്റി പോയിന്റുകൾ\n\n* ലോയൽറ്റി റിവാർഡ് പോയിന്റുകൾ കസ്റ്റമർ അക്കൗണ്ടുമായി ബന്ധിപ്പിച്ചിരിക്കുന്നു.\n`
-        : `### 🎁 Customer Loyalty Points\n\n* Active loyalty program tracking points earned and redeemed.\n`;
-      return { content: md, intent: parsed.intent };
+      if (!hasBridge('dbGetCustomers')) throw new Error('Customer points records are unavailable');
+      const name = (parsed.params.customerName || '').trim();
+      if (!name) return { content: isMal ? 'ഏത് കസ്റ്റമറുടെ പോയിന്റുകളാണ് വേണ്ടത്? പേര് പറയൂ.' : 'Whose points do you need? Please give the customer name.', clarificationRequired: true };
+      const customers = await customersApi.getCustomers({ tenant_id: ctx.tenantId });
+      if (!Array.isArray(customers)) throw new Error('Customer points records are unavailable');
+      const matches = customers.filter(c => c.name.toLowerCase().includes(name.toLowerCase()));
+      if (matches.length !== 1) return { content: matches.length ? `${isMal ? 'ഏത് കസ്റ്റമർ?' : 'Which customer?'} ${matches.map(c => c.name).join(', ')}` : `${isMal ? 'കസ്റ്റമറെ കണ്ടെത്തിയില്ല:' : 'Customer not found:'} ${name}`, clarificationRequired: true };
+      const customer = matches[0];
+      if (customer.current_points_balance == null) throw new Error('Customer points balance is unavailable');
+      return { content: `### ${customer.name}\n\n${isMal ? 'ലോയൽറ്റി പോയിന്റുകൾ' : 'Loyalty points'}: **${customer.current_points_balance}**`, intent: parsed.intent };
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -141,24 +150,26 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
     case 'PRODUCT_PRICE_LOOKUP': {
       const prods = await fetchProducts();
       const term = (parsed.params.productName || '').toLowerCase().trim();
-      const matched = prods.filter((p: AiRow) => p.name?.toLowerCase().includes(term));
+      const matched = prods.filter((p: AiRow) => p.name?.toLowerCase().includes(term) || p.sku_barcode === term);
 
       if (matched.length === 0) {
         return { content: isMal ? `"${term}" എന്ന ഉൽപ്പന്നം കണ്ടെത്താനായില്ല.` : `Could not find product matching "${term}".` };
       }
 
+      const clarification = clarifyProduct(matched, 'price', isMal);
+      if (clarification) return clarification;
       const p = matched[0];
       const md = isMal
         ? `### 🏷️ വില വിവരങ്ങൾ: **${p.name}**\n\n` +
-          `* **റീട്ടെയിൽ വില (MRP / Base Price):** **${formatMoney(p.base_price)}**\n` +
+          `* **റീട്ടെയിൽ വില (Base Price):** **${formatMoney(p.base_price)}**\n` +
           `* **പർച്ചേസ് വില:** ${formatMoney(p.purchase_price)}\n` +
-          `* **ഓഫർ വില:** ${formatMoney(p.offer_price || p.base_price)}\n` +
+          `* **ഓഫർ / ഡിസ്കൗണ്ടിനു ശേഷമുള്ള വില:** ${formatMoney(catalogSellingRate(p))}\n` +
           `* **ടാക്സ് റേറ്റ് (GST):** ${p.tax_rate_percent || 0}%\n` +
           (parsed.params.includeBarcode ? `* **ബാർകോഡ്:** ${p.sku_barcode || 'ലഭ്യമല്ല'}\n` : '')
         : `### 🏷️ Pricing Details: **${p.name}**\n\n` +
           `* **Retail Selling Price (Base Price):** **${formatMoney(p.base_price)}**\n` +
           `* **Purchase Price (Cost):** ${formatMoney(p.purchase_price)}\n` +
-          `* **Offer / Wholesale Price:** ${formatMoney(p.offer_price || p.base_price)}\n` +
+          `* **Catalog Price After Offers / Discounts:** ${formatMoney(catalogSellingRate(p))}\n` +
           `* **GST Tax Rate:** ${p.tax_rate_percent || 0}%\n` +
           (parsed.params.includeBarcode ? `* **Barcode / SKU:** ${p.sku_barcode || 'None'}\n` : '');
 
@@ -167,22 +178,24 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
 
     case 'PRODUCT_BARCODE_LOOKUP': {
       const prods = await fetchProducts();
-      const code = (parsed.params.code || '').trim();
-      const matched = prods.filter((p: AiRow) => p.sku_barcode === code || p.item_code === code);
+      const code = (parsed.params.code || parsed.params.productName || '').trim();
+      const matched = prods.filter((p: AiRow) => p.sku_barcode === code || p.item_code?.toLowerCase() === code.toLowerCase() || (Boolean(parsed.params.productName) && p.name?.toLowerCase().includes(code.toLowerCase())));
 
       if (matched.length === 0) {
         return { content: isMal ? `"${code}" എന്ന ബാർകോഡിൽ ഉൽപ്പന്നങ്ങൾ ഒന്നുമില്ല.` : `No product found with barcode "${code}".` };
       }
 
+      const clarification = clarifyProduct(matched, 'barcode', isMal);
+      if (clarification) return clarification;
       const p = matched[0];
       const md = isMal
         ? `### 🔍 ബാർകോഡ് ഉൽപ്പന്നം: **${p.name}**\n\n` +
           `* **ബാർകോഡ്:** ${p.sku_barcode || '—'}\n` +
-          `* **വില:** **${formatMoney(p.base_price)}**\n` +
+          `* **വില:** **${formatMoney(catalogSellingRate(p))}**\n` +
           `* **സ്റ്റോക്ക്:** ${p.current_stock || 0} ${p.uom || 'units'}\n`
         : `### 🔍 Barcode Lookup Result: **${p.name}**\n\n` +
           `* **Barcode / SKU:** ${p.sku_barcode || '—'}\n` +
-          `* **Unit Price:** **${formatMoney(p.base_price)}**\n` +
+          `* **Unit Price:** **${formatMoney(catalogSellingRate(p))}**\n` +
           `* **Current Stock:** ${p.current_stock || 0} ${p.uom || 'units'}\n`;
 
       return { content: md, intent: parsed.intent };

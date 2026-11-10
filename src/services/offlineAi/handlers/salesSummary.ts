@@ -466,7 +466,7 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
         : `### 📊 Gross vs Net Sales & Deductions — ${range.label}\n\n` +
           `* **Gross Sales (Before Discounts):** **${formatMoney(gross)}**\n` +
           `* **Total Discounts Given:** **${formatMoney(summary.totalDiscount)}**\n` +
-          `* **Net Sales Revenue (Final Invoiced):** **${formatMoney(summary.totalSales)}**\n` +
+          `* **Sales less returns (tax included) (Final Invoiced):** **${formatMoney(summary.totalSales)}**\n` +
           `* **Total Tax (GST) Collected:** **${formatMoney(summary.totalTax)}**\n` +
           `* **Invoices Count:** ${summary.totalInvoices} bills\n`;
 
@@ -523,8 +523,7 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
       });
       const totalReturns = rangeReturns.reduce((acc: number, r: AiRow) => acc + (Number(r.grand_total || r.total) || 0), 0);
 
-      const netRevenue = Math.max(0, summary.totalSales - totalReturns);
-      const netCashFlow = netRevenue - totalExpense;
+      const netRevenue = summary.totalSales - totalReturns;
 
       const md = isMal
         ? `### 📑 സമഗ്ര ദിന ബിസിനസ്സ് റിപ്പോർട്ട് (${range.label})\n\n` +
@@ -534,8 +533,7 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
           `| 🔄 **സെയിൽസ് റിട്ടേണുകൾ (Returns)** | ${rangeReturns.length} എണ്ണം | **${formatMoney(totalReturns)}** |\n` +
           `| 📦 **പർച്ചേസ് ബില്ലുകൾ (Purchases)** | ${rangePurchases.length} എണ്ണം | **${formatMoney(totalPurchases)}** |\n` +
           `| 💸 **പ്രവർത്തന ചെലവുകൾ (Expenses)** | ${expenseTxs.length} എണ്ണം | **${formatMoney(totalExpense)}** |\n` +
-          `| 📈 **അറ്റ വിൽപ്പന വരുമാനം (Net Revenue)** | — | **${formatMoney(netRevenue)}** |\n` +
-          `| 💵 **പ്രതിദിന അറ്റ ക്യാഷ് ഫ്ലോ (Net Flow)** | — | **${formatMoney(netCashFlow)}** |\n\n` +
+          `| 📈 **റിട്ടേൺ കുറച്ച വിൽപ്പന (നികുതി ഉൾപ്പെടെ)** | — | **${formatMoney(netRevenue)}** |\n` +
           `#### 💳 പേയ്‌മെന്റ് വിഹിതം:\n` +
           `* **ക്യാഷ്:** ${formatMoney(pm.cash)} | **യുപിഐ:** ${formatMoney(pm.upi)} | **കാർഡ്:** ${formatMoney(pm.card)} | **ക്രെഡിറ്റ്:** ${formatMoney(pm.credit)}\n`
         : `### 📑 Comprehensive Daily Business Report (${range.label})\n\n` +
@@ -545,8 +543,7 @@ export async function handleSalesSummaryIntent(parsed: ParsedOfflineIntent, ctx:
           `| 🔄 **Sales Returns & Refunds** | ${rangeReturns.length} returns | **${formatMoney(totalReturns)}** |\n` +
           `| 📦 **Purchases Incurred** | ${rangePurchases.length} bills | **${formatMoney(totalPurchases)}** |\n` +
           `| 💸 **Operating Expenses** | ${expenseTxs.length} records | **${formatMoney(totalExpense)}** |\n` +
-          `| 📈 **Net Sales Revenue** | — | **${formatMoney(netRevenue)}** |\n` +
-          `| 💵 **Estimated Net Daily Cashflow** | — | **${formatMoney(netCashFlow)}** |\n\n` +
+          `| 📈 **Sales less returns (tax included)** | — | **${formatMoney(netRevenue)}** |\n` +
           `#### 💳 Payment Breakdown:\n` +
           `* **Cash:** ${formatMoney(pm.cash)} | **UPI:** ${formatMoney(pm.upi)} | **Card:** ${formatMoney(pm.card)} | **Credit:** ${formatMoney(pm.credit)}\n`;
 

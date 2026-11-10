@@ -21,10 +21,11 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
         filterDate: fromDate,
         filterDateEnd: toDate,
       });
-      return Array.isArray(invs) ? invs : [];
+      if (!Array.isArray(invs)) throw new Error('Invoice records could not be read.');
+      return invs;
     } catch (err) {
       console.warn('[OfflineAiService] dbGetInvoices failed:', err);
-      return [];
+      throw err;
     }
   };
 
@@ -65,16 +66,17 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
           from_date: fromDate,
           to_date: toDate,
         });
-        if (Array.isArray(res)) return res;
+        if (!Array.isArray(res)) throw new Error('Cash transactions could not be read');
+        return res;
       }
       if (hasBridge('dbCashierGetTransactions')) {
         const res = await cashierApi.getTransactions({ tenant_id: tenantId });
         if (Array.isArray(res)) return res;
       }
-      return [];
+      throw new Error('Local data reader is unavailable');
     } catch (err) {
       console.warn('[OfflineAiService] fetchCashTransactions failed:', err);
-      return [];
+      throw err;
     }
   };
 
@@ -83,12 +85,13 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
     try {
       if (hasBridge('dbGetProducts')) {
         const res = await productsApi.getProducts({ tenant_id: tenantId });
-        return Array.isArray(res) ? res : [];
+        if (!Array.isArray(res)) throw new Error('Local records could not be read');
+        return res;
       }
-      return [];
+      throw new Error('Local data reader is unavailable');
     } catch (err) {
       console.warn('[OfflineAiService] fetchProducts failed:', err);
-      return [];
+      throw err;
     }
   };
 
@@ -96,13 +99,14 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
   const fetchPurchaseBills = async (search?: string): Promise<AiRow[]> => {
     try {
       if (hasBridge('dbGetPurchaseBills')) {
-        const res = await purchasesApi.getPurchaseBills({ tenant_id: tenantId, search, limit: 100 });
-        return Array.isArray(res) ? res : [];
+        const res = await purchasesApi.getPurchaseBills({ tenant_id: tenantId, search });
+        if (!Array.isArray(res)) throw new Error('Local records could not be read');
+        return res;
       }
-      return [];
+      throw new Error('Local data reader is unavailable');
     } catch (err) {
       console.warn('[OfflineAiService] fetchPurchaseBills failed:', err);
-      return [];
+      throw err;
     }
   };
 
@@ -111,12 +115,13 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
     try {
       if (hasBridge('dbGetParties')) {
         const res = await partiesApi.getParties(tenantId);
-        return Array.isArray(res) ? res : [];
+        if (!Array.isArray(res)) throw new Error('Local records could not be read');
+        return res;
       }
-      return [];
+      throw new Error('Local data reader is unavailable');
     } catch (err) {
       console.warn('[OfflineAiService] fetchParties failed:', err);
-      return [];
+      throw err;
     }
   };
 
@@ -125,12 +130,13 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
     try {
       if (hasBridge('dbGetReturns')) {
         const res = await returnsApi.getReturns({ tenant_id: tenantId });
-        return Array.isArray(res) ? res : [];
+        if (!Array.isArray(res)) throw new Error('Local records could not be read');
+        return res;
       }
-      return [];
+      throw new Error('Local data reader is unavailable');
     } catch (err) {
       console.warn('[OfflineAiService] fetchReturns failed:', err);
-      return [];
+      throw err;
     }
   };
 
@@ -139,12 +145,13 @@ export function createAiQueryContext(queryText: string, tenantId: string, histor
     try {
       if (hasBridge('dbCashierGetDrawer')) {
         const res = await cashierApi.getDrawer({ tenant_id: tenantId, business_date: bDate });
+        if (res && 'error' in res) throw new Error(res.error);
         return res as unknown as Partial<AiRow> | null;
       }
-      return null;
+      throw new Error('Drawer reader is unavailable');
     } catch (err) {
       console.warn('[OfflineAiService] fetchCashDrawer failed:', err);
-      return null;
+      throw err;
     }
   };
 

@@ -13,7 +13,6 @@ export function useAiAssistantState() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [languageMode, setLanguageMode] = useState<'en' | 'ml'>('en');
-  const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [showPromptMenu, setShowPromptMenu] = useState(false);
   // Custom dialogue and toast states
   const [convToDelete, setConvToDelete] = useState<Conversation | null>(null);
@@ -24,7 +23,7 @@ export function useAiAssistantState() {
 
   return {
     sidebarOpen, setSidebarOpen, input, setInput, isLoading, setIsLoading, copiedId, setCopiedId, speakingId,
-    setSpeakingId, languageMode, setLanguageMode, isOfflineMode, setIsOfflineMode, showPromptMenu, setShowPromptMenu,
+    setSpeakingId, languageMode, setLanguageMode, showPromptMenu, setShowPromptMenu,
     convToDelete, setConvToDelete, convToRename, setConvToRename, renameTitleInput, setRenameTitleInput,
     showClearAllDialog, setShowClearAllDialog, toastMessage, setToastMessage,
   };

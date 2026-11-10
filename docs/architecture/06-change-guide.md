@@ -437,3 +437,7 @@ App and Electron typechecks, architecture guard and lint ratchet passed (zero er
 - **Reporting & Status Bar**: Integrated `This FY` and `Prev FY` presets into `DateRangeFilter.tsx` and `FinancialReport.tsx`. Added `FinancialYearDropup.tsx` to the status bar with quick shortcuts.
 - **Clock and Header Standardization**: Standardized header live digital clock via `DigitalClock.tsx` (`variant="header"`). Dashboard shows live time with seconds and store timezone badge (`showSeconds={true}`). Cashier header shows unified business date and live time without seconds (`showSeconds={false}`), moves the `[• Open]` drawer status badge to the title line, and removes the redundant sync-time clock pill. Removed live clock and date from the footer, leaving only the FY dropup and copyright.
 - **Verification**: `verify` gate passed (`tsc -b`, `typecheck:electron`, 227 test files / 1,313 tests, `check:arch`); `lint:ratchet` passed with 0 errors and 0 warnings.
+
+### Desktop Mind assistant
+
+Conversation clarification belongs to `src/services/offlineAi/conversation.ts`; existing intent rules and handlers own reports. Persist `parsedIntent` with the current account-scoped chat message. Desktop queries go directly to local data with no cloud/LLM fallback. See [Mind ownership and acceptance](mind-assistant.md) and `tests/manual/mind/README.md`. Run the conversation, data-availability and 613-question characterization tests; review intentional snapshot changes.

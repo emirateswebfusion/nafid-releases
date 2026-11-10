@@ -1,3 +1,5 @@
+import { parseMerchantIntent } from './merchantRules';
+import { parseConversation } from './conversation';
 import { extractDateFromText } from './dates';
 import { normalizeInput } from './format';
 import type { AiHistoryMessage, ParsedOfflineIntent } from './types';
@@ -20,6 +22,10 @@ export interface IntentParseContext {
  */
 export class OfflineAiIntentParser {
   static parse(message: string, history: AiHistoryMessage[] = []): ParsedOfflineIntent {
+    return parseConversation(message, history, query => this.parseRules(query, []));
+  }
+
+  private static parseRules(message: string, history: AiHistoryMessage[]): ParsedOfflineIntent {
     const raw = message.trim();
     const text = normalizeInput(message);
     const lastUserMsg = [...history].reverse().find(m => m.role === 'user')?.content?.toLowerCase() || '';
@@ -29,6 +35,6 @@ export class OfflineAiIntentParser {
 
     // Rule groups run in their original order; the first match wins.
     const ctx: IntentParseContext = { message, history, raw, text, lastUserMsg, dateExtraction };
-    return parseGeneralIntent(ctx) ?? parseModuleIntent(ctx) ?? parseSalesIntent(ctx);
+    return parseMerchantIntent(ctx) ?? parseGeneralIntent(ctx) ?? parseModuleIntent(ctx) ?? parseSalesIntent(ctx);
   }
 }

@@ -3,37 +3,25 @@
 exports[`offline AI assistant (characterization) > answers every recognised phrase the same way 1`] = `
 {
   "30 ദിവസ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "7 days": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "7 ദിവസ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "aarokkeyanu kadam": {
     "content": "### 👥 Customer Credit & Receivables Summary
@@ -48,15 +36,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CUSTOMER_CREDIT_LIST",
   },
   "above": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "across billing counters": {
     "content": "### ⚖️ Sales Comparison Across Billing Counters (Today)
@@ -121,7 +105,7 @@ I couldn't match your query to a supported POS report. You can ask questions abo
 
 | Product Name | Price | Stock |
 | :--- | :---: | :---: |
-| **Steel Rod** | ₹0.00 | 0 |
+| **Steel Rod** | ₹100.00 | 0 |
 ",
     "intent": "INVENTORY_NEW_PRODUCTS_TODAY",
   },
@@ -174,26 +158,18 @@ All payment allocations across cash, card, UPI, credit, and split-payment record
     "intent": "DIAGNOSTIC_PAYMENT_RECONCILIATION",
   },
   "amount": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "asdfgh qwerty": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ask twice": {
     "content": "### ⚙️ Deterministic AI Architecture Verification
@@ -221,10 +197,10 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "content": "### 📦 Inventory Stock Count Summary
 
 * **Total Catalog Products:** **4 products**
-* **Active Products In Stock:** **0 products**
-* **Total Physical Stock Units:** **0 units**
-* **Low Stock Items:** **0 products**
-* **Out of Stock Items:** **4 products**
+* **Active Products In Stock:** **2 products**
+* **Total Physical Stock Units:** **43 units**
+* **Low Stock Items:** **1 products**
+* **Out of Stock Items:** **2 products**
 ",
     "intent": "INVENTORY_TOTAL_COUNT",
   },
@@ -339,15 +315,11 @@ Which balance would you like to review?
     "intent": undefined,
   },
   "best": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "best sales": {
     "content": "### 📊 Today's Sales Summary (Today)
@@ -397,15 +369,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "TOP_SELLING_PRODUCTS",
   },
   "biggest": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "bill adichu": {
     "content": "### 🧾 Invoice Count — Today
@@ -567,15 +535,11 @@ I am the Nafid POS offline assistant running locally on your store database. I p
     "intent": "SYSTEM_SETTINGS_BUSINESS_DATE",
   },
   "by category": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "by payment method": {
     "content": "### 💳 Sales by Payment Method — Today
@@ -607,40 +571,42 @@ Total Sales Revenue: **₹3,560.00**
     "intent": "SALES_TODAY",
   },
   "by supplier": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "canceled": {
-    "content": "### 🚫 Cancelled / Voided Invoices
+    "content": "### Deleted POS invoices in Recycle Bin
 
-* **Cancelled Invoices Today:** **0 bills**
+**Records found:** 0
+
+These are all currently available soft-deleted POS invoices, not only today's records. Card-terminal voids and restaurant order cancellations are separate.
+
+| Invoice | Customer | Amount |
+| :--- | :--- | ---: |
 ",
     "intent": "SALES_CANCELLED_INVOICES",
   },
   "cancelled": {
-    "content": "### 🚫 Cancelled / Voided Invoices
+    "content": "### Deleted POS invoices in Recycle Bin
 
-* **Cancelled Invoices Today:** **0 bills**
+**Records found:** 0
+
+These are all currently available soft-deleted POS invoices, not only today's records. Card-terminal voids and restaurant order cancellations are separate.
+
+| Invoice | Customer | Amount |
+| :--- | :--- | ---: |
 ",
     "intent": "SALES_CANCELLED_INVOICES",
   },
   "card": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "card sales": {
     "content": "### 💳 Card Sales — Today
@@ -650,15 +616,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_PAYMENT_METHODS",
   },
   "cash": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "cash and credit": {
     "content": "Could not find any customer or party matching "cash and".",
@@ -676,24 +638,15 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CASH_DRAWER_CURRENT",
   },
   "cash excess": {
-    "content": "### ⚖️ Cash Drawer Reconciliation
-
-* **Expected Closing Cash:** **₹2,480.00**
-* **Actual Counted Cash:** **₹0.00**
-* **Settlement Difference:** **-₹2,480.00**
-",
+    "content": "Expected closing cash: **₹2,480.00**. Counted cash has not been recorded yet. A shortage or excess cannot be confirmed.",
     "intent": "CASH_DRAWER_EXPECTED_VS_ACTUAL",
   },
   "cash in and": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "cash in and cash out": {
     "content": "### 💸 Expense Summary Report — This Month
@@ -771,49 +724,30 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CASH_DRAWER_CURRENT",
   },
   "cash shortages": {
-    "content": "### ⚖️ Cash Drawer Reconciliation
-
-* **Expected Closing Cash:** **₹2,480.00**
-* **Actual Counted Cash:** **₹0.00**
-* **Settlement Difference:** **-₹2,480.00**
-",
+    "content": "Expected closing cash: **₹2,480.00**. Counted cash has not been recorded yet. A shortage or excess cannot be confirmed.",
     "intent": "CASH_DRAWER_EXPECTED_VS_ACTUAL",
   },
   "cash was collected from sales": {
-    "content": "### 📊 Today's Sales Summary (Today)
+    "content": "### 💵 Cash Sales — Today
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Generated:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Payment Breakdown:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+* **Total Cash Collected:** **₹1,200.00** (33.7% of total)
+* **Total Sales Revenue:** ₹3,560.00
 ",
-    "intent": "SALES_TODAY",
+    "intent": "SALES_PAYMENT_METHODS",
   },
   "cash was paid out": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "cash-in": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "cash-in and cash-out": {
     "content": "### 🔄 Today's Cash Inflows & Outflows
@@ -846,15 +780,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CASH_DRAWER_CURRENT",
   },
   "category": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "chilar": {
     "content": "### 💸 Expense Summary Report — This Month
@@ -875,25 +805,30 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "EXPENSES_SUMMARY",
   },
   "closing cash": {
-    "content": "### 📑 Day Closing Settlements History
+    "content": "### Latest 10 cash drawer records
 
-* Evaluated cash drawer settlement history and audit logs.
-",
+| Business date | Status | Expected | Counted |
+| :--- | :--- | ---: | ---: |
+| 2026-10-15 | OPEN | ₹2,480.00 | Not recorded |",
     "intent": "CASH_DRAWER_SETTLEMENTS",
   },
   "collected against outstanding": {
-    "content": "### 💵 Customer Debt Payments Collected Today
+    "content": "### 💵 Cash receipts labelled Customer Payment today
 
 * **Total Amount Collected Today:** **₹500.00**
 * **Receipts Count:** **1 transactions**
+
+Only cash-in records explicitly labelled Customer Payment are included. This is not a complete total of linked party-ledger receipts or other payment methods.
 ",
     "intent": "CUSTOMER_PAYMENTS_COLLECTED_TODAY",
   },
   "collected from customers": {
-    "content": "### 💵 Customer Debt Payments Collected Today
+    "content": "### 💵 Cash receipts labelled Customer Payment today
 
 * **Total Amount Collected Today:** **₹500.00**
 * **Receipts Count:** **1 transactions**
+
+Only cash-in records explicitly labelled Customer Payment are included. This is not a complete total of linked party-ledger receipts or other payment methods.
 ",
     "intent": "CUSTOMER_PAYMENTS_COLLECTED_TODAY",
   },
@@ -920,9 +855,7 @@ Comparative analysis between **This Month** and **Last Month**:
 | 🔄 **Sales Returns & Refunds** | 1 returns | **₹100.00** |
 | 📦 **Purchases Incurred** | 0 bills | **₹0.00** |
 | 💸 **Operating Expenses** | 3 records | **₹1,320.00** |
-| 📈 **Net Sales Revenue** | — | **₹5,160.00** |
-| 💵 **Estimated Net Daily Cashflow** | — | **₹3,840.00** |
-
+| 📈 **Sales less returns (tax included)** | — | **₹5,160.00** |
 #### 💳 Payment Breakdown:
 * **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
 ",
@@ -937,9 +870,7 @@ Comparative analysis between **This Month** and **Last Month**:
 | 🔄 **Sales Returns & Refunds** | 1 returns | **₹100.00** |
 | 📦 **Purchases Incurred** | 0 bills | **₹0.00** |
 | 💸 **Operating Expenses** | 3 records | **₹1,320.00** |
-| 📈 **Net Sales Revenue** | — | **₹5,160.00** |
-| 💵 **Estimated Net Daily Cashflow** | — | **₹3,840.00** |
-
+| 📈 **Sales less returns (tax included)** | — | **₹5,160.00** |
 #### 💳 Payment Breakdown:
 * **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
 ",
@@ -972,23 +903,14 @@ Comparative analysis between **This Month** and **Last Month**:
     "intent": undefined,
   },
   "count of products": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "counted cash": {
-    "content": "### ⚖️ Cash Drawer Reconciliation
-
-* **Expected Closing Cash:** **₹2,480.00**
-* **Actual Counted Cash:** **₹0.00**
-* **Settlement Difference:** **-₹2,480.00**
-",
+    "content": "Expected closing cash: **₹2,480.00**. Counted cash has not been recorded yet. A shortage or excess cannot be confirmed.",
     "intent": "CASH_DRAWER_EXPECTED_VS_ACTUAL",
   },
   "counted more than once": {
@@ -1014,15 +936,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "DIAGNOSTIC_DEDUPLICATION_CHECK",
   },
   "counter": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "counter cash": {
     "content": "### 💵 Current Cash Drawer Balance
@@ -1096,106 +1014,92 @@ Please specify the customer or party name or phone number. (Example: *Balance of
     "intent": "SALES_LATEST_INVOICE_NUMBER",
   },
   "currently available": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "customer": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "customer has the highest": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "customer overdue": {
     "content": "### ⚠️ Overdue Customer Receivables List
 
 * **Overdue Debtors Count:** **1 customers**
-* **Total Overdue Receivables:** **₹2,900.00**
+* **Total Overdue Receivables:** **₹800.00**
 
 | Customer Name | Phone | Outstanding Due |
 | :--- | :---: | :---: |
-| **Acme Traders** | 9123456780 | **₹2,900.00** |
+| **Ravi Kumar** | 9876543210 | **₹800.00** |
 ",
     "intent": "CUSTOMER_OVERDUE_LIST",
   },
   "customer payments received": {
-    "content": "### 💵 Customer Debt Payments Collected Today
+    "content": "### 💵 Cash receipts labelled Customer Payment today
 
 * **Total Amount Collected Today:** **₹500.00**
 * **Receipts Count:** **1 transactions**
+
+Only cash-in records explicitly labelled Customer Payment are included. This is not a complete total of linked party-ledger receipts or other payment methods.
 ",
     "intent": "CUSTOMER_PAYMENTS_COLLECTED_TODAY",
   },
   "customers bought": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "customers have overdue": {
     "content": "### ⚠️ Overdue Customer Receivables List
 
 * **Overdue Debtors Count:** **1 customers**
-* **Total Overdue Receivables:** **₹2,900.00**
+* **Total Overdue Receivables:** **₹800.00**
 
 | Customer Name | Phone | Outstanding Due |
 | :--- | :---: | :---: |
-| **Acme Traders** | 9123456780 | **₹2,900.00** |
+| **Ravi Kumar** | 9876543210 | **₹800.00** |
 ",
     "intent": "CUSTOMER_OVERDUE_LIST",
   },
   "customers have unpaid": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "customers made purchases": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "customers owe": {
-    "content": "Could not find any customer or party matching "custome".",
-    "intent": undefined,
+    "content": "### 👥 Customer Credit & Receivables Summary
+
+* **Total Outstanding Balance:** **₹2,900.00**
+* **Total Accounts:** **1 accounts**
+
+| Customer / Party | Phone | Balance |
+| :--- | :---: | :---: |
+| **Acme Traders** | 9123456780 | **₹2,900.00** |
+",
+    "intent": "CUSTOMER_CREDIT_LIST",
   },
   "customers owe us": {
     "content": "### 👥 Customer Credit & Receivables Summary
@@ -1210,37 +1114,25 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CUSTOMER_CREDIT_LIST",
   },
   "customers purchased": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "customers today": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "daily": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "daily average": {
     "content": "### 📅 Average Daily Sales — This Month
@@ -1260,9 +1152,7 @@ I couldn't match your query to a supported POS report. You can ask questions abo
 | 🔄 **Sales Returns & Refunds** | 1 returns | **₹100.00** |
 | 📦 **Purchases Incurred** | 0 bills | **₹0.00** |
 | 💸 **Operating Expenses** | 3 records | **₹1,320.00** |
-| 📈 **Net Sales Revenue** | — | **₹5,160.00** |
-| 💵 **Estimated Net Daily Cashflow** | — | **₹3,840.00** |
-
+| 📈 **Sales less returns (tax included)** | — | **₹5,160.00** |
 #### 💳 Payment Breakdown:
 * **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
 ",
@@ -1283,7 +1173,7 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_TODAY",
   },
   "daily sales trend": {
-    "content": "### 📈 Daily Sales Trend — This Month
+    "content": "### 📈 Daily Sales Trend (recorded invoice dates) — This Month
 
 * **Best Performing Day:** **2026-10-15** (₹3,560.00)
 * **Lowest Performing Day:** **2026-10-03** (₹450.00)
@@ -1297,7 +1187,7 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_DAILY_TREND",
   },
   "daily trend": {
-    "content": "### 📈 Daily Sales Trend — This Month
+    "content": "### 📈 Daily Sales Trend (recorded invoice dates) — This Month
 
 * **Best Performing Day:** **2026-10-15** (₹3,560.00)
 * **Lowest Performing Day:** **2026-10-03** (₹450.00)
@@ -1311,20 +1201,23 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_DAILY_TREND",
   },
   "day": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "dead stock": {
-    "content": "### ⏳ Non-Selling & Slow Moving Products
+    "content": "### Current stock with no recorded sales
 
-* Evaluated inventory movement over the last 30 days. Active slow-moving tracking enabled.
+**Sales period:** 2026-09-16 → 2026-10-15 (Last 30 Days)
+**Products found:** 1
+
+These products are in stock now and have no positive sold quantity in the local product-sales records for this period. This is not a historical stock snapshot.
+
+| Product | Barcode | Current Stock |
+| :--- | :--- | ---: |
+| Cement Bag | 1002 | 3 |
 ",
     "intent": "INVENTORY_NON_SELLING",
   },
@@ -1348,15 +1241,11 @@ Please specify the customer or party name or phone number. (Example: *Balance of
     "intent": "CUSTOMER_CREDIT_LIST",
   },
   "deposits": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "deterministic": {
     "content": "### ⚙️ Deterministic AI Architecture Verification
@@ -1374,7 +1263,7 @@ I couldn't match your query to a supported POS report. You can ask questions abo
 
 * **Gross Sales (Before Discounts):** **₹5,330.00**
 * **Total Discounts Given:** **₹70.00**
-* **Net Sales Revenue (Final Invoiced):** **₹5,260.00**
+* **Sales less returns (tax included) (Final Invoiced):** **₹5,260.00**
 * **Total Tax (GST) Collected:** **₹460.00**
 * **Invoices Count:** undefined bills
 ",
@@ -1435,15 +1324,8 @@ The engine cleanly distinguishes between genuine zero-sales periods (empty valid
     "intent": "CASH_DRAWER_CURRENT",
   },
   "duplicate barcode": {
-    "content": "### 🔍 Duplicate Product Records Audit
-
-* **Total Catalog Products Audited:** **4 items**
-* **Duplicate Barcodes / SKUs:** **0**
-* **Duplicate Product Names:** **1**
-
-**Result:** Identified duplicate product entries.
-",
-    "intent": "DIAGNOSTIC_DUPLICATE_PRODUCTS",
+    "content": "No product found with barcode "duplicate".",
+    "intent": undefined,
   },
   "duplicate counting": {
     "content": "### 🛡️ Data Integrity Diagnostic: Converted Bills Deduplication
@@ -1510,26 +1392,18 @@ The engine cleanly distinguishes between genuine zero-sales periods (empty valid
     "intent": "DIAGNOSTIC_DUPLICATE_PRODUCTS",
   },
   "ee masam": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+Which report do you want for that period: sales, expenses, purchases or sales returns?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ee masathe": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ethra bill": {
     "content": "### 🧾 Invoice Count — Today
@@ -1550,15 +1424,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_INVOICE_COUNT",
   },
   "ethu": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "examples of questions": {
     "content": "### 💡 Supported Offline Intelligence Modules
@@ -1574,23 +1444,14 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "AI_HELP_REPORTS",
   },
   "excess": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "expected cash": {
-    "content": "### ⚖️ Cash Drawer Reconciliation
-
-* **Expected Closing Cash:** **₹2,480.00**
-* **Actual Counted Cash:** **₹0.00**
-* **Settlement Difference:** **-₹2,480.00**
-",
+    "content": "Expected closing cash: **₹2,480.00**. Counted cash has not been recorded yet. A shortage or excess cannot be confirmed.",
     "intent": "CASH_DRAWER_EXPECTED_VS_ACTUAL",
   },
   "expense": {
@@ -1630,40 +1491,42 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "EXPENSES_SUMMARY",
   },
   "expire": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "expired": {
-    "content": "### ⏳ Product Expiry Alert Report
+    "content": "### Product Expiry Alert
 
-No expired or near-expiry products (within 30 days) found in current inventory ✅
+**Shop date:** 2026-10-15
+**Expired products:** 0
+**Expiring within 30 days:** 0
+
+Only products with a recorded expiry date and positive current stock are evaluated.
+
 ",
     "intent": "INVENTORY_EXPIRY_ALERT",
   },
   "expiry": {
-    "content": "### ⏳ Product Expiry Alert Report
+    "content": "### Product Expiry Alert
 
-No expired or near-expiry products (within 30 days) found in current inventory ✅
+**Shop date:** 2026-10-15
+**Expired products:** 0
+**Expiring within 30 days:** 0
+
+Only products with a recorded expiry date and positive current stock are evaluated.
+
 ",
     "intent": "INVENTORY_EXPIRY_ALERT",
   },
   "financial year": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "find duplicate invoices": {
     "content": "### 🔍 Duplicate Invoices Audit
@@ -1704,77 +1567,57 @@ I am the Nafid POS offline assistant running locally on your store database. I p
     "intent": "UNSUPPORTED_REQUEST",
   },
   "fy": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "greater than": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "gross": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "gross sales": {
     "content": "### 📊 Gross vs Net Sales & Deductions — Today
 
 * **Gross Sales (Before Discounts):** **₹5,330.00**
 * **Total Discounts Given:** **₹70.00**
-* **Net Sales Revenue (Final Invoiced):** **₹5,260.00**
+* **Sales less returns (tax included) (Final Invoiced):** **₹5,260.00**
 * **Total Tax (GST) Collected:** **₹460.00**
 * **Invoices Count:** undefined bills
 ",
     "intent": "SALES_GROSS_NET",
   },
   "grouped by category": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "grouped by supplier": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "gst rate": {
     "content": "Could not find product matching "gst rate".",
     "intent": undefined,
   },
   "gst rate and barcode": {
-    "content": "Could not find product matching "gst rate and barcode".",
+    "content": "No product found with barcode "gst rate and".",
     "intent": undefined,
   },
   "gst rate for": {
@@ -1792,26 +1635,18 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_INVOICE_TYPES",
   },
   "hello": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "highest": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "highest expense": {
     "content": "### 🔴 Largest Expenses — This Month
@@ -1953,17 +1788,15 @@ Accurate profit calculation requires item-level Cost of Goods Sold (COGS) record
     "intent": "TOP_SELLING_PRODUCTS",
   },
   "highest spending": {
-    "content": "### 📂 Expenses Grouped by Category — This Month
+    "content": "### 🔴 Largest Expenses — This Month
 
-Total Expense Payout: **₹1,320.00**
-
-| Expense Category | Count | Amount | Share |
-| :--- | :---: | :---: | :---: |
-| **Rent** | 1 | **₹900.00** | 68% |
-| **Supplier Payment** | 1 | **₹300.00** | 23% |
-| **Tea** | 1 | **₹120.00** | 9% |
+| Date | Category | Notes / Details | Amount |
+| :---: | :--- | :--- | :---: |
+| 2026-10-10 | Rent | rent | **₹900.00** |
+| 2026-10-15 | Supplier Payment | Big Supplier | **₹300.00** |
+| 2026-10-15 | Tea | tea | **₹120.00** |
 ",
-    "intent": "EXPENSES_BY_CATEGORY",
+    "intent": "EXPENSES_LARGEST",
   },
   "highest stock": {
     "content": "### 📈 Products with Highest Stock Quantity
@@ -1978,7 +1811,7 @@ Total Expense Payout: **₹1,320.00**
     "intent": "INVENTORY_TOP_STOCK",
   },
   "highest value invoice": {
-    "content": "### 🧾 Highest-Value Invoice (This Month)
+    "content": "### 🧾 Highest-Value Invoice (Today)
 
 * **Invoice Number:** **GST-102**
 * **Invoice Amount:** **₹2,360.00**
@@ -1996,26 +1829,18 @@ Total Expense Payout: **₹1,320.00**
     "intent": "SALES_INVOICE_EXTREMES",
   },
   "history": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "history of a product": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "hourly sales": {
     "content": "### ⏱️ Hourly Sales Intelligence
@@ -2027,15 +1852,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_HOURLY",
   },
   "how many": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "how many bills": {
     "content": "### 🧾 Invoice Count — Today
@@ -2056,15 +1877,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_INVOICE_COUNT",
   },
   "how many products": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "how many sales returns": {
     "content": "### 🔄 Sales Returns & Refunds Summary — This Month
@@ -2082,18 +1899,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "BILLS_UNPAID",
   },
   "how much": {
-    "content": "### 📊 Today's Sales Summary (Today)
+    "content": "### ❓ Clarification Required
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Generated:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Payment Breakdown:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
 ",
-    "intent": "SALES_TODAY",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "idempotency": {
     "content": "### 🔍 Diagnostic Accuracy
@@ -2124,56 +1934,32 @@ The engine cleanly distinguishes between genuine zero-sales periods (empty valid
     "intent": "DIAGNOSTIC_INVOICE_TOTALS_INTEGRITY",
   },
   "inflows": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "innale": {
-    "content": "### 📈 Sales Report — Yesterday
+    "content": "### ❓ Clarification Required
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Count:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Sales by Payment Method:
-| Payment Method | Total Amount |
-| :--- | :---: |
-| 💵 Cash | **₹0.00** |
-| 📱 UPI | **₹0.00** |
-| 💳 Card | **₹0.00** |
-| 📒 Credit | **₹800.00** |
+Which report do you want for that period: sales, expenses, purchases or sales returns?
 ",
-    "intent": "SALES_PERIOD",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "innathe": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "innu": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+Which report do you want for that period: sales, expenses, purchases or sales returns?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "intake": {
     "content": "### 📊 Today's Sales Summary (Today)
@@ -2190,15 +1976,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_TODAY",
   },
   "internet": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "inventory": {
     "content": "### ⚠️ Low Stock Alert
@@ -2240,15 +2022,11 @@ No invoices found containing "invoices containing".
     "intent": "SALES_BILLS_CONTAINING_PRODUCT",
   },
   "invoices generated for": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "invoices greater than": {
     "content": "### 🧾 Highest-Value Invoice (This Month)
@@ -2284,15 +2062,11 @@ No invoices found containing "product".
     "intent": "SALES_BILLS_CONTAINING_PRODUCT",
   },
   "item code": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "items were returned": {
     "content": "### 📦 Returned Products & Quantities — This Month
@@ -2320,11 +2094,13 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CUSTOMER_CREDIT_LIST",
   },
   "kadam kodukkanullath": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "kadam tharanulla": {
@@ -2352,45 +2128,35 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CUSTOMER_CREDIT_LIST",
   },
   "kodukkanulla cash": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "kooduthal": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "kuranja": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "largest": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "last 30 days": {
     "content": "### 📈 Sales Report — 2026-09-16 to 2026-10-15
@@ -2452,37 +2218,25 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_LATEST_INVOICE_NUMBER",
   },
   "last month": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+Which report do you want for that period: sales, expenses, purchases or sales returns?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "last week": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+Which report do you want for that period: sales, expenses, purchases or sales returns?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "last year": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "latest invoice number": {
     "content": "### 🧾 Latest Invoice Details
@@ -2502,15 +2256,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "PURCHASES_PRODUCT_HISTORY",
   },
   "least": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "least sales": {
     "content": "### 📊 Today's Sales Summary (Today)
@@ -2551,15 +2301,11 @@ Please specify the customer or party name or phone number. (Example: *Balance of
     "intent": "PURCHASES_SUMMARY",
   },
   "list": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "list of invoices today": {
     "content": "### 🧾 Invoices Generated Today (2 bills)
@@ -2572,15 +2318,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_INVOICE_LIST",
   },
   "low": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "low stock": {
     "content": "### ⚠️ Low Stock Alert
@@ -2605,15 +2347,11 @@ Found **3 products** at or below reorder level (**2** out of stock):
     "intent": "PURCHASES_SUMMARY",
   },
   "lowest": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "lowest sales": {
     "content": "### 📊 Today's Sales Summary (Today)
@@ -2648,44 +2386,32 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_INVOICE_EXTREMES",
   },
   "loyalty": {
-    "content": "### 🎁 Customer Loyalty Points
+    "content": "### ❓ Clarification Required
 
-* Active loyalty program tracking points earned and redeemed.
+Whose loyalty points do you need? Please give the customer name.
 ",
-    "intent": "LOYALTY_POINTS",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "masam": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "masathil": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "match": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "matches all recorded expense": {
     "content": "### ⚖️ Expense Total vs Recorded Transactions Verification
@@ -2757,45 +2483,35 @@ Every finalized sale recorded today is completely and accurately accounted for i
     "intent": "DIAGNOSTIC_INVOICE_TOTALS_INTEGRITY",
   },
   "money is still payable": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "month": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "month to date": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "most": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "most profitable products": {
     "content": "### ❓ Clarification Required
@@ -2843,26 +2559,18 @@ Accurate profit calculation requires item-level Cost of Goods Sold (COGS) record
     "intent": "INVENTORY_TOP_STOCK",
   },
   "movements": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "mtd": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "multiple payment methods": {
     "content": "### 💳 Sales by Payment Method — Today
@@ -2880,9 +2588,14 @@ Total Sales Revenue: **₹3,560.00**
     "intent": "SALES_PAYMENT_METHODS",
   },
   "nearing expiry": {
-    "content": "### ⏳ Product Expiry Alert Report
+    "content": "### Product Expiry Alert
 
-No expired or near-expiry products (within 30 days) found in current inventory ✅
+**Shop date:** 2026-10-15
+**Expired products:** 0
+**Expiring within 30 days:** 0
+
+Only products with a recorded expiry date and positive current stock are evaluated.
+
 ",
     "intent": "INVENTORY_EXPIRY_ALERT",
   },
@@ -2900,44 +2613,34 @@ Found **3 products** at or below reorder level (**2** out of stock):
     "intent": "INVENTORY_LOW_STOCK",
   },
   "negative margin": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ⚠️ Products with Selling Price Lower Than Purchase Price (1)
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+| Product | Purchase Cost | Selling Price | Loss / Unit |
+| :--- | :---: | :---: | :---: |
+| **Cement Bag** | ₹420.00 | ₹390.00 | -₹30.00 |
+",
+    "intent": "INVENTORY_NEGATIVE_MARGIN",
   },
   "net": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "net profit": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "net sales": {
     "content": "### 📊 Gross vs Net Sales & Deductions — Today
 
 * **Gross Sales (Before Discounts):** **₹5,330.00**
 * **Total Discounts Given:** **₹70.00**
-* **Net Sales Revenue (Final Invoiced):** **₹5,260.00**
+* **Sales less returns (tax included) (Final Invoiced):** **₹5,260.00**
 * **Total Tax (GST) Collected:** **₹460.00**
 * **Invoices Count:** undefined bills
 ",
@@ -2950,7 +2653,7 @@ I couldn't match your query to a supported POS report. You can ask questions abo
 
 | Product Name | Price | Stock |
 | :--- | :---: | :---: |
-| **Steel Rod** | ₹0.00 | 0 |
+| **Steel Rod** | ₹100.00 | 0 |
 ",
     "intent": "INVENTORY_NEW_PRODUCTS_TODAY",
   },
@@ -2966,34 +2669,51 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "AI_CAPABILITIES_EXPLANATION",
   },
   "non selling": {
-    "content": "### ⏳ Non-Selling & Slow Moving Products
+    "content": "### Current stock with no recorded sales
 
-* Evaluated inventory movement over the last 30 days. Active slow-moving tracking enabled.
+**Sales period:** 2026-09-16 → 2026-10-15 (Last 30 Days)
+**Products found:** 1
+
+These products are in stock now and have no positive sold quantity in the local product-sales records for this period. This is not a historical stock snapshot.
+
+| Product | Barcode | Current Stock |
+| :--- | :--- | ---: |
+| Cement Bag | 1002 | 3 |
 ",
     "intent": "INVENTORY_NON_SELLING",
   },
   "not been settled": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "not sold": {
-    "content": "### ⏳ Non-Selling & Slow Moving Products
+    "content": "### Current stock with no recorded sales
 
-* Evaluated inventory movement over the last 30 days. Active slow-moving tracking enabled.
+**Sales period:** 2026-09-16 → 2026-10-15 (Last 30 Days)
+**Products found:** 1
+
+These products are in stock now and have no positive sold quantity in the local product-sales records for this period. This is not a historical stock snapshot.
+
+| Product | Barcode | Current Stock |
+| :--- | :--- | ---: |
+| Cement Bag | 1002 | 3 |
 ",
     "intent": "INVENTORY_NON_SELLING",
   },
   "not sold in the last": {
-    "content": "### ⏳ Non-Selling & Slow Moving Products
+    "content": "### Current stock with no recorded sales
 
-* Evaluated inventory movement over the last 30 days. Active slow-moving tracking enabled.
+**Sales period:** 2026-09-16 → 2026-10-15 (Last 30 Days)
+**Products found:** 1
+
+These products are in stock now and have no positive sold quantity in the local product-sales records for this period. This is not a historical stock snapshot.
+
+| Product | Barcode | Current Stock |
+| :--- | :--- | ---: |
+| Cement Bag | 1002 | 3 |
 ",
     "intent": "INVENTORY_NON_SELLING",
   },
@@ -3029,15 +2749,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CASH_DRAWER_CURRENT",
   },
   "out": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "out of stock": {
     "content": "### 🔴 Out of Stock Products
@@ -3052,15 +2768,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "INVENTORY_OUT_OF_STOCK",
   },
   "outflows": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "outstanding from credit invoices": {
     "content": "### 📒 Outstanding Credit from Invoices
@@ -3073,11 +2785,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "content": "### ⚠️ Overdue Customer Receivables List
 
 * **Overdue Debtors Count:** **1 customers**
-* **Total Overdue Receivables:** **₹2,900.00**
+* **Total Overdue Receivables:** **₹800.00**
 
 | Customer Name | Phone | Outstanding Due |
 | :--- | :---: | :---: |
-| **Acme Traders** | 9123456780 | **₹2,900.00** |
+| **Ravi Kumar** | 9876543210 | **₹800.00** |
 ",
     "intent": "CUSTOMER_OVERDUE_LIST",
   },
@@ -3085,11 +2797,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "content": "### ⚠️ Overdue Customer Receivables List
 
 * **Overdue Debtors Count:** **1 customers**
-* **Total Overdue Receivables:** **₹2,900.00**
+* **Total Overdue Receivables:** **₹800.00**
 
 | Customer Name | Phone | Outstanding Due |
 | :--- | :---: | :---: |
-| **Acme Traders** | 9123456780 | **₹2,900.00** |
+| **Ravi Kumar** | 9876543210 | **₹800.00** |
 ",
     "intent": "CUSTOMER_OVERDUE_LIST",
   },
@@ -3104,11 +2816,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "content": "### ⚠️ Overdue Customer Receivables List
 
 * **Overdue Debtors Count:** **1 customers**
-* **Total Overdue Receivables:** **₹2,900.00**
+* **Total Overdue Receivables:** **₹800.00**
 
 | Customer Name | Phone | Outstanding Due |
 | :--- | :---: | :---: |
-| **Acme Traders** | 9123456780 | **₹2,900.00** |
+| **Ravi Kumar** | 9876543210 | **₹800.00** |
 ",
     "intent": "CUSTOMER_OVERDUE_LIST",
   },
@@ -3116,11 +2828,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "content": "### ⚠️ Overdue Customer Receivables List
 
 * **Overdue Debtors Count:** **1 customers**
-* **Total Overdue Receivables:** **₹2,900.00**
+* **Total Overdue Receivables:** **₹800.00**
 
 | Customer Name | Phone | Outstanding Due |
 | :--- | :---: | :---: |
-| **Acme Traders** | 9123456780 | **₹2,900.00** |
+| **Ravi Kumar** | 9876543210 | **₹800.00** |
 ",
     "intent": "CUSTOMER_OVERDUE_LIST",
   },
@@ -3128,28 +2840,32 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "content": "### ⚠️ Overdue Customer Receivables List
 
 * **Overdue Debtors Count:** **1 customers**
-* **Total Overdue Receivables:** **₹2,900.00**
+* **Total Overdue Receivables:** **₹800.00**
 
 | Customer Name | Phone | Outstanding Due |
 | :--- | :---: | :---: |
-| **Acme Traders** | 9123456780 | **₹2,900.00** |
+| **Ravi Kumar** | 9876543210 | **₹800.00** |
 ",
     "intent": "CUSTOMER_OVERDUE_LIST",
   },
   "owe suppliers": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "owe to all suppliers": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "owe us": {
@@ -3221,15 +2937,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "BILLS_PARTIALLY_PAID",
   },
   "particular": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "past 30 days": {
     "content": "### 📈 Sales Report — 2026-09-16 to 2026-10-15
@@ -3272,19 +2984,23 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_CUSTOM_RANGE",
   },
   "payable to supplier": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "payable to suppliers": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "payment allocations do not match": {
@@ -3331,10 +3047,12 @@ All payment allocations across cash, card, UPI, credit, and split-payment record
     "intent": "SUPPLIER_PAYMENTS_TODAY",
   },
   "payments received from customers": {
-    "content": "### 💵 Customer Debt Payments Collected Today
+    "content": "### 💵 Cash receipts labelled Customer Payment today
 
 * **Total Amount Collected Today:** **₹500.00**
 * **Receipts Count:** **1 transactions**
+
+Only cash-in records explicitly labelled Customer Payment are included. This is not a complete total of linked party-ledger receipts or other payment methods.
 ",
     "intent": "CUSTOMER_PAYMENTS_COLLECTED_TODAY",
   },
@@ -3356,34 +3074,32 @@ All payment allocations across cash, card, UPI, credit, and split-payment record
     "intent": "EXPENSES_SUMMARY",
   },
   "pending purchase": {
-    "content": "### 📒 Unpaid & Partially Paid Purchase Bills
+    "content": "### Credit / Pending Purchase Bills
 
-* **Total Unpaid Bills:** **1 bills**
-* **Total Outstanding Amount:** **₹7,000.00**
+**Recorded bills:** 1
+**Total bill value:** ₹7,000.00
+
+These are the saved bill payment types and original bill values. Check the Supplier Ledger for the current payable after subsequent supplier payments; these values are not a confirmed remaining balance.
+
+| Bill | Supplier | Payment Type | Bill Value |
+| :--- | :--- | :--- | ---: |
+| PB-1 | Big Supplier | CREDIT | ₹7,000.00 |
 ",
     "intent": "PURCHASES_UNPAID",
   },
   "pending transactions": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "pending transactions that have not been included": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "percentage did sales increase": {
     "content": "### ⚖️ Sales Comparison Report
@@ -3428,51 +3144,36 @@ I am the Nafid POS offline assistant running locally on your store database. I p
     "intent": "UNSUPPORTED_REQUEST",
   },
   "previous day": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "price history": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "price of": {
     "content": "Could not find product matching "price of".",
     "intent": undefined,
   },
   "price of rod": {
-    "content": "### 🏷️ Pricing Details: **Steel Rod**
+    "content": "Which product do you mean? Choose below or give the exact barcode.
 
-* **Retail Selling Price (Base Price):** **₹100.00**
-* **Purchase Price (Cost):** ₹70.00
-* **Offer / Wholesale Price:** ₹100.00
-* **GST Tax Rate:** 0%
-",
-    "intent": "PRODUCT_PRICE_LOOKUP",
+1. Steel Rod · 1001
+2. Steel Rod · 1004",
+    "intent": undefined,
   },
   "product": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "product wise sales": {
     "content": "### 🏆 Top Selling Products — Today
@@ -3503,15 +3204,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": undefined,
   },
   "products were added": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "products were returned": {
     "content": "### 📦 Returned Products & Quantities — This Month
@@ -3523,15 +3220,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "RETURNS_ITEMS",
   },
   "profit": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "purchase": {
     "content": "### 📦 Purchases & Supplier Bills Summary — This Month
@@ -3651,18 +3344,15 @@ Every finalized sale recorded today is completely and accurately accounted for i
     "intent": "CASH_DRAWER_CURRENT",
   },
   "register intake": {
-    "content": "### 📊 Today's Sales Summary (Today)
+    "content": "### 💵 Current Cash Drawer Balance
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Generated:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Payment Breakdown:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+* **Drawer Status:** **OPEN**
+* **Business Date:** 2026-10-15
+* **Opening Balance:** **₹1,000.00**
+* **Recorded Cash Sales:** **₹1,400.00**
+* **Current Drawer Cash:** **₹2,480.00**
 ",
-    "intent": "SALES_TODAY",
+    "intent": "CASH_DRAWER_CURRENT",
   },
   "register transactions": {
     "content": "### 🔄 Today's Cash Inflows & Outflows
@@ -3727,15 +3417,11 @@ Which business report would you like to view?
     "intent": undefined,
   },
   "return": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "return the same": {
     "content": "### ⚙️ Deterministic AI Architecture Verification
@@ -3781,25 +3467,18 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_TODAY",
   },
   "reward points": {
-    "content": "### 🎁 Customer Loyalty Points
+    "content": "### ❓ Clarification Required
 
-* Active loyalty program tracking points earned and redeemed.
+Whose loyalty points do you need? Please give the customer name.
 ",
-    "intent": "LOYALTY_POINTS",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "sale": {
-    "content": "### 📊 Today's Sales Summary (Today)
+    "content": "### ❓ Clarification Required
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Generated:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Payment Breakdown:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+Which sales period would you like to see? You can specify: Today, Yesterday, This Month, Last Month, or a custom date range.
 ",
-    "intent": "SALES_TODAY",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "sales": {
     "content": "### ❓ Clarification Required
@@ -3833,18 +3512,14 @@ Which sales period would you like to see? You can specify: Today, Yesterday, Thi
     "intent": "SALES_TODAY",
   },
   "sales by cash register": {
-    "content": "### 📊 Today's Sales Summary (Today)
+    "content": "### ⚖️ Sales Comparison Across Billing Counters (Today)
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Generated:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Payment Breakdown:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+| Counter / Register | Invoices | Cash Sales | Digital / UPI | Total Sales |
+| :--- | :---: | :---: | :---: | :---: |
+| **Admin** | 1 bills | ₹1,200.00 | ₹0.00 | **₹1,200.00** |
+| **Staff One** | 1 bills | ₹0.00 | ₹2,360.00 | **₹2,360.00** |
 ",
-    "intent": "SALES_TODAY",
+    "intent": "SALES_BY_COUNTER",
   },
   "sales by staff": {
     "content": "### 👨‍💼 Sales by Biller / Cashier — Today
@@ -3947,9 +3622,7 @@ Which sales period would you like to see? You can specify: Today, Yesterday, Thi
 | 🔄 **Sales Returns & Refunds** | 1 returns | **₹100.00** |
 | 📦 **Purchases Incurred** | 0 bills | **₹0.00** |
 | 💸 **Operating Expenses** | 3 records | **₹1,320.00** |
-| 📈 **Net Sales Revenue** | — | **₹5,160.00** |
-| 💵 **Estimated Net Daily Cashflow** | — | **₹3,840.00** |
-
+| 📈 **Sales less returns (tax included)** | — | **₹5,160.00** |
 #### 💳 Payment Breakdown:
 * **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
 ",
@@ -3968,15 +3641,12 @@ Which sales period would you like to see? You can specify: Today, Yesterday, Thi
     "intent": "TOP_SELLING_PRODUCTS",
   },
   "sales return was recorded": {
-    "content": "### 📊 Gross vs Net Sales & Deductions — Today
+    "content": "### 🔄 Sales Returns & Refunds Summary — This Month
 
-* **Gross Sales (Before Discounts):** **₹5,330.00**
-* **Total Discounts Given:** **₹70.00**
-* **Net Sales Revenue (Final Invoiced):** **₹5,260.00**
-* **Total Tax (GST) Collected:** **₹460.00**
-* **Invoices Count:** undefined bills
+* **Total Returns Count:** **1 records**
+* **Total Refunded Amount:** **₹100.00**
 ",
-    "intent": "SALES_GROSS_NET",
+    "intent": "RETURNS_SUMMARY",
   },
   "sales returns recorded today": {
     "content": "### 🔄 Sales Returns & Refunds Summary — Today
@@ -4094,9 +3764,7 @@ Which sales period would you like to see? You can specify: Today, Yesterday, Thi
 | 🔄 **Sales Returns & Refunds** | 1 returns | **₹100.00** |
 | 📦 **Purchases Incurred** | 0 bills | **₹0.00** |
 | 💸 **Operating Expenses** | 3 records | **₹1,320.00** |
-| 📈 **Net Sales Revenue** | — | **₹5,160.00** |
-| 💵 **Estimated Net Daily Cashflow** | — | **₹3,840.00** |
-
+| 📈 **Sales less returns (tax included)** | — | **₹5,160.00** |
 #### 💳 Payment Breakdown:
 * **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
 ",
@@ -4111,24 +3779,18 @@ Which sales period would you like to see? You can specify: Today, Yesterday, Thi
 | 🔄 **Sales Returns & Refunds** | 1 returns | **₹100.00** |
 | 📦 **Purchases Incurred** | 0 bills | **₹0.00** |
 | 💸 **Operating Expenses** | 3 records | **₹1,320.00** |
-| 📈 **Net Sales Revenue** | — | **₹5,160.00** |
-| 💵 **Estimated Net Daily Cashflow** | — | **₹3,840.00** |
-
+| 📈 **Sales less returns (tax included)** | — | **₹5,160.00** |
 #### 💳 Payment Breakdown:
 * **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
 ",
     "intent": "DAILY_BUSINESS_REPORT",
   },
   "same": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "same result": {
     "content": "### ⚙️ Deterministic AI Architecture Verification
@@ -4170,14 +3832,11 @@ I am the Nafid POS offline assistant running locally on your store database. I p
     "intent": "SALES_TODAY",
   },
   "selling price lower": {
-    "content": "### ⚠️ Products with Selling Price Lower Than Purchase Price (4)
+    "content": "### ⚠️ Products with Selling Price Lower Than Purchase Price (1)
 
 | Product | Purchase Cost | Selling Price | Loss / Unit |
 | :--- | :---: | :---: | :---: |
-| **Steel Rod** | ₹70.00 | ₹0.00 | -₹70.00 |
-| **Cement Bag** | ₹420.00 | ₹0.00 | -₹420.00 |
-| **Paint 1L** | ₹180.00 | ₹0.00 | -₹180.00 |
-| **Steel Rod** | ₹70.00 | ₹0.00 | -₹70.00 |
+| **Cement Bag** | ₹420.00 | ₹390.00 | -₹30.00 |
 ",
     "intent": "INVENTORY_NEGATIVE_MARGIN",
   },
@@ -4224,72 +3883,47 @@ I am the Nafid POS offline assistant running locally on your store database. I p
     "intent": "UNSUPPORTED_REQUEST",
   },
   "settlement": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "settlement differences": {
-    "content": "### ⚖️ Cash Drawer Reconciliation
-
-* **Expected Closing Cash:** **₹2,480.00**
-* **Actual Counted Cash:** **₹0.00**
-* **Settlement Difference:** **-₹2,480.00**
-",
+    "content": "Expected closing cash: **₹2,480.00**. Counted cash has not been recorded yet. A shortage or excess cannot be confirmed.",
     "intent": "CASH_DRAWER_EXPECTED_VS_ACTUAL",
   },
   "settlement status": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "settlement status for each biller": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "settlements": {
-    "content": "### 📑 Day Closing Settlements History
+    "content": "### Latest 10 cash drawer records
 
-* Evaluated cash drawer settlement history and audit logs.
-",
+| Business date | Status | Expected | Counted |
+| :--- | :--- | ---: | ---: |
+| 2026-10-15 | OPEN | ₹2,480.00 | Not recorded |",
     "intent": "CASH_DRAWER_SETTLEMENTS",
   },
   "short": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "shortages and excess": {
-    "content": "### ⚖️ Cash Drawer Reconciliation
-
-* **Expected Closing Cash:** **₹2,480.00**
-* **Actual Counted Cash:** **₹0.00**
-* **Settlement Difference:** **-₹2,480.00**
-",
+    "content": "Expected closing cash: **₹2,480.00**. Counted cash has not been recorded yet. A shortage or excess cannot be confirmed.",
     "intent": "CASH_DRAWER_EXPECTED_VS_ACTUAL",
   },
   "show all invoices generated": {
@@ -4325,15 +3959,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "TOP_SELLING_PRODUCTS",
   },
   "specific": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "spending": {
     "content": "### 💸 Expense Summary Report — This Month
@@ -4345,15 +3975,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "EXPENSES_SUMMARY",
   },
   "spending customer": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "spent the most": {
     "content": "### 👑 Top Purchasing Customers — This Month
@@ -4415,11 +4041,13 @@ Please specify the customer or party name or phone number. (Example: *Balance of
     "intent": "CLARIFICATION_REQUIRED",
   },
   "still payable to suppliers": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "stock": {
@@ -4430,15 +4058,11 @@ Please specify the product name or barcode to check its stock level. (Example: *
     "intent": "CLARIFICATION_REQUIRED",
   },
   "sum": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "sum of all expense": {
     "content": "### ⚖️ Expense Total vs Recorded Transactions Verification
@@ -4464,15 +4088,11 @@ All recorded expense transactions match the operating expense ledger without dis
     "intent": "DIAGNOSTIC_SALES_SUM_VERIFICATION",
   },
   "supplier": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "supplier bill": {
     "content": "### 📦 Purchases & Supplier Bills Summary — This Month
@@ -4484,27 +4104,33 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "PURCHASES_SUMMARY",
   },
   "supplier has the highest": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "supplier has the highest outstanding": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "supplier payables": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "supplier payments": {
@@ -4516,11 +4142,13 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SUPPLIER_PAYMENTS_TODAY",
   },
   "suppliersinu kodukkanulla": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "supported offline": {
@@ -4602,36 +4230,25 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SYSTEM_SYNC_STATUS",
   },
   "takings": {
-    "content": "### 📊 Today's Sales Summary (Today)
+    "content": "### ❓ Clarification Required
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Generated:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Payment Breakdown:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+Do you mean sales value, cash sales, or the current cash drawer balance? Cash sales exclude old debt collections; drawer balance is money on hand, not total collections.
 ",
-    "intent": "SALES_TODAY",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "tax": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "tax collected on sales": {
     "content": "### 📊 Gross vs Net Sales & Deductions — Today
 
 * **Gross Sales (Before Discounts):** **₹5,330.00**
 * **Total Discounts Given:** **₹70.00**
-* **Net Sales Revenue (Final Invoiced):** **₹5,260.00**
+* **Sales less returns (tax included) (Final Invoiced):** **₹5,260.00**
 * **Total Tax (GST) Collected:** **₹460.00**
 * **Invoices Count:** undefined bills
 ",
@@ -4646,7 +4263,7 @@ I couldn't match your query to a supported POS report. You can ask questions abo
 
 * **Gross Sales (Before Discounts):** **₹5,330.00**
 * **Total Discounts Given:** **₹70.00**
-* **Net Sales Revenue (Final Invoiced):** **₹5,260.00**
+* **Sales less returns (tax included) (Final Invoiced):** **₹5,260.00**
 * **Total Tax (GST) Collected:** **₹460.00**
 * **Invoices Count:** undefined bills
 ",
@@ -4657,7 +4274,7 @@ I couldn't match your query to a supported POS report. You can ask questions abo
 
 * **Gross Sales (Before Discounts):** **₹5,330.00**
 * **Total Discounts Given:** **₹70.00**
-* **Net Sales Revenue (Final Invoiced):** **₹5,260.00**
+* **Sales less returns (tax included) (Final Invoiced):** **₹5,260.00**
 * **Total Tax (GST) Collected:** **₹460.00**
 * **Invoices Count:** undefined bills
 ",
@@ -4688,51 +4305,32 @@ Found **2 products** with zero or negative inventory:
     "intent": "INVENTORY_OUT_OF_STOCK",
   },
   "this month": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+Which report do you want for that period: sales, expenses, purchases or sales returns?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "this week": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+Which report do you want for that period: sales, expenses, purchases or sales returns?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "this year": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "today": {
-    "content": "### 📊 Today's Sales Summary (Today)
+    "content": "### ❓ Clarification Required
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Generated:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Payment Breakdown:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+Which report do you want for that period: sales, expenses, purchases or sales returns?
 ",
-    "intent": "SALES_TODAY",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "today sales": {
     "content": "### 📊 Today's Sales Summary (Today)
@@ -4749,26 +4347,18 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_TODAY",
   },
   "top": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "top 5": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "top 5 credit": {
     "content": "### 👥 Customer Credit & Receivables Summary
@@ -4818,15 +4408,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CUSTOMER_CREDIT_LIST",
   },
   "top five": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "top five customers": {
     "content": "### 👑 Top Purchasing Customers — This Month
@@ -4908,15 +4494,11 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "TOP_SELLING_PRODUCTS",
   },
   "total": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "total discount amount for each invoice": {
     "content": "### 🏷️ Invoice Discounts Report — Today
@@ -4926,26 +4508,18 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "DISCOUNTS_SUMMARY",
   },
   "total products": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "transactions": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "transactions recorded today but missing": {
     "content": "### 🔍 Daily Report Transaction Audit
@@ -4975,15 +4549,11 @@ Every finalized sale recorded today is completely and accurately accounted for i
     "intent": "SALES_TODAY",
   },
   "twice": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "unique customers": {
     "content": "### 👥 Unique Customers Count — Today
@@ -5010,15 +4580,11 @@ Total Sales Revenue: **₹3,560.00**
     "intent": "SALES_PAYMENT_METHODS",
   },
   "unpaid": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "unpaid balances": {
     "content": "### 👥 Customer Credit & Receivables Summary
@@ -5055,26 +4621,18 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "CASH_DRAWER_UNSETTLED_STATUS",
   },
   "unsettled transactions": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "upi": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "upi sales": {
     "content": "### 📱 UPI Sales — Today
@@ -5084,26 +4642,18 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_PAYMENT_METHODS",
   },
   "valuation": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "value": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "vendor bill": {
     "content": "### 📦 Purchases & Supplier Bills Summary — This Month
@@ -5115,25 +4665,37 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "PURCHASES_SUMMARY",
   },
   "void bills": {
-    "content": "### 🚫 Cancelled / Voided Invoices
+    "content": "### Deleted POS invoices in Recycle Bin
 
-* **Cancelled Invoices Today:** **0 bills**
+**Records found:** 0
+
+These are all currently available soft-deleted POS invoices, not only today's records. Card-terminal voids and restaurant order cancellations are separate.
+
+| Invoice | Customer | Amount |
+| :--- | :--- | ---: |
 ",
     "intent": "SALES_CANCELLED_INVOICES",
   },
   "voided": {
-    "content": "### 🚫 Cancelled / Voided Invoices
+    "content": "### Deleted POS invoices in Recycle Bin
 
-* **Cancelled Invoices Today:** **0 bills**
+**Records found:** 0
+
+These are all currently available soft-deleted POS invoices, not only today's records. Card-terminal voids and restaurant order cancellations are separate.
+
+| Invoice | Customer | Amount |
+| :--- | :--- | ---: |
 ",
     "intent": "SALES_CANCELLED_INVOICES",
   },
   "we owe to suppliers": {
-    "content": "### 🏭 Supplier Payables & Outstanding Dues
+    "content": "### Amounts owed to suppliers
 
-* **Total Amount Owed to Suppliers:** **₹5,000.00**
-* **Total Supplier Accounts:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "weather": {
@@ -5164,15 +4726,11 @@ I am the Nafid POS offline assistant running locally on your store database. I p
     "intent": "AI_HELP_REPORTS",
   },
   "what can you do": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "what data was included": {
     "content": "### 💡 Supported Offline Intelligence Modules
@@ -5249,37 +4807,25 @@ I am the Nafid POS offline assistant running locally on your store database. I p
     "intent": "AI_HELP_REPORTS",
   },
   "who are": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "who are our top": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "who is": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "who is the president": {
     "content": "### ℹ️ Offline POS Capability Scope
@@ -5355,15 +4901,11 @@ Please specify the customer or party name or phone number. (Example: *Balance of
     "intent": undefined,
   },
   "withdrawals": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "without an internet connection": {
     "content": "### 🌐 100% Offline Architecture
@@ -5383,15 +4925,11 @@ The engine cleanly distinguishes between genuine zero-sales periods (empty valid
     "intent": "AI_CAPABILITIES_EXPLANATION",
   },
   "worst": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "worst sales": {
     "content": "### 📊 Today's Sales Summary (Today)
@@ -5408,67 +4946,39 @@ I couldn't match your query to a supported POS report. You can ask questions abo
     "intent": "SALES_TODAY",
   },
   "worth": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "year": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "year to date": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "yesterday": {
-    "content": "### 📈 Sales Report — Yesterday
+    "content": "### ❓ Clarification Required
 
-* **Total Sales Revenue:** **₹5,260.00**
-* **Total Invoices Count:** **undefined invoices**
-* **Average Ticket Value:** **₹0.00**
-* **Tax (GST) Collected:** ₹460.00
-* **Discounts Given:** ₹70.00
-
-#### 💳 Sales by Payment Method:
-| Payment Method | Total Amount |
-| :--- | :---: |
-| 💵 Cash | **₹0.00** |
-| 📱 UPI | **₹0.00** |
-| 💳 Card | **₹0.00** |
-| 📒 Credit | **₹800.00** |
+Which report do you want for that period: sales, expenses, purchases or sales returns?
 ",
-    "intent": "SALES_PERIOD",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ytd": {
-    "content": "### ❓ Query Not Recognized
+    "content": "### ❓ Clarification Required
 
-I couldn't match your query to a supported POS report. You can ask questions about:
-
-* **Sales & Revenue:** *"What are today's total sales?"* or *"Sales this month"*
-* **Inventory:** *"Which products are out of stock?"* or *"Stock of [product]"*
-* **Expenses:** *"Today's expenses"* or *"Expenses this month by category"*
-* **Ledgers:** *"How much money do customers owe us?"* or *"Balance of [Customer]"*",
-    "intent": "UNKNOWN",
+I could not identify the report. Do you mean sales, stock, expenses or cash drawer? You can also give a product or customer name with your question.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "zero stock": {
     "content": "### 🔴 Out of Stock Products
@@ -5483,126 +4993,71 @@ Found **2 products** with zero or negative inventory:
     "intent": "INVENTORY_OUT_OF_STOCK",
   },
   "ഇന്ന": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഇന്നല": {
-    "content": "### 📈 സെയിൽസ് റിപ്പോർട്ട് — ഇന്നലെ (Yesterday)
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-* **മൊത്തം വരുമാനം (Total Revenue):** **₹5,260.00**
-* **ആകെ ബില്ലുകൾ (Total Invoices):** **undefined എണ്ണം**
-* **ശരാശരി ബിൽ തുക (Avg Ticket):** **₹0.00**
-* **ടാക്സ് (GST):** ₹460.00
-* **ഡിസ്കൗണ്ട്:** ₹70.00
-
-#### 💳 പേയ്‌മെന്റ് രീതി തിരിച്ചുള്ള തുക:
-| രീതി | തുക |
-| :--- | :---: |
-| 💵 ക്യാഷ് (Cash) | **₹0.00** |
-| 📱 UPI | **₹0.00** |
-| 💳 കാർഡ് (Card) | **₹0.00** |
-| 📒 ക്രെഡിറ്റ് (Credit) | **₹800.00** |
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
 ",
-    "intent": "SALES_PERIOD",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഇന്നലെ": {
-    "content": "### 📈 സെയിൽസ് റിപ്പോർട്ട് — ഇന്നലെ (Yesterday)
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-* **മൊത്തം വരുമാനം (Total Revenue):** **₹5,260.00**
-* **ആകെ ബില്ലുകൾ (Total Invoices):** **undefined എണ്ണം**
-* **ശരാശരി ബിൽ തുക (Avg Ticket):** **₹0.00**
-* **ടാക്സ് (GST):** ₹460.00
-* **ഡിസ്കൗണ്ട്:** ₹70.00
-
-#### 💳 പേയ്‌മെന്റ് രീതി തിരിച്ചുള്ള തുക:
-| രീതി | തുക |
-| :--- | :---: |
-| 💵 ക്യാഷ് (Cash) | **₹0.00** |
-| 📱 UPI | **₹0.00** |
-| 💳 കാർഡ് (Card) | **₹0.00** |
-| 📒 ക്രെഡിറ്റ് (Credit) | **₹800.00** |
+ആ കാലയളവിൽ ഏത് വിവരമാണ് വേണ്ടത്: വിൽപ്പന, ചെലവ്, പർച്ചേസ്, അതോ സെയിൽസ് റിട്ടേൺ?
 ",
-    "intent": "SALES_PERIOD",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഇന്ന്": {
-    "content": "### 📊 ഇന്നത്തെ സെയിൽസ് സംഗ്രഹം (ഇന്ന് (Today))
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-* **മൊത്തം വരുമാനം (Total Revenue):** **₹5,260.00**
-* **ആകെ ബില്ലുകൾ (Total Bills):** **undefined എണ്ണം**
-* **ശരാശരി ബിൽ തുക (Avg Bill Value):** **₹0.00**
-* **ടാക്സ് (GST Collected):** ₹460.00
-* **നൽകിയ ഡിസ്കൗണ്ട് (Discounts):** ₹70.00
-
-#### 💳 പേയ്‌മെന്റ് വിഹിതം:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+ആ കാലയളവിൽ ഏത് വിവരമാണ് വേണ്ടത്: വിൽപ്പന, ചെലവ്, പർച്ചേസ്, അതോ സെയിൽസ് റിട്ടേൺ?
 ",
-    "intent": "SALES_TODAY",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഇൻവെന്ററി": {
     "content": ""ഇൻവെന്ററി" എന്ന ഉൽപ്പന്നം കണ്ടെത്താനായില്ല.",
     "intent": undefined,
   },
   "ഈ ആഴ്ച": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ആ കാലയളവിൽ ഏത് വിവരമാണ് വേണ്ടത്: വിൽപ്പന, ചെലവ്, പർച്ചേസ്, അതോ സെയിൽസ് റിട്ടേൺ?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഈ മാസ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഈ മാസം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ആ കാലയളവിൽ ഏത് വിവരമാണ് വേണ്ടത്: വിൽപ്പന, ചെലവ്, പർച്ചേസ്, അതോ സെയിൽസ് റിട്ടേൺ?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഈ വർഷം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "എത്ര": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "എത്ര ഇൻവോയ്സ്": {
     "content": "### 🧾 ബില്ലുകളുടെ എണ്ണം — ഇന്ന് (Today)
@@ -5623,59 +5078,39 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_INVOICE_COUNT",
   },
   "ഏതു": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഏത്": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഏറ്റവും കുറഞ്ഞ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഏറ്റവും കൂടുതൽ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഏറ്റവും കൂടുതൽ കടമുള്ള കസ്റ്റമർ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ഏറ്റവും കൂടുതൽ ക്രെഡിറ്റ് ഉള്ള കസ്റ്റമർ": {
     "content": "### 👤 ഏറ്റവും കൂടുതൽ ക്രെഡിറ്റ് ബാക്കിയുള്ള കസ്റ്റമർ
@@ -5726,15 +5161,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "CLARIFICATION_REQUIRED",
   },
   "കഴിഞ്ഞ ആഴ്ച": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ആ കാലയളവിൽ ഏത് വിവരമാണ് വേണ്ടത്: വിൽപ്പന, ചെലവ്, പർച്ചേസ്, അതോ സെയിൽസ് റിട്ടേൺ?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കഴിഞ്ഞ ഒരു മണിക്കൂർ": {
     "content": "### ⏱️ മണിക്കൂർ തിരിച്ചുള്ള സെയിൽസ് (Hourly Sales)
@@ -5746,70 +5177,46 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_HOURLY",
   },
   "കഴിഞ്ഞ മാസ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കഴിഞ്ഞ മാസം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ആ കാലയളവിൽ ഏത് വിവരമാണ് വേണ്ടത്: വിൽപ്പന, ചെലവ്, പർച്ചേസ്, അതോ സെയിൽസ് റിട്ടേൺ?
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കഴിഞ്ഞ വർഷം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കസ്റ്റമർ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കാറ്റഗറി": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കാറ്റഗറി തിരിച്ച്": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കാലാവസ്ഥ": {
     "content": "### ℹ️ ഓഫ്‌ലൈൻ POS സഹായ പരിധി
@@ -5833,15 +5240,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "CLARIFICATION_REQUIRED",
   },
   "കുറഞ്ഞ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കുറഞ്ഞ വിൽപ്പന": {
     "content": "### 📊 ഇന്നത്തെ സെയിൽസ് സംഗ്രഹം (ഇന്ന് (Today))
@@ -5858,15 +5261,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_TODAY",
   },
   "കുറവുള്ള": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കൂടിയ ചെലവ്": {
     "content": "### 🔴 വലിയ ചെലവുകൾ — ഈ മാസം (This Month)
@@ -5892,15 +5291,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "INVENTORY_TOP_STOCK",
   },
   "കൂടുതൽ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "കൂടുതൽ വിൽപ്പന": {
     "content": "### 📊 ഇന്നത്തെ സെയിൽസ് സംഗ്രഹം (ഇന്ന് (Today))
@@ -5917,15 +5312,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_TODAY",
   },
   "ക്യാഷ്": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ക്യാഷ് സെയിൽസ്": {
     "content": "### 💵 ക്യാഷ് സെയിൽസ് (Cash Sales) — ഇന്ന് (Today)
@@ -6014,59 +5405,60 @@ Found **2 products** with zero or negative inventory:
     "intent": "RETURNS_ITEMS",
   },
   "തീരാറായ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ⚠️ സ്റ്റോക്ക് മുന്നറിയിപ്പ് (Low Stock Alert)
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
+റീ-ഓർഡർ ലെവലിൽ എത്തിയ **3** ഉൽപ്പന്നങ്ങൾ കണ്ടെത്തി (ഇതിൽ **2** എണ്ണം തീർന്നുപോയി):
 
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+| ഉൽപ്പന്നം | കാറ്റഗറി | സ്റ്റോക്ക് | റീ-ഓർഡർ | സ്റ്റാറ്റസ് |
+| :--- | :--- | :---: | :---: | :---: |
+| **Steel Rod** | Hardware | **0** | 5 | 🔴 തീർന്നു |
+| **Cement Bag** | Building | **3** | 10 | 🟡 കുറവ് |
+| **Steel Rod** | Hardware | **-2** | 0 | 🔴 തീർന്നു |
+",
+    "intent": "INVENTORY_LOW_STOCK",
   },
   "തീർന്ന": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### 🔴 തീർന്നുപോയ ഉൽപ്പന്നങ്ങൾ (Out of Stock)
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
+നിലവിൽ സ്റ്റോക്ക് തീർന്നുപോയ **2** ഉൽപ്പന്നങ്ങൾ കണ്ടെത്തി:
 
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+| ഉൽപ്പന്നം | ബാർകോഡ് | കാറ്റഗറി | സെല്ലിംഗ് പ്രൈസ് |
+| :--- | :---: | :--- | :---: |
+| **Steel Rod** | 1001 | Hardware | ₹100.00 |
+| **Steel Rod** | 1004 | Hardware | ₹100.00 |
+",
+    "intent": "INVENTORY_OUT_OF_STOCK",
   },
   "തീർന്നുപോയ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### 🔴 തീർന്നുപോയ ഉൽപ്പന്നങ്ങൾ (Out of Stock)
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
+നിലവിൽ സ്റ്റോക്ക് തീർന്നുപോയ **2** ഉൽപ്പന്നങ്ങൾ കണ്ടെത്തി:
 
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+| ഉൽപ്പന്നം | ബാർകോഡ് | കാറ്റഗറി | സെല്ലിംഗ് പ്രൈസ് |
+| :--- | :---: | :--- | :---: |
+| **Steel Rod** | 1001 | Hardware | ₹100.00 |
+| **Steel Rod** | 1004 | Hardware | ₹100.00 |
+",
+    "intent": "INVENTORY_OUT_OF_STOCK",
   },
   "ദിവസം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "നിലവിലില്ലാത്ത": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### 🔴 തീർന്നുപോയ ഉൽപ്പന്നങ്ങൾ (Out of Stock)
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
+നിലവിൽ സ്റ്റോക്ക് തീർന്നുപോയ **2** ഉൽപ്പന്നങ്ങൾ കണ്ടെത്തി:
 
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+| ഉൽപ്പന്നം | ബാർകോഡ് | കാറ്റഗറി | സെല്ലിംഗ് പ്രൈസ് |
+| :--- | :---: | :--- | :---: |
+| **Steel Rod** | 1001 | Hardware | ₹100.00 |
+| **Steel Rod** | 1004 | Hardware | ₹100.00 |
+",
+    "intent": "INVENTORY_OUT_OF_STOCK",
   },
   "പകുതി പണം നൽകിയ": {
     "content": "### 📒 ഭാഗികമായി പണം ലഭിച്ച ബില്ലുകൾ (Partially Paid Bills)
@@ -6076,15 +5468,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "BILLS_PARTIALLY_PAID",
   },
   "പണം നൽകാത്ത": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "പണം ലഭിക്കാത്ത ബില്ലുകൾ": {
     "content": "### 📒 പണം ലഭിക്കാനുള്ള ബില്ലുകൾ (Unpaid Bills)
@@ -6109,11 +5497,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_PAYMENT_METHODS",
   },
   "പോയിന്റ്": {
-    "content": "### 🎁 കസ്റ്റമർ ലോയൽറ്റി പോയിന്റുകൾ
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-* ലോയൽറ്റി റിവാർഡ് പോയിന്റുകൾ കസ്റ്റമർ അക്കൗണ്ടുമായി ബന്ധിപ്പിച്ചിരിക്കുന്നു.
+ഏത് കസ്റ്റമറുടെ പോയിന്റുകളാണ് വേണ്ടത്? പേര് പറയൂ.
 ",
-    "intent": "LOYALTY_POINTS",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "പ്രതിദിന ശരാശരി": {
     "content": "### 📅 പ്രതിദിന ശരാശരി വിൽപ്പന — ഈ മാസം (This Month)
@@ -6168,49 +5556,47 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_INVOICE_TYPES",
   },
   "മാസം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "മൂല്യം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "യുപിഐ": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "റദ്ദാക്കപ്പെട്ട": {
-    "content": "### 🚫 റദ്ദാക്കിയ ബില്ലുകൾ (Cancelled Invoices)
+    "content": "### Recycle Bin-ലെ നീക്കിയ ഇൻവോയ്സുകൾ
 
-* **റദ്ദാക്കിയ ബില്ലുകളുടെ എണ്ണം:** **0 bills**
+**രേഖകളുടെ എണ്ണം:** 0
+
+ഇത് ഇപ്പോൾ Recycle Bin-ൽ ലഭ്യമായ എല്ലാ deleted POS invoice രേഖകളുമാണ്; ഇന്നത്തേത് മാത്രമല്ല. Card-terminal void, restaurant order cancellation എന്നിവ ഇതിൽ ഉൾപ്പെടുന്നില്ല.
+
+| Invoice | Customer | Amount |
+| :--- | :--- | ---: |
 ",
     "intent": "SALES_CANCELLED_INVOICES",
   },
   "റദ്ദാക്കിയ": {
-    "content": "### 🚫 റദ്ദാക്കിയ ബില്ലുകൾ (Cancelled Invoices)
+    "content": "### Recycle Bin-ലെ നീക്കിയ ഇൻവോയ്സുകൾ
 
-* **റദ്ദാക്കിയ ബില്ലുകളുടെ എണ്ണം:** **0 bills**
+**രേഖകളുടെ എണ്ണം:** 0
+
+ഇത് ഇപ്പോൾ Recycle Bin-ൽ ലഭ്യമായ എല്ലാ deleted POS invoice രേഖകളുമാണ്; ഇന്നത്തേത് മാത്രമല്ല. Card-terminal void, restaurant order cancellation എന്നിവ ഇതിൽ ഉൾപ്പെടുന്നില്ല.
+
+| Invoice | Customer | Amount |
+| :--- | :--- | ---: |
 ",
     "intent": "SALES_CANCELLED_INVOICES",
   },
@@ -6235,26 +5621,18 @@ Found **2 products** with zero or negative inventory:
     "intent": "CLARIFICATION_REQUIRED",
   },
   "ലഭിച്ചു": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ലിസ്റ്റ്": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ലെഡ്ജർ": {
     "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
@@ -6292,15 +5670,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_TODAY",
   },
   "വഴി": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "വിറ്റ": {
     "content": "### 🏆 കൂടുതൽ വിറ്റ ഉൽപ്പന്നങ്ങൾ — ഇന്ന് (Today)
@@ -6327,32 +5701,25 @@ Found **2 products** with zero or negative inventory:
     "intent": "TOP_SELLING_PRODUCTS",
   },
   "വിൽപ്പന": {
-    "content": "### 📊 ഇന്നത്തെ സെയിൽസ് സംഗ്രഹം (ഇന്ന് (Today))
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-* **മൊത്തം വരുമാനം (Total Revenue):** **₹5,260.00**
-* **ആകെ ബില്ലുകൾ (Total Bills):** **undefined എണ്ണം**
-* **ശരാശരി ബിൽ തുക (Avg Bill Value):** **₹0.00**
-* **ടാക്സ് (GST Collected):** ₹460.00
-* **നൽകിയ ഡിസ്കൗണ്ട് (Discounts):** ₹70.00
-
-#### 💳 പേയ്‌മെന്റ് വിഹിതം:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+ഏത് കാലയളവിലെ വിൽപ്പന റിപ്പോർട്ടാണ് കാണേണ്ടത്? ഇന്ന്, ഇന്നലെ, ഈ മാസം, അല്ലെങ്കിൽ കഴിഞ്ഞ മാസം എന്ന് വ്യക്തമാക്കാമോ?
 ",
-    "intent": "SALES_TODAY",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "വിൽപ്പന നടക്കാത്ത": {
-    "content": "### 📊 ഇന്നത്തെ സെയിൽസ് സംഗ്രഹം (ഇന്ന് (Today))
+    "content": "### വിൽപ്പന രേഖയില്ലാത്ത നിലവിലെ സ്റ്റോക്ക്
 
-* **മൊത്തം വരുമാനം (Total Revenue):** **₹5,260.00**
-* **ആകെ ബില്ലുകൾ (Total Bills):** **undefined എണ്ണം**
-* **ശരാശരി ബിൽ തുക (Avg Bill Value):** **₹0.00**
-* **ടാക്സ് (GST Collected):** ₹460.00
-* **നൽകിയ ഡിസ്കൗണ്ട് (Discounts):** ₹70.00
+**വിൽപ്പന പരിശോധിച്ച കാലയളവ്:** 2026-09-16 → 2026-10-15 (കഴിഞ്ഞ 30 ദിവസങ്ങൾ (Last 30 Days))
+**ഉൽപ്പന്നങ്ങൾ:** 1
 
-#### 💳 പേയ്‌മെന്റ് വിഹിതം:
-* **Cash:** ₹1,200.00 | **UPI:** ₹2,360.00 | **Card:** ₹0.00 | **Credit:** ₹0.00
+ഇപ്പോൾ stock ഉള്ള ഉൽപ്പന്നങ്ങളിൽ, ഈ കാലയളവിൽ വിറ്റ അളവ് രേഖകളിൽ കാണാത്തവയാണ്. ഇത് പഴയ തീയതിയിലെ stock snapshot അല്ല.
+
+| Product | Barcode | Current Stock |
+| :--- | :--- | ---: |
+| Cement Bag | 1002 | 3 |
 ",
-    "intent": "SALES_TODAY",
+    "intent": "INVENTORY_NON_SELLING",
   },
   "വ്യത്യസ്ത കസ്റ്റമർമാർ": {
     "content": "### 👥 ഉപഭോക്താക്കളുടെ എണ്ണം — ഇന്ന് (Today)
@@ -6364,15 +5731,11 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_UNIQUE_CUSTOMERS",
   },
   "വർഷം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "ശരാശരി ബിൽ തുക": {
     "content": "### 🎟️ ശരാശരി ബിൽ തുക (Average Ticket Value)
@@ -6385,34 +5748,28 @@ Found **2 products** with zero or negative inventory:
     "intent": "SALES_AVERAGE_TICKET",
   },
   "സപ്ലയർ തിരിച്ച്": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "സപ്ലയർമാർക്ക് നൽകാനുള്ളത്": {
-    "content": "### 🏭 സപ്ലയർമാർക്ക് നൽകാനുള്ള തുക (Payables)
+    "content": "### സപ്ലയർമാർക്ക് നൽകാനുള്ള തുക
 
-* **ആകെ സപ്ലയർ കുടിശ്ശിക:** **₹5,000.00**
-* **സപ്ലയർമാരുടെ എണ്ണം:** **1 accounts**
-",
+**₹5,000.00** · 1 accounts
+
+| Account | Balance |
+| :--- | ---: |
+| Big Supplier | ₹5,000.00 |",
     "intent": "SUPPLIER_PAYABLES_TOTAL",
   },
   "സാമ്പത്തിക വർഷം": {
-    "content": "### ❓ നിർദ്ദേശം വ്യക്തമല്ല
+    "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്
 
-ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ചോദ്യം കൃത്യമായി മനസ്സിലാക്കാൻ കഴിഞ്ഞില്ല. താഴെ പറയുന്ന വിഭാഗങ്ങളിൽ നിന്ന് നിങ്ങൾക്ക് വിവരങ്ങൾ ചോദിക്കാവുന്നതാണ്:
-
-* **വിൽപ്പന:** *"ഇന്നത്തെ സെയിൽസ് എത്രയാണ്?"*
-* **സ്റ്റോക്ക്:** *"സ്റ്റോക്ക് തീർന്ന ഉൽപ്പന്നങ്ങൾ കാണിക്കൂ"*
-* **ചെലവുകൾ:** *"ഈ മാസത്തെ ചിലവുകൾ എത്രയാണ്?"*
-* **ബാക്കി:** *"കസ്റ്റമർമാർ തരാനുള്ള ബാക്കി എത്രയാണ്?"*",
-    "intent": "UNKNOWN",
+ഏത് വിവരമാണ് വേണ്ടതെന്ന് മനസ്സിലായില്ല. വിൽപ്പന, സ്റ്റോക്ക്, ചെലവ്, അതോ ക്യാഷ് ഡ്രോയർ? ഉൽപ്പന്നത്തിന്റെയോ കസ്റ്റമറുടെയോ പേരും ചോദ്യത്തോടൊപ്പം പറയാം.
+",
+    "intent": "CLARIFICATION_REQUIRED",
   },
   "സെയിൽസ്": {
     "content": "### ❓ കൂടുതൽ വ്യക്തത ആവശ്യമാണ്

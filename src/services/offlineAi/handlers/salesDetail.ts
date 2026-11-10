@@ -1,3 +1,4 @@
+import { cancelledInvoicesReply } from './cancelledInvoices';
 import { parseUTCDate } from '../../../utils/time/utc';
 import { hasBridge } from '../../../data/client';
 import { productsApi } from '../../../data/products';
@@ -168,11 +169,11 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
             `* **Invoices Count:** **${targetDay.count} invoices**\n`;
       } else {
         md = isMal
-          ? `### 📈 പ്രതിദിന സെയിൽസ് ട്രെൻഡ് — ${range.label}\n\n` +
+          ? `### 📈 പ്രതിദിന സെയിൽസ് ട്രെൻഡ് (ബില്ലുള്ള ദിവസങ്ങൾ) — ${range.label}\n\n` +
             `* **കൂടുതൽ വിൽപ്പന നടന്ന ദിവസം:** **${highestDay.date}** (${formatMoney(highestDay.sales)})\n` +
             `* **കുറഞ്ഞ വിൽപ്പന നടന്ന ദിവസം:** **${lowestDay.date}** (${formatMoney(lowestDay.sales)})\n\n` +
             `| തിയതി | ബില്ലുകൾ | വിൽപ്പന തുക |\n| :---: | :---: | :---: |\n`
-          : `### 📈 Daily Sales Trend — ${range.label}\n\n` +
+          : `### 📈 Daily Sales Trend (recorded invoice dates) — ${range.label}\n\n` +
             `* **Best Performing Day:** **${highestDay.date}** (${formatMoney(highestDay.sales)})\n` +
             `* **Lowest Performing Day:** **${lowestDay.date}** (${formatMoney(lowestDay.sales)})\n\n` +
             `| Date | Invoices | Total Sales |\n| :---: | :---: | :---: |\n`;
@@ -244,12 +245,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
       return { content: md, intent: parsed.intent };
     }
 
-    case 'SALES_CANCELLED_INVOICES': {
-      const md = isMal
-        ? `### 🚫 റദ്ദാക്കിയ ബില്ലുകൾ (Cancelled Invoices)\n\n* **റദ്ദാക്കിയ ബില്ലുകളുടെ എണ്ണം:** **0 bills**\n`
-        : `### 🚫 Cancelled / Voided Invoices\n\n* **Cancelled Invoices Today:** **0 bills**\n`;
-      return { content: md, intent: parsed.intent };
-    }
+    case 'SALES_CANCELLED_INVOICES': return cancelledInvoicesReply(ctx);
 
     case 'TOP_SELLING_PRODUCTS': {
       const range = resolveDateRange(parsed.params.rangeType || (parsed.params.customFrom ? 'custom' : 'today'), parsed.params.customFrom, parsed.params.customTo, isMal);

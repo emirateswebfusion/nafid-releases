@@ -6,7 +6,7 @@ All data the renderer reads or writes goes through one of three doors:
 |---|---|---|---|
 | Local data (default) | `src/data/<domain>.ts` | IPC → main process → SQLite | Everything the POS does offline: products, billing, parties, cashier, settings… |
 | Push events | `src/data/events.ts` (`bridgeEvents`) | main → renderer events | Sync finished, barcode scanned, scale weight, update status, token expired… |
-| Cloud API | `src/data/cloud/*` (`client.ts`: `cloudFetch`, `cloudRequest`) | HTTPS + JWT | Online-only features: AI assistant, ads, super-admin, party connect. Login/password flows live in `store/authStore.ts` |
+| Cloud API | `src/data/cloud/*` (`client.ts`: `cloudFetch`, `cloudRequest`) | HTTPS + JWT | Online-only features: ads, super-admin, party connect. Desktop Mind uses local data; see [Mind conversation ownership](mind-assistant.md). Login/password flows live in `store/authStore.ts` |
 
 ## 3.1 The IPC data layer (`src/data/`)
 

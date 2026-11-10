@@ -1,3 +1,4 @@
+import { workflowGuideReply } from '../workflowGuides';
 import { storeTime } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { hasBridge } from '../../../data/client';
@@ -121,6 +122,8 @@ export async function handleAssistantIntent(parsed: ParsedOfflineIntent, ctx: Ai
       };
     }
 
+    case 'WORKFLOW_GUIDE': return workflowGuideReply(parsed.params.topic || '', isMal);
+
     case 'CLARIFICATION_REQUIRED': {
       const msg = isMal ? (parsed.params.messageMal || parsed.params.message) : (parsed.params.message || parsed.params.messageMal);
       const md = isMal
@@ -131,11 +134,11 @@ export async function handleAssistantIntent(parsed: ParsedOfflineIntent, ctx: Ai
         content: md,
         intent: 'CLARIFICATION_REQUIRED',
         clarificationRequired: true,
-        suggestedPrompts: parsed.params.topic === 'balance_type'
+        suggestedPrompts: parsed.choices ?? (parsed.params.topic === 'balance_type'
           ? (isMal ? ['കസ്റ്റമർ ക്രെഡിറ്റ് ബാക്കി', 'സപ്ലയർ ബാക്കി', 'ക്യാഷ് ഡ്രോയർ ബാലൻസ്'] : ['How much money do customers owe us?', 'How much do we owe to all suppliers?', 'What is the current cash drawer balance?'])
           : parsed.params.topic === 'sales_period'
           ? (isMal ? ['ഇന്നത്തെ സെയിൽസ്', 'ഈ മാസത്തെ സെയിൽസ്', 'ഇന്നലത്തെ സെയിൽസ്'] : ["What are today's total sales?", 'Sales this month', 'Sales yesterday'])
-          : (isMal ? ['ഇന്നത്തെ സെയിൽസ്', 'സ്റ്റോക്ക് വിവരം', 'ചെലവ് റിപ്പോർട്ട്'] : ["What are today's total sales?", 'Show low stock items', 'Monthly expenses by category']),
+          : (isMal ? ['ഇന്നത്തെ സെയിൽസ്', 'സ്റ്റോക്ക് വിവരം', 'ചെലവ് റിപ്പോർട്ട്'] : ["What are today's total sales?", 'Show low stock items', 'Monthly expenses by category'])),
       };
     }
 

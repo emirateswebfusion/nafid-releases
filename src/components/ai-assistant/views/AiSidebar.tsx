@@ -19,7 +19,7 @@ export function AiSidebar({
   activeConvId, conversations, handleCreateNewChat, handleDeleteConversationClick, handleRenameConversationClick,
   setActiveConvId, ai,
 }: AiSidebarProps) {
-  const { isOfflineMode, languageMode, setLanguageMode, setShowClearAllDialog, setSidebarOpen, sidebarOpen } = ai;
+  const { languageMode, setLanguageMode, setShowClearAllDialog, setSidebarOpen, sidebarOpen } = ai;
   return (
     <aside
       className={clsx(
@@ -111,8 +111,8 @@ export function AiSidebar({
 
       <div className="p-3 border-t border-gray-200/60 dark:border-zinc-800/60 flex items-center justify-between text-xs text-gray-500">
         <div className="flex items-center gap-1.5">
-          <span className={clsx("w-2 h-2 rounded-full", isOfflineMode ? "bg-amber-500" : "bg-emerald-500")} />
-          <span className="text-[11px] font-medium">{isOfflineMode ? 'Offline Mode' : 'Live Cloud'}</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          <span className="text-[11px] font-medium">{languageMode === 'ml' ? 'ഈ കമ്പ്യൂട്ടറിലെ വിവരങ്ങൾ' : 'Records on this device'}</span>
         </div>
         <button
           onClick={() => setLanguageMode((prev) => (prev === 'en' ? 'ml' : 'en'))}

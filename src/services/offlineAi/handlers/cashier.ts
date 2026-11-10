@@ -15,27 +15,8 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
     // 14. Cash Register & Cash Drawer (4.5)
     // ──────────────────────────────────────────────────────────────────────
     case 'CASH_DRAWER_CURRENT': {
-      let drawer = await fetchCashDrawer();
-      if (!drawer) {
-        const range = resolveDateRange('today', undefined, undefined, isMal);
-        const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const pm = calculatePaymentBreakdown(invs);
-        const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const cashIn = txs.filter((t: AiRow) => t.type === 'CASH_IN').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
-        const cashOut = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
-        const currentCash = pm.cash + cashIn - cashOut;
-        drawer = {
-          status: 'OPEN (Active Counter Session)',
-          business_date: range.fromDate,
-          opening_balance: 0,
-          cash_sales: pm.cash,
-          cash_in: cashIn,
-          cash_out: cashOut,
-          current_cash: currentCash,
-          expected_closing: currentCash,
-          actual_cash: currentCash,
-        };
-      }
+      const drawer = await fetchCashDrawer();
+      if (!drawer) return { content: isMal ? 'ഈ തീയതിയിൽ ക്യാഷ് ഡ്രോയർ രേഖയില്ല. നിലവിലെ പണം സ്ഥിരീകരിക്കാൻ കഴിയില്ല.' : 'No cash drawer record exists for this date. Current cash cannot be confirmed.', intent: parsed.intent };
 
       const md = isMal
         ? `### 💵 ക്യാഷ് ഡ്രോയർ നില (Cash Drawer Status)\n\n` +
@@ -43,13 +24,13 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
           `* **ബിസിനസ്സ് തിയതി:** ${drawer.business_date || 'Today'}\n` +
           `* **ഓപ്പണിംഗ് ബാലൻസ്:** **${formatMoney(drawer.opening_balance)}**\n` +
           `* **ഇന്നത്തെ ക്യാഷ് സെയിൽസ്:** **${formatMoney(drawer.cash_sales)}**\n` +
-          `* **ഡ്രോയറിലെ നിലവിലെ ക്യാഷ്:** **${formatMoney(drawer.current_cash || drawer.actual_cash || 0)}**\n`
+          `* **ഡ്രോയറിലെ നിലവിലെ ക്യാഷ്:** **${formatMoney(drawer.current_cash ?? drawer.actual_cash ?? 0)}**\n`
         : `### 💵 Current Cash Drawer Balance\n\n` +
           `* **Drawer Status:** **${drawer.status || 'OPEN'}**\n` +
           `* **Business Date:** ${drawer.business_date || 'Today'}\n` +
           `* **Opening Balance:** **${formatMoney(drawer.opening_balance)}**\n` +
           `* **Recorded Cash Sales:** **${formatMoney(drawer.cash_sales)}**\n` +
-          `* **Current Drawer Cash:** **${formatMoney(drawer.current_cash || drawer.actual_cash || 0)}**\n`;
+          `* **Current Drawer Cash:** **${formatMoney(drawer.current_cash ?? drawer.actual_cash ?? 0)}**\n`;
 
       return { content: md, intent: parsed.intent };
     }
@@ -80,17 +61,11 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
     }
 
     case 'CASH_DRAWER_EXPECTED_VS_ACTUAL': {
-      let drawer = await fetchCashDrawer();
-      if (!drawer) {
-        const range = resolveDateRange('today', undefined, undefined, isMal);
-        const invs = await fetchInvoices(range.fromDate, range.toDate);
-        const pm = calculatePaymentBreakdown(invs);
-        const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-        const cashIn = txs.filter((t: AiRow) => t.type === 'CASH_IN').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
-        const cashOut = txs.filter((t: AiRow) => t.type === 'CASH_OUT' || t.type === 'EXPENSE').reduce((a: number, t: AiRow) => a + (Number(t.amount) || 0), 0);
-        const currentCash = pm.cash + cashIn - cashOut;
-        drawer = { expected_closing: currentCash, actual_cash: currentCash };
-      }
+      const drawer = await fetchCashDrawer();
+      if (!drawer || drawer.expected_closing == null) throw new Error('Recorded drawer reconciliation is unavailable');
+      if (drawer.actual_cash == null) return { intent: parsed.intent, content: isMal
+        ? `പ്രതീക്ഷിച്ച ക്ലോസിംഗ് ക്യാഷ്: **${formatMoney(drawer.expected_closing)}**. എണ്ണിയ ക്യാഷ് ഇതുവരെ രേഖപ്പെടുത്തിയിട്ടില്ല. കുറവോ അധികമോ സ്ഥിരീകരിക്കാൻ കഴിയില്ല.`
+        : `Expected closing cash: **${formatMoney(drawer.expected_closing)}**. Counted cash has not been recorded yet. A shortage or excess cannot be confirmed.` };
 
       const md = isMal
         ? `### ⚖️ ക്യാഷ് സെറ്റിൽമെന്റ് താരതമ്യം\n\n` +
@@ -168,10 +143,12 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
     }
 
     case 'CASH_DRAWER_SETTLEMENTS': {
-      const md = isMal
-        ? `### 📑 ദിവസ ക്ലോസിംഗ് സെറ്റിൽമെന്റ് ഹിസ്റ്ററി\n\n* ക്യാഷ് ഡ്രോയർ ക്ലോസിംഗ് ഹിസ്റ്ററിയും ഓഡിറ്റ് ലോഗുകളും പരിശോധിച്ചു.\n`
-        : `### 📑 Day Closing Settlements History\n\n* Evaluated cash drawer settlement history and audit logs.\n`;
-      return { content: md, intent: parsed.intent };
+      if (!hasBridge('dbCashierGetHistory')) throw new Error('Drawer history is unavailable');
+      const rows = await cashierApi.getHistory({ tenant_id: tenantId, limit: 10 });
+      if (!Array.isArray(rows)) throw new Error('Drawer history could not be read');
+      const heading = isMal ? 'സമീപകാല 10 ക്യാഷ് ഡ്രോയർ രേഖകൾ' : 'Latest 10 cash drawer records';
+      if (!rows.length) return { content: `${heading}: ${isMal ? 'രേഖകൾ ഇല്ല.' : 'No records found.'}`, intent: parsed.intent };
+      return { content: `### ${heading}\n\n| Business date | Status | Expected | Counted |\n| :--- | :--- | ---: | ---: |\n` + rows.map(r => `| ${r.business_date} | ${r.status} | ${formatMoney(r.expected_closing)} | ${r.actual_cash == null ? 'Not recorded' : formatMoney(r.actual_cash)} |`).join('\n'), intent: parsed.intent };
     }
 
     // ──────────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { hasBridge } from '../../../data/client';
 import { customersApi } from '../../../data/customers';
+import { hasPartyRole } from '../../../data/partyRoles';
 import { partiesApi } from '../../../data/parties';
 import { resolveDateRange } from '../dates';
 import { calculatePaymentBreakdown, formatMoney } from '../format';
@@ -17,16 +18,16 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
     // ──────────────────────────────────────────────────────────────────────
     case 'CUSTOMER_CREDIT_LIST': {
       const minAmount = parsed.params.minAmount || 0;
-      const partiesPromise = hasBridge('dbGetParties') ? partiesApi.getParties(tenantId).catch(() => []) : Promise.resolve([]);
-      const customersPromise = hasBridge('dbGetCustomers') ? customersApi.getCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
+      const partiesPromise = hasBridge('dbGetParties') ? partiesApi.getParties(tenantId) : Promise.resolve([]);
+      const customersPromise = hasBridge('dbGetCustomers') ? customersApi.getCustomers({ tenant_id: tenantId }) : Promise.resolve([]);
       const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
 
       const debtors: Array<{ name: string; phone: string; balance: number }> = [];
       const seenKeys = new Set<string>();
 
       [...(partiesList || []), ...(custList || [])].forEach((p: AiRow) => {
-        const bal = Math.round((Number(p.balance ?? p.current_balance ?? 0)) * 100) / 100;
-        if (bal > 0 && bal >= minAmount) {
+        const bal = Math.round((Number(p.current_balance ?? p.balance ?? 0)) * 100) / 100;
+        if (hasPartyRole(p.party_type, 'CUSTOMER') && bal > 0 && bal >= minAmount) {
           const key = (p.party_id || p.customer_id || p.phone || p.name || '').toLowerCase();
           if (!seenKeys.has(key)) {
             seenKeys.add(key);
@@ -80,27 +81,27 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       return { content: md, intent: parsed.intent };
     }
 
-    case 'SUPPLIER_PAYABLES_TOTAL': {
+    case 'SUPPLIER_PAYABLES_TOTAL':
+    case 'SUPPLIER_RECEIVABLES':
+    case 'CUSTOMER_PAYABLES': {
       const parties = await fetchParties();
-      const suppliers = parties.filter((p: AiRow) => p.party_type === 'SUPPLIER' || p.balance_type === 'CREDIT');
-      const total = suppliers.reduce((a: number, s: AiRow) => a + Math.abs(Number(s.balance) || 0), 0);
-
-      const md = isMal
-        ? `### 🏭 സപ്ലയർമാർക്ക് നൽകാനുള്ള തുക (Payables)\n\n` +
-          `* **ആകെ സപ്ലയർ കുടിശ്ശിക:** **${formatMoney(total)}**\n` +
-          `* **സപ്ലയർമാരുടെ എണ്ണം:** **${suppliers.length} accounts**\n`
-        : `### 🏭 Supplier Payables & Outstanding Dues\n\n` +
-          `* **Total Amount Owed to Suppliers:** **${formatMoney(total)}**\n` +
-          `* **Total Supplier Accounts:** **${suppliers.length} accounts**\n`;
-
-      return { content: md, intent: parsed.intent };
+      const role = parsed.intent === 'CUSTOMER_PAYABLES' ? 'CUSTOMER' : 'SUPPLIER';
+      const receivable = parsed.intent === 'SUPPLIER_RECEIVABLES';
+      const accounts = parties.filter(p => hasPartyRole(p.party_type, role))
+        .map(p => ({ name: p.name || '—', balance: Number(p.current_balance ?? p.balance ?? 0) }))
+        .filter(p => receivable ? p.balance > 0 : p.balance < 0);
+      const total = accounts.reduce((sum, p) => sum + Math.abs(p.balance), 0);
+      const label = isMal
+        ? (receivable ? 'സപ്ലയർമാരിൽ നിന്ന് കിട്ടാനുള്ള തുക / advance' : role === 'CUSTOMER' ? 'കസ്റ്റമർമാർക്ക് നൽകാനുള്ള തുക' : 'സപ്ലയർമാർക്ക് നൽകാനുള്ള തുക')
+        : (receivable ? 'Supplier receivables / advances' : role === 'CUSTOMER' ? 'Amounts owed to customers' : 'Amounts owed to suppliers');
+      return { intent: parsed.intent, content: `### ${label}\n\n**${formatMoney(total)}** · ${accounts.length} accounts\n\n| Account | Balance |\n| :--- | ---: |\n` + accounts.map(p => `| ${p.name} | ${formatMoney(Math.abs(p.balance))} |`).join('\n') };
     }
 
     case 'PARTY_BALANCE':
     case 'PARTY_LEDGER': {
       const queryTerm = (parsed.params.searchQuery || '').trim();
-      const partiesPromise = hasBridge('dbGetParties') ? partiesApi.getParties(tenantId).catch(() => []) : Promise.resolve([]);
-      const customersPromise = hasBridge('dbGetCustomers') ? customersApi.getCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
+      const partiesPromise = hasBridge('dbGetParties') ? partiesApi.getParties(tenantId) : Promise.resolve([]);
+      const customersPromise = hasBridge('dbGetCustomers') ? customersApi.getCustomers({ tenant_id: tenantId }) : Promise.resolve([]);
       const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
 
       const qLower = queryTerm.toLowerCase();
@@ -152,23 +153,11 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
     }
 
     case 'CUSTOMER_OVERDUE_LIST': {
-      const partiesPromise = hasBridge('dbGetParties') ? partiesApi.getParties(tenantId).catch(() => []) : Promise.resolve([]);
-      const customersPromise = hasBridge('dbGetCustomers') ? customersApi.getCustomers({ tenant_id: tenantId }).catch(() => []) : Promise.resolve([]);
-      const [partiesList, custList] = await Promise.all([partiesPromise, customersPromise]);
-
-      const overdue: Array<{ name: string; phone: string; balance: number }> = [];
-      const seen = new Set<string>();
-
-      [...(partiesList || []), ...(custList || [])].forEach((p: AiRow) => {
-        const bal = Math.round((Number(p.balance ?? p.current_balance ?? 0)) * 100) / 100;
-        if (bal > 0) {
-          const key = (p.party_id || p.customer_id || p.phone || p.name || '').toLowerCase();
-          if (!seen.has(key)) {
-            seen.add(key);
-            overdue.push({ name: p.name as string, phone: p.phone as string, balance: bal });
-          }
-        }
-      });
+      if (!hasBridge('dbGetCustomers')) throw new Error('Customer overdue records are unavailable');
+      const customers = await customersApi.getCustomers({ tenant_id: tenantId });
+      if (!Array.isArray(customers)) throw new Error('Customer overdue records are unavailable');
+      const overdue = customers.filter(p => p.has_overdue === true && Number(p.overdue_amount) > 0)
+        .map(p => ({ name: p.name, phone: p.phone || '—', balance: Number(p.overdue_amount) }));
 
       overdue.sort((a, b) => b.balance - a.balance);
       const total = overdue.reduce((acc, c) => acc + c.balance, 0);
@@ -194,12 +183,12 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
     case 'CUSTOMER_PAYMENTS_COLLECTED_TODAY': {
       const range = resolveDateRange('today', undefined, undefined, isMal);
       const txs = await fetchCashTransactions(range.fromDate, range.toDate);
-      const collections = txs.filter((t: AiRow) => t.type === 'CASH_IN' || t.transaction_type === 'CASH_IN' || t.category === 'CUSTOMER_PAYMENT');
+      const collections = txs.filter((t: AiRow) => (t.type === 'CASH_IN' || t.transaction_type === 'CASH_IN') && t.category?.replaceAll('_', ' ').trim().toLowerCase() === 'customer payment');
       const total = collections.reduce((acc: number, t: AiRow) => acc + (Number(t.amount) || 0), 0);
 
       const md = isMal
-        ? `### 💵 ഇന്ന് കസ്റ്റമർമാരിൽ നിന്ന് ശേഖരിച്ച പണം\n\n* **ആകെ ശേഖരിച്ച തുക:** **${formatMoney(total)}**\n* **രസീതുകൾ:** **${collections.length} എണ്ണം**\n`
-        : `### 💵 Customer Debt Payments Collected Today\n\n* **Total Amount Collected Today:** **${formatMoney(total)}**\n* **Receipts Count:** **${collections.length} transactions**\n`;
+        ? `### 💵 Customer Payment വിഭാഗത്തിലെ ഇന്നത്തെ ക്യാഷ് വരവ്\n\n* **ആകെ ശേഖരിച്ച തുക:** **${formatMoney(total)}**\n* **രസീതുകൾ:** **${collections.length} എണ്ണം**\n\nCustomer Payment എന്ന് രേഖപ്പെടുത്തിയ ക്യാഷ് വരവുകൾ മാത്രം. Party ledger receipts, മറ്റ് payment methods എന്നിവയുടെ സമ്പൂർണ്ണ പിരിവല്ല.\n`
+        : `### 💵 Cash receipts labelled Customer Payment today\n\n* **Total Amount Collected Today:** **${formatMoney(total)}**\n* **Receipts Count:** **${collections.length} transactions**\n\nOnly cash-in records explicitly labelled Customer Payment are included. This is not a complete total of linked party-ledger receipts or other payment methods.\n`;
 
       return { content: md, intent: parsed.intent };
     }

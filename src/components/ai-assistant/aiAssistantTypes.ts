@@ -1,3 +1,4 @@
+import type { ParsedOfflineIntent } from '../../services/offlineAi/types';
 import { localizeCurrencyText } from '../../utils/localization/storeProfile';
 import { TrendingUp, Package, Users, DollarSign } from 'lucide-react';
 
@@ -6,6 +7,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  parsedIntent?: ParsedOfflineIntent;
   data?: unknown;
   chartData?: {
     title?: string;

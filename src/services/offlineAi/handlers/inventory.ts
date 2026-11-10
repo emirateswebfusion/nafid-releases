@@ -1,4 +1,8 @@
-import { parseUTCDate } from '../../../utils/time/utc';
+import { clarifyProduct } from '../productSelection';
+import { nonSellingStockReply } from './nonSellingStock';
+import { getStoreBusinessDate } from '../../../utils/time/timezoneHelper';
+import { productExpiryReply } from './productExpiry';
+import { catalogSellingRate } from '../catalogPrice';
 import { formatMoney, formatQty } from '../format';
 import { NOT_HANDLED } from '../queryContext';
 import type { AiRow, OfflineAiResponse, ParsedOfflineIntent } from '../types';
@@ -24,7 +28,7 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
           `| Product Name | Barcode / Code | Category | Unit Price |\n| :--- | :---: | :--- | :---: |\n`;
 
       outOfStock.slice(0, 15).forEach((p: AiRow) => {
-        md += `| **${p.name}** | ${p.sku_barcode || p.item_code || '—'} | ${p.category || 'General'} | ${formatMoney(p.base_price)} |\n`;
+        md += `| **${p.name}** | ${p.sku_barcode || p.item_code || '—'} | ${p.category || 'General'} | ${formatMoney(catalogSellingRate(p))} |\n`;
       });
 
       return { content: md, intent: parsed.intent };
@@ -90,15 +94,17 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
         return { content: isMal ? `"${term}" എന്ന ഉൽപ്പന്നം കണ്ടെത്താനായില്ല.` : `Could not find product matching "${term}".` };
       }
 
+      const clarification = clarifyProduct(matched, 'stock', isMal);
+      if (clarification) return clarification;
       const p = matched[0];
       const md = isMal
         ? `### 🔍 ഉൽപ്പന്ന സ്റ്റോക്ക് വിവരം: **${p.name}**\n\n` +
           `* **നിലവിലെ സ്റ്റോക്ക്:** **${p.current_stock || 0} ${p.uom || 'units'}**\n` +
-          `* **റീട്ടെയിൽ വില:** ${formatMoney(p.base_price)}\n` +
+          `* **റീട്ടെയിൽ വില:** ${formatMoney(catalogSellingRate(p))}\n` +
           `* **റീ-ഓർഡർ ലെവൽ:** ${p.reorder_level || 0}\n`
         : `### 🔍 Product Stock Status: **${p.name}**\n\n` +
           `* **Current Stock Level:** **${p.current_stock || 0} ${p.uom || 'units'}**\n` +
-          `* **Selling Price:** ${formatMoney(p.base_price)}\n` +
+          `* **Selling Price:** ${formatMoney(catalogSellingRate(p))}\n` +
           `* **Reorder Level:** ${p.reorder_level || 0}\n`;
 
       return { content: md, intent: parsed.intent };
@@ -140,20 +146,15 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
       return { content: md, intent: parsed.intent };
     }
 
-    case 'INVENTORY_NON_SELLING': {
-      const md = isMal
-        ? `### ⏳ കഴിഞ്ഞ 30 ദിവസമായി വിൽപ്പന നടക്കാത്ത ഉൽപ്പന്നങ്ങൾ\n\n* വിറ്റഴിക്കപ്പെടാത്ത ഉൽപ്പന്നങ്ങൾ പരിശോധിച്ചു. വിശദമായ സ്ലോ-മൂവിംഗ് റിപ്പോർട്ട് ലഭ്യം.\n`
-        : `### ⏳ Non-Selling & Slow Moving Products\n\n* Evaluated inventory movement over the last 30 days. Active slow-moving tracking enabled.\n`;
-      return { content: md, intent: parsed.intent };
-    }
+    case 'INVENTORY_NON_SELLING': return nonSellingStockReply(parsed, ctx);
 
     case 'INVENTORY_TOTAL_COUNT': {
       const products = await fetchProducts();
       const totalItems = products.length;
-      const inStock = products.filter((p: AiRow) => (Number(p.stock_quantity) || 0) > 0);
-      const totalUnits = products.reduce((acc: number, p: AiRow) => acc + Math.max(0, Number(p.stock_quantity) || 0), 0);
-      const outOfStock = products.filter((p: AiRow) => (Number(p.stock_quantity) || 0) <= 0);
-      const lowStock = inStock.filter((p: AiRow) => (Number(p.stock_quantity) || 0) <= (Number(p.min_stock_alert) || 5));
+      const inStock = products.filter((p: AiRow) => (Number(p.current_stock ?? p.stock_quantity) || 0) > 0);
+      const totalUnits = products.reduce((acc: number, p: AiRow) => acc + Math.max(0, Number(p.current_stock ?? p.stock_quantity) || 0), 0);
+      const outOfStock = products.filter((p: AiRow) => (Number(p.current_stock ?? p.stock_quantity) || 0) <= 0);
+      const lowStock = inStock.filter((p: AiRow) => (Number(p.current_stock ?? p.stock_quantity) || 0) <= (Number(p.reorder_level ?? p.min_stock_alert) || 0));
 
       const md = isMal
         ? `### 📦 ഇൻവെന്ററി ആകെ ഉൽപ്പന്നങ്ങൾ\n\n` +
@@ -175,16 +176,16 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
     case 'INVENTORY_NEGATIVE_MARGIN': {
       const products = await fetchProducts();
       const negativeMargin = products.filter((p: AiRow) => {
-        const sp = Number(p.selling_price) || 0;
+        const sp = catalogSellingRate(p);
         const pp = Number(p.purchase_price) || 0;
-        return pp > 0 && sp < pp;
+        return pp > 0 && (p.base_price != null || p.offer_price != null || p.selling_price != null) && sp < pp;
       });
 
       let md = '';
       if (negativeMargin.length === 0) {
         md = isMal
-          ? `### 🏷️ നെഗറ്റീവ് മാർജിൻ പരിശോധന\n\nവാങ്ങിയ വിലയേക്കാൾ കുറഞ്ഞ വിലയ്ക്ക് വിൽക്കുന്ന ഒരു ഉൽപ്പന്നവും ഇല്ല. എല്ലാ ഉൽപ്പന്നങ്ങൾക്കും പോസിറ്റീവ് പ്രോഫിറ്റ് മാർജിൻ ഉണ്ട് ✅\n`
-          : `### 🏷️ Negative Margin / Loss Alert\n\nNo products found where the selling price is lower than the purchase price. All catalog items maintain a positive gross profit margin ✅\n`;
+          ? `### 🏷️ നെഗറ്റീവ് മാർജിൻ പരിശോധന\n\nതാരതമ്യം ചെയ്യാൻ വില ലഭ്യമായ ഉൽപ്പന്നങ്ങളിൽ വാങ്ങിയ വിലയേക്കാൾ കുറഞ്ഞ catalog വില കണ്ടെത്തിയില്ല. ഇത് യഥാർത്ഥ ലാഭത്തിന്റെ കണക്കല്ല.\n`
+          : `### 🏷️ Negative Margin / Loss Alert\n\nNo comparable catalog selling prices below the recorded purchase price were found. This is a catalog-price comparison, not realized profit.\n`;
       } else {
         md = isMal
           ? `### ⚠️ വാങ്ങിയ വിലയേക്കാൾ കുറഞ്ഞ വിലയുള്ള ഉൽപ്പന്നങ്ങൾ (${negativeMargin.length} എണ്ണം)\n\n`
@@ -192,7 +193,7 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
         md += `| Product | Purchase Cost | Selling Price | Loss / Unit |\n| :--- | :---: | :---: | :---: |\n`;
         negativeMargin.slice(0, 15).forEach((p: AiRow) => {
           const pp = Number(p.purchase_price) || 0;
-          const sp = Number(p.selling_price) || 0;
+          const sp = catalogSellingRate(p);
           md += `| **${p.name}** | ${formatMoney(pp)} | ${formatMoney(sp)} | -${formatMoney(pp - sp)} |\n`;
         });
       }
@@ -200,40 +201,12 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
       return { content: md, intent: parsed.intent };
     }
 
-    case 'INVENTORY_EXPIRY_ALERT': {
-      const products = await fetchProducts();
-      const today = new Date().toISOString().substring(0, 10);
-      const expired = products.filter((p: AiRow) => p.expiry_date && p.expiry_date < today && (Number(p.stock_quantity) || 0) > 0);
-      const nearExpiry = products.filter((p: AiRow) => {
-        if (!p.expiry_date || p.expiry_date < today) return false;
-        const diffDays = Math.round((parseUTCDate(p.expiry_date).getTime() - parseUTCDate(today).getTime()) / (86400000));
-        return diffDays <= 30 && (Number(p.stock_quantity) || 0) > 0;
-      });
-
-      let md = '';
-      if (expired.length === 0 && nearExpiry.length === 0) {
-        md = isMal
-          ? `### ⏳ കാലാവധി പരിശോധന (Expiry Audit)\n\nനിലവിൽ കാലാവധി കഴിഞ്ഞതോ അടുത്ത 30 ദിവസത്തിനകം കാലാവധി തീരുന്നതോ ആയ ഉൽപ്പന്നങ്ങൾ സ്റ്റോക്കിൽ ഇല്ല ✅\n`
-          : `### ⏳ Product Expiry Alert Report\n\nNo expired or near-expiry products (within 30 days) found in current inventory ✅\n`;
-      } else {
-        md = isMal
-          ? `### ⏳ കാലാവധി സംബന്ധിച്ച മുന്നറിയിപ്പ്\n\n* **കാലാവധി കഴിഞ്ഞവ:** **${expired.length} എണ്ണം**\n* **30 ദിവസത്തിനകം കാലാവധി തീരുന്നവ:** **${nearExpiry.length} എണ്ണം**\n\n`
-          : `### ⏳ Product Expiry Alert\n\n* **Expired Products in Stock:** **${expired.length} items**\n* **Expiring Within 30 Days:** **${nearExpiry.length} items**\n\n`;
-        if (expired.length > 0) {
-          md += `#### 🚨 Expired Items:\n| Product | Stock | Expiry Date |\n| :--- | :---: | :---: |\n`;
-          expired.slice(0, 10).forEach((p: AiRow) => {
-            md += `| **${p.name}** | ${formatQty(p.stock_quantity)} | ${p.expiry_date} |\n`;
-          });
-        }
-      }
-
-      return { content: md, intent: parsed.intent };
-    }
+    case 'INVENTORY_EXPIRY_ALERT': return productExpiryReply(await fetchProducts(), isMal);
 
     case 'INVENTORY_NEW_PRODUCTS_TODAY': {
       const products = await fetchProducts();
-      const today = new Date().toISOString().substring(0, 10);
-      const addedToday = products.filter((p: AiRow) => (p.created_at || '').startsWith(today));
+      const today = getStoreBusinessDate();
+      const addedToday = products.filter((p: AiRow) => p.created_at && getStoreBusinessDate(undefined, p.created_at) === today);
 
       let md = isMal
         ? `### 🆕 ഇന്ന് ചേർത്ത പുതിയ ഉൽപ്പന്നങ്ങൾ\n\n* **ഇന്ന് ചേർത്തവ:** **${addedToday.length} ഉൽപ്പന്നങ്ങൾ**\n`
@@ -242,7 +215,7 @@ export async function handleInventoryIntent(parsed: ParsedOfflineIntent, ctx: Ai
       if (addedToday.length > 0) {
         md += `\n| Product Name | Price | Stock |\n| :--- | :---: | :---: |\n`;
         addedToday.slice(0, 15).forEach((p: AiRow) => {
-          md += `| **${p.name}** | ${formatMoney(p.selling_price)} | ${formatQty(p.stock_quantity)} |\n`;
+          md += `| **${p.name}** | ${formatMoney(catalogSellingRate(p))} | ${formatQty(p.current_stock ?? p.stock_quantity)} |\n`;
         });
       }
 

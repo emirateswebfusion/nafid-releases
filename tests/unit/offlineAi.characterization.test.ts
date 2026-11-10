@@ -57,11 +57,13 @@ vi.mock('../../src/data/invoices', () => ({ invoicesApi: {
   getInvoices: vi.fn(async (q: { filterDate?: string; filterDateEnd?: string }) => invoices.filter((i) => (!q.filterDate || i.created_at.slice(0, 10) >= q.filterDate) && (!q.filterDateEnd || i.created_at.slice(0, 10) <= q.filterDateEnd))),
   getInvoicesSummary: vi.fn(async () => ({ totalSales: 5260, invoiceCount: 4, totalTax: 460, totalDiscount: 70 })),
 } }));
+vi.mock('../../src/data/recycleBin', () => ({ recycleBinApi: { getDeletedInvoices: vi.fn(async () => []) } }));
 vi.mock('../../src/data/products', () => ({ productsApi: { getProducts: vi.fn(async () => products), getProductSalesSummary: vi.fn(async () => salesSummary) } }));
 vi.mock('../../src/data/parties', () => ({ partiesApi: { getParties: vi.fn(async () => parties), getPartyLedger: vi.fn(async () => ledger) } }));
 vi.mock('../../src/data/customers', () => ({ customersApi: { getCustomers: vi.fn(async () => customers) } }));
 vi.mock('../../src/data/cashier', () => ({ cashierApi: {
   getDayTransactions: vi.fn(async () => cashTransactions), getTransactions: vi.fn(async () => cashTransactions),
+  getHistory: vi.fn(async () => [drawer]),
   getDrawer: vi.fn(async () => drawer), getPendingInvoices: vi.fn(async () => [invoices[2]]), getDaySettlements: vi.fn(async () => invoices.slice(0, 2)),
 } }));
 vi.mock('../../src/data/purchases', () => ({ purchasesApi: { getPurchaseBills: vi.fn(async () => purchaseBills) } }));

@@ -3,7 +3,6 @@ import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type React from 'react';
 import { processOfflineAiQuery } from '../../../services/offlineAiService';
 import { type ChatMessage } from '../aiAssistantTypes';
-import { aiAssistantCloud } from '../../../data/cloud/aiAssistant';
 import type { Conversation } from '../aiAssistantTypes';
 import type { AiAssistantState } from './useAiAssistantState';
 
@@ -18,7 +17,7 @@ export interface UseAiChatActionsContext {
 /** Chat actions: send (online / offline), keyboard submit, copy text or table CSV, and speak a reply. */
 export function useAiChatActions(ctx: UseAiChatActionsContext) {
   const { activeConvId, messages, setConversations, tenantId } = ctx;
-  const { input, isLoading, setCopiedId, setInput, setIsLoading, setIsOfflineMode, setLanguageMode, setShowPromptMenu, setSpeakingId, setToastMessage, speakingId } = ctx.ai;
+  const { input, isLoading, setCopiedId, setInput, setIsLoading, setLanguageMode, setShowPromptMenu, setSpeakingId, setToastMessage, speakingId } = ctx.ai;
   const handleSpeak = (id: string, text: string) => {
     if (!('speechSynthesis' in window)) return;
 
@@ -69,6 +68,7 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
     const historyPayload = messages.slice(-6).map((m) => ({
       role: m.role,
       content: m.content,
+      parsedIntent: m.parsedIntent,
     }));
     return await processOfflineAiQuery(queryText, tenantId, historyPayload);
   };
@@ -108,23 +108,13 @@ export function useAiChatActions(ctx: UseAiChatActionsContext) {
     setIsLoading(true);
 
     try {
-      let res: Partial<ChatMessage> & { reply?: string };
-      try {
-        const historyPayload = messages.slice(-6).map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-        res = await aiAssistantCloud.chat(q, historyPayload) as Partial<ChatMessage> & { reply?: string };
-        setIsOfflineMode(false);
-      } catch {
-        res = await handleOfflineQuery(q);
-        setIsOfflineMode(true);
-      }
+      const res = await handleOfflineQuery(q);
 
       const assistantMsg: ChatMessage = {
         id: 'msg-' + Date.now() + '-assistant',
         role: 'assistant',
         content: res.content || res.reply || 'No data available.',
+        parsedIntent: res.parsedIntent,
         data: res.data,
         chartData: res.chartData,
         suggestedPrompts: res.suggestedPrompts || [],

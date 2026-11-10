@@ -2,7 +2,7 @@ import type { ParsedOfflineIntent } from './types';
 import type { IntentParseContext } from './intentParser';
 
 /** Intent rules, part 3: sales and revenue questions, ending with the UNKNOWN fallback. */
-export function parseSalesIntent({ message, text, lastUserMsg, dateExtraction }: IntentParseContext): ParsedOfflineIntent {
+export function parseSalesIntent({ message, text, dateExtraction }: IntentParseContext): ParsedOfflineIntent {
   // ──────────────────────────────────────────────────────────────────────────
   // 9. SALES & REVENUE (Preserved with 100% Fidelity)
   // ──────────────────────────────────────────────────────────────────────────
@@ -401,33 +401,6 @@ export function parseSalesIntent({ message, text, lastUserMsg, dateExtraction }:
   }
 
   if (isSalesWord || text.includes('report') || text.includes('റിപ്പോർട്ട്')) {
-    return { intent: 'SALES_TODAY', domain: 'SALES', params: { rangeType: 'today' } };
-  }
-
-  // Context continuation check
-  if (lastUserMsg.includes('sales') || lastUserMsg.includes('സെയിൽസ്')) {
-    if (text.includes('last month') || text.includes('കഴിഞ്ഞ മാസം')) {
-      return { intent: 'COMPARE_SALES', domain: 'SALES', params: { compareType: 'this_month_vs_last_month', compareWith: 'last_month' } };
-    }
-    if (text.includes('yesterday') || text.includes('ഇന്നലെ')) {
-      return { intent: 'COMPARE_SALES', domain: 'SALES', params: { compareType: 'today_vs_yesterday', compareWith: 'yesterday' } };
-    }
-    if (text.includes('cash') || text.includes('ക്യാഷ്')) {
-      return { intent: 'SALES_PAYMENT_METHODS', domain: 'SALES', params: { method: 'CASH', rangeType: 'today' } };
-    }
-    if (text.includes('top five') || text.includes('top 5')) {
-      return { intent: 'TOP_SELLING_PRODUCTS', domain: 'SALES', params: { limit: 5, rangeType: 'today' } };
-    }
-  }
-
-  if (text.includes('yesterday') || text.includes('ഇന്നല') || text.includes('innale')) {
-    return { intent: 'SALES_PERIOD', domain: 'SALES', params: { rangeType: 'yesterday' } };
-  }
-
-  if (text.includes('today') || text.includes('ഇന്ന്') || text.includes('how much')) {
-    if (text.includes('supplier') || text.includes('customer') || text.includes('product') || text.includes('register') || text.includes('counter') || text.includes('settlement')) {
-      return { intent: 'UNKNOWN', params: { searchQuery: message } };
-    }
     return { intent: 'SALES_TODAY', domain: 'SALES', params: { rangeType: 'today' } };
   }
 

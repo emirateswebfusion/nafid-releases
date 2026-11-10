@@ -1,3 +1,4 @@
+import { formatAiTaxLabels } from './offlineAi/presentation';
 import { isDesktopRuntime } from '../data/client';
 import { handleSalesSummaryIntent } from './offlineAi/handlers/salesSummary';
 import { handleSalesDetailIntent } from './offlineAi/handlers/salesDetail';
@@ -56,9 +57,10 @@ export async function processOfflineAiQuery(
   try {
     for (const handle of INTENT_HANDLERS) {
       const answer = await handle(parsed, ctx);
-      if (answer !== NOT_HANDLED) return answer;
+      if (answer !== NOT_HANDLED) return { ...answer, content: formatAiTaxLabels(answer.content), parsedIntent: answer.parsedIntent ?? parsed };
     }
-    return await handleAssistantIntent(parsed, ctx);
+    const answer = await handleAssistantIntent(parsed, ctx);
+    return { ...answer, content: formatAiTaxLabels(answer.content), parsedIntent: answer.parsedIntent ?? parsed };
   } catch (err) {
     console.error('[OfflineAiService] Error processing offline query:', err);
     return {

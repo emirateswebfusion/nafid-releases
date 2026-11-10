@@ -118,11 +118,11 @@ export function useAiMessageFormatting(ctx: UseAiMessageFormattingContext) {
         flushTable();
       }
 
-      if (trimmed.startsWith('### ')) {
+      if (/^#{1,6} /.test(trimmed)) {
         elements.push(
           <div key={index} className="mt-4 mb-2 flex items-center gap-2">
             <span className="w-1 h-3.5 rounded-full bg-emerald-600" />
-            <h3 className="text-sm md:text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight">{parseInlineFormatting(trimmed.replace('### ', ''))}</h3>
+            <h3 className="text-sm md:text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight">{parseInlineFormatting(trimmed.replace(/^#{1,6} /, ''))}</h3>
           </div>
         );
       } else if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {

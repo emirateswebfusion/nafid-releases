@@ -1,3 +1,4 @@
+import { purchaseCreditReply } from './purchaseCredit';
 import { resolveDateRange } from '../dates';
 import { formatMoney } from '../format';
 import { NOT_HANDLED } from '../queryContext';
@@ -181,21 +182,7 @@ export async function handleExpensesAndPurchasesIntent(parsed: ParsedOfflineInte
       return { content: md, intent: parsed.intent };
     }
 
-    case 'PURCHASES_UNPAID': {
-      const bills = await fetchPurchaseBills();
-      const unpaid = bills.filter((b: AiRow) => b.payment_type === 'CREDIT' || String(b.payment_type).toLowerCase().includes('pending'));
-      const total = unpaid.reduce((a: number, b: AiRow) => a + (Number(b.total_amount) || 0), 0);
-
-      const md = isMal
-        ? `### 📒 പണം നൽകാനുള്ള പർച്ചേസ് ബില്ലുകൾ (Unpaid Purchases)\n\n` +
-          `* **ആകെ ബില്ലുകൾ:** **${unpaid.length} എണ്ണം**\n` +
-          `* **നൽകാനുള്ള ആകെ തുക:** **${formatMoney(total)}**\n`
-        : `### 📒 Unpaid & Partially Paid Purchase Bills\n\n` +
-          `* **Total Unpaid Bills:** **${unpaid.length} bills**\n` +
-          `* **Total Outstanding Amount:** **${formatMoney(total)}**\n`;
-
-      return { content: md, intent: parsed.intent };
-    }
+    case 'PURCHASES_UNPAID': return purchaseCreditReply(ctx);
 
     case 'PURCHASES_PRODUCT_HISTORY': {
       const md = isMal

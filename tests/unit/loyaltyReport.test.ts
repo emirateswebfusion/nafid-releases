@@ -8,6 +8,6 @@ describe('loyalty assistant report', () => {
   it.each([[false, true], [true, false], [true, true]])('honors config=%s and feature=%s', async (enabled, feature) => {
     state.config.enabled = enabled; state.flags.loyalty = feature;
     const result = await handleReturnsAndPricingIntent({ intent: 'LOYALTY_POINTS', params: {} }, createAiQueryContext('points', 't', [], false));
-    expect(result).toMatchObject({ content: expect.stringContaining(enabled && feature ? 'Active loyalty program' : 'disabled in Settings') });
+    expect(result).toMatchObject({ content: expect.stringContaining(enabled && feature ? 'Whose points do you need?' : 'disabled in Settings') });
   });
 });
