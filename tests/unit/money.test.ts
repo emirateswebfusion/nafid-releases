@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { formatAmount, formatCurrency, parseAmount } from '../../src/utils/pricing/money';
+import { formatAmount, formatCurrency, parseAmount, sanitizeAmountInput } from '../../src/utils/pricing/money';
 import { setStoreCountry } from '../../src/utils/localization/storeProfile';
 
 describe('formatCurrency', () => {
@@ -66,6 +66,38 @@ describe('parseAmount (TB-2: comma-grouped prices)', () => {
 
   it('lets formatCurrency show a comma-grouped amount instead of ₹0.00', () => {
     expect(formatCurrency('1,250')).toBe('₹1,250.00');
+  });
+});
+
+describe('sanitizeAmountInput (amount boxes take numbers only)', () => {
+  it('keeps digits and a single decimal point', () => {
+    expect(sanitizeAmountInput('1250')).toBe('1250');
+    expect(sanitizeAmountInput('250.50')).toBe('250.50');
+    expect(sanitizeAmountInput('.5')).toBe('.5');
+    expect(sanitizeAmountInput('12.')).toBe('12.');
+    expect(sanitizeAmountInput('')).toBe('');
+  });
+
+  it('drops commas, letters, signs, spaces and currency symbols', () => {
+    expect(sanitizeAmountInput('1,250')).toBe('1250');
+    expect(sanitizeAmountInput('₹1,250.50')).toBe('1250.50');
+    expect(sanitizeAmountInput('AED 99')).toBe('99');
+    expect(sanitizeAmountInput('-50')).toBe('50');
+    expect(sanitizeAmountInput('12a3')).toBe('123');
+    expect(sanitizeAmountInput('abc')).toBe('');
+  });
+
+  it('keeps only the first decimal point', () => {
+    expect(sanitizeAmountInput('1.2.3')).toBe('1.23');
+    expect(sanitizeAmountInput('..5')).toBe('.5');
+  });
+
+  it('always yields something parseAmount reads as a non-negative number (or empty)', () => {
+    for (const raw of ['1,250', '₹ 9.99', 'x', '1.2.3', '-7', '00.50']) {
+      const clean = sanitizeAmountInput(raw);
+      const n = parseAmount(clean);
+      expect(clean === '' || clean === '.' || (n !== null && n >= 0)).toBe(true);
+    }
   });
 });
 

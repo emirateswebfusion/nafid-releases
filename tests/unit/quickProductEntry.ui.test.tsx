@@ -222,6 +222,27 @@ describe('QuickProductTable and QuickProductColumnsModal', () => {
     );
   });
 
+  it('rate box takes numbers only: commas, letters and symbols are dropped, no spinner arrows', () => {
+    render(
+      <QuickProductTable
+        initialProductName=""
+        invoiceType="NON_GST"
+        configuredCategories={[]}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        onClose={vi.fn()}
+        onSwitchToGrid={vi.fn()}
+      />
+    );
+    const rate = document.querySelector('[data-quick-row="0"][data-quick-col="1"]') as HTMLInputElement;
+    expect(rate.type).toBe('text');
+    fireEvent.change(rate, { target: { value: '1,250' } });
+    expect(rate.value).toBe('1250');
+    fireEvent.change(rate, { target: { value: '₹99.5a0' } });
+    expect(rate.value).toBe('99.50');
+    fireEvent.change(rate, { target: { value: '1.2.3' } });
+    expect(rate.value).toBe('1.23');
+  });
+
   it('renders and configures columns modal', () => {
     const onToggleColumn = vi.fn();
     const onSetColumns = vi.fn();

@@ -9,7 +9,7 @@ import {
   STORAGE_KEY_QUICK_COLUMNS,
 } from './types';
 import { QuickProductColumnsModal } from './QuickProductColumnsModal';
-import { parseAmount } from '../../../../utils/pricing/money';
+import { parseAmount, sanitizeAmountInput } from '../../../../utils/pricing/money';
 import {
   Plus, Trash2, SlidersHorizontal, Save, Clock,
   AlertCircle, Loader2
@@ -521,7 +521,8 @@ export const QuickProductTable: React.FC<QuickProductTableProps> = ({
                                   : ''
                               }
                               onChange={e => {
-                                const val = def.id === 'itemCode' ? e.target.value.toUpperCase() : e.target.value;
+                                const val = def.id === 'itemCode' ? e.target.value.toUpperCase()
+                                  : def.prefix ? sanitizeAmountInput(e.target.value) : e.target.value;
                                 updateRowField(rowIdx, def.id, val);
                               }}
                               onKeyDown={e => handleCellKeyDown(e, rowIdx, colIdx)}

@@ -3,7 +3,7 @@ import type * as B from '../billingTypes';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import clsx from 'clsx';
 import { MRP_TIER_ID } from '../../../utils/pricing/pricingTierHelper';
-import { parseAmount } from '../../../utils/pricing/money';
+import { parseAmount, sanitizeAmountInput } from '../../../utils/pricing/money';
 import { createPortal } from 'react-dom';
 
 interface ItemRateInputProps {
@@ -163,7 +163,7 @@ export function ItemRateInput({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsNavigatingMenu(false);
-    const raw = e.target.value;
+    const raw = sanitizeAmountInput(e.target.value);
     setLocalVal(raw);
     const num = parseAmount(raw);
     if (num !== null && num >= 0) {

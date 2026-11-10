@@ -10,7 +10,7 @@ import {
 import Barcode from 'react-barcode';
 import { Select } from '../../ui/Select';
 import clsx from 'clsx';
-import { parseAmount } from '../../../utils/pricing/money';
+import { parseAmount, sanitizeAmountInput } from '../../../utils/pricing/money';
 import { QuickProductTable } from './quick-product/QuickProductTable';
 import type { QuickProductItemInput } from './quick-product/types';
 
@@ -302,7 +302,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={field === 'purchasePrice' ? newProductPurchasePrice : field === 'basePrice' ? newProductBasePrice : field === 'stock' ? newProductStock : newProductReorderLevel}
                         onChange={e => {
-                          const val = e.target.value;
+                          const val = prefix ? sanitizeAmountInput(e.target.value) : e.target.value;
                           if (field === 'purchasePrice') handleProductPurchasePriceChange(val);
                           else if (field === 'basePrice') handleProductBasePriceChange(val);
                           else if (field === 'stock') setNewProductStock(val);
