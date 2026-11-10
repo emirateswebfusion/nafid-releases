@@ -3,6 +3,7 @@ import type { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { logError } from '../../data/app';
 import { hasBridge, isDesktopRuntime } from '../../data/client';
+import { submitToTaskBridge } from '../../lib/taskbridge';
 
 interface Props {
   children?: ReactNode;
@@ -31,6 +32,21 @@ export class ErrorBoundary extends Component<Props, State> {
         componentStack: errorInfo.componentStack
       });
     }
+
+    // Auto-report critical crash to TaskBridge
+    submitToTaskBridge({
+      title: `Crash: ${error.message || 'Unhandled React Exception'}`,
+      description: `Stack trace:\n${error.stack || ''}\n\nComponent stack:\n${errorInfo.componentStack || ''}`,
+      type: 'BUG',
+      severity: 'HIGH',
+      context: {
+        source: 'ErrorBoundary',
+        errorName: error.name,
+        errorMessage: error.message,
+      },
+    }).catch((err: unknown) => {
+      console.warn('Failed to auto-report exception to TaskBridge:', err);
+    });
   }
 
   private handleReload = () => {

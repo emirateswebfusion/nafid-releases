@@ -131,6 +131,10 @@ function setupCSP() {
   if (apiOrigin && !allowedConnect.includes(apiOrigin)) {
     allowedConnect.push(apiOrigin);
   }
+  const taskBridgeOrigin = 'https://taskbridge.emirateswebfusion.com';
+  if (!allowedConnect.includes(taskBridgeOrigin)) {
+    allowedConnect.push(taskBridgeOrigin);
+  }
 
   if (isDev) {
     directives.push("script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:");
