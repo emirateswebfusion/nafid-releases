@@ -25,6 +25,9 @@ export interface ComboItemWithProduct extends ComboItemsRow {
   product_stock: number | null;
   sku_barcode: string | null;
   uom: string | null;
+  tax_rate_percent?: number | null;
+  is_gst_applicable?: number | null;
+  hsn_sac_code?: string | null;
 }
 
 /** Offer detail returned by `combosService.getComboOfferDetails`; invalid, missing or failed lookups return null. */

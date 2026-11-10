@@ -5,7 +5,8 @@ import type { Db } from './types.js';
 export const findComboOffersByComboId = (db: Db) => db.prepare(`SELECT * FROM combo_offers WHERE combo_id = ? AND is_deleted = 0`);
 
 export const findComboItemsByComboId = (db: Db) => db.prepare(`
-      SELECT ci.*, p.name as product_name, p.base_price as product_price, p.current_stock as product_stock, p.sku_barcode, p.uom
+      SELECT ci.*, p.name as product_name, p.base_price as product_price, p.current_stock as product_stock, p.sku_barcode, p.uom,
+             p.tax_rate_percent, p.is_gst_applicable, p.hsn_sac_code
       FROM combo_items ci
       JOIN products p ON ci.product_id = p.product_id
       WHERE ci.combo_id = ? AND p.is_deleted = 0
