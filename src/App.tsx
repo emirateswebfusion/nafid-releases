@@ -19,6 +19,7 @@ import { useFeatureFlagsStore, isAiAssistantAvailable } from './config/featureFl
 import { SplashScreen } from './components/app/SplashScreen';
 import { useEmergencyPanicTrigger } from './hooks/useEmergencyPanicTrigger';
 import { EmergencyWipePrompt } from './components/app/EmergencyWipePrompt';
+import { TaskBridgeFeedbackModal } from './components/taskbridge/TaskBridgeFeedbackModal';
 import { isDesktopRuntime } from './data/client';
 import { useSyncStatus } from './components/app/hooks/useSyncStatus';
 import { useScreenEvents } from './components/app/hooks/useScreenEvents';
@@ -96,6 +97,13 @@ function App() {
   const [customerTarget, setCustomerTarget] = useState<string | undefined>(undefined);
   const [showPaymentsPage, setShowPaymentsPage] = useState(false);
   const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
+  const [showTaskBridgeModal, setShowTaskBridgeModal] = useState(false);
+
+  useEffect(() => {
+    const openFeedback = () => setShowTaskBridgeModal(true);
+    window.addEventListener('open-taskbridge-feedback', openFeedback);
+    return () => window.removeEventListener('open-taskbridge-feedback', openFeedback);
+  }, []);
 
   useEffect(() => {
     checkAuth();
@@ -371,6 +379,7 @@ function App() {
       <AuthErrorToast />
       <CardTerminalDialog />
       <EmergencyWipePrompt panic={panic} />
+      <TaskBridgeFeedbackModal isOpen={showTaskBridgeModal} onClose={() => setShowTaskBridgeModal(false)} />
     </div>
   );
 }

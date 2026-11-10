@@ -38,6 +38,11 @@ src/
     auth/ print/          login + trial sign-up preview (AuthBrandPanel, TrialRegistration,
                          trialShopDetails validation); receipt / A4 / barcode print views
     ui/                   design primitives (Button, Input, Modal, Select, Card, Badge, ScrollText, …)
+    taskbridge/           customer feedback widget: TaskBridgeFeedbackModal (report a problem, community board with votes,
+                          Feedback button on the owner dashboard), TaskBridgeReportDetail (my reports and their status)
+  lib/                    clients for outside services that are not nafid-server: taskbridge.ts (TaskBridge public intake,
+                          status and board over HTTPS via data/cloud/client; board shows customer text only, finished items
+                          for the window TaskBridge sends, the Feedback badge counts open items only)
   data/                   THE data-access layer (one module per domain; see 03-data-access.md)
   store/                  Zustand stores shared across screens (auth, cart, tabs, theme, flags, sync connection, …)
   hooks/                  reusable React hooks (keyboard shortcuts, escape-to-close, …)

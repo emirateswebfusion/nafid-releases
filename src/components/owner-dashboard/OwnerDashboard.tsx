@@ -17,6 +17,7 @@ import { useDashboardCardOrdering } from './hooks/useDashboardCardOrdering';
 import { DashboardCardGrid } from './views/DashboardCardGrid';
 import { ReorderModeBanner } from './views/ReorderModeBanner';
 import { DashboardHeader } from './views/DashboardHeader';
+import { TaskBridgeFeedbackFAB } from '../taskbridge/TaskBridgeFeedbackModal';
 
 export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffledQuotes, quoteIndex, QUOTES }: OwnerDashboardProps) {
     const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId, userId, role, permissions, isCloudSyncPaused } = useAuthStore();
@@ -145,6 +146,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                     </div>
                 </div>
             )}
+            <TaskBridgeFeedbackFAB />
         </div>
     );
 }
