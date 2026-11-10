@@ -246,7 +246,7 @@ export function CustomersPage({
     loadCustomers(false);
     setVisibleCount(50);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadCustomers excluded: filter changes remain the only customer-list refresh triggers.
-  }, [debouncedSearchQuery, filterActive, filterCredit, filterPricingTier]);
+  }, [debouncedSearchQuery, filterActive, filterCredit, filterOverdue, filterPricingTier]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loadPricingTiers loads the settings needed by the initial customer list.
     loadPricingTiers();
