@@ -1,5 +1,4 @@
 import { readAuthPayload, readOfflineSession } from './authStorage.js';
-import { readTerminalSession } from './terminalSession.js';
 import { saveToken } from './authSessionService.js';
 import { cloudTokenUnusable } from '../sync/syncAuth.js';
 
@@ -11,9 +10,9 @@ export function resumeCloudSession(value: unknown): { success: boolean; error?: 
     if (!record(value) || !record(value.credentials)) return { success: false, error: 'Incomplete cloud session' };
     const credentials = value.credentials;
     const active = readOfflineSession() || readAuthPayload();
-    const terminal = readTerminalSession();
-    if (!record(active) || !terminal || active.tenant_id !== value.expected_tenant_id || active.user_id !== value.expected_user_id
-      || terminal.tenant_id !== value.expected_tenant_id || terminal.user_id !== value.expected_user_id) {
+    // Match startup: remembered terminal context is display-only, not an authenticated session.
+    if (!record(active) || typeof active.tenant_id !== 'string' || !active.tenant_id || typeof active.user_id !== 'string' || !active.user_id
+      || active.tenant_id !== value.expected_tenant_id || active.user_id !== value.expected_user_id) {
       return { success: false, error: 'The local session changed. Please reopen cloud sign-in.' };
     }
     if (credentials.tenant_id !== active.tenant_id) return { success: false, error: 'Sign in with an account for this shop.' };

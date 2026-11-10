@@ -239,7 +239,9 @@ and reconcile persisted drawer totals after cleanup. Preserve historical migrati
 Terminal context persistence belongs in `services/terminalSession.ts` with statements in
 `db/statements/localAuth.ts`. Auth save/clear/PIN persistence use-cases are in `authSessionService.ts`;
 their IPC registrations remain one-line delegates. `TerminalConfigResult` adds optional user display
-fields. The existing channels remain stable; the device-local context never changes a sync payload.
+fields. The existing channels remain stable; the device-local context never changes a sync payload. Cloud reconnect
+validates the saved authenticated session, not this display context; see [authentication lifecycle](auth-session-lifecycle.md).
+Keep regression coverage for missing/stale context, signed-out recovery rejection and cashier identity preservation.
 Quick PIN authentication in `authSessionService.loginWithPin` preserves an existing valid cloud session token
 for the same tenant instead of wiping `config.json`, returning the token to the renderer to keep background
 sync active. `saveOfflineSession` unlinks cloud credentials only when the tenant changes. `runInitialSync`
