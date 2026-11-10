@@ -13,9 +13,34 @@ export interface MoneyFormatOptions {
   symbol?: boolean;
 }
 
+/**
+ * Parse a typed/stored amount into a number — the single implementation for the renderer.
+ * Accepts digit-grouping commas and a leading currency symbol (`1,250`, `₹1,250.50`, `AED 12,34,567`, ` 1250 `).
+ * Returns null for empty or non-numeric input. Do not use bare Number()/parseFloat() on typed amounts:
+ * `Number('1,250')` is NaN and `parseFloat('1,250')` is 1.
+ */
+/**
+ * What an amount box may contain while the user types: digits and one decimal point, nothing else.
+ * Owner rule: amount fields take numbers only (no commas, letters, signs or currency symbols, no spinner
+ * arrows). Pasted text is cleaned the same way: `1,250` becomes `1250`, `₹99.50` becomes `99.50`.
+ */
+export function sanitizeAmountInput(raw: string): string {
+  const kept = raw.replace(/[^\d.]/g, '');
+  const dot = kept.indexOf('.');
+  return dot === -1 ? kept : kept.slice(0, dot + 1) + kept.slice(dot + 1).replace(/\./g, '');
+}
+
+export function parseAmount(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const cleaned = value.trim().replace(/^(-?)\s*(?:₹|AED|Rs\.?|INR)\s*/i, '$1').replace(/[,\s]/g, '');
+  if (!/^-?(?:\d+\.?\d*|\.\d+)$/.test(cleaned)) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
 function toNumber(amount: unknown): number {
-  const n = typeof amount === 'number' ? amount : Number(amount ?? 0);
-  return Number.isFinite(n) ? n : 0;
+  return parseAmount(amount ?? 0) ?? 0;
 }
 
 /** India: `1234.5` → `₹1,234.50`, `-50` → `-₹50.00`, null/NaN → `₹0.00`. UAE: `AED 1,234.50`, `-AED 50.00`. */

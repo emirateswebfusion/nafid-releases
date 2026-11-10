@@ -22,6 +22,7 @@ import {
   Boxes,
   TrendingUp,
   RefreshCcw,
+  Bell,
 } from 'lucide-react';
 import { isUaeStore, localizeTaxText } from '../../utils/localization/storeProfile';
 
@@ -203,5 +204,12 @@ export const ALL_CARD_DEFINITIONS: Record<string, Omit<CardMetaItem, 'id'>> = {
     icon: RefreshCcw,
     color: 'text-red-500',
     bgColor: 'bg-red-500/10',
+  },
+  notifications: {
+    title: 'Notifications',
+    desc: 'Stock alerts, updates and sync warnings in one place',
+    icon: Bell,
+    color: 'text-primary',
+    bgColor: 'bg-primary/10',
   },
 };

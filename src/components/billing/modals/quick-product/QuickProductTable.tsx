@@ -9,6 +9,7 @@ import {
   STORAGE_KEY_QUICK_COLUMNS,
 } from './types';
 import { QuickProductColumnsModal } from './QuickProductColumnsModal';
+import { parseAmount, sanitizeAmountInput } from '../../../../utils/pricing/money';
 import {
   Plus, Trash2, SlidersHorizontal, Save, Clock,
   AlertCircle, Loader2
@@ -200,13 +201,13 @@ export const QuickProductTable: React.FC<QuickProductTableProps> = ({
     try {
       const items: QuickProductItemInput[] = validRows.map(r => {
         const qtyNum = parseFloat(r.qty);
-        const rateNum = parseFloat(r.basePrice);
-        const costNum = parseFloat(r.purchasePrice);
+        const rateNum = parseAmount(r.basePrice);
+        const costNum = parseAmount(r.purchasePrice);
         return {
           name: r.name.trim(),
-          basePrice: isNaN(rateNum) ? 0 : rateNum,
+          basePrice: rateNum ?? 0,
           qty: isNaN(qtyNum) || qtyNum <= 0 ? 1 : qtyNum,
-          purchasePrice: isNaN(costNum) ? undefined : costNum,
+          purchasePrice: costNum ?? undefined,
           category: r.category?.trim() || undefined,
           itemCode: r.itemCode?.trim() || undefined,
           barcode: r.barcode?.trim() || undefined,
@@ -490,6 +491,7 @@ export const QuickProductTable: React.FC<QuickProductTableProps> = ({
                             <input
                               type={def.type}
                               step={def.type === 'number' ? 'any' : undefined}
+                              inputMode={def.prefix ? 'decimal' : undefined}
                               data-quick-row={rowIdx}
                               data-quick-col={colIdx}
                               placeholder={
@@ -519,7 +521,8 @@ export const QuickProductTable: React.FC<QuickProductTableProps> = ({
                                   : ''
                               }
                               onChange={e => {
-                                const val = def.id === 'itemCode' ? e.target.value.toUpperCase() : e.target.value;
+                                const val = def.id === 'itemCode' ? e.target.value.toUpperCase()
+                                  : def.prefix ? sanitizeAmountInput(e.target.value) : e.target.value;
                                 updateRowField(rowIdx, def.id, val);
                               }}
                               onKeyDown={e => handleCellKeyDown(e, rowIdx, colIdx)}

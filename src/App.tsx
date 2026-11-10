@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useLayoutEffect, useState, useRef } from 'react';
-import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, RestaurantPage, preloadBilling, VariantsManager } from './components/app/lazyScreens';
+import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, NotificationsPage, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, RestaurantPage, preloadBilling, VariantsManager } from './components/app/lazyScreens';
 import UpdateBanner from './components/app/UpdateBanner';
 import { useStartupReady } from './components/app/hooks/useStartupReady';
 import { PermissionGuard } from './components/app/PermissionGuard';
@@ -44,6 +44,7 @@ function App() {
   const [showStockReport, setShowStockReport] = useState(false);
   const [showSalesHistory, setShowSalesHistory] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [recycleBinCategory, setRecycleBinCategory] = useState<'SALES_BILLS' | 'PRODUCTS' | 'CUSTOMERS' | 'PARTIES'>('SALES_BILLS');
   const [showStaffManager, setShowStaffManager] = useState(false);
   const [showSettingsManager, setShowSettingsManager] = useState(false);
@@ -143,7 +144,7 @@ function App() {
   }, [isAuthenticated, loadFlags]);
 
   useScreenEvents({
-    enableScrapRef, featureFlagsRef, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowGstReports, setShowVatReports, setShowInventoryManager, setShowVariantsManager, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager,
+    enableScrapRef, featureFlagsRef, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowGstReports, setShowVatReports, setShowInventoryManager, setShowVariantsManager, setShowNotifications, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager,
   });
 
   // Fetch the billing chunk in the background once signed in (screens are lazy, see lazyScreens.ts).
@@ -296,6 +297,8 @@ function App() {
         <PermissionGuard feature="pricing_tiers" permission="combos.view" onBack={() => setShowSettingsPricingTiers(false)}>
           <PricingTiers onClose={() => setShowSettingsPricingTiers(false)} />
         </PermissionGuard>
+      ) : showNotifications ? (
+        <NotificationsPage onClose={() => setShowNotifications(false)} />
       ) : showRecycleBin ? (
         <PermissionGuard feature="recycle_bin" permission="sales.view" onBack={() => setShowRecycleBin(false)}>
           <RecycleBin

@@ -10,6 +10,8 @@
  * Sales lower the rate with discounts. Scrap lines are purchases from the customer, so the same
  * "discount" fields RAISE the rate (kind = 'scrap').
  */
+import { parseAmount } from './money';
+
 export interface PricedLine {
   base_price?: number | string | null;
   pricing_mode?: string | null;
@@ -35,8 +37,8 @@ export interface LinePrice {
 
 /** Grade rate for GRADE_RATE products (when positive), otherwise the base price. */
 export function listRate(item: PricedLine): number {
-  const grade = Number(item.grade_rate);
-  return item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && grade > 0 ? grade : Number(item.base_price || 0);
+  const grade = parseAmount(item.grade_rate) ?? 0;
+  return item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && grade > 0 ? grade : (parseAmount(item.base_price) ?? 0);
 }
 
 export function resolveLinePrice(item: PricedLine, rate: number, kind: 'sale' | 'scrap' = 'sale'): LinePrice {

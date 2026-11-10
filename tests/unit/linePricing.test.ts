@@ -143,4 +143,11 @@ describe('listRate', () => {
     expect(listRate({ base_price: undefined })).toBe(0);
     expect(listRate({})).toBe(0);
   });
+
+  it('reads comma-grouped prices so a 1,250 item is not billed at 0 (TB-2)', () => {
+    const rate = listRate({ base_price: '1,250' });
+    expect(rate).toBe(1250);
+    expect(resolveLinePrice({ base_price: '1,250' }, rate).unitRate).toBe(1250);
+    expect(listRate({ pricing_mode: 'GRADE_RATE', grade_rate: '1,250', base_price: 40 })).toBe(1250);
+  });
 });
