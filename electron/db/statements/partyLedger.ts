@@ -1,3 +1,4 @@
+import { moneyDecimalsSql } from './moneyPrecision.js';
 import type { Db } from './types.js';
 
 /** SQL statements used by services/partyLedgerService.ts. Each factory prepares its statement on the given connection. */
@@ -38,7 +39,7 @@ export const findReturnCreditUses = (db: Db, deleted: boolean) => db.prepare(`
     `);
 
 export const updateReturnAdjustedAmount = (db: Db) => db.prepare(`
-      UPDATE returns SET adjusted_amount = MAX(0, ROUND(COALESCE(adjusted_amount, 0) + ?, 2)), sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      UPDATE returns SET adjusted_amount = MAX(0, ROUND(COALESCE(adjusted_amount, 0) + ?, ${moneyDecimalsSql('returns.tenant_id')})), sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE tenant_id = ? AND return_number = ?
     `);
 
@@ -108,7 +109,7 @@ export const updatePartyByPartyId = (db: Db) => ({
     lastDate = lastDate ?? null;
     // Plain `?` only: better-sqlite3 (the app) rejects re-used numbered parameters that node:sqlite (tests) accepts.
     db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-      WHERE party_id = ? AND (ROUND(COALESCE(balance, 0), 2) <> ? OR ROUND(COALESCE(gst_balance, 0), 2) <> ? OR ROUND(COALESCE(estimate_balance, 0), 2) <> ?)`)
+      WHERE party_id = ? AND (ROUND(COALESCE(balance, 0), ${moneyDecimalsSql('parties.tenant_id')}) <> ? OR ROUND(COALESCE(gst_balance, 0), ${moneyDecimalsSql('parties.tenant_id')}) <> ? OR ROUND(COALESCE(estimate_balance, 0), ${moneyDecimalsSql('parties.tenant_id')}) <> ?)`)
       .run(balance, gst, estimate, lastDate, partyId, balance, gst, estimate);
     db.prepare(`UPDATE parties SET last_transaction_date = ? WHERE party_id = ? AND last_transaction_date IS NOT ?`).run(lastDate, partyId, lastDate);
   },
@@ -325,21 +326,21 @@ export const findInvoicesByCustomerId = (db: Db) => db.prepare(`
 export const recalcAllPartyBalances = (db: Db, tenantClause: string | number) => db.prepare(`
       UPDATE parties
       SET balance = COALESCE(
-            (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), 2)
+            (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), ${moneyDecimalsSql('parties.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = parties.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
             0
           ),
           gst_balance = COALESCE(
-            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('parties.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = parties.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
             0
           ),
           estimate_balance = COALESCE(
-            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('parties.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = parties.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),

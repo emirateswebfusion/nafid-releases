@@ -1,3 +1,4 @@
+import { roundMoney } from '../../utils/pricing/moneyRounding';
 import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
@@ -123,8 +124,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const ptsDisc = Number(inv.points_redeemed_discount) || 0;
     const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
     const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
-    if (refundAmount > 0) return -Math.round(refundAmount * 100) / 100;
-    return Math.round(Number(inv.grand_total) * 100) / 100;
+    if (refundAmount > 0) return -roundMoney(refundAmount);
+    return roundMoney(Number(inv.grand_total));
   };
 
   const { openSplitModal, handleDiscPercentChange, handleDiscFlatChange, handlePlusPercentChange, handlePlusFlatChange, handleNetChange } = useSettlementAmountEdit({
@@ -648,7 +649,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   value={openingBalInput || ''}
                   onChange={(e) => setOpeningBalInput(e.target.value === '' ? 0 : Number(e.target.value))}
                   className="w-full pl-10 pr-4 py-3 text-lg font-black bg-card border-2 border-primary/25 rounded-2xl outline-none focus:border-primary text-foreground tabular-nums shadow-sm transition-all"
-                  step="0.01" min="0" placeholder="Enter opening balance" autoFocus
+                  step="any" min="0" placeholder="Enter opening balance" autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSetOpening(); } }}
                 />
               </div>

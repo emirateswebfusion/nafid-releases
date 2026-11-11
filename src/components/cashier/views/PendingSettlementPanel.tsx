@@ -1,3 +1,5 @@
+import { roundMoney, moneyFixed } from '../../../utils/pricing/moneyRounding';
+import { getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix, localizeCurrencyText } from '../../../utils/localization/storeProfile';
 import React, { Fragment } from 'react';
 import { Search, CheckCircle2, Receipt, Zap, User } from 'lucide-react';
@@ -136,9 +138,9 @@ export function PendingSettlementPanel({
             const rawNet = getRawNet(inv);
             const isMinus = rawNet < 0;
             const calculatedNet = isMinus ? rawNet + plusVal : Math.max(0, rawNet - rd);
-            const net = Math.round(calculatedNet * 100) / 100;
-            const absNet = Math.round(Math.abs(net) * 100) / 100;
-            const absRawNet = Math.round(Math.abs(rawNet) * 100) / 100;
+            const net = roundMoney(calculatedNet);
+            const absNet = roundMoney(Math.abs(net));
+            const absRawNet = roundMoney(Math.abs(rawNet));
 
             const isPaying = payingRow === inv.invoice_id;
             const scrapD = Number(inv.scrap_deduction) || 0;
@@ -229,7 +231,7 @@ export function PendingSettlementPanel({
                       onBlur={() => setRowPlusInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                       onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
-                      step="0.01" placeholder={localizeCurrencyText("+₹")}
+                      step="any" placeholder={localizeCurrencyText("+₹")}
                     />
                   </div>
                 ) : (
@@ -251,7 +253,7 @@ export function PendingSettlementPanel({
                       onBlur={() => setRowDiscInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                       onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
-                      step="1" min="0" placeholder={localizeCurrencyText("₹")}
+                      step="any" min="0" placeholder={localizeCurrencyText("₹")}
                     />
                   </div>
                 )}
@@ -264,12 +266,12 @@ export function PendingSettlementPanel({
                         <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-emerald-600 dark:text-emerald-400 select-none leading-none">-{getCurrencyPrefix()}</span>
                         <input
                           type="number"
-                          value={rowNetInputs[inv.invoice_id] !== undefined ? rowNetInputs[inv.invoice_id] : (absNet === 0 ? '' : absNet.toFixed(2))}
+                          value={rowNetInputs[inv.invoice_id] !== undefined ? rowNetInputs[inv.invoice_id] : (absNet === 0 ? '' : absNet.toFixed(getCurrencyDecimals()))}
                           onChange={(e) => handleNetChange(inv.invoice_id, e.target.value)}
                           onBlur={() => setRowNetInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-full py-1 pr-2 pl-1 text-[10px] font-black bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
-                          step="0.01" min="0" placeholder={absRawNet.toFixed(2)}
+                          step="any" min="0" placeholder={moneyFixed(absRawNet)}
                         />
                       </div>
                     </div>
@@ -279,12 +281,12 @@ export function PendingSettlementPanel({
                         <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-primary select-none leading-none">{getCurrencyPrefix()}</span>
                         <input
                           type="number"
-                          value={rowNetInputs[inv.invoice_id] !== undefined ? rowNetInputs[inv.invoice_id] : (net === 0 ? '' : net.toFixed(2))}
+                          value={rowNetInputs[inv.invoice_id] !== undefined ? rowNetInputs[inv.invoice_id] : (net === 0 ? '' : net.toFixed(getCurrencyDecimals()))}
                           onChange={(e) => handleNetChange(inv.invoice_id, e.target.value)}
                           onBlur={() => setRowNetInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-full py-1 pr-2 pl-0.5 text-[10px] font-black bg-transparent outline-none text-primary tabular-nums text-center no-spinners"
-                          step="0.01" min="0" placeholder={displayAmount.toFixed(2)}
+                          step="any" min="0" placeholder={moneyFixed(displayAmount)}
                         />
                       </div>
                     </div>

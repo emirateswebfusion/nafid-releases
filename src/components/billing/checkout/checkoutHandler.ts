@@ -1,7 +1,9 @@
+import { moneyMinorUnit, roundMoney } from '../../../utils/pricing/moneyRounding';
+import { getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
-import { isUaeStore, isValidTaxRegistration } from '../../../utils/localization/storeProfile';
+import { isUaeStore, isVatStore, isValidTaxRegistration, getStoreCountry } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import type { PaymentMethod } from '../BillingConstants';
 import type { SplitDetails } from '../../../store/tabStore';
@@ -40,7 +42,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
   const creditModeParts = tabPaymentMethod === 'CREDIT' ? splitTotal : 0;
   const paymentMethod: PaymentMethod = creditModeParts > 0 ? 'SPLIT' : tabPaymentMethod;
   const splitDetails: SplitDetails = creditModeParts > 0
-    ? { ...tabSplitDetails, credit: Math.max(0, Math.round((displayGrandTotal - creditModeParts) * 100) / 100) }
+    ? { ...tabSplitDetails, credit: Math.max(0, roundMoney((displayGrandTotal - creditModeParts))) }
     : tabSplitDetails;
   return async (saveOnly = false) => {
     if (items.length === 0) {
@@ -102,14 +104,22 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       });
 
       if (isUaeStore() && invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode) {
-        if (!shopNameState?.trim() && !shopName?.trim() || !shopAddress?.trim() || !shopGstin?.trim() || !isValidTaxRegistration(shopGstin)) {
+        if (!shopNameState?.trim() && !shopName?.trim() || !shopAddress?.trim() || !shopGstin?.trim() || !isValidTaxRegistration(shopGstin, 'AE')) {
           setHardwareError('Set the shop name, address and valid 15-digit TRN before issuing a UAE tax invoice.'); return;
         }
-        if (!isValidTaxRegistration(customerGstin || '') || ((isB2B || displayGrandTotal > 10000) && (!(customerName || '').trim() || !(customerAddress || '').trim()))) {
+        if (!isValidTaxRegistration(customerGstin || '', 'AE') || ((isB2B || displayGrandTotal > 10000) && (!(customerName || '').trim() || !(customerAddress || '').trim()))) {
           setHardwareError('Enter a valid customer TRN when registered, and customer name and address for a full tax invoice.'); return;
         }
       }
-      if (!isUaeStore() && invoiceType === 'GST' && isB2B && !isQuotationMode && !isReturnMode && !isScrapMode) {
+      if (getStoreCountry() === 'BH' && invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode) {
+        if (!shopNameState?.trim() && !shopName?.trim() || !shopAddress?.trim() || !shopGstin?.trim() || !isValidTaxRegistration(shopGstin, 'BH')) {
+          setHardwareError('Set the shop name, address and valid 15-digit VAT Account Number before issuing a Bahrain tax invoice.'); return;
+        }
+        if (!isValidTaxRegistration(customerGstin || '', 'BH') || ((isB2B || displayGrandTotal > 500) && (!(customerName || '').trim() || !(customerAddress || '').trim()))) {
+          setHardwareError('Enter a valid customer VAT Account Number when registered, and customer name and address for a full tax invoice.'); return;
+        }
+      }
+      if (!isVatStore() && invoiceType === 'GST' && isB2B && !isQuotationMode && !isReturnMode && !isScrapMode) {
         if (!(customerGstin || '').trim()) {
           setHardwareError('Customer GSTIN is required for B2B GST Tax Invoices under GST rules.');
           return;
@@ -135,14 +145,14 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           setHardwareError('Please enter split payment breakdown amounts for Cash, Card, UPI, or Credit');
           return;
         }
-        if (displayGrandTotal > 0 && totalSplitEntered < displayGrandTotal && Math.abs(displayGrandTotal - totalSplitEntered) > 0.01) {
-          const shortfall = (displayGrandTotal - totalSplitEntered).toFixed(2);
-          setHardwareError(`Split payment total (${getCurrencyPrefix()}${totalSplitEntered.toFixed(2)}) is less than Grand Total (${getCurrencyPrefix()}${displayGrandTotal.toFixed(2)}). Remaining shortfall: ${getCurrencyPrefix()}${shortfall}`);
+        if (displayGrandTotal > 0 && totalSplitEntered < displayGrandTotal && Math.abs(displayGrandTotal - totalSplitEntered) > moneyMinorUnit()) {
+          const shortfall = (displayGrandTotal - totalSplitEntered).toFixed(getCurrencyDecimals());
+          setHardwareError(`Split payment total (${getCurrencyPrefix()}${totalSplitEntered.toFixed(getCurrencyDecimals())}) is less than Grand Total (${getCurrencyPrefix()}${displayGrandTotal.toFixed(getCurrencyDecimals())}). Remaining shortfall: ${getCurrencyPrefix()}${shortfall}`);
           return;
         }
         // With a credit part the amounts must add up exactly: more would leave the customer's due ambiguous.
-        if ((Number(splitDetails?.credit) || 0) > 0 && totalSplitEntered - displayGrandTotal > 0.01) {
-          setHardwareError(`Split payment total (${getCurrencyPrefix()}${totalSplitEntered.toFixed(2)}) is more than Grand Total (${getCurrencyPrefix()}${displayGrandTotal.toFixed(2)}). Reduce the credit or payment amounts by ${getCurrencyPrefix()}${(totalSplitEntered - displayGrandTotal).toFixed(2)}`);
+        if ((Number(splitDetails?.credit) || 0) > 0 && totalSplitEntered - displayGrandTotal > moneyMinorUnit()) {
+          setHardwareError(`Split payment total (${getCurrencyPrefix()}${totalSplitEntered.toFixed(getCurrencyDecimals())}) is more than Grand Total (${getCurrencyPrefix()}${displayGrandTotal.toFixed(getCurrencyDecimals())}). Reduce the credit or payment amounts by ${getCurrencyPrefix()}${(totalSplitEntered - displayGrandTotal).toFixed(getCurrencyDecimals())}`);
           return;
         }
       }
@@ -155,7 +165,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       const isPaymentPending = effectiveFinalPaymentMethod === 'PENDING';
       const defaultFullPaid = ['CASH', 'UPI', 'CARD', 'CHEQUE'].includes(effectiveFinalPaymentMethod) ? effectiveGrandTotal : 0;
       const effectiveReceivedAmount = isPaymentPending ? 0 : (effectiveFinalPaymentMethod === 'SPLIT' ? splitTotal : ((receivedAmount && receivedAmount > 0) ? receivedAmount : defaultFullPaid));
-      const effectiveBalanceAmount = isPaymentPending || refundAmount > 0 ? 0 : Math.round((balanceAmount + effectiveReceivedAmount - receivedAmount) * 100) / 100;
+      const effectiveBalanceAmount = isPaymentPending || refundAmount > 0 ? 0 : roundMoney((balanceAmount + effectiveReceivedAmount - receivedAmount));
 
       const invoice_id = isEditing ? editingInvoiceId : uuidv4();
       const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (isB2B ? 'gst_b2b' : 'gst_b2c') : 'normal') : (invoiceType === 'GST' ? 'gst' : undefined);
@@ -281,7 +291,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
 
         if (creditPeriodEnabled && restrictOnExpiry && hasOverdue) {
           const overdueCount = (matchedParty as B.DirectoryRecord).overdue_bills_count || 1;
-          const overdueAmt = (matchedParty as B.DirectoryRecord).overdue_amount ? ` (${getCurrencyPrefix()}${Number((matchedParty as B.DirectoryRecord).overdue_amount).toFixed(2)})` : '';
+          const overdueAmt = (matchedParty as B.DirectoryRecord).overdue_amount ? ` (${getCurrencyPrefix()}${Number((matchedParty as B.DirectoryRecord).overdue_amount).toFixed(getCurrencyDecimals())})` : '';
           setHardwareError(
             `Credit purchases restricted for ${matchedParty.name}! Customer has ${overdueCount} overdue bill${overdueCount !== 1 ? 's' : ''}${overdueAmt} exceeding credit period. Please collect outstanding dues or switch to Cash/Card/UPI.`
           );
@@ -295,7 +305,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         const projectedBalance = partyOldBalance + newPartyContribution;
         if (projectedBalance > creditLimit) {
           const excess = projectedBalance - creditLimit;
-          const fmtNum = (n: number) => n.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const fmtNum = (n: number) => n.toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
           setHardwareError(
             `Credit Limit Exceeded for ${matchedParty.name}! Limit: ${getCurrencyPrefix()}${fmtNum(creditLimit)}, Current Due: ${getCurrencyPrefix()}${fmtNum(partyOldBalance)}, Bill Credit: ${getCurrencyPrefix()}${fmtNum(newPartyContribution)}. Exceeds limit by ${getCurrencyPrefix()}${fmtNum(excess)} — Cannot complete bill.`
           );

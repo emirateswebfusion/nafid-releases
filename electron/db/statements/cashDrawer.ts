@@ -1,3 +1,4 @@
+import { moneyDecimalsSql } from './moneyPrecision.js';
 import type { Db } from './types.js';
 import { counterSalePredicate, countsInRevenue } from './revenue.js';
 
@@ -153,7 +154,7 @@ export const insertPaymentSourceTransaction = (db: Db) => db.prepare(`
 
 /** Net money a bill has posted to each payment account (bill sales and cancellations). Params: tenant, invoice_number. */
 export const sumInvoicePaymentSourcePostings = (db: Db) => db.prepare(`
-          SELECT source_id, ROUND(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE -amount END), 2) AS net
+          SELECT source_id, ROUND(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE -amount END), ${moneyDecimalsSql('payment_source_transactions.tenant_id')}) AS net
           FROM payment_source_transactions
           WHERE tenant_id = ? AND reference_number = ? AND category IN ('Invoice Sale', 'Invoice Cancellation')
           GROUP BY source_id

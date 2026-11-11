@@ -1,6 +1,7 @@
 import { storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import type * as B from '../billingTypes';
 import React from 'react';
 import { User, Phone, MapPin, Building } from 'lucide-react';
@@ -9,7 +10,7 @@ import { CustomerOutstandingBadge } from '../ui/CustomerOutstandingBadge';
 import { Select } from '../../ui/Select';
 import { MRP_TIER_ID } from '../../../utils/pricing/pricingTierHelper';
 import { SingleDatePicker } from '../../ui/SingleDatePicker';
-import { isUaeStore, UAE_EMIRATES, getStoreProfile } from '../../../utils/localization/storeProfile';
+import { isUaeStore, isVatStore, UAE_EMIRATES, getStoreProfile } from '../../../utils/localization/storeProfile';
 import { INDIAN_STATES } from '../BillingConstants';
 import type { PaymentMethod, SplitDetails, Tab } from '../../../store/tabStore';
 import type { BillingUIConfig } from '../../../store/billingUIStore';
@@ -143,7 +144,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                     )}
                     {c.balance != null && Number(c.balance) !== 0 && (
                       <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400")}>
-                        {c.is_staff ? (Number(c.balance) < 0 ? `Owes: ${getCurrencyPrefix()}${Math.abs(Number(c.balance)).toFixed(2)}` : `Bal: ${getCurrencyPrefix()}${Number(c.balance).toFixed(2)}`) : `Bal: ${getCurrencyPrefix()}${Math.abs(Number(c.balance)).toFixed(2)}`}
+                        {c.is_staff ? (Number(c.balance) < 0 ? `Owes: ${getCurrencyPrefix()}${moneyFixed(Math.abs(Number(c.balance)))}` : `Bal: ${getCurrencyPrefix()}${moneyFixed(Number(c.balance))}`) : `Bal: ${getCurrencyPrefix()}${moneyFixed(Math.abs(Number(c.balance)))}`}
                       </span>
                     )}
                   </button>
@@ -408,7 +409,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                       ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-sm border border-border/20'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
-                  title={isUaeStore() ? 'Consumer VAT invoice' : 'B2C Consumer GST Invoice (Customer Name, Phone & Address optional)'}
+                  title={isVatStore() ? 'Consumer VAT invoice' : 'B2C Consumer GST Invoice (Customer Name, Phone & Address optional)'}
                 >
                   B2C
                 </button>
@@ -427,7 +428,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                       ? 'bg-card text-blue-600 dark:text-blue-400 shadow-sm border border-border/20'
                       : 'text-muted-foreground hover:text-foreground'
                   )}
-                  title={isUaeStore() ? 'Business tax invoice (customer name, address and TRN)' : 'B2B Business Tax Invoice (Customer Name, Phone, Address & GSTIN required)'}
+                  title={isVatStore() ? 'Business tax invoice (customer name, address and TRN)' : 'B2B Business Tax Invoice (Customer Name, Phone, Address & GSTIN required)'}
                 >
                   B2B
                 </button>

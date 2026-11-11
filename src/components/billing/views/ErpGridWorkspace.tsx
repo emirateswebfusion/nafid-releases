@@ -1,6 +1,7 @@
 import { buildCheckoutLines } from '../../../utils/pricing/checkoutLines';
-import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { isVatStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import React from 'react';
 import { displayInvoiceNumber } from '../../../utils/pricing/invoiceNumberHelper';
 import type { DeductionState } from './DeductionEditor';
@@ -150,7 +151,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
 
           {/* GST No */}
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">{isUaeStore() ? 'TRN' : 'GST No'}</label>
+            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-wider block">{isVatStore() ? 'TRN' : 'GST No'}</label>
             <input
               ref={customerGstinInputRef}
               placeholder={localizeTaxText("GSTIN Number")}
@@ -240,9 +241,9 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
                 <th className="py-2.5 px-2.5 text-right w-20">Rate (Incl)</th>
                 <th className="py-2.5 px-2.5 text-right w-24">Total</th>
                 <th className="py-2.5 px-2.5 text-right w-16">Disc</th>
-                <th className="py-2.5 px-2.5 text-right w-16">{isUaeStore() ? 'VAT' : 'SGST'}</th>
-                {!isUaeStore() && <th className="py-2.5 px-2.5 text-right w-16">CGST</th>}
-                {!isUaeStore() && <th className="py-2.5 px-2.5 text-right w-16">IGST</th>}
+                <th className="py-2.5 px-2.5 text-right w-16">{isVatStore() ? 'VAT' : 'SGST'}</th>
+                {!isVatStore() && <th className="py-2.5 px-2.5 text-right w-16">CGST</th>}
+                {!isVatStore() && <th className="py-2.5 px-2.5 text-right w-16">IGST</th>}
                 <th className="py-2.5 px-3 text-right w-28">Net Amount</th>
                 <th className="py-2.5 px-2 text-center w-10">Del</th>
               </tr>
@@ -250,7 +251,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
             <tbody className="divide-y divide-border/60 font-semibold text-foreground">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={isUaeStore() ? 12 : 14} className="py-12 text-center text-muted-foreground italic">
+                  <td colSpan={isVatStore() ? 12 : 14} className="py-12 text-center text-muted-foreground italic">
                     No line items added yet. Search products or scan barcode above to populate ERP invoice table.
                   </td>
                 </tr>
@@ -258,7 +259,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
                 items.map((item, idx) => {
                   const isFocusedRow = item.product_id === (focusedRowProductId || lastAddedProductId);
                   const qty = Number(item.quantity) || 0;
-                  const vatLine = isUaeStore() ? buildCheckoutLines([item], { invoiceType, supplyType: 'INTRA', bosTaxRatePercent: 0, bosTaxInclusive: false, pcsSnapshot: {}, newId: () => item.product_id })[0] : null;
+                  const vatLine = isVatStore() ? buildCheckoutLines([item], { invoiceType, supplyType: 'INTRA', bosTaxRatePercent: 0, bosTaxInclusive: false, pcsSnapshot: {}, newId: () => item.product_id })[0] : null;
                   const baseRate = vatLine?.unit_price ?? (Number(item.offer_price ?? item.base_price) || 0);
                   const taxRatePct = Number(item.tax_rate_percent ?? (invoiceType === 'GST' ? 18 : 0));
                   const isInterState = Boolean(customerState && shopDomain && customerState !== shopDomain);
@@ -311,15 +312,15 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
                           className="w-14 text-center bg-background border border-border rounded px-1 py-0.5 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
                         />
                       </td>
-                      <td className="py-2 px-2.5 text-right font-mono">{getCurrencyPrefix()}{baseRate.toFixed(2)}</td>
-                      <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}{rateIncl.toFixed(2)}</td>
-                      <td className="py-2 px-2.5 text-right font-mono">{getCurrencyPrefix()}{exclTotal.toFixed(2)}</td>
-                      <td className="py-2 px-2.5 text-right font-mono text-emerald-600">{getCurrencyPrefix()}{discVal.toFixed(2)}</td>
-                      <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}{(vatLine ? taxAmountTotal : sgstVal).toFixed(2)}</td>
-                      {!isUaeStore() && <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}{cgstVal.toFixed(2)}</td>}
-                      {!isUaeStore() && <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}{igstVal.toFixed(2)}</td>}
+                      <td className="py-2 px-2.5 text-right font-mono">{getCurrencyPrefix()}{moneyFixed(baseRate)}</td>
+                      <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}{moneyFixed(rateIncl)}</td>
+                      <td className="py-2 px-2.5 text-right font-mono">{getCurrencyPrefix()}{moneyFixed(exclTotal)}</td>
+                      <td className="py-2 px-2.5 text-right font-mono text-emerald-600">{getCurrencyPrefix()}{moneyFixed(discVal)}</td>
+                      <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}{moneyFixed(vatLine ? taxAmountTotal : sgstVal)}</td>
+                      {!isVatStore() && <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}{moneyFixed(cgstVal)}</td>}
+                      {!isVatStore() && <td className="py-2 px-2.5 text-right font-mono text-muted-foreground">{getCurrencyPrefix()}{moneyFixed(igstVal)}</td>}
                       <td className="py-2 px-3 text-right font-mono font-black text-emerald-700 dark:text-emerald-400">
-                        {getCurrencyPrefix()}{(inclTotal - discVal).toFixed(2)}
+                        {getCurrencyPrefix()}{moneyFixed(inclTotal - discVal)}
                       </td>
                       <td className="py-2 px-2 text-center">
                         <button
@@ -349,11 +350,11 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
 
             <div className="flex items-center gap-5 text-right font-extrabold">
               <span>Total Qty: <strong className="text-white">{totQty}</strong></span>
-              <span>Excl: <strong className="text-white">{getCurrencyPrefix()}{totExcl.toFixed(2)}</strong></span>
-              <span>{isUaeStore() ? 'VAT' : 'SGST'}: <strong className="text-white">{getCurrencyPrefix()}{(isUaeStore() ? totVat : totSgst).toFixed(2)}</strong></span>
-              {!isUaeStore() && <span>CGST: <strong className="text-white">{getCurrencyPrefix()}{totCgst.toFixed(2)}</strong></span>}
-              {!isUaeStore() && <span>IGST: <strong className="text-white">{getCurrencyPrefix()}{totIgst.toFixed(2)}</strong></span>}
-              <span className="text-amber-300 text-sm">Net Amount: <strong className="text-amber-400">{getCurrencyPrefix()}{totNet.toFixed(2)}</strong></span>
+              <span>Excl: <strong className="text-white">{getCurrencyPrefix()}{moneyFixed(totExcl)}</strong></span>
+              <span>{isVatStore() ? 'VAT' : 'SGST'}: <strong className="text-white">{getCurrencyPrefix()}{moneyFixed(isVatStore() ? totVat : totSgst)}</strong></span>
+              {!isVatStore() && <span>CGST: <strong className="text-white">{getCurrencyPrefix()}{moneyFixed(totCgst)}</strong></span>}
+              {!isVatStore() && <span>IGST: <strong className="text-white">{getCurrencyPrefix()}{moneyFixed(totIgst)}</strong></span>}
+              <span className="text-amber-300 text-sm">Net Amount: <strong className="text-amber-400">{getCurrencyPrefix()}{moneyFixed(totNet)}</strong></span>
             </div>
           </div>
         </div>
@@ -539,7 +540,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
             <div>
               <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Old Balance</div>
               <div className={clsx("font-mono font-black text-xs mt-0.5", partyBalance > 0 ? "text-rose-600" : "text-muted-foreground/80")}>
-                {partyBalance > 0 ? `${getCurrencyPrefix()}${partyBalance.toFixed(2)}` : '-'}
+                {partyBalance > 0 ? `${getCurrencyPrefix()}${moneyFixed(partyBalance)}` : '-'}
               </div>
             </div>
 
@@ -590,7 +591,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
                 onClick={startEditingTotal}
                 title="Click to edit total"
               >
-                {getCurrencyPrefix()}{displayGrandTotal.toFixed(2)}
+                {getCurrencyPrefix()}{moneyFixed(displayGrandTotal)}
               </div>
             </div>
 
@@ -598,7 +599,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
             <div>
               <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Balance / Change</div>
               <div className={clsx("font-mono font-bold text-xs mt-0.5", balanceAmount >= 0 ? "text-emerald-600" : "text-amber-600")}>
-                {getCurrencyPrefix()}{Math.abs(balanceAmount).toFixed(2)}
+                {getCurrencyPrefix()}{moneyFixed(Math.abs(balanceAmount))}
               </div>
             </div>
           </div>

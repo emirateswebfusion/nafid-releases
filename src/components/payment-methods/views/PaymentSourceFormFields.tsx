@@ -168,7 +168,7 @@ export function PaymentSourceFormFields({
             </label>
             <Input
               type="number"
-              step="0.01"
+              step="any"
               min="0"
               value={form.opening_balance}
               onChange={e => setForm({ ...form, opening_balance: e.target.value })}

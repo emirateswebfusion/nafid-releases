@@ -2,7 +2,7 @@ import { storeDate } from '../time/dateDisplay';
 import { resolveQuotationTerms } from '../localization/quotationTerms';
 import { quotationNetRate } from '../pricing/quotationPrice';
 import { getStoreLocale } from '../localization/storeProfile';
-import { isUaeStore } from '../localization/storeProfile';
+import { isVatStore } from '../localization/storeProfile';
 import { generateUaeInvoiceHtml } from './uaeInvoice';
 import { numberToIndianWords } from './receiptGenerator';
 import { formatCurrency } from '../pricing/money';
@@ -29,7 +29,7 @@ function formatNumber(val: number): string {
 }
 
 export function generateQuotationHtml(data: QuotationPrintData): string {
-  if (isUaeStore()) return generateUaeInvoiceHtml({ ...data, invoiceNumber: data.quotationNumber, invoiceType: 'QUOTATION', discount: data.discountTotal || 0, tax: data.taxTotal, items: data.items.map(item => ({ name: item.name, quantity: item.quantity, unit_price: quotationNetRate(item), total: item.amount, tax_rate_percent: item.tax_rate_percent ?? undefined })), billSettings: undefined, notes: resolveQuotationTerms(data.termsAndConditions) });
+  if (isVatStore()) return generateUaeInvoiceHtml({ ...data, invoiceNumber: data.quotationNumber, invoiceType: 'QUOTATION', discount: data.discountTotal || 0, tax: data.taxTotal, items: data.items.map(item => ({ name: item.name, quantity: item.quantity, unit_price: quotationNetRate(item), total: item.amount, tax_rate_percent: item.tax_rate_percent ?? undefined })), billSettings: undefined, notes: resolveQuotationTerms(data.termsAndConditions) });
   const isGst = Boolean(data.isGstEnabled);
   const shopStateClean = (data.shopState || '').trim().toLowerCase();
   const customerStateClean = (data.customerState || '').trim().toLowerCase();

@@ -1,4 +1,4 @@
-import { isUaeStore, getStoreVatInclusive } from '../utils/localization/storeProfile';
+import { isVatStore, getStoreVatInclusive } from '../utils/localization/storeProfile';
 import { calculateVat } from '../utils/pricing/vat';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -362,8 +362,8 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
     if (item.isServiceItem) {
       const price = Number(item.offer_price ?? item.base_price) || 0;
       const vat = calculateVat(price, invoiceType === 'GST' ? item.tax_rate_percent : 0, getStoreVatInclusive());
-      serviceTotal += isUaeStore() ? vat.taxable : price;
-      if (isUaeStore()) serviceTax += vat.tax;
+      serviceTotal += isVatStore() ? vat.taxable : price;
+      if (isVatStore()) serviceTax += vat.tax;
       return;
     }
 
@@ -384,7 +384,7 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
     subtotal += itemTotal;
 
     if (invoiceType === 'GST') {
-      if (isUaeStore()) {
+      if (isVatStore()) {
         const vat = calculateVat(itemTotal, item.tax_rate_percent, getStoreVatInclusive());
         totalTax += vat.tax;
         subtotal += vat.taxable - itemTotal;
@@ -416,10 +416,10 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
   
   const hasTax = adjustedTax > 0;
 
-  const taxSplit = !isUaeStore() && hasTax && !isInterState ? splitTaxAmount(adjustedTax) : null;
+  const taxSplit = !isVatStore() && hasTax && !isInterState ? splitTaxAmount(adjustedTax) : null;
   const cgst = taxSplit?.cgst || 0;
   const sgst = taxSplit?.sgst || 0;
-  const igst = !isUaeStore() && hasTax && isInterState ? adjustedTax : 0;
+  const igst = !isVatStore() && hasTax && isInterState ? adjustedTax : 0;
 
   const grandTotal = taxableAmount + adjustedTax + serviceTotal;
 

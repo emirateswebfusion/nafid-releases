@@ -1,4 +1,4 @@
-import { isUaeStore } from '../localization/storeProfile';
+import { isVatStore } from '../localization/storeProfile';
 export function getNextOffsetInvoiceNumber(baseNum: string, existingNums: (string | undefined | null)[]): string {
   if (!baseNum) return '';
   const match = baseNum.match(/^(.*?)(\d+)$/);
@@ -49,6 +49,6 @@ export function matchesDocumentNumber(candidate: string, query: string): boolean
  * mode and empty numbers are returned unchanged.
  */
 export function displayInvoiceNumber(num: string, invoiceType: string, enableThreeInvoiceSeries: boolean): string {
-  if (isUaeStore() || !num || invoiceType !== 'GST' || enableThreeInvoiceSeries) return num;
+  if (isVatStore() || !num || invoiceType !== 'GST' || enableThreeInvoiceSeries) return num;
   return num.toUpperCase().startsWith('GST-') ? num : `GST-${num}`;
 }

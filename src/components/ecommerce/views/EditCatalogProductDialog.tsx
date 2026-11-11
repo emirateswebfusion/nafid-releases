@@ -51,7 +51,7 @@ export function EditCatalogProductDialog({
             <label className="font-semibold block mb-1 text-foreground">Online Price Override ({getStoreProfile().currency})</label>
             <input
               type="number"
-              step="0.01"
+              step="any"
               placeholder={`POS Counter Price: ${formatCurrency(editingProduct.base_price)}`}
               defaultValue={editingProduct.online_price_override !== null && editingProduct.online_price_override !== undefined ? editingProduct.online_price_override : ''}
               id="modal-online-price"

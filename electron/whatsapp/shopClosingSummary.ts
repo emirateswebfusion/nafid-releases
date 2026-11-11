@@ -1,6 +1,6 @@
 import { storeWallClockToUtc } from '../services/storeTime.js';
 import { findTimeFormat } from '../db/statements/storeTime.js';
-import { getStoreCountrySetting } from '../services/storeCountryService.js';
+import { getStoreCountrySetting, roundStoreMoney } from '../services/storeCountryService.js';
 import { getRegisterCashEntries, isFrozenDrawer } from '../services/cashDrawerSession.js';
 import { getCashAmountFromInvoice } from '../services/cashDrawerService.js';
 import type { CashDrawerRow } from '../services/typesA.js';
@@ -20,6 +20,8 @@ export function buildShopClosingSummaryData(
   getStoreTimezoneSettingFn?: (db: import('better-sqlite3').Database, tid?: string) => string
 ) {
   const tid = tenantId || 'global';
+  const country = getStoreCountrySetting(db, tid);
+  const roundMoney = (val: number) => roundStoreMoney(val, country);
   const tz = getStoreTimezoneSettingFn ? getStoreTimezoneSettingFn(db, tid) : 'Asia/Kolkata';
 
   // Determine business date string (YYYY-MM-DD)
@@ -85,15 +87,15 @@ export function buildShopClosingSummaryData(
     }
   }
 
-  const openingBalance = Math.round(Number(drawer?.opening_balance || 0) * 100) / 100;
-  const expectedClosingCash = Math.round(Number(drawer?.expected_closing || drawer?.current_cash || 0) * 100) / 100;
+  const openingBalance = roundMoney(Number(drawer?.opening_balance || 0));
+  const expectedClosingCash = roundMoney(Number(drawer?.expected_closing || drawer?.current_cash || 0));
   const actualCashCounted = drawer?.actual_cash !== null && drawer?.actual_cash !== undefined
-    ? Math.round(Number(drawer.actual_cash) * 100) / 100
+    ? roundMoney(Number(drawer.actual_cash))
     : expectedClosingCash;
-  let cashShortage = Math.round(Number(drawer?.cash_short || 0) * 100) / 100;
-  let cashExcess = Math.round(Number(drawer?.cash_excess || 0) * 100) / 100;
+  let cashShortage = roundMoney(Number(drawer?.cash_short || 0));
+  let cashExcess = roundMoney(Number(drawer?.cash_excess || 0));
   if (drawer?.actual_cash !== null && drawer?.actual_cash !== undefined) {
-    const diff = Math.round((actualCashCounted - expectedClosingCash) * 100) / 100;
+    const diff = roundMoney((actualCashCounted - expectedClosingCash));
     if (diff < 0 && cashShortage === 0) cashShortage = Math.abs(diff);
     if (diff > 0 && cashExcess === 0) cashExcess = diff;
   }
@@ -274,7 +276,7 @@ export function buildShopClosingSummaryData(
 
     if (Array.isArray(txRows)) {
       for (const row of txRows) {
-        const amt = Math.round(Number(row.amount || 0) * 100) / 100;
+        const amt = roundMoney(Number(row.amount || 0));
         const desc = ((row.notes as string) || (row.category as string) || (row.type === 'CASH_IN' ? 'Deposit' : 'Expense')).trim();
         if (row.type === 'CASH_IN') {
           totalCashIn += amt;
@@ -294,8 +296,8 @@ export function buildShopClosingSummaryData(
           });
         }
       }
-      totalCashIn = Math.round(totalCashIn * 100) / 100;
-      totalCashOut = Math.round(totalCashOut * 100) / 100;
+      totalCashIn = roundMoney(totalCashIn);
+      totalCashOut = roundMoney(totalCashOut);
       totalExpenses = totalCashOut;
     }
   } catch (err) {
@@ -312,8 +314,8 @@ export function buildShopClosingSummaryData(
 
     if (Array.isArray(plRows)) {
       for (const pl of plRows) {
-        const credit = Math.round(Number(pl.credit_amount || 0) * 100) / 100;
-        const debit = Math.round(Number(pl.debit_amount || 0) * 100) / 100;
+        const credit = roundMoney(Number(pl.credit_amount || 0));
+        const debit = roundMoney(Number(pl.debit_amount || 0));
         const partyName = ((pl.party_name as string) || (pl.party_id as string) || 'Party').trim();
         const descUpper = ((pl.description as string) || ('' as string)).toUpperCase();
         const isExplicitGot = descUpper.includes('GOT CASH') || descUpper.includes('CASH RECEIVED') || descUpper.includes('RECEIPT');
@@ -342,7 +344,7 @@ export function buildShopClosingSummaryData(
           });
         }
       }
-      customerPaymentsCollected = Math.round(customerPaymentsCollected * 100) / 100;
+      customerPaymentsCollected = roundMoney(customerPaymentsCollected);
     }
   } catch (err) {
     console.error('[ShopClosing] Party ledger query error:', (err as Error).message);
@@ -356,7 +358,7 @@ export function buildShopClosingSummaryData(
 
     if (Array.isArray(stRows)) {
       for (const st of stRows) {
-        const amt = Math.round(Number(st.amount || 0) * 100) / 100;
+        const amt = roundMoney(Number(st.amount || 0));
         staffTransactionItems.push({
           staffName: ((st.staff_name as string) || ('Staff' as string)).trim(),
           type: (st.type as string) || ('Payment' as string),
@@ -386,7 +388,7 @@ export function buildShopClosingSummaryData(
 
     if (Array.isArray(scrapRows)) {
       for (const sr of scrapRows) {
-        const total = Math.round(Number(sr.total_amount || 0) * 100) / 100;
+        const total = roundMoney(Number(sr.total_amount || 0));
         scrapSummary.totalAmount += total;
         scrapSummary.count++;
         scrapSummary.items.push({
@@ -401,7 +403,7 @@ export function buildShopClosingSummaryData(
       }
     }
 
-    scrapSummary.totalAmount = Math.round(scrapSummary.totalAmount * 100) / 100;
+    scrapSummary.totalAmount = roundMoney(scrapSummary.totalAmount);
   } catch (err) {
     console.error('[ShopClosing] Scrap query error:', (err as Error).message);
   }
@@ -415,7 +417,7 @@ export function buildShopClosingSummaryData(
 
     if (retRow) {
       returnsCount = Number(retRow.ret_count || 0);
-      returnsAmount = Math.round(Number(retRow.ret_total || 0) * 100) / 100;
+      returnsAmount = roundMoney(Number(retRow.ret_total || 0));
     }
   } catch (err) {
     console.error('[ShopClosing] Returns query error:', (err as Error).message);
@@ -441,7 +443,7 @@ export function buildShopClosingSummaryData(
 
     if (pbRow) {
       purchasesCount = Number(pbRow.pb_count || 0);
-      purchasesAmount = Math.round(Number(pbRow.pb_total || 0) * 100) / 100;
+      purchasesAmount = roundMoney(Number(pbRow.pb_total || 0));
     }
   } catch (err) {
     console.error('[ShopClosing] Purchases query error:', (err as Error).message);
@@ -452,8 +454,8 @@ export function buildShopClosingSummaryData(
     counterCode: c.counterCode,
     billerName: c.billerName,
     invoiceCount: c.invoiceCount,
-    netSales: Math.round(c.netSales * 100) / 100,
-    cashSales: Math.round(c.cashSales * 100) / 100,
+    netSales: roundMoney(c.netSales),
+    cashSales: roundMoney(c.cashSales),
   }));
 
   // Round results
@@ -468,19 +470,19 @@ export function buildShopClosingSummaryData(
     closingRemarks,
     counterCode,
     totalInvoices,
-    grossSales: Math.round(grossSales * 100) / 100,
-    totalDiscount: Math.round(totalDiscount * 100) / 100,
-    netSales: Math.round(netSales * 100) / 100,
-    totalTax: Math.round(totalTax * 100) / 100,
+    grossSales: roundMoney(grossSales),
+    totalDiscount: roundMoney(totalDiscount),
+    netSales: roundMoney(netSales),
+    totalTax: roundMoney(totalTax),
     paymentBreakdown: {
-      cash: Math.round(paymentBreakdown.cash * 100) / 100,
-      card: Math.round(paymentBreakdown.card * 100) / 100,
-      upi: Math.round(paymentBreakdown.upi * 100) / 100,
-      bankTransfer: Math.round(paymentBreakdown.bankTransfer * 100) / 100,
-      cheque: Math.round(paymentBreakdown.cheque * 100) / 100,
-      credit: Math.round(paymentBreakdown.credit * 100) / 100,
+      cash: roundMoney(paymentBreakdown.cash),
+      card: roundMoney(paymentBreakdown.card),
+      upi: roundMoney(paymentBreakdown.upi),
+      bankTransfer: roundMoney(paymentBreakdown.bankTransfer),
+      cheque: roundMoney(paymentBreakdown.cheque),
+      credit: roundMoney(paymentBreakdown.credit),
     },
-    creditSalesAmount: Math.round(creditSalesAmount * 100) / 100,
+    creditSalesAmount: roundMoney(creditSalesAmount),
     customerPaymentsCollected,
     totalCashIn,
     totalCashOut,
@@ -494,7 +496,7 @@ export function buildShopClosingSummaryData(
     scrapSummary,
     returnsCount,
     returnsAmount,
-    refundsPaidAmount: Math.round(refundsPaidAmount * 100) / 100,
+    refundsPaidAmount: roundMoney(refundsPaidAmount),
     purchasesCount,
     purchasesAmount,
     openingBalance,

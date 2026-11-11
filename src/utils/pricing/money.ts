@@ -2,12 +2,12 @@
  * Money formatting — the single implementation for the renderer. Amounts use the active shop currency; formatting never converts values.
  * Do not define local formatCurrency/formatINR helpers in components; import from here.
  */
-import { getStoreProfile } from '../localization/storeProfile';
+import { getCurrencyDecimals, getStoreProfile } from '../localization/storeProfile';
 
 export interface MoneyFormatOptions {
   /** Digit grouping in the store locale (en-IN 1,23,456.00; en-AE 123,456.00). Default true. */
   grouping?: boolean;
-  /** Fraction digits. Default 2. */
+  /** Fraction digits. Default: the shop currency's (2; 3 for BHD). */
   decimals?: number;
   /** Prefix with the store currency (₹ or `AED `). Default true. */
   symbol?: boolean;
@@ -45,7 +45,7 @@ function toNumber(amount: unknown): number {
 
 /** India: `1234.5` → `₹1,234.50`, `-50` → `-₹50.00`, null/NaN → `₹0.00`. UAE: `AED 1,234.50`, `-AED 50.00`. */
 export function formatCurrency(amount: unknown, options: MoneyFormatOptions = {}): string {
-  const { grouping = true, decimals = 2, symbol = true } = options;
+  const { grouping = true, decimals = getCurrencyDecimals(), symbol = true } = options;
   const n = toNumber(amount);
   const abs = Math.abs(n);
   const digits = grouping
@@ -55,7 +55,7 @@ export function formatCurrency(amount: unknown, options: MoneyFormatOptions = {}
   return `${sign}${symbol ? getStoreProfile().currencyPrefix : ''}${digits}`;
 }
 
-/** Grouped amount without the currency symbol: `1,234.50`. */
-export function formatAmount(amount: unknown, decimals = 2): string {
+/** Grouped amount without the currency symbol: `1,234.50` (`1,234.500` in BHD). */
+export function formatAmount(amount: unknown, decimals = getCurrencyDecimals()): string {
   return formatCurrency(amount, { symbol: false, decimals });
 }

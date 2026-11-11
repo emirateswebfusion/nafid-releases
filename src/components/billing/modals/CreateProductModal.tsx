@@ -1,5 +1,5 @@
 import { localizeTaxText } from '../../../utils/localization/storeProfile';
-import { getCurrencyPrefix, localizeCurrencyText, isUaeStore } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, localizeCurrencyText, isVatStore } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React from 'react';
 import type { ProductFormState } from '../hooks/useProductFormState';
@@ -298,7 +298,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     <div className="relative">
                       {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
                       <input
-                        type={prefix ? 'text' : 'number'} step={prefix ? undefined : '0.01'} inputMode="decimal"
+                        type={prefix ? 'text' : 'number'} step={prefix ? undefined : 'any'} inputMode="decimal"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={field === 'purchasePrice' ? newProductPurchasePrice : field === 'basePrice' ? newProductBasePrice : field === 'stock' ? newProductStock : newProductReorderLevel}
                         onChange={e => {
@@ -310,7 +310,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                         }}
                         className={clsx(
                           'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm',
-                          prefix && (isUaeStore() ? 'pl-14' : 'pl-8'),
+                          prefix && (isVatStore() ? 'pl-14' : 'pl-8'),
                           field === 'basePrice' && 'text-emerald-600 dark:text-emerald-400 font-bold'
                         )}
                       />
@@ -359,7 +359,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                           <input
-                            type="number" step="0.01"
+                            type="number" step="any"
                             onWheel={e => (e.target as HTMLInputElement).blur()}
                             value={productFormTierPrices[tier.pricing_tier_id] ?? ''}
                             onChange={e => setProductFormTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}
@@ -391,7 +391,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Percentage (%)</label>
-                      <input type="number" step="0.01"
+                      <input type="number" step="any"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={newProductDiscountPercent}
                         onChange={e => {
@@ -412,7 +412,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount ({getCurrencyPrefix()})</label>
-                      <input type="number" step="0.01"
+                      <input type="number" step="any"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={newProductDiscountFlat}
                         onChange={e => {
@@ -440,7 +440,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price ({getCurrencyPrefix()})</label>
-                    <input type="number" step="0.01"
+                    <input type="number" step="any"
                       onWheel={e => (e.target as HTMLInputElement).blur()}
                       value={newProductOfferPrice}
                       onChange={e => {

@@ -1,4 +1,5 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import type React from 'react';
 import { Plus, Percent, Search, Trash2, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -190,11 +191,11 @@ export function ComboFormModal({
 
                           <div className="w-24 text-right">
                             <div className="font-extrabold text-foreground">
-                              {getCurrencyPrefix()}{(effectiveLinePrice * item.quantity).toFixed(2)}
+                              {getCurrencyPrefix()}{moneyFixed(effectiveLinePrice * item.quantity)}
                             </div>
                             {hasOffer && (
                               <div className="text-[9px] text-muted-foreground line-through">
-                                {getCurrencyPrefix()}{((item.product_price || 0) * item.quantity).toFixed(2)}
+                                {getCurrencyPrefix()}{moneyFixed((item.product_price || 0) * item.quantity)}
                               </div>
                             )}
                           </div>
@@ -223,7 +224,7 @@ export function ComboFormModal({
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     required
                     placeholder="e.g. 150.00"
                     value={formData.combo_price}
@@ -235,11 +236,11 @@ export function ComboFormModal({
                 <div className="text-right">
                   <div className="text-xs text-muted-foreground font-semibold">Regular Items MRP Total:</div>
                   <div className="text-base font-bold text-muted-foreground line-through">
-                    {getCurrencyPrefix()}{standaloneTotal.toFixed(2)}
+                    {getCurrencyPrefix()}{moneyFixed(standaloneTotal)}
                   </div>
                   {calcOfferPriceTotal() < standaloneTotal && (
                     <div className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
-                      Product Offer Total: {getCurrencyPrefix()}{calcOfferPriceTotal().toFixed(2)}
+                      Product Offer Total: {getCurrencyPrefix()}{moneyFixed(calcOfferPriceTotal())}
                     </div>
                   )}
                 </div>
@@ -252,7 +253,7 @@ export function ComboFormModal({
                     Customer Savings:
                   </span>
                   <span className="font-black text-emerald-600 dark:text-emerald-400">
-                    {getCurrencyPrefix()}{savingsAmount.toFixed(2)} ({savingsPct}% OFF)
+                    {getCurrencyPrefix()}{moneyFixed(savingsAmount)} ({savingsPct}% OFF)
                   </span>
                 </div>
               )}

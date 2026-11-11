@@ -1,7 +1,7 @@
 import { storeDate, storeDateTime } from '../../time/dateDisplay';
 import { getStoreLocale } from '../../localization/storeProfile';
 import { getCurrencyPrefix } from '../../localization/storeProfile';
-import { isUaeStore } from '../../localization/storeProfile';
+import { isVatStore } from '../../localization/storeProfile';
 import { generateUaeInvoiceHtml } from '../uaeInvoice';
 import { getStoreTimezone } from '../../time/timezoneHelper';
 import { splitTaxAmount } from '../../pricing/checkoutLines';
@@ -35,7 +35,7 @@ export function generatePurchaseBillHtml(
     sku_barcode?: string | null;
   }>
 ): string {
-  if (isUaeStore()) {
+  if (isVatStore()) {
     const lines = items.map(item => ({ name: item.name, quantity: item.quantity, unit_price: item.purchase_price, total: item.quantity * item.purchase_price, tax_rate_percent: bill.bill_type === 'GST' && (item.is_gst_applicable ?? 1) === 1 ? item.tax_rate_percent || 0 : 0 }));
     const subtotal = lines.reduce((sum, item) => sum + item.total, 0);
     const tax = lines.reduce((sum, item) => sum + item.total * item.tax_rate_percent / 100, 0);

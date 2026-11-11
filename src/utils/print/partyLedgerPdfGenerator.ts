@@ -1,3 +1,4 @@
+import { roundMoney } from '../pricing/moneyRounding';
 import { storeDate, storeDateTime } from '../time/dateDisplay';
 import { getStoreLocale } from '../localization/storeProfile';
 import { getCurrencyPrefix } from '../localization/storeProfile';
@@ -175,7 +176,7 @@ export function calculateLedgerStatement(
     }
   }
 
-  openingBalance = Math.round(openingBalance * 100) / 100;
+  openingBalance = roundMoney(openingBalance);
 
   let periodCredit = 0;
   let periodDebit = 0;
@@ -196,7 +197,7 @@ export function calculateLedgerStatement(
       debitCount++;
     }
     currentRunning += (c - d);
-    currentRunning = Math.round(currentRunning * 100) / 100;
+    currentRunning = roundMoney(currentRunning);
 
     return {
       ...entry,
@@ -206,9 +207,9 @@ export function calculateLedgerStatement(
     };
   });
 
-  periodCredit = Math.round(periodCredit * 100) / 100;
-  periodDebit = Math.round(periodDebit * 100) / 100;
-  const closingBalance = Math.round((openingBalance + periodCredit - periodDebit) * 100) / 100;
+  periodCredit = roundMoney(periodCredit);
+  periodDebit = roundMoney(periodDebit);
+  const closingBalance = roundMoney((openingBalance + periodCredit - periodDebit));
 
   // Format month groups for visual ledger hierarchy
   const monthGroupsMap = new Map<string, LedgerEntryData[]>();
@@ -235,8 +236,8 @@ export function calculateLedgerStatement(
       monthKey: key,
       monthTitle: title,
       entries: items,
-      monthCredit: Math.round(mCredit * 100) / 100,
-      monthDebit: Math.round(mDebit * 100) / 100,
+      monthCredit: roundMoney(mCredit),
+      monthDebit: roundMoney(mDebit),
     });
   }
 

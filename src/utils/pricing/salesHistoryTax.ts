@@ -1,4 +1,5 @@
-import { isUaeStore } from '../localization/storeProfile';
+import { moneyScale } from './moneyRounding';
+import { isVatStore } from '../localization/storeProfile';
 import { splitTaxAmount } from './checkoutLines';
 
 type TaxInvoice = { cgst_total?: number | null; sgst_total?: number | null; igst_total?: number | null; customer_name?: string | null; invoice_id: string; invoice_number?: string | null; created_at?: string | null; supply_type?: string | null; converted_from_invoice_id?: string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; tax_total?: number | string | null; subtotal?: number | string | null; grand_total?: number | string | null };
@@ -36,7 +37,7 @@ export interface InvoiceProductTotals {
   invoiceCount: number;
 }
 
-const round2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
+const round2 = (value: number) => Math.round((Number(value) || 0) * moneyScale()) / moneyScale();
 const round1 = (value: number) => Math.round((Number(value) || 0) * 10) / 10;
 const positive = (value: unknown) => Math.max(0, Number(value) || 0);
 
@@ -56,7 +57,7 @@ function isInterStateInvoice(inv: TaxInvoice, items: TaxItem[]): boolean {
 
 /** Stored header splits are authoritative; legacy bills use supply/item evidence and the cents splitter. */
 export function getInvoiceTaxComponents(inv: TaxInvoice, items: TaxItem[], legacyInterState = false) {
-  if (isUaeStore()) return { cgst: 0, sgst: 0, igst: 0 };
+  if (isVatStore()) return { cgst: 0, sgst: 0, igst: 0 };
   const tax = positive(inv.tax_total);
   const stored = { cgst: positive(inv.cgst_total), sgst: positive(inv.sgst_total), igst: positive(inv.igst_total) };
   if (Math.round((stored.cgst + stored.sgst + stored.igst) * 100) === Math.round(tax * 100)) return stored;
@@ -126,8 +127,8 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     const storedGrand = Number(inv?.grand_total);
     const netRatio = grossTotal > 0 && Number.isFinite(storedGrand) ? Math.max(0, storedGrand / grossTotal) : 1;
     const taxSplit = splitTaxAmount(invoiceTax);
-    const cgstAmount = isUaeStore() || interState ? 0 : taxSplit.cgst;
-    const sgstAmount = isUaeStore() || interState ? 0 : taxSplit.sgst;
+    const cgstAmount = isVatStore() || interState ? 0 : taxSplit.cgst;
+    const sgstAmount = isVatStore() || interState ? 0 : taxSplit.sgst;
 
     return [{
       invoice: inv,
@@ -146,12 +147,12 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
       discount: round2(discountTotal + pointsDiscount),
       total: grossTotal,
       netTotal: round2(grossTotal * netRatio),
-      cgstRate: isUaeStore() || interState ? 0 : round1(rate / 2),
+      cgstRate: isVatStore() || interState ? 0 : round1(rate / 2),
       cgstAmount,
-      sgstRate: isUaeStore() || interState ? 0 : round1(rate / 2),
+      sgstRate: isVatStore() || interState ? 0 : round1(rate / 2),
       sgstAmount,
-      igstRate: !isUaeStore() && interState ? rate : 0,
-      igstAmount: !isUaeStore() && interState ? round2(invoiceTax) : 0,
+      igstRate: !isVatStore() && interState ? rate : 0,
+      igstAmount: !isVatStore() && interState ? round2(invoiceTax) : 0,
     }];
   }
 
@@ -170,8 +171,8 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     const discount = round2(entry.taxable - taxable);
     const total = round2(taxable + tax);
     const taxSplit = splitTaxAmount(tax);
-    const cgstAmount = isUaeStore() || interState ? 0 : taxSplit.cgst;
-    const sgstAmount = isUaeStore() || interState ? 0 : taxSplit.sgst;
+    const cgstAmount = isVatStore() || interState ? 0 : taxSplit.cgst;
+    const sgstAmount = isVatStore() || interState ? 0 : taxSplit.sgst;
 
     return {
       invoice: inv,
@@ -190,12 +191,12 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
       discount,
       total,
       netTotal: round2(total * netRatio),
-      cgstRate: isUaeStore() || interState ? 0 : round1(entry.gstRate / 2),
+      cgstRate: isVatStore() || interState ? 0 : round1(entry.gstRate / 2),
       cgstAmount,
-      sgstRate: isUaeStore() || interState ? 0 : round1(entry.gstRate / 2),
+      sgstRate: isVatStore() || interState ? 0 : round1(entry.gstRate / 2),
       sgstAmount,
-      igstRate: !isUaeStore() && interState ? round1(entry.gstRate) : 0,
-      igstAmount: !isUaeStore() && interState ? tax : 0,
+      igstRate: !isVatStore() && interState ? round1(entry.gstRate) : 0,
+      igstAmount: !isVatStore() && interState ? tax : 0,
     };
   });
 
@@ -219,7 +220,7 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     }
   }
 
-  return isUaeStore() ? rows.map(row => ({ ...row, cgstRate: 0, sgstRate: 0, igstRate: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0 })) : rows;
+  return isVatStore() ? rows.map(row => ({ ...row, cgstRate: 0, sgstRate: 0, igstRate: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0 })) : rows;
 }
 
 export function buildTaxFilteredProductRows(

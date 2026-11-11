@@ -1,3 +1,4 @@
+import { moneyScale } from '../../utils/pricing/moneyRounding';
 import type { CartItem } from '../../store/cartStore';
 import { buildCheckoutLines } from '../../utils/pricing/checkoutLines';
 import { formatAmount } from '../../utils/pricing/money';
@@ -7,7 +8,7 @@ export function guestCheckTotals(items: CartItem[]): { net: number; tax: number;
   const lines = buildCheckoutLines(items, { invoiceType: 'GST', supplyType: 'INTRA', bosTaxRatePercent: 0, bosTaxInclusive: false, pcsSnapshot: {}, newId: () => '' });
   const net = lines.reduce((s, l) => s + Number(l.total || 0), 0);
   const tax = lines.reduce((s, l) => s + Number(l.tax_amount || 0), 0);
-  const r = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  const r = (n: number) => Math.round((n + Number.EPSILON) * moneyScale()) / moneyScale();
   return { net: r(net), tax: r(tax), total: r(net + tax) };
 }
 

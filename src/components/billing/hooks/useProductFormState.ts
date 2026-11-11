@@ -1,4 +1,4 @@
-import { isUaeStore } from '../../../utils/localization/storeProfile';
+import { getDefaultTaxRate, isVatStore } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isDesktopRuntime } from '../../../data/client';
@@ -31,11 +31,11 @@ export function useProductFormState(tenantId: string | null) {
   const [newProductStock, setNewProductStock] = useState('');
   const [newProductReorderLevel, setNewProductReorderLevel] = useState('');
   const [newProductHsn, setNewProductHsn] = useState('');
-  const [newProductTaxRate, setNewProductTaxRate] = useState(isUaeStore() ? 5 : 0);
+  const [newProductTaxRate, setNewProductTaxRate] = useState(getDefaultTaxRate());
   const [newProductDiscountPercent, setNewProductDiscountPercent] = useState('');
   const [newProductDiscountFlat, setNewProductDiscountFlat] = useState('');
   const [newProductOfferPrice, setNewProductOfferPrice] = useState('');
-  const [newProductIsGstApplicable, setNewProductIsGstApplicable] = useState(isUaeStore());
+  const [newProductIsGstApplicable, setNewProductIsGstApplicable] = useState(isVatStore());
   const [newProductIsDummy, setNewProductIsDummy] = useState(false);
   const [newProductIsCustomCategory, setNewProductIsCustomCategory] = useState(false);
   const [productFormTierPrices, setProductFormTierPrices] = useState<Record<string, string>>({});

@@ -143,7 +143,7 @@ export function GstPurchaseSection({
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm select-none">{getCurrencyPrefix()}</span>
                   <input
-                    type="number" step="0.01"
+                    type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={formData.gst_purchase_price}
                     onChange={e => handleInputChange('gst_purchase_price', e.target.value)}
@@ -157,7 +157,7 @@ export function GstPurchaseSection({
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Quantity</label>
                 <div className="relative">
                   <input
-                    type="number" step="0.01"
+                    type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={formData.gst_purchase_quantity}
                     onChange={e => handleInputChange('gst_purchase_quantity', e.target.value)}

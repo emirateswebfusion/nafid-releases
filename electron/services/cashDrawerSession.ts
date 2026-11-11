@@ -1,3 +1,4 @@
+import { getStoreCountrySetting, roundStoreMoney } from './storeCountryService.js';
 import { isDuplicateScrapCash } from './duplicateScrapCash.js';
 import type { CashTransactionRow } from './typesA.js';
 import { getStoreTimezoneSetting, localDate, parseCleanDate, storeWallClockToUtc } from './storeTime.js';
@@ -165,8 +166,6 @@ interface RegisterCashEntry extends CashRegisterEntry {
   party_name?: string;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
 export interface DrawerTotals {
   cash_sales: number;
   cash_in: number;
@@ -238,12 +237,13 @@ export function getRegisterCashEntries(db: Db, tenantId: string, drawer: DrawerR
 
 /** Cash Register, settlement and closing all use this same cash feed and sales window. */
 export function computeDrawerTotals(db: Db, tenantId: string, drawer: DrawerRow): DrawerTotals {
+  const country = getStoreCountrySetting(db, tenantId);
   const w = getDrawerWindow(db, tenantId, drawer);
   const salesRow = cashDrawerSql.sumCashSalesInWindow(db).get(tenantId, w.from, w.to, w.to) as { total_cash_sales?: number } | undefined;
   const entries = getRegisterCashEntries(db, tenantId, drawer);
-  const cashSales = round2(Number(salesRow?.total_cash_sales || 0));
-  const cashIn = round2(entries.filter(row => row.type === 'CASH_IN').reduce((sum, row) => sum + Number(row.amount), 0));
-  const cashOut = round2(entries.filter(row => row.type === 'CASH_OUT').reduce((sum, row) => sum + Number(row.amount), 0));
-  const opening = round2(Number(drawer.opening_balance || 0));
-  return { cash_sales: cashSales, cash_in: cashIn, cash_out: cashOut, expected: round2(opening + cashSales + cashIn - cashOut) };
+  const cashSales = roundStoreMoney(Number(salesRow?.total_cash_sales || 0), country);
+  const cashIn = roundStoreMoney(entries.filter(row => row.type === 'CASH_IN').reduce((sum, row) => sum + Number(row.amount), 0), country);
+  const cashOut = roundStoreMoney(entries.filter(row => row.type === 'CASH_OUT').reduce((sum, row) => sum + Number(row.amount), 0), country);
+  const opening = roundStoreMoney(Number(drawer.opening_balance || 0), country);
+  return { cash_sales: cashSales, cash_in: cashIn, cash_out: cashOut, expected: roundStoreMoney(opening + cashSales + cashIn - cashOut, country) };
 }

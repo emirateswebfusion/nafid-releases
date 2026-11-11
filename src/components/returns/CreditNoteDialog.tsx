@@ -74,8 +74,8 @@ export function CreditNoteDialog({ onClose, onSaved }: { onClose: () => void; on
           </div>
           <div className="grid grid-cols-4 gap-2">
             <label>Quantity<input aria-label={`Quantity ${index+1}`} type="number" min="0.001" step="0.001" className={field} value={line.quantity} onChange={event => update(index,{quantity:event.target.value})}/></label>
-            <label>Unit price before tax<input aria-label={`Unit price ${index+1}`} type="number" min="0" step="0.01" className={field} value={line.rate} onChange={event => update(index,{rate:event.target.value})}/></label>
-            <label>Tax for this line<input aria-label={`Line tax ${index+1}`} type="number" min="0" step="0.01" className={field} value={line.tax} onChange={event => update(index,{tax:event.target.value})}/></label>
+            <label>Unit price before tax<input aria-label={`Unit price ${index+1}`} type="number" min="0" step="any" className={field} value={line.rate} onChange={event => update(index,{rate:event.target.value})}/></label>
+            <label>Tax for this line<input aria-label={`Line tax ${index+1}`} type="number" min="0" step="any" className={field} value={line.tax} onChange={event => update(index,{tax:event.target.value})}/></label>
             <button type="button" disabled={lines.length===1 || saving} onClick={() => setLines(previous => previous.filter((_,i) => i!==index))}>Remove line</button>
           </div>
         </div>;

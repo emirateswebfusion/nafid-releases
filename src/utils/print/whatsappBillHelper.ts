@@ -1,6 +1,8 @@
+import { moneyFixed } from '../pricing/moneyRounding';
 import { getStoreLocale } from '../localization/storeProfile';
-import { getCurrencyPrefix, isUaeStore } from '../localization/storeProfile';
-import { UAE_LABELS as L, bilingualText, getUaeArabicPrint, uaeDocumentTitle, uaePaymentMethod, type BilingualLabel } from './uaeLabels';
+import { getCurrencyDecimals, getCurrencyPrefix, isVatStore } from '../localization/storeProfile';
+import { UAE_LABELS, getVatLabels, bilingualText, getUaeArabicPrint, uaeDocumentTitle, uaePaymentMethod, type BilingualLabel } from './uaeLabels';
+const L = new Proxy({} as typeof UAE_LABELS, { get: (_, prop: string) => (getVatLabels() as unknown as Record<string, BilingualLabel>)[prop] });
 import { splitTaxAmount } from '../pricing/checkoutLines';
 import { formatPurchaseLedgerMessage } from './whatsappSharing';
 import { withNafidFooter } from './messageFooter';
@@ -41,15 +43,16 @@ export interface WhatsAppBillDetails {
 }
 
 export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
+  const dec = getCurrencyDecimals();
   const shop = data.shopName || 'STORE';
   const inv = data.invoiceNumber;
   const date = data.date;
   // UAE bills carry the Arabic label beside the English one when the documents setting is on; India is unchanged.
-  const uae = isUaeStore();
+  const uae = isVatStore();
   const t = (pair: BilingualLabel) => uae ? bilingualText(pair, getUaeArabicPrint().documents) : pair.en;
   const cust = data.customerName ? `\n👤 *${t(L.customer)}:* ${data.customerName}` : '';
-  const total = Number(data.grandTotal || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const received = Number(data.receivedAmount || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const total = Number(data.grandTotal || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  const received = Number(data.receivedAmount || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: dec, maximumFractionDigits: dec });
   const balance = Number(data.balanceAmount || 0);
 
   // Items breakdown (up to first 8 items for a clean preview, followed by ... if more)
@@ -58,7 +61,7 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
     itemsText += `\n\n📦 *${t(L.billItems)}:*`;
     const previewItems = data.items.slice(0, 8);
     previewItems.forEach((item, idx) => {
-      const itemTotal = Number(item.total || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 });
+      const itemTotal = Number(item.total || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: dec, maximumFractionDigits: dec });
       itemsText += `\n${idx + 1}. ${item.name} (${item.quantity}x) - ${getCurrencyPrefix()}${itemTotal}`;
       if (item.hsn_sac_code) itemsText += ` | HSN/SAC: ${item.hsn_sac_code}`;
       if (Number(item.tax_rate_percent) > 0) itemsText += ` | ${uae ? 'VAT' : 'GST'}: ${item.tax_rate_percent}%`;
@@ -93,14 +96,14 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
         paymentText += `\n🏛️ *SGST:* ${getCurrencyPrefix()}${sgstFmt}`;
       } else {
         const taxLabel = t(L.vat);
-        const taxFmt = Number(data.tax || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const taxFmt = Number(data.tax || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: dec, maximumFractionDigits: dec });
         paymentText += `\n🏛️ *${taxLabel}:* ${getCurrencyPrefix()}${taxFmt}`;
       }
     }
   }
 
   if (data.discount !== undefined && data.discount > 0) {
-    const discFmt = Number(data.discount || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const discFmt = Number(data.discount || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: dec, maximumFractionDigits: dec });
     paymentText += `\n🏷️ *${t(L.discount)}:* -${getCurrencyPrefix()}${discFmt}`;
   }
 
@@ -110,7 +113,7 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
   }
 
   if (balance > 0) {
-    const balFormatted = balance.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const balFormatted = balance.toLocaleString(getStoreLocale(), { minimumFractionDigits: dec, maximumFractionDigits: dec });
     paymentText += `\n⚠️ *${t(L.dueBalance)}:* ${getCurrencyPrefix()}${balFormatted}`;
     if (data.dueDate) {
       paymentText += `\n📅 *${t(L.creditDueDate)}:* *${data.dueDate}*`;
@@ -199,7 +202,7 @@ export function formatWhatsAppLedgerTxMessage(data: WhatsAppLedgerTxDetails): st
 
   const formatAmt = (val: number) => {
     const num = Number(val) || 0;
-    return Number.isInteger(num) ? num.toString() : num.toFixed(2);
+    return Number.isInteger(num) ? num.toString() : moneyFixed(num);
   };
 
   const ob = formatAmt(data.openingBalance);

@@ -1,6 +1,7 @@
 import { useFeatureFlagsStore } from '../../../config/featureFlags';
 import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import React, { Fragment } from 'react';
 import { RefreshCw, AlertTriangle, Plus, Minus, Pencil, Trash, Printer, X, Package, PackagePlus, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
@@ -253,19 +254,19 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                         </div>
                       </div>
                       <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold flex flex-col items-end justify-center">
-                        <span>{getCurrencyPrefix()}{displayPurchasePrice.toFixed(2)}</span>
+                        <span>{getCurrencyPrefix()}{moneyFixed(displayPurchasePrice)}</span>
                         {appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined && (
                           <span className="text-[9px] text-indigo-500 font-semibold leading-tight mt-0.5">Grade Purchase</span>
                         )}
                         {paperPurPrice > 0 && (
                           <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold leading-tight mt-0.5" title="Paper Purchase Price">
-                            Paper: {getCurrencyPrefix()}{paperPurPrice.toFixed(2)}
+                            Paper: {getCurrencyPrefix()}{moneyFixed(paperPurPrice)}
                           </span>
                         )}
                       </div>
                       <div className="col-span-1 flex flex-col items-end justify-center text-right">
                         <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
-                          {getCurrencyPrefix()}{displayMrp.toFixed(2)}
+                          {getCurrencyPrefix()}{moneyFixed(displayMrp)}
                         </span>
                         {gradeRate !== null && p.pricing_mode === 'GRADE_RATE' && (
                           <span className="text-[10px] text-indigo-500 font-semibold leading-tight mt-0.5 text-right">
@@ -274,12 +275,12 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                         )}
                         {paperMrpPrice > 0 && (
                           <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold leading-tight mt-0.5" title="Paper MRP">
-                            Paper: {getCurrencyPrefix()}{paperMrpPrice.toFixed(2)}
+                            Paper: {getCurrencyPrefix()}{moneyFixed(paperMrpPrice)}
                           </span>
                         )}
                       </div>
                       <div className="col-span-1 text-right text-emerald-500 font-bold text-sm">
-                        {finalPrice !== null ? `${getCurrencyPrefix()}${finalPrice.toFixed(2)}` : '-'}
+                        {finalPrice !== null ? `${getCurrencyPrefix()}${moneyFixed(finalPrice)}` : '-'}
                       </div>
 
                       {/* Real Stock with +/- */}

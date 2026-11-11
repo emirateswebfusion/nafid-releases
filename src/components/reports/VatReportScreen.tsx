@@ -3,6 +3,7 @@ import {
   FileSpreadsheet, FileCode, FileText
 } from 'lucide-react';
 import clsx from 'clsx';
+import { getStoreCountry } from '../../utils/localization/storeProfile';
 import { useVatReport, type VatTabType } from './vat/useVatReport';
 import { Vat201ReturnTab } from './vat/Vat201ReturnTab';
 import { VatEmiratesTab } from './vat/VatEmiratesTab';
@@ -19,7 +20,7 @@ interface VatReportScreenProps {
 
 export function VatReportScreen({ onBack }: VatReportScreenProps) {
   const {
-    isUae,
+    isVat,
     shopName,
     shopTrn,
     shopEmirate,
@@ -52,7 +53,7 @@ export function VatReportScreen({ onBack }: VatReportScreenProps) {
   } = useVatReport();
 
   // If opened in an India store, provide a smooth jurisdictional redirect
-  if (!isUae) {
+  if (!isVat) {
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-background font-sans select-none animate-in fade-in duration-200">
         <header className="shrink-0 border-b border-border bg-card shadow-xs">
@@ -62,7 +63,7 @@ export function VatReportScreen({ onBack }: VatReportScreenProps) {
                 <Landmark className="w-4 h-4" />
               </div>
               <div>
-                <h1 className="text-sm font-bold text-foreground">UAE VAT Return 201 &amp; FTA Audit</h1>
+                <h1 className="text-sm font-bold text-foreground">{getStoreCountry() === 'BH' ? 'Bahrain NBR VAT Return & Audit' : 'UAE VAT Return 201 & FTA Audit'}</h1>
                 <p className="text-[11px] text-muted-foreground font-medium">Jurisdictional Notice</p>
               </div>
             </div>
@@ -110,9 +111,10 @@ export function VatReportScreen({ onBack }: VatReportScreenProps) {
     );
   }
 
+  const isBahrain = getStoreCountry() === 'BH';
   const tabs: Array<{ id: VatTabType; label: string; count?: number; hasAlert?: boolean }> = [
-    { id: 'vat201', label: 'Form VAT 201' },
-    { id: 'emirates', label: 'Box 1 Emirates', count: 7 },
+    { id: 'vat201', label: isBahrain ? 'VAT Return' : 'Form VAT 201' },
+    ...(isBahrain ? [] : [{ id: 'emirates' as VatTabType, label: 'Box 1 Emirates', count: 7 }]),
     { id: 'sales', label: 'Sales Invoices', count: report?.salesAudit.length },
     { id: 'credit_notes', label: 'Credit Notes', count: report?.creditNotesAudit.length },
     { id: 'purchases', label: 'Purchases (Input Tax)', count: report?.purchaseAudit.length },

@@ -49,10 +49,10 @@ export const TaxBankSettingsTab: React.FC<TaxBankSettingsTabProps> = ({
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Shop {getStoreProfile(storeCountry).registrationName}</label>
-                    <Input type="text" maxLength={15} value={shopGstin} onChange={(e) => setShopGstin(e.target.value.toUpperCase())} placeholder={storeCountry === 'AE' ? '15-digit UAE TRN' : 'e.g. 27AAAAA1111A1Z1'} className="uppercase font-semibold font-mono bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                    <Input type="text" maxLength={15} value={shopGstin} onChange={(e) => setShopGstin(e.target.value.toUpperCase())} placeholder={storeCountry === 'BH' ? '15-digit Bahrain VAT Account No.' : storeCountry === 'AE' ? '15-digit UAE TRN' : 'e.g. 27AAAAA1111A1Z1'} className="uppercase font-semibold font-mono bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">{storeCountry === 'AE' ? 'Emirate' : 'State (Place of Business)'}</label>
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">{storeCountry === 'BH' ? 'Governorate / Region' : storeCountry === 'AE' ? 'Emirate' : 'State (Place of Business)'}</label>
                     <Select value={shopState} onChange={setShopState} options={storeCountry === 'AE' ? UAE_EMIRATES : INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} />
                   </div>
                 </div>
@@ -135,21 +135,21 @@ export const TaxBankSettingsTab: React.FC<TaxBankSettingsTabProps> = ({
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Bank Name</label>
-                    <Input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder={storeCountry === 'AE' ? 'e.g. Emirates NBD' : 'e.g. ICICI Bank / State Bank of India'} className="font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                    <Input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder={storeCountry === 'BH' ? 'e.g. National Bank of Bahrain / BBK' : storeCountry === 'AE' ? 'e.g. Emirates NBD' : 'e.g. ICICI Bank / State Bank of India'} className="font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">{storeCountry === 'AE' ? 'IBAN / Account Number' : 'Account Number'}</label>
-                    <Input type="text" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder={storeCountry === 'AE' ? 'UAE IBAN starting AE' : 'e.g. 5010023456789'} className="font-mono font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">{storeCountry === 'BH' || storeCountry === 'AE' ? 'IBAN / Account Number' : 'Account Number'}</label>
+                    <Input type="text" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder={storeCountry === 'BH' ? 'Bahrain IBAN starting BH' : storeCountry === 'AE' ? 'UAE IBAN starting AE' : 'e.g. 5010023456789'} className="font-mono font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">{storeCountry === 'AE' ? 'SWIFT / BIC' : 'IFSC Code'}</label>
-                    <Input type="text" value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value.toUpperCase())} placeholder={storeCountry === 'AE' ? '8 or 11 character SWIFT / BIC' : 'e.g. ICIC0001234'} className="uppercase font-mono font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">{storeCountry === 'BH' || storeCountry === 'AE' ? 'SWIFT / BIC' : 'IFSC Code'}</label>
+                    <Input type="text" value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value.toUpperCase())} placeholder={storeCountry === 'BH' || storeCountry === 'AE' ? '8 or 11 character SWIFT / BIC' : 'e.g. ICIC0001234'} className="uppercase font-mono font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Branch</label>
-                    <Input type="text" value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} placeholder={storeCountry === 'AE' ? 'e.g. Dubai Main Branch' : 'e.g. Main Branch, MG Road'} className="font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                    <Input type="text" value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} placeholder={storeCountry === 'BH' ? 'e.g. Manama Main Branch' : storeCountry === 'AE' ? 'e.g. Dubai Main Branch' : 'e.g. Main Branch, MG Road'} className="font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                   </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground/70 mt-1">Bank details are printed on tax invoices and A4 {localizeTaxText("GST")} bills for customer wire transfers.</p>

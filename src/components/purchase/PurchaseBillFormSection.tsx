@@ -1,3 +1,4 @@
+import { roundMoney } from '../../utils/pricing/moneyRounding';
 import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { forwardRef, useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react';
@@ -229,7 +230,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     if (base <= 0) return 0;
     if (type === 'ESTIMATE' || sharedEstimateMode) return base;
     const rate = newProductIsGstApplicable ? (newProductTaxRate || 0) : 0;
-    return rate > 0 ? Math.round(base * (1 + rate / 100) * 100) / 100 : base;
+    return rate > 0 ? roundMoney(base * (1 + rate / 100)) : base;
   };
 
   const encodePrice = (rate: number) => {
@@ -264,7 +265,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setNewProductPurchasePrice(val);
     if (!priceCoding) return;
     const rate = (type === 'ESTIMATE' || sharedEstimateMode) ? 0 : (newProductIsGstApplicable ? (newProductTaxRate || 0) : 0);
-    const toEffective = (base: number) => base > 0 && rate > 0 ? Math.round(base * (1 + rate / 100) * 100) / 100 : base;
+    const toEffective = (base: number) => base > 0 && rate > 0 ? roundMoney(base * (1 + rate / 100)) : base;
     const oldBase = Number(newProductPurchasePrice) || 0;
     const newBase = Number(val) || 0;
     applyBarcodePriceCode(
@@ -281,7 +282,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     const base = Number(newProductPurchasePrice) || 0;
     if (base <= 0) return;
     const gst = newProductIsGstApplicable;
-    const toEffective = (r: number) => gst && r > 0 ? Math.round(base * (1 + r / 100) * 100) / 100 : base;
+    const toEffective = (r: number) => gst && r > 0 ? roundMoney(base * (1 + r / 100)) : base;
     applyBarcodePriceCode(
       encodePrice(toEffective(oldRate)),
       encodePrice(toEffective(newRate))
@@ -566,7 +567,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <span className="text-muted-foreground font-semibold">Round Off</span>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     placeholder={autoRoundOff.toFixed(2)}
                     value={manualRoundOff}
                     onChange={e => setManualRoundOff(e.target.value)}
@@ -597,7 +598,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <span className="text-muted-foreground font-semibold">Round Off</span>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     placeholder={autoRoundOff.toFixed(2)}
                     value={manualRoundOff}
                     onChange={e => setManualRoundOff(e.target.value)}

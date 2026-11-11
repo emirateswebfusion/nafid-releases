@@ -1,3 +1,4 @@
+import { moneyDecimalsSql } from './moneyPrecision.js';
 import type { Db } from './types.js';
 import { invoiceOwnedEntry } from './partyLedger.js';
 
@@ -158,7 +159,7 @@ export const updatePartyLedgerIsDeletedIsDeleted2 = (db: Db) => db.prepare("UPDA
 export const listPartiesWithBalances = (db: Db, includeDeleted: boolean) => db.prepare(includeDeleted
       ? `SELECT p.*, 
           COALESCE(
-            (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), 2)
+            (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), ${moneyDecimalsSql('p.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = p.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
@@ -166,7 +167,7 @@ export const listPartiesWithBalances = (db: Db, includeDeleted: boolean) => db.p
             0
           ) AS current_balance,
           COALESCE(
-            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('p.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = p.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
@@ -175,7 +176,7 @@ export const listPartiesWithBalances = (db: Db, includeDeleted: boolean) => db.p
             0
           ) AS current_gst_balance,
           COALESCE(
-            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('p.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = p.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
@@ -186,7 +187,7 @@ export const listPartiesWithBalances = (db: Db, includeDeleted: boolean) => db.p
         FROM parties p WHERE p.tenant_id = ? ORDER BY p.is_deleted ASC, p.name COLLATE NOCASE ASC`
       : `SELECT p.*, 
           COALESCE(
-            (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), 2)
+            (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), ${moneyDecimalsSql('p.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = p.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
@@ -194,7 +195,7 @@ export const listPartiesWithBalances = (db: Db, includeDeleted: boolean) => db.p
             0
           ) AS current_balance,
           COALESCE(
-            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('p.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = p.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
@@ -203,7 +204,7 @@ export const listPartiesWithBalances = (db: Db, includeDeleted: boolean) => db.p
             0
           ) AS current_gst_balance,
           COALESCE(
-            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+            (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('p.tenant_id')})
              FROM party_ledger pl
              WHERE pl.party_id = p.party_id
                AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),

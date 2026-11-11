@@ -129,7 +129,7 @@ export function PaymentTransactionsView({
               <label className="text-[10px] font-bold text-muted-foreground mb-1 block uppercase tracking-wider">Amount ({getCurrencyPrefix()}) *</label>
               <Input
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 value={txForm.amount}
                 onChange={e => setTxForm({ ...txForm, amount: e.target.value })}

@@ -4,7 +4,7 @@ import { useAuthStore } from '../../../store/authStore';
 import { vatApi } from '../../../data/vat';
 import { getSetting } from '../../../data/settings';
 import { hasBridge } from '../../../data/client';
-import { isUaeStore } from '../../../utils/localization/storeProfile';
+import { isUaeStore, isVatStore } from '../../../utils/localization/storeProfile';
 import { serializeVat201Json } from '../../../utils/export/vat201JsonSerializer';
 import { exportFtaAuditFile } from '../../../utils/export/ftaAuditFileExporter';
 import { exportVat201ToExcel } from '../../../utils/export/vat201ExcelExporter';
@@ -18,6 +18,7 @@ export type VatPeriodType = 'month' | 'quarter' | 'custom';
 export function useVatReport() {
   const { tenantId, shopName } = useAuthStore();
   const isUae = isUaeStore();
+  const isVat = isVatStore();
 
   const [activeTab, setActiveTab] = useState<VatTabType>('vat201');
   const [loading, setLoading] = useState(true);
@@ -324,6 +325,7 @@ export function useVatReport() {
 
   return {
     isUae,
+    isVat,
     shopName,
     shopTrn,
     shopEmirate,

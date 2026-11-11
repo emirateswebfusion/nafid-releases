@@ -1,3 +1,4 @@
+import { parseStoreCountry, roundStoreMoney } from '../utils/moneyRounding.js';
 import Database from 'better-sqlite3';
 import { db } from './localDb.js';
 import { upsertCustomerRecord } from './customerIdentity.js';
@@ -13,9 +14,15 @@ function recalcPartyBalanceLocal(d: Database.Database, partyId: string) {
         COALESCE(SUM(credit_amount - debit_amount), 0) AS total
       FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
     `).get(partyId) as Record<string, unknown>);
-    const gst = Math.round((parseFloat((rows?.gst as string)) || 0) * 100) / 100;
-    const estimate = Math.round((parseFloat((rows?.estimate as string)) || 0) * 100) / 100;
-    const total = Math.round((gst + estimate) * 100) / 100;
+    const partyRow = d.prepare('SELECT tenant_id FROM parties WHERE party_id = ?').get(partyId) as { tenant_id?: string } | undefined;
+    let country: 'IN' | 'AE' | 'BH' = 'IN';
+    if (partyRow?.tenant_id) {
+      const setting = d.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'store_country' LIMIT 1").get(partyRow.tenant_id) as { value?: string } | undefined;
+      country = parseStoreCountry(setting?.value);
+    }
+    const gst = roundStoreMoney(parseFloat((rows?.gst as string)) || 0, country);
+    const estimate = roundStoreMoney(parseFloat((rows?.estimate as string)) || 0, country);
+    const total = roundStoreMoney(gst + estimate, country);
     const latest: Record<string, unknown> = (d.prepare(`
       SELECT transaction_date FROM party_ledger 
       WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) 

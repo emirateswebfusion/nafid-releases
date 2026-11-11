@@ -86,7 +86,7 @@ export function ScrapTxForm({
                 <input
                   required
                   type="number"
-                  step="0.01"
+                  step="any"
                   min="0.01"
                   placeholder="0.00"
                   value={txForm.rate}

@@ -213,3 +213,13 @@ Both exercise production preparation; the latter must recover through the main-p
 No-login run: 6 calls, 0 differences.
 
 `migrations.mts`: the 017 checks pass. The 7 product-outbox failures also occur on unmodified HEAD.
+
+## Bahrain shop flow (`bahrain-run.mts`)
+
+Same bootstrap as `run.mts`, but it asserts instead of recording: a new shop chooses Bahrain, sells a BHD 0.185
+product by cash, split and credit, takes a payment, returns an item and closes the drawer 5 fils over. Every amount
+is checked to the fils against hand-worked values. Run it after any change to money rounding in the main process:
+
+```bash
+EQ_USERDATA=/tmp/eq/db-bh npx tsx $H/bahrain-run.mts cand   # exit code 1 when a check fails
+```

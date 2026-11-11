@@ -1,3 +1,4 @@
+import { getStoreCountrySetting, roundStoreMoney, storeMoneyMinorUnit } from './storeCountryService.js';
 import type { Db } from '../db/statements/types.js';
 import * as sql from '../db/statements/loyalty.js';
 import { localTimestamp } from './storeTime.js';
@@ -108,8 +109,9 @@ export function validateInvoicePointsEdit(db: Db, id: string, customerId: string
   if (changed) {
     const cust = customerId ? sql.customer(db).get(customerId, inv.tenant_id) as { current_points_balance: number } | undefined : undefined;
     if (redeemed > Math.max(0, (Number(cust?.current_points_balance) || 0) + previous)) throw new Error('Insufficient points balance; refresh the bill');
-    const expected = Math.round(redeemed * Math.max(0.01, Number(config.redemptionRate) || 1) * 100) / 100;
-    if (Math.abs(value - expected) > 0.001) throw new Error('Points discount changed; refresh the bill');
+    const country = getStoreCountrySetting(db, inv.tenant_id);
+    const expected = roundStoreMoney(redeemed * Math.max(0.01, Number(config.redemptionRate) || 1), country);
+    if (Math.abs(value - expected) > storeMoneyMinorUnit(country) / 10) throw new Error('Points discount changed; refresh the bill');
   }
 }
 

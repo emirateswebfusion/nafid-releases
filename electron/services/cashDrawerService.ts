@@ -1,3 +1,4 @@
+import { getStoreCountrySetting, roundStoreMoney, storeMoneyMinorUnit } from './storeCountryService.js';
 import crypto from 'node:crypto';
 import { localDate, parseCleanDate, getStoreTimezoneSetting } from './storeTime.js';
 import * as cashDrawerSql from '../db/statements/cashDrawer.js';
@@ -92,7 +93,11 @@ export function getCashAmountFromInvoice(inv: InvoiceCashFields | null | undefin
   return 0;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Rounds at the shop currency's precision (2 decimals; 3 for a Bahrain shop). A missing amount stays NaN, as before. */
+const round2For = (db: Db, tenantId: string) => {
+  const country = getStoreCountrySetting(db, tenantId);
+  return (n: number) => roundStoreMoney(n, country);
+};
 
 const differs = (a: unknown, b: number) => Math.abs((Number(a) || 0) - b) > 0.001;
 
@@ -120,7 +125,7 @@ export function reconcileCashDrawer(db: Db, tenantId: string, drawer: CashDrawer
     drawer.expected_closing = t.expected;
 
     if (drawer.status === 'CLOSED' && drawer.actual_cash !== null && drawer.actual_cash !== undefined) {
-      const variance = round2(round2(Number(drawer.actual_cash)) - t.expected);
+      const variance = round2For(db, tenantId)(round2For(db, tenantId)(Number(drawer.actual_cash)) - t.expected);
       const short = variance < 0 ? Math.abs(variance) : 0;
       const excess = variance > 0 ? variance : 0;
       const varianceChanged = differs(drawer.cash_short, short) || differs(drawer.cash_excess, excess);
@@ -252,7 +257,7 @@ function invoiceSourceAmounts(db: Db, tenantId: string, invoice: InvoicePaymentF
     }
     if (!source) return;
     const entry = amounts.get(source.source_id) || { source, type: sourceType, amount: 0 };
-    entry.amount = round2(entry.amount + amount);
+    entry.amount = round2For(db, tenantId)(entry.amount + amount);
     amounts.set(source.source_id, entry);
   };
 
@@ -273,10 +278,10 @@ function invoiceSourceAmounts(db: Db, tenantId: string, invoice: InvoicePaymentF
 /** Post one bill movement to a payment account: positive = money in (sale), negative = money out (cancellation). */
 function postSourceMovement(db: Db, tenantId: string, invoice: InvoicePaymentFields, source: PaymentSourceRow, type: string, delta: number) {
   const fresh = cashDrawerSql.findPaymentSourcesBySourceId(db).get(source.source_id, tenantId) as PaymentSourceRow | undefined;
-  const newBalance = round2(Number((fresh || source).current_balance) + delta);
+  const newBalance = round2For(db, tenantId)(Number((fresh || source).current_balance) + delta);
   const isOut = delta < 0;
   cashDrawerSql.insertPaymentSourceTransaction(db).run(
-    crypto.randomUUID(), tenantId, source.source_id, isOut ? 'CASH_OUT' : 'CASH_IN', round2(Math.abs(delta)),
+    crypto.randomUUID(), tenantId, source.source_id, isOut ? 'CASH_OUT' : 'CASH_IN', round2For(db, tenantId)(Math.abs(delta)),
     isOut ? 'Invoice Cancellation' : 'Invoice Sale', invoice.invoice_number || null,
     `Invoice ${invoice.invoice_number || ''} ${isOut ? 'cancelled' : 'payment'} via ${type}`,
     newBalance, invoice.user_id || 'system', invoice.user_name || null
@@ -313,13 +318,14 @@ export function syncPaymentSourcesForInvoice(db: Db, tenantId: string, invoice: 
     for (const row of cashDrawerSql.sumInvoicePaymentSourcePostings(db).all(tenantId, invoice.invoice_number) as Array<{ source_id: string; net: number }>) {
       posted.set(row.source_id, Number(row.net) || 0);
     }
+    const country = getStoreCountrySetting(db, tenantId);
     for (const [sourceId, { source, type, amount }] of target) {
-      const delta = round2(amount - (posted.get(sourceId) || 0));
-      if (Math.abs(delta) >= 0.01) postSourceMovement(db, tenantId, invoice, source, type, delta);
+      const delta = roundStoreMoney(amount - (posted.get(sourceId) || 0), country);
+      if (Math.abs(delta) >= storeMoneyMinorUnit(country)) postSourceMovement(db, tenantId, invoice, source, type, delta);
       posted.delete(sourceId);
     }
     for (const [sourceId, net] of posted) {
-      if (Math.abs(net) < 0.01) continue;
+      if (Math.abs(net) < storeMoneyMinorUnit(country)) continue;
       const source = cashDrawerSql.findPaymentSourcesBySourceId(db).get(sourceId, tenantId) as PaymentSourceRow | undefined;
       if (source) postSourceMovement(db, tenantId, invoice, source, String(source.type || 'account'), -net);
     }

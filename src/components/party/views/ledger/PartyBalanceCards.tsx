@@ -1,3 +1,4 @@
+import { roundMoney } from '../../../../utils/pricing/moneyRounding';
 import { localizeTaxText } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import clsx from 'clsx';
@@ -30,7 +31,7 @@ export function PartyBalanceCards({
       {(() => {
         const currentTotalBal = getPartyBalance(selectedParty);
         const isPeriodFiltered = Boolean(ledgerStartDate || ledgerEndDate);
-        const activeBal = isPeriodFiltered ? Math.round((activeGstBal + activeEstimateBal) * 100) / 100 : currentTotalBal;
+        const activeBal = isPeriodFiltered ? roundMoney((activeGstBal + activeEstimateBal)) : currentTotalBal;
         const showBoth = enablePartyGst && enablePartyEstimate;
         const showOnlyGst = enablePartyGst && !enablePartyEstimate;
         const showOnlyEstimate = !enablePartyGst && enablePartyEstimate;

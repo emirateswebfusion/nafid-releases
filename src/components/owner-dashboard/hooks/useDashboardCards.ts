@@ -1,4 +1,4 @@
-import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { isVatStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { ShoppingCart, FileText, Banknote, Package, Globe, Megaphone, Bot, Tags, Layers, Landmark, BarChart3, ClipboardList, Receipt, ShieldCheck, Undo2, Archive, BookOpen, Wallet, UserCheck, UserCog, Boxes, TrendingUp, RefreshCcw, Bell, LayoutGrid, ShoppingBag, ChefHat } from 'lucide-react';
 import { cashierPageTitle, isAiAssistantAvailable, type FeatureKey } from '../../../config/featureFlags';
 import { hasPermission } from '../../../utils/security/permissions';
@@ -112,14 +112,14 @@ export function useDashboardCards(ctx: UseDashboardCardsContext) {
     },
     {
       id: 'gst-reports',
-      title: isUaeStore() ? 'VAT Return & Audit' : 'GST Reports',
-      desc: isUaeStore()
+      title: isVatStore() ? 'VAT Return & Audit' : 'GST Reports',
+      desc: isVatStore()
         ? 'FTA VAT 201 return, Input/Output tax breakdown, and FAF audit export'
         : 'GSTR-1, HSN summary, and GST return export',
       icon: FileText,
       color: 'text-amber-500',
       bgColor: 'bg-amber-500/10',
-      action: () => window.dispatchEvent(new CustomEvent(isUaeStore() ? 'open-vat-reports' : 'open-gst-reports')),
+      action: () => window.dispatchEvent(new CustomEvent(isVatStore() ? 'open-vat-reports' : 'open-gst-reports')),
       perm: 'reports.view',
     },
     {

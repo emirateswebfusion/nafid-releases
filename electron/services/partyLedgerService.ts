@@ -3,7 +3,8 @@ import { recalcStaffLedgerBalances } from './staffService.js';
 import { CustomerIdentityService } from '../db/customerIdentity.js';
 import { deterministicUUID } from '../utils/ids.js';
 import { localTimestamp } from './storeTime.js';
-import { getStoreCountrySetting, storeMoneyProfile } from './storeCountryService.js';
+import { getStoreCountrySetting, roundStoreMoney, storeMoneyFixed, storeMoneyProfile, StoreCountry } from './storeCountryService.js';
+import * as partiesSql from '../db/statements/parties.js';
 import * as partyLedgerSql from '../db/statements/partyLedger.js';
 import type Database from 'better-sqlite3';
 import type { Db } from '../db/statements/types.js';
@@ -19,21 +20,25 @@ import type { CreditLedgerInvoice, PartyLedgerBalanceRow, PartyLedgerRow, Return
  * returns are never touched by a bill.
  */
 
-const money = (n: unknown) => Math.round((Number(n) || 0) * 100) / 100;
+/** Rounding at the shop currency's precision. Every rule below takes the shop country: never round a Bahrain bill to two decimals. */
+const moneyFor = (country: StoreCountry) => (n: unknown) => roundStoreMoney(Number(n) || 0, country);
 
 // Recompute a party's running balances and its GST / Estimate / total balances from its active ledger rows
 export function recalcPartyBalances(db: Db, partyId: string) {
+  const party = partiesSql.findPartiesByPartyId(db).get(partyId) as { tenant_id?: string } | undefined;
+  const country = party?.tenant_id ? getStoreCountrySetting(db, party.tenant_id) : 'IN';
+  const round = (n: unknown) => roundStoreMoney(Number(n) || 0, country);
   const activeEntries = partyLedgerSql.findPartyLedgerByPartyId3(db).all(partyId) as PartyLedgerRow[];
   let running = 0;
   for (const row of activeEntries) {
-    running = money(running + (Number(row.credit_amount) || 0) - (Number(row.debit_amount) || 0));
+    running = round(running + (Number(row.credit_amount) || 0) - (Number(row.debit_amount) || 0));
     partyLedgerSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
   }
 
   const rows = partyLedgerSql.findPartyLedgerByPartyId4(db).get(partyId) as PartyLedgerBalanceRow;
-  const gst = money(parseFloat(rows.gst as string));
-  const estimate = money(parseFloat(rows.estimate as string));
-  const total = money(gst + estimate);
+  const gst = round(parseFloat(rows.gst as string));
+  const estimate = round(parseFloat(rows.estimate as string));
+  const total = round(gst + estimate);
   const latest = partyLedgerSql.findOnePartyLedgerByPartyId(db).get(partyId) as PartyLedgerRow | undefined;
   partyLedgerSql.updatePartyByPartyId(db)
     .run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
@@ -65,6 +70,7 @@ function retireEntries(db: Db, rows: PartyLedgerRow[], keepParty?: string) {
  * (`release`), restoring the bill uses it again; the return's adjusted amount follows.
  */
 export function setInvoiceReturnCreditUse(db: Db, tenantId: string, invoiceNumber: string, inUse: boolean) {
+  const money = moneyFor(getStoreCountrySetting(db, tenantId));
   const rows = partyLedgerSql.findReturnCreditUses(db, inUse).all({ tenant: tenantId, inv: invoiceNumber }) as PartyLedgerRow[];
   const parties = new Set<string>();
   for (const row of rows) {
@@ -108,7 +114,8 @@ const billLedgerIds = (tenantId: string, billKey: string) => [
  * SPLIT: the cash/UPI/card/bank/cheque parts are paid and `credit` is owed; CASH: paid in full; anything else
  * (UPI, CARD, PENDING, …) is not on the ledger.
  */
-export function invoiceCreditTerms(invoice: Pick<CreditLedgerInvoice, 'grand_total' | 'payment_method' | 'received_amount' | 'split_details'>) {
+export function invoiceCreditTerms(invoice: Pick<CreditLedgerInvoice, 'grand_total' | 'payment_method' | 'received_amount' | 'split_details'>, country: StoreCountry = 'IN') {
+  const money = moneyFor(country);
   const splitObj = parseSplit(invoice.split_details);
   const method = (invoice.payment_method || '').toUpperCase();
   const total = Math.max(0, money(invoice.grand_total));
@@ -141,7 +148,7 @@ export function invoiceCreditTerms(invoice: Pick<CreditLedgerInvoice, 'grand_tot
   const paid = money(payments.reduce((s, p) => s + p.amount, 0));
   // Cash beyond the bill that the cashier kept on the customer's account: the one -PAY row records all the money
   // received, `paid` and the credit portion stay about the bill. Without the marker the excess was change given back.
-  const onAccount = isPureCredit ? invoiceOnAccount(invoice.received_amount, total, splitObj) : 0;
+  const onAccount = isPureCredit ? invoiceOnAccount(invoice.received_amount, total, splitObj, money) : 0;
   if (onAccount > 0) {
     if (payments[0]) payments[0].amount = money(payments[0].amount + onAccount);
     else payments.push({ type: 'Cash', amount: onAccount, suffix: 'PAY', method: 'CASH' });
@@ -150,7 +157,7 @@ export function invoiceCreditTerms(invoice: Pick<CreditLedgerInvoice, 'grand_tot
 }
 
 /** The `on_account` part of a credit bill: never more than what was actually received beyond the total. */
-function invoiceOnAccount(received: unknown, total: number, split: SplitDetails | null | undefined) {
+function invoiceOnAccount(received: unknown, total: number, split: SplitDetails | null | undefined, money: (n: unknown) => number) {
   return Math.min(Math.max(0, money(split?.on_account)), Math.max(0, money(money(received) - total)));
 }
 
@@ -162,11 +169,12 @@ function invoiceOnAccount(received: unknown, total: number, split: SplitDetails 
  * total in that key; CREDIT: cash = the amount received, credit = the rest; SPLIT: the parts as
  * `invoiceCreditTerms` caps them; anything else (PENDING): nothing received.
  */
-export function normalizePaymentSplit(invoice: Pick<CreditLedgerInvoice, 'grand_total' | 'payment_method' | 'received_amount' | 'split_details'>): SplitDetails {
+export function normalizePaymentSplit(invoice: Pick<CreditLedgerInvoice, 'grand_total' | 'payment_method' | 'received_amount' | 'split_details'>, country: StoreCountry = 'IN'): SplitDetails {
+  const money = moneyFor(country);
   const raw = parseSplit(invoice.split_details) || {};
   const keep = Object.fromEntries(Object.entries(raw).filter(([k]) => !['cash', 'upi', 'card', 'bank_transfer', 'bank', 'cheque', 'credit', 'on_account'].includes(k)));
   const out: SplitDetails = { ...keep, cash: 0, upi: 0, card: 0, bank_transfer: 0, cheque: 0, credit: 0 };
-  const terms = invoiceCreditTerms(invoice);
+  const terms = invoiceCreditTerms(invoice, country);
   const total = terms.total;
   const received = Math.max(0, money(invoice.received_amount));
   switch (terms.method) {
@@ -231,7 +239,7 @@ export function syncInvoiceCreditLedger(
     }
 
     // ── 2. PAYMENT SPLIT ────────────────────────────────────────────────────
-    const terms = invoiceCreditTerms(invoice);
+    const terms = invoiceCreditTerms(invoice, getStoreCountrySetting(db, tenantId));
     const { isPureCredit, isCredit, payments, creditPortion } = terms;
     const paymentMethodUpper = terms.method;
     const invoiceGrandTotal = terms.total;
@@ -272,8 +280,9 @@ export function syncInvoiceCreditLedger(
       const nowTimestamp = localTimestamp();
 
       if (creditDue > 0) {
-        const cur = storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix;
-        const desc = `Staff Purchase - Bill #${invoiceNumber} (Total ${cur}${invoiceGrandTotal.toFixed(2)})`;
+        const country = getStoreCountrySetting(db, tenantId);
+        const cur = storeMoneyProfile(country).prefix;
+        const desc = `Staff Purchase - Bill #${invoiceNumber} (Total ${cur}${storeMoneyFixed(invoiceGrandTotal, country)})`;
         const existingStaffTx = partyLedgerSql.findOneStaffTransactionByReferenceNumberAndType(db).get(invoiceNumber) as StaffTransactionRow | undefined;
 
         if (existingStaffTx) {
@@ -351,12 +360,13 @@ export function syncInvoiceCreditLedger(
     const balanceType: 'GST' | 'ESTIMATE' = (invoice.invoice_type === 'ESTIMATE') ? 'ESTIMATE' : 'GST';
     const txDate = invoice.created_at || localTimestamp();
 
-    const cur = storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix;
+    const country = getStoreCountrySetting(db, tenantId);
+    const cur = storeMoneyProfile(country).prefix;
     const breakdownParts = payments.map(p => `${p.type === 'Cash' && isPureCredit ? 'Paid' : p.type} ${cur}${p.amount}`);
     if (isCredit) breakdownParts.push(`Credit ${cur}${creditPortion}`);
     const breakdownText = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : '';
     const salePrefix = isCredit ? 'Credit Sale' : 'Cash Sale';
-    const saleDescription = `${salePrefix} ${invoiceNumber} - Total ${cur}${invoiceGrandTotal.toFixed(2)}${breakdownText} - ${custName || 'Customer'}`;
+    const saleDescription = `${salePrefix} ${invoiceNumber} - Total ${cur}${storeMoneyFixed(invoiceGrandTotal, country)}${breakdownText} - ${custName || 'Customer'}`;
 
     // Sale entry (credit = the bill total)
     partyLedgerSql.upsertPartyLedger(db).run(
@@ -446,7 +456,7 @@ export function syncReturnLedger(
 
     if (!custName && !custPhone && !params.customer_id) return;
 
-    const amount = Math.max(0, money(params.amount ?? params.grand_total));
+    const amount = Math.max(0, moneyFor(getStoreCountrySetting(db, params.tenant_id))(params.amount ?? params.grand_total));
     if (amount <= 0) return;
 
     const identityResult = CustomerIdentityService.findOrCreateCustomerAndParty(db, tenantId, {
@@ -547,7 +557,7 @@ export function backfillCreditInvoices(db: Database.Database) {
           try {
             syncReturnLedger(db, { ...base, amount: Number(ret.grand_total) || 0 });
             // A return credit already used on a bill: post that use too, or the credit would count twice.
-            const used = money(ret.adjusted_amount);
+            const used = moneyFor(getStoreCountrySetting(db, base.tenant_id))(ret.adjusted_amount);
             if ((ret.refund_method || '').toUpperCase() === 'ADJUST_BILL' && used > 0 && ret.adjusted_invoice_number) {
               syncReturnLedger(db, { ...base, adjusted_invoice_number: ret.adjusted_invoice_number, amount: used });
             }

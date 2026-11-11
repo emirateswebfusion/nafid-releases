@@ -1,3 +1,4 @@
+import { getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
@@ -73,7 +74,7 @@ export function ItemRateInput({
   useEffect(() => {
     if (!isFocused) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- rate and isFocused refresh the draft only while blurred, so active typing remains untouched.
-      setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(2));
+      setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(getCurrencyDecimals()));
     }
   }, [rate, isFocused]);
 
@@ -134,7 +135,7 @@ export function ItemRateInput({
       if (setLocalPcStr) setLocalPcStr(String(opt.unitPrice));
       if (setLocalKgStr) setLocalKgStr(String(kgPrice));
     } else {
-      setLocalVal(Number.isInteger(opt.unitPrice) ? String(opt.unitPrice) : opt.unitPrice.toFixed(2));
+      setLocalVal(Number.isInteger(opt.unitPrice) ? String(opt.unitPrice) : opt.unitPrice.toFixed(getCurrencyDecimals()));
     }
 
     if (onSelectTier) {
@@ -184,7 +185,7 @@ export function ItemRateInput({
       setIsNavigatingMenu(false);
     }, 150);
     if (parseAmount(localVal) === null) {
-      setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(2));
+      setLocalVal(Number.isInteger(rate) ? String(rate) : rate.toFixed(getCurrencyDecimals()));
     }
   };
 

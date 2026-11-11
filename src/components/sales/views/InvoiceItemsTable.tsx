@@ -1,4 +1,5 @@
-import { getCurrencyPrefix, isUaeStore } from '../../../utils/localization/storeProfile';
+import { roundMoney } from '../../../utils/pricing/moneyRounding';
+import { getCurrencyPrefix, isVatStore } from '../../../utils/localization/storeProfile';
 import type { DisplayComboItem, DisplayInvoiceItem } from '../invoiceDisplayTypes';
 import { RefreshCw, Boxes, Package } from 'lucide-react';
 import clsx from 'clsx';
@@ -37,7 +38,7 @@ export function InvoiceItemsTable({
                     <th className="px-3 py-2.5 min-w-[160px]">Item & HSN</th>
                     <th className="px-2 py-2.5 text-center whitespace-nowrap">Qty</th>
                     <th className="px-2.5 py-2.5 text-right whitespace-nowrap">Unit Rate (Excl.)</th>
-                    <th className="px-2.5 py-2.5 text-right whitespace-nowrap">{isUaeStore() ? 'VAT' : 'CGST / SGST'}</th>
+                    <th className="px-2.5 py-2.5 text-right whitespace-nowrap">{isVatStore() ? 'VAT' : 'CGST / SGST'}</th>
                     <th className="px-2.5 py-2.5 text-right whitespace-nowrap">Taxable Value</th>
                     <th className="px-2.5 py-2.5 text-right whitespace-nowrap">Unit Rate (Incl.)</th>
                     <th className="px-3 py-2.5 text-right whitespace-nowrap">Total</th>
@@ -79,7 +80,7 @@ export function InvoiceItemsTable({
 
                   const itemTax = Number(item.tax_amount) || 0;
                   const storedTotal = Number(item.total) || 0;
-                  const itemTotal = isUaeStore() ? storedTotal + itemTax : storedTotal;
+                  const itemTotal = isVatStore() ? storedTotal + itemTax : storedTotal;
                   const qty = Number(item.quantity) || 1;
                   const unitPriceExcl = Number(item.unit_price) || 0;
                   const itemCgstRate = Number(item.cgst_rate) || 0;
@@ -88,13 +89,13 @@ export function InvoiceItemsTable({
                   const directRate = Number(item.tax_rate) || (itemCgstRate + itemSgstRate + itemIgstRate);
 
                   // Taxable base (Base Amount = Total - Tax or Qty * Unit Price)
-                  const taxableBase = isUaeStore() ? storedTotal : itemTotal > itemTax
-                    ? Math.round((itemTotal - itemTax) * 100) / 100 
-                    : Math.round((qty * unitPriceExcl) * 100) / 100;
+                  const taxableBase = isVatStore() ? storedTotal : itemTotal > itemTax
+                    ? roundMoney((itemTotal - itemTax)) 
+                    : roundMoney((qty * unitPriceExcl));
 
                   // Unit price including tax
                   const unitPriceIncl = qty > 0 
-                    ? Math.round((itemTotal / qty) * 100) / 100 
+                    ? roundMoney((itemTotal / qty)) 
                     : (unitPriceExcl + itemTax);
 
                   let calculatedRate = directRate;
@@ -160,7 +161,7 @@ export function InvoiceItemsTable({
                                 Includes: {comboItemsParsed.filter(Boolean).map((ci) => typeof ci === 'string' ? ci : `${ci.product_name || ci.name || 'Product'} (x${ci.quantity ?? 1})`).join(', ')}
                               </div>
                             )}
-                            {!isUaeStore() && item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (
+                            {!isVatStore() && item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (
                               <span className="text-[9px] text-muted-foreground font-semibold block mt-0.5 truncate">
                                 MRP {formatCurrency(Number(item.originalRate))} → {formatCurrency(Number(item.unit_price))}{item.discountLabel ? ` (${item.discountLabel})` : ''}
                               </span>
@@ -196,7 +197,7 @@ export function InvoiceItemsTable({
                       {/* 4. CGST AMOUNT % , SGST AMOUNT % (DOWN LIKE UNIT RATE) */}
                       {isGstBill && (
                         <td className="px-2.5 py-2.5 text-right align-middle whitespace-nowrap">
-                          {isUaeStore() ? <div className="font-mono">VAT: {formatCurrency(itemTax)} <span>({itemTaxRate}%)</span></div> : isInterItem ? (
+                          {isVatStore() ? <div className="font-mono">VAT: {formatCurrency(itemTax)} <span>({itemTaxRate}%)</span></div> : isInterItem ? (
                             <div className="font-mono text-right leading-tight">
                               <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
                                 IGST: {formatCurrency(effIgstAmt)}

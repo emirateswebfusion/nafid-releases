@@ -1,4 +1,5 @@
-const money = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+import { moneyScale } from '../../../utils/pricing/moneyRounding';
+const money = (n: number) => Math.round((Number(n) || 0) * moneyScale()) / moneyScale();
 
 /**
  * Cash received beyond the bill that stays on the customer's account. It follows what the billing screen shows: a

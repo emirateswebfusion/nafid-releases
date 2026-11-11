@@ -1,5 +1,5 @@
 import { profileInvoicePrefix } from '../utils/invoiceNumberPrefix.js';
-import { getStoreCountrySetting } from './storeCountryService.js';
+import { getStoreCountrySetting, isVatCountry } from './storeCountryService.js';
 import type { ServiceDb, SettingRow } from './typesB.js';
 import { readAuthPayload } from './authStorage.js';
 import * as invoiceNumberSql from '../db/statements/invoiceNumber.js';
@@ -43,7 +43,7 @@ export async function requestServerInvoiceNumber(
   try {
     const terminalCode = getOrInitTerminalCode(db);
 
-    let prefix = getStoreCountrySetting(db, tenantId) === 'AE' && configKey === 'gst_invoice_counter_config' ? 'VAT-' : `${terminalCode}-`;
+    let prefix = isVatCountry(getStoreCountrySetting(db, tenantId)) && configKey === 'gst_invoice_counter_config' ? 'VAT-' : `${terminalCode}-`;
     if (configKey !== 'invoice_counter_config') {
       const prefixRow: SettingRow = invoiceNumberSql.findSettingsByKey(db).get('global', configKey) as SettingRow;
       if (prefixRow) {

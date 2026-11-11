@@ -1,3 +1,4 @@
+import { moneyDecimalsSql } from './moneyPrecision.js';
 import type { Db } from './types.js';
 import { invoiceOwnedEntry } from './partyLedger.js';
 
@@ -8,7 +9,7 @@ export const findManualLedgerPayment = (db: Db) => db.prepare(`
 `);
 
 export const sumDocumentAccountPostings = (db: Db) => db.prepare(`
-  SELECT source_id, ROUND(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE -amount END), 2) AS net
+  SELECT source_id, ROUND(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE -amount END), ${moneyDecimalsSql('payment_source_transactions.tenant_id')}) AS net
   FROM payment_source_transactions WHERE tenant_id = ? AND category = ? AND reference_number = ?
   GROUP BY source_id
 `);
