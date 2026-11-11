@@ -368,6 +368,38 @@ export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db, invoiceIds
                    OR p.domain_attributes LIKE '%"paper_purchase_price"%'
                    OR p.domain_attributes LIKE '%"gst_purchase_price"%'
                    OR p.domain_attributes LIKE '%"paper_stock"%'
+                   OR EXISTS(
+                     SELECT 1 FROM combo_items ci
+                     JOIN products cp ON ci.product_id = cp.product_id
+                     WHERE (ci.combo_id = ii.combo_id OR ci.combo_id = ii.product_id)
+                       AND cp.is_deleted = 0
+                       AND (
+                         cp.is_gst_applicable = 1
+                         OR EXISTS(
+                           SELECT 1 FROM products cpgst
+                           WHERE cpgst.tenant_id = i.tenant_id
+                             AND cpgst.is_deleted = 0
+                             AND cpgst.is_gst_applicable = 1
+                             AND (
+                               cpgst.product_id = ci.product_id
+                               OR cpgst.name = REPLACE(REPLACE(REPLACE(cp.name, ' (GST)', ''), ' (EST)', ''), ' (Estimate)', '') || ' (GST)'
+                               OR cpgst.name = REPLACE(REPLACE(REPLACE(cp.name, ' (GST)', ''), ' (EST)', ''), ' (Estimate)', '')
+                             )
+                         )
+                         OR EXISTS(
+                           SELECT 1 FROM purchase_bill_items cpbi
+                           JOIN purchase_bills cpb ON cpbi.purchase_bill_id = cpb.purchase_bill_id
+                           WHERE cpbi.product_id = ci.product_id
+                             AND cpb.bill_type = 'GST'
+                             AND cpb.tenant_id = i.tenant_id
+                         )
+                         OR cp.domain_attributes LIKE '%"gst_type":"PAPER"%'
+                         OR cp.domain_attributes LIKE '%"paper_mrp"%'
+                         OR cp.domain_attributes LIKE '%"paper_purchase_price"%'
+                         OR cp.domain_attributes LIKE '%"gst_purchase_price"%'
+                         OR cp.domain_attributes LIKE '%"paper_stock"%'
+                       )
+                   )
                  )
              ) AS convertible
       FROM invoices i

@@ -3,6 +3,7 @@ import { getDb } from '../db/localDb.js';
 import { getGuaranteedNextInvoiceNumber, peekGuaranteedNextInvoiceNumber, requestServerInvoiceNumber } from './invoiceNumberService.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
+import * as combosSql from '../db/statements/combos.js';
 import { splitTaxAmount } from '../utils/taxSplit.js';
 /** Bill-of-supply to GST invoice conversion (preview and apply). Called by electron/ipc handlers via invoicesService. */
 
@@ -65,7 +66,15 @@ export function previewConvertBosToGst(payload: {
 
       for (const item of items) {
         const cleanName = item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
-        const gstProduct = invoicesSql.findOneProductByProductId(db).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as ProductRow | undefined;
+        let gstProduct = invoicesSql.findOneProductByProductId(db).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as ProductRow | undefined;
+        if (!gstProduct && (item.combo_id || item.combo_details)) {
+          const cid = (item.combo_id || item.product_id) as string;
+          const cItems = combosSql.findComboItemsByComboId(db).all(cid) as (ProductRow & { quantity: number })[];
+          if (cItems.length > 0) {
+            const maxRate = Math.max(0, ...cItems.map(p => Number(p.tax_rate_percent) || 0));
+            gstProduct = { product_id: item.product_id, tenant_id: tid, name: item.name, base_price: item.unit_price, is_gst_applicable: 1, tax_rate_percent: maxRate, current_stock: 999999 } as ProductRow;
+          }
+        }
 
         if (!gstProduct) {
           skippedItems.push(item.name || item.product_id);
@@ -361,7 +370,15 @@ export async function convertBosToGst(payload: {
 
           for (const item of items) {
             const cleanName = item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
-            const gstProduct = invoicesSql.findOneProductByProductId(db).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as ProductRow | undefined;
+            let gstProduct = invoicesSql.findOneProductByProductId(db).get(tid, item.product_id, cleanName + ' (GST)', cleanName, item.product_id) as ProductRow | undefined;
+            if (!gstProduct && (item.combo_id || item.combo_details)) {
+              const cid = (item.combo_id || item.product_id) as string;
+              const cItems = combosSql.findComboItemsByComboId(db).all(cid) as (ProductRow & { quantity: number })[];
+              if (cItems.length > 0) {
+                const maxRate = Math.max(0, ...cItems.map(p => Number(p.tax_rate_percent) || 0));
+                gstProduct = { product_id: item.product_id, tenant_id: tid, name: item.name, base_price: item.unit_price, is_gst_applicable: 1, tax_rate_percent: maxRate, current_stock: 999999 } as ProductRow;
+              }
+            }
 
             if (!gstProduct) {
               skippedItems.push(`${item.name || item.product_id} (Product not found)`);

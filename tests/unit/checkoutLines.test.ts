@@ -115,6 +115,13 @@ describe('buildCheckoutLines', () => {
     expect(line.sgst_amount).toBe(0.52);
     expect(line.cgst_amount + line.sgst_amount).toBe(1.05);
   });
+
+  it('preserves combo metadata on checkout lines for backend stock deduction', () => {
+    const [line] = buildCheckoutLines([item({ isCombo: true, combo_id: 'c1', combo_items: [{ product_id: 'p1', quantity: 2 }] })], ctx);
+    expect(line.isCombo).toBe(true);
+    expect(line.combo_id).toBe('c1');
+    expect(line.combo_items).toEqual([{ product_id: 'p1', quantity: 2 }]);
+  });
 });
 
 describe('splitTaxAmount', () => {

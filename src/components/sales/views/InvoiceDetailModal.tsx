@@ -84,7 +84,10 @@ export function InvoiceDetailModal({
                     Number(it?.tax_amount) > 0 || 
                     Number(it?.cgst_rate) > 0 || 
                     Boolean(it?.hsn_sac_code) || 
-                    Number(it?.product_tax_rate_percent) > 0
+                    Number(it?.product_tax_rate_percent) > 0 ||
+                    Boolean(it?.combo_id) ||
+                    Boolean(it?.isCombo) ||
+                    (it?.combo_items && it.combo_items.length > 0)
                   )) ||
                   (itemsLoading && convertibleMap[selectedInvoice.invoice_id] !== false)
                 );

@@ -94,6 +94,8 @@ export interface InvoiceItemRow {
   hsn_sac_code?: string | null;
   uom?: string | null;
   supply_type?: string | null;
+  combo_id?: string | null;
+  combo_details?: string | null;
 }
 
 export interface UserRow {

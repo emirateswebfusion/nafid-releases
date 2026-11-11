@@ -292,7 +292,11 @@ export function checkout(payload: CheckoutPayload) {
     for (const item of items) {
       const isCombo = Boolean(item.isCombo || item.combo_id || (item.combo_items && item.combo_items.length > 0));
       const comboId = item.combo_id || (isCombo ? item.product_id : null);
-      const comboDetailsJson = item.combo_items ? JSON.stringify(item.combo_items) : null;
+      let recipe: unknown = item.combo_items ?? item.combo_details;
+      if (typeof recipe === 'string') {
+        try { recipe = JSON.parse(recipe); } catch { recipe = undefined; }
+      }
+      const comboDetailsJson = recipe ? JSON.stringify(recipe) : null;
 
       itemStmt.run(
         item.item_id,
@@ -321,8 +325,8 @@ export function checkout(payload: CheckoutPayload) {
         item.supply_type || 'INTRA',
       );
       if (policy.stock_applied === 1 && !item.isServiceItem) {
-        if (isCombo && item.combo_items && Array.isArray(item.combo_items)) {
-          for (const ci of item.combo_items) {
+        if (isCombo && Array.isArray(recipe) && recipe.length > 0) {
+          for (const ci of recipe as Array<{ product_id: string; quantity: number }>) {
             const qtyToDeduct = (Number(ci.quantity) || 1) * (Number(item.quantity) || 1);
             stockStmt.run(qtyToDeduct, ci.product_id);
           }
