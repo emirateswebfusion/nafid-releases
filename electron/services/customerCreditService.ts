@@ -29,8 +29,9 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
   }
 
   // 3. Credit bills, oldest first for FIFO allocation
+  const shopCountry = getStoreCountrySetting(db, tenantId);
   const creditInvoices = invoices
-    .map((inv: CreditInvoice) => ({ inv, terms: invoiceCreditTerms(inv) }))
+    .map((inv: CreditInvoice) => ({ inv, terms: invoiceCreditTerms(inv, shopCountry) }))
     .filter(({ terms }) => terms.isCredit)
     .sort((a, b) => new Date(a.inv.created_at).getTime() - new Date(b.inv.created_at).getTime());
 

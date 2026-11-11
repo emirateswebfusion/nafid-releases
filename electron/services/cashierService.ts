@@ -172,7 +172,7 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
       const splitStr = JSON.stringify(normalizePaymentSplit({
         grand_total: newGrandTotal, payment_method, received_amount: storedReceivedAmount,
         split_details: split_details ?? null,
-      }));
+      }, getStoreCountrySetting(db, tenant_id)));
 
       captureInvoicePoints(db, invoice_id);
       cashierSql.updateInvoiceByInvoiceId(db).run(payment_method, splitStr, storedReceivedAmount, actualRefundPaid, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id);

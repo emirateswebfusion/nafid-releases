@@ -22,6 +22,17 @@ describe('money tolerances follow the currency', () => {
     expect(roundStoreMoney(1.2345, 'BH')).toBe(1.235);
   });
 
+  it('main process: the loyalty discount tolerance is a tenth of the minor unit, 0.001 for India as before', () => {
+    expect(storeMoneyMinorUnit('IN') / 10).toBe(0.001);
+    expect(storeMoneyMinorUnit('BH') / 10).toBe(0.0001);
+  });
+
+  it('main process: a missing amount stays NaN, so an uncounted cash drawer is stored as NULL and not as 0 short', () => {
+    expect(roundStoreMoney(Number(undefined), 'IN')).toBeNaN();
+    expect(roundStoreMoney(NaN, 'BH')).toBeNaN();
+    expect(roundStoreMoney(0, 'IN')).toBe(0);
+  });
+
   it('renderer: one paisa for India and UAE, one fils for Bahrain', () => {
     expect(moneyMinorUnit()).toBe(0.01);
     setStoreCountry('AE');

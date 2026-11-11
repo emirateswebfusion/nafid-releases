@@ -7,7 +7,7 @@ import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDra
 import { normalizePaymentSplit, syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
 import { checkCustomerOverdueSync } from './customerCreditService.js';
 import { getGuaranteedNextInvoiceNumber } from './invoiceNumberService.js';
-import { formatStoreMoney, getStoreCountrySetting, roundStoreMoney, storeMoneyFixed, storeMoneyProfile } from './storeCountryService.js';
+import { formatStoreMoney, getStoreCountrySetting, roundStoreMoney, storeMoneyFixed, storeMoneyProfile, storeMoneyMinorUnit } from './storeCountryService.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { localTimestamp, localDate } from './storeTime.js';
 import { calculateLoyaltyPoints } from '../utils/loyalty.js';
@@ -32,7 +32,7 @@ export function checkout(payload: CheckoutPayload) {
   const policy = resolveBillPolicy(invoice.invoice_type, invoice.customer_gstin, invoice.bill_purpose === 'FILING_ONLY', policySettings);
   Object.assign(invoice, policy);
   // Store the exact payment breakdown (reports, filters and the drawer read it).
-  invoice.split_details = normalizePaymentSplit(invoice);
+  invoice.split_details = normalizePaymentSplit(invoice, getStoreCountrySetting(db, tenantId));
 
   // Deduplication guard: block duplicate checkout calls within a 4-second window
   const itemsSig = (items || []).map((i: InvoiceItem) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
@@ -188,7 +188,7 @@ export function checkout(payload: CheckoutPayload) {
     }
     const country = getStoreCountrySetting(db, tenantId);
     const ptsRedeemedDiscount = roundStoreMoney(ptsRedeemed * Math.max(0.01, Number(config.redemptionRate) || 1), country);
-    if (Math.abs(suppliedDiscount - ptsRedeemedDiscount) > 0.0001) {
+    if (Math.abs(suppliedDiscount - ptsRedeemedDiscount) > storeMoneyMinorUnit(country) / 10) {
       throw new Error('Points discount changed; refresh the bill');
     }
     const shouldEarn = config.enabled && customerId && pm !== 'HOLD' && (pm !== 'PENDING' || config.awardPointsOnPending)

@@ -13,11 +13,15 @@ export function storeMoneyDecimals(country?: StoreCountry | string | number | nu
   return country === 'BH' ? 3 : 2;
 }
 
-/** `Math.round(amount * scale) / scale` at the currency precision (2 for IN/AE, 3 for BH). */
+/**
+ * `Math.round(amount * scale) / scale` at the currency precision (2 for IN/AE, 3 for BH).
+ * Deliberately no `|| 0`: a missing amount stays NaN exactly as with the old `* 100) / 100`, so callers that
+ * store "not counted" as NULL (cash drawer close) keep doing so. Coerce at the call site when 0 is wanted.
+ */
 export function roundStoreMoney(amount: number, countryOrDecimals?: StoreCountry | string | number | null): number {
   const decimals = storeMoneyDecimals(countryOrDecimals);
   const scale = 10 ** decimals;
-  return Math.round((Number(amount) || 0) * scale) / scale;
+  return Math.round(amount * scale) / scale;
 }
 
 /** Fixed-point text at the currency precision: `12.50` (IN/AE) or `12.500` (BH). */

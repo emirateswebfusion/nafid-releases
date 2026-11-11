@@ -1,3 +1,4 @@
+import { getStoreCountrySetting } from './storeCountryService.js';
 import { captureInvoicePoints, reconcileInvoicePoints, refreshInvoiceEarnings, validateInvoicePointsEdit } from './loyaltyService.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
@@ -190,7 +191,7 @@ export async function updateInvoice(payload: {
     savedSplit = normalizePaymentSplit({
       grand_total: invoice.grand_total, payment_method: invoice.payment_method || 'PENDING',
       received_amount: finalReceivedAmount, split_details: invoice.split_details ?? existingInv.split_details,
-    });
+    }, getStoreCountrySetting(db, existingInv.tenant_id || 'global'));
     invoicesSql.updateInvoiceByInvoiceId3(db).run(
       invoice.subtotal, invoice.tax_total, invoice.discount_total,
       invoice.discount_type || 'FIXED', invoice.discount_value || 0,
@@ -385,7 +386,7 @@ export function updateInvoicePayment(payload: {
     const savedSplit = normalizePaymentSplit({
       grand_total: existingInv.grand_total, payment_method: payload.payment_method,
       received_amount: payload.received_amount, split_details: payload.split_details ?? existingInv.split_details,
-    });
+    }, getStoreCountrySetting(db, existingInv.tenant_id || 'global'));
     const splitDetailsVal = JSON.stringify(savedSplit);
 
     captureInvoicePoints(db, payload.invoice_id);

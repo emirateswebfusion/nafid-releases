@@ -14,14 +14,13 @@ import type { Db } from '../db/statements/types.js';
 export const OPENING_REFERENCE = 'OPENING-BALANCE';
 export const OPENING_METHOD = 'OPENING';
 
-const money = (n: unknown) => Math.round((Number(n) || 0) * 100) / 100;
 const nameKey = (name: unknown) => String(name ?? '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 
 export function postOpeningBalance(db: Db, entry: {
   party_id: string; tenant_id: string; party_type?: string | null; signed_amount: number;
   transaction_date: string; created_by?: string | null; created_by_name?: string | null;
 }) {
-  const signed = money(entry.signed_amount);
+  const signed = roundStoreMoney(Number(entry.signed_amount) || 0, getStoreCountrySetting(db, entry.tenant_id));
   if (signed === 0) return;
   const isSupplier = (entry.party_type || 'CUSTOMER').toUpperCase() === 'SUPPLIER';
   const label = signed > 0 ? 'Receivable' : isSupplier ? 'Payable' : 'Advance';

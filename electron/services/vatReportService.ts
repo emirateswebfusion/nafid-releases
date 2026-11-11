@@ -261,7 +261,7 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
     const db = getDb();
     const country = getStoreCountrySetting(db, tenant_id);
     const decimals = storeMoneyDecimals(country);
-    const r = (val: number) => roundStoreMoney(val, country);
+    const r = (val: number) => roundStoreMoney(Number(val) || 0, country);
     const defaultRate: number = country === 'BH' ? 10 : 5;
     const currencyName = country === 'BH' ? 'BHD' : 'AED';
     const timezone = getStoreTimezoneSetting(db, tenant_id);
