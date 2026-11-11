@@ -150,6 +150,19 @@ describe('invoice edit redemption guards', () => {
     expect((await updateInvoice({ ...edit, points_redeemed: 0, points_redeemed_discount: 0 })).success).toBe(false);
     expect(balance()).toBe(10);
   });
+  it('off allows changing customer or setting pending when loyalty is disabled', async () => {
+    sale(10, 0); setConfig(false);
+    raw.prepare("INSERT INTO customers (customer_id, tenant_id, name) VALUES ('other', 't', 'Other')").run();
+    expect((await updateInvoice({ ...edit, customer_id: 'other', payment_method: 'PENDING' })).success).toBe(true);
+  });
+  it('allows adding customer to an invoice created without a customer', async () => {
+    raw.prepare("INSERT INTO invoices (invoice_id, tenant_id, invoice_number, invoice_type, subtotal, tax_total, discount_total, grand_total, payment_method, customer_id, points_earned, points_redeemed) VALUES ('walkin', 't', 'POS1-99', 'ESTIMATE', 1000, 0, 0, 1000, 'CASH', NULL, 0, 0)").run();
+    expect((await updateInvoice({ ...edit, invoice_id: 'walkin', customer_id: 'c', payment_method: 'PENDING' })).success).toBe(true);
+  });
+  it('preserves existing customer_id on edit when only customer name is typed without phone', async () => {
+    sale(10, 0);
+    expect((await updateInvoice({ ...edit, customer_name: 'Customer', customer_phone: '', payment_method: 'PENDING' })).success).toBe(true);
+  });
 });
 
 it('invoice balance snapshots preserve debt after a spent award is reversed', () => {

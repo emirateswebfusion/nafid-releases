@@ -96,11 +96,14 @@ export function validateInvoicePointsEdit(db: Db, id: string, customerId: string
   const redeemed = points == null ? previous : Number(points);
   const value = discount == null ? Number(inv.points_redeemed_discount) || 0 : Number(discount);
   const config = readLoyaltyConfig(db, inv.tenant_id);
-  if (customerId !== inv.customer_id && ((Number(inv.points_earned) || 0) || previous)) {
+  const changed = redeemed !== previous || value !== (Number(inv.points_redeemed_discount) || 0);
+  if (!config.enabled) {
+    if (changed) throw new Error('Enable loyalty before changing historical redemption');
+    return;
+  }
+  if (inv.customer_id && customerId !== inv.customer_id && ((Number(inv.points_earned) || 0) || previous)) {
     throw new Error('Cancel and reissue a bill with loyalty activity to change its customer');
   }
-  const changed = redeemed !== previous || value !== (Number(inv.points_redeemed_discount) || 0);
-  if (!config.enabled && changed) throw new Error('Enable loyalty before changing historical redemption');
   if (!Number.isSafeInteger(redeemed) || redeemed < 0 || !Number.isFinite(value) || value < 0) throw new Error('Invalid points redemption');
   if (changed) {
     const cust = customerId ? sql.customer(db).get(customerId, inv.tenant_id) as { current_points_balance: number } | undefined : undefined;

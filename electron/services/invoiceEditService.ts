@@ -163,12 +163,17 @@ export async function updateInvoice(payload: {
 
   let savedSplit: SplitDetails = {};
   const transaction = db.transaction(() => {
+    const targetCustId = invoice.customer_id || existingInv.customer_id || null;
     const customerId = upsertCustomerRecord(
       db,
       payload.tenant_id || 'global',
       invoice.customer_name,
       invoice.customer_phone,
-      invoice.customer_address
+      invoice.customer_address,
+      {
+        customer_id: targetCustId,
+        gstin: invoice.customer_gstin,
+      }
     );
 
     // A bill whose customer was cleared is a walk-in bill: it keeps no customer (and so no credit on anyone's ledger).
