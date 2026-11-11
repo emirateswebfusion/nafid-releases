@@ -121,7 +121,7 @@ export function StockReportHeader({
             <Printer className="w-3.5 h-3.5" /> Print Report
           </button>
           <button
-            onClick={isRestricted ? () => useAuthStore.getState().logout() : onClose}
+            onClick={isRestricted ? () => void useAuthStore.getState().lockTerminal() : onClose}
             className="p-2 rounded-xl border border-destructive/30 hover:bg-destructive/10 text-destructive transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
             title="Close"
           >

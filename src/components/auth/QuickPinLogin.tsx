@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Store, Delete, RotateCcw, Loader2, Lock, ArrowRight } from 'lucide-react';
+import { Store, Delete, RotateCcw, Loader2, Lock, ArrowRight, CloudOff } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
 
@@ -7,17 +7,21 @@ interface QuickPinLoginProps {
   shopName: string;
   userName?: string;
   role?: string;
+  cloudSyncReady?: boolean;
+  initialLockoutSeconds?: number;
   onSwitchToEmail: () => void;
 }
 
-export function QuickPinLogin({ shopName, userName, role, onSwitchToEmail }: QuickPinLoginProps) {
+export function QuickPinLogin({ shopName, userName, role, cloudSyncReady, initialLockoutSeconds = 0, onSwitchToEmail }: QuickPinLoginProps) {
   const loginWithPin = useAuthStore(state => state.loginWithPin);
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() =>
+    initialLockoutSeconds > 0 ? `Too many failed attempts. Locked for ${initialLockoutSeconds}s.` : ''
+  );
   const [shake, setShake] = useState(false);
   const failedAttemptsRef = useRef(0);
-  const [lockoutTimer, setLockoutTimer] = useState(0);
+  const [lockoutTimer, setLockoutTimer] = useState(initialLockoutSeconds);
 
   useEffect(() => {
     if (lockoutTimer <= 0) return;
@@ -43,13 +47,23 @@ export function QuickPinLogin({ shopName, userName, role, onSwitchToEmail }: Qui
 
     const res = await loginWithPin(pinToSubmit);
     if (!res.success) {
-      failedAttemptsRef.current += 1;
-      const count = failedAttemptsRef.current;
-      if (count >= 5) {
-        setLockoutTimer(30);
-        setError('Too many failed attempts. Locked for 30s.');
+      if (typeof res.remaining_seconds === 'number' && res.remaining_seconds > 0) {
+        failedAttemptsRef.current = 5;
+        setLockoutTimer(res.remaining_seconds);
+        setError(res.error || `Too many failed attempts. Locked for ${res.remaining_seconds}s.`);
+      } else if (typeof res.attempts_remaining === 'number') {
+        failedAttemptsRef.current = Math.max(0, 5 - res.attempts_remaining);
+        const baseError = res.error || 'Invalid PIN';
+        setError(`${baseError} (${res.attempts_remaining} attempts remaining)`);
       } else {
-        setError(res.error || `Invalid PIN (${5 - count} attempts remaining)`);
+        failedAttemptsRef.current += 1;
+        const count = failedAttemptsRef.current;
+        if (count >= 5) {
+          setLockoutTimer(30);
+          setError('Too many failed attempts. Locked for 30s.');
+        } else {
+          setError(res.error || `Invalid PIN (${5 - count} attempts remaining)`);
+        }
       }
       setShake(true);
       setTimeout(() => setShake(false), 500);
@@ -124,6 +138,12 @@ export function QuickPinLogin({ shopName, userName, role, onSwitchToEmail }: Qui
         <p className="text-xs text-muted-foreground">
           Enter 4-digit PIN or scan staff badge
         </p>
+        {cloudSyncReady === false && (
+          <p className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400 text-[11px] font-semibold">
+            <CloudOff className="w-3 h-3 shrink-0" />
+            <span>Offline PIN only — sign in with Email to reconnect cloud sync</span>
+          </p>
+        )}
       </div>
 
       {/* PIN Dots Display */}

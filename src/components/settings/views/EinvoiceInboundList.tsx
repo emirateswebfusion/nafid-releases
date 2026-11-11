@@ -3,6 +3,7 @@ import { Inbox, Loader2, RotateCcw } from 'lucide-react';
 import { einvoiceCloud, type EinvoiceInboundItem } from '../../../data/cloud/einvoiceCloud';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { SettingsCard } from './SettingsControls';
+import { PinCloudBanner } from '../../ui/PinCloudBanner';
 import { useAuthStore } from '../../../store/authStore';
 import { hasPermission } from '../../../utils/security/permissions';
 
@@ -37,6 +38,7 @@ export function EinvoiceInboundList() {
     <SettingsCard icon={Inbox} title="Received e-invoices" subtitle="Supplier invoices delivered to you through Peppol. Enter each as a purchase bill, then mark it recorded."
       actions={<button type="button" onClick={load} title="Refresh" className="p-2 rounded-xl hover:bg-muted cursor-pointer">
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}</button>}>
+      <PinCloudBanner feature="loading received cloud e-invoices" className="mb-3" />
       {error && <p className="text-[11px] text-red-600 mb-3">{error}</p>}
       {!loading && items.length === 0 && !error && <p className="text-[11px] text-muted-foreground">No supplier e-invoices received yet.</p>}
       <div className="space-y-2">

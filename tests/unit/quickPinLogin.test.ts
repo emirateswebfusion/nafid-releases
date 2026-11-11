@@ -28,9 +28,9 @@ import {
 } from '../../electron/services/localAuthService';
 vi.mock('../../electron/sync/syncWorker', () => ({setSyncActive: vi.fn()}));
 vi.mock('../../electron/services/syncService', () => ({isLanSyncConfigured: () => false}));
-import { saveToken, saveOfflineSession, clearToken, loginWithPin } from '../../electron/services/authSessionService';
+import { saveToken, saveOfflineSession, clearToken, lockSession, loginWithPin } from '../../electron/services/authSessionService';
 import { resumeCloudSession } from '../../electron/services/cloudSessionRecoveryService';
-import { readOfflineSession, readAuthPayload } from '../../electron/services/authStorage';
+import { readOfflineSession, readAuthPayload, isTerminalLocked } from '../../electron/services/authStorage';
 import { saveStaff } from '../../electron/services/staffService';
 import { setSyncActive } from '../../electron/sync/syncWorker';
 
@@ -325,6 +325,52 @@ describe('Quick PIN Login & Staff Security', () => {
     expect(saveOfflineSession({ tenant_id: 'shop', user_id: 'cashier', role: 'STAFF', permissions: ['sales.create'] }))
       .toMatchObject({ success: true, cloud_sync_ready: true });
     expect(setSyncActive).toHaveBeenLastCalledWith(true);
+  });
+
+  it('lockSession preserves cloud credentials for the next PIN sign-in while clearing offline user session', () => {
+    const token = `h.${Buffer.from(JSON.stringify({ exp: 4102444800 })).toString('base64url')}.s`;
+    saveToken({ tenant_id: 'shop', user_id: 'owner', user_name: 'Owner', shop_name: 'Shop', role: 'ADMIN', jwt_token: token });
+    raw!.prepare("INSERT INTO staff (staff_id,tenant_id,staff_code,name,role_designation,biller_pin_hash,status,is_deleted) VALUES ('cashier','shop','C1','Cashier','STAFF',?,'ACTIVE',0)").run(hashStaffPin('1234', 'shop'));
+
+    vi.mocked(setSyncActive).mockClear();
+    expect(lockSession()).toEqual({ success: true, cloud_sync_ready: true });
+    expect(isTerminalLocked()).toBe(true);
+    expect(readOfflineSession()).toBeNull();
+    expect(readAuthPayload()).toMatchObject({ jwt_token: token, tenant_id: 'shop' });
+    expect(getTerminalConfig()).toMatchObject({ isConfigured: true, tenant_id: 'shop', cloud_sync_ready: true });
+    expect(setSyncActive).toHaveBeenLastCalledWith(true);
+
+    const res = loginWithPin({ pin: '1234' });
+    expect(res).toMatchObject({ success: true, cloud_sync_ready: true, user: { user_id: 'cashier' } });
+    expect(isTerminalLocked()).toBe(false);
+    expect(readOfflineSession()).toMatchObject({ user_id: 'cashier' });
+  });
+
+  it('persists PIN lockout in SQLite across calls and clears it on online login', () => {
+    const tenantId = 'shop-lockout';
+    raw!.prepare("INSERT INTO settings (tenant_id, key, value) VALUES (?, 'shop_name', 'Lockout Shop')").run(tenantId);
+    raw!.prepare("INSERT INTO staff (staff_id,tenant_id,staff_code,name,role_designation,biller_pin_hash,status,is_deleted) VALUES ('cashier',?,'C1','Cashier','STAFF',?,'ACTIVE',0)").run(tenantId, hashStaffPin('1234', tenantId));
+
+    for (let i = 1; i <= 4; i++) {
+      expect(localAuthenticatePin({ pin: '9999', tenant_id: tenantId })).toMatchObject({
+        success: false,
+        error: 'Invalid PIN',
+        attempts_remaining: 5 - i,
+      });
+    }
+    expect(localAuthenticatePin({ pin: '9999', tenant_id: tenantId })).toMatchObject({
+      success: false,
+      remaining_seconds: 30,
+      attempts_remaining: 0,
+    });
+    expect(getTerminalConfig()).toMatchObject({ isConfigured: true, tenant_id: tenantId, lockout_remaining_seconds: 30 });
+    expect(localAuthenticatePin({ pin: '1234', tenant_id: tenantId })).toMatchObject({
+      success: false,
+      attempts_remaining: 0,
+    });
+
+    saveToken({ tenant_id: tenantId, user_id: 'owner', role: 'ADMIN', jwt_token: 'valid.jwt.token' });
+    expect(localAuthenticatePin({ pin: '1234', tenant_id: tenantId })).toMatchObject({ success: true });
   });
 
 });

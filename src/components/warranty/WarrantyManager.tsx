@@ -264,7 +264,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <RedCrossButton
-              onClick={showCreate ? () => setShowCreate(false) : (isRestricted ? () => useAuthStore.getState().logout() : onClose)}
+              onClick={showCreate ? () => setShowCreate(false) : (isRestricted ? () => void useAuthStore.getState().lockTerminal() : onClose)}
               title="Close"
             />
           </div>

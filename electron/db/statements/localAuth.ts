@@ -55,6 +55,13 @@ export const saveTerminalSession = (db: Db) => db.prepare(`
   ON CONFLICT(tenant_id, key) DO UPDATE SET value = excluded.value, sync_status = 'LOCAL', updated_at = CURRENT_TIMESTAMP
 `);
 export const readTerminalSession = (db: Db) => db.prepare(`SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'last_active_terminal_session'`);
+export const readPinLockout = (db: Db) => db.prepare(`SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'pin_lockout_state'`);
+export const savePinLockout = (db: Db) => db.prepare(`
+  INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+  VALUES ('global', 'pin_lockout_state', ?, 'LOCAL', CURRENT_TIMESTAMP)
+  ON CONFLICT(tenant_id, key) DO UPDATE SET value = excluded.value, sync_status = 'LOCAL', updated_at = CURRENT_TIMESTAMP
+`);
+export const clearPinLockout = (db: Db) => db.prepare(`DELETE FROM settings WHERE tenant_id = 'global' AND key = 'pin_lockout_state'`);
 export const listConfiguredTenants = (db: Db) => db.prepare(`
   SELECT tenant_id FROM settings WHERE key = 'shop_name' AND tenant_id NOT IN ('global', 'unset', '')
   UNION SELECT tenant_id FROM users WHERE tenant_id NOT IN ('global', 'unset', '')

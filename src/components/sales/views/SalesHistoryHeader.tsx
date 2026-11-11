@@ -146,7 +146,7 @@ export function SalesHistoryHeader({
 
           <button
             type="button"
-            onClick={isRestricted ? () => useAuthStore.getState().logout() : onClose}
+            onClick={isRestricted ? () => void useAuthStore.getState().lockTerminal() : onClose}
             className="h-8.5 w-8.5 rounded-xl border border-destructive/25 bg-destructive/5 text-destructive hover:bg-destructive/15 transition-all duration-150 active:scale-95 cursor-pointer flex items-center justify-center shrink-0 shadow-2xs"
             title="Close"
           >

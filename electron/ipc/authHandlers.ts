@@ -3,7 +3,7 @@ import { handle } from './common.js';
 import { resumeCloudSession } from '../services/cloudSessionRecoveryService.js';
 import { loginCloud } from '../services/cloudLoginService.js';
 import { localSaveUser, localAuthenticateUser, getTerminalConfig } from '../services/localAuthService.js';
-import { readAuthPayload, readOfflineSession } from '../services/authStorage.js';
+import { readAuthPayload, readOfflineSession, isTerminalLocked } from '../services/authStorage.js';
 import * as authSession from '../services/authSessionService.js';
 import { getTrialAccess, blockTrialAccess } from '../services/trialAccessService.js';
 import { refreshTrialSession } from '../services/trialSessionService.js';
@@ -72,6 +72,12 @@ export function registerAuthHandlers(): void {
 
   ipcMain.removeHandler('auth:clearToken');
   ipcMain.handle('auth:clearToken', () => authSession.clearToken());
+
+  ipcMain.removeHandler('auth:lockSession');
+  ipcMain.handle('auth:lockSession', () => authSession.lockSession());
+
+  ipcMain.removeHandler('auth:isLocked');
+  ipcMain.handle('auth:isLocked', () => isTerminalLocked());
 
   ipcMain.removeHandler('auth:getTrialAccess');
   ipcMain.handle('auth:getTrialAccess', (_event, payload: { tenant_id: string }) => {

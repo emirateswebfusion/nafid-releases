@@ -7,6 +7,7 @@ import { einvoiceCloud, type AspEnvironment, type EinvoiceMode, type EinvoiceOve
 import { SELLER_SETTING_KEYS, einvoiceStatusLabel } from '../../utils/einvoice/einvoice';
 import type { EinvoiceStatus } from '../../data/einvoice';
 import { Input } from '../ui/Input';
+import { PinCloudBanner } from '../ui/PinCloudBanner';
 import { Select } from '../ui/Select';
 import { SettingsCard } from './views/SettingsControls';
 import { EinvoiceInboundList } from './views/EinvoiceInboundList';
@@ -99,6 +100,7 @@ export function UaeEinvoiceSettings({ tenantId }: { tenantId: string | null }) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      <PinCloudBanner feature="UAE e-invoice cloud settings and sending" />
       {message && <p className={message.ok ? 'text-xs text-emerald-600' : 'text-xs text-red-600'}>{message.text}</p>}
       <SettingsCard icon={Building} title="Seller identity" subtitle="Printed into every e-invoice. TRN and emirate are taken from Tax settings.">
         <div className="grid grid-cols-2 gap-4">

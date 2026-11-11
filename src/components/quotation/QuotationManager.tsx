@@ -127,7 +127,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={showDetail ? () => setShowDetail(false) : (isRestricted ? () => useAuthStore.getState().logout() : onClose)}
+              onClick={showDetail ? () => setShowDetail(false) : (isRestricted ? () => void useAuthStore.getState().lockTerminal() : onClose)}
               className="p-1.5 sm:p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
             >

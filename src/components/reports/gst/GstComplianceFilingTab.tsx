@@ -11,6 +11,7 @@ import { gstCloudApi } from '../../../data/cloud/gstCloud';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { useAuthStore } from '../../../store/authStore';
 import { FloatToast, type ToastMessage } from '../../ui/FloatToast';
+import { PinCloudBanner } from '../../ui/PinCloudBanner';
 
 interface GstComplianceFilingTabProps {
   report: Gstr1Report | null;
@@ -303,6 +304,7 @@ export function GstComplianceFilingTab({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      <PinCloudBanner feature="GST cloud filing submission and approval sync" />
       {/* Return Type & Status Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl border border-border bg-card shadow-xs">
         <div className="flex items-center gap-3">

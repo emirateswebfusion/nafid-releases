@@ -17,6 +17,7 @@ import { settingsApi } from '../../data/settings';
 import { staffApi, type SaveStaffResult } from '../../data/staff';
 import { whatsappApi } from '../../data/whatsapp';
 import { staffCloud } from '../../data/cloud/staffCloud';
+import { PinCloudAuthError } from '../../data/cloud/client';
 import { type StaffMember, type SavedSystemAccount } from './staffTypes';
 import { useStaffManagerState } from './hooks/useStaffManagerState';
 import { StaffTransactionModal } from './views/StaffTransactionModal';
@@ -135,6 +136,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   const saveSystemAccount = async (): Promise<SavedSystemAccount | undefined> => {
     if (!formData.showSystemAccountSection) {
       if (!formData.user_id) return undefined;
+      if (!token) throw new PinCloudAuthError();
       const response = await staffCloud.setLoginEnabled(token, formData.user_id, false);
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || 'Could not disable the login account');
@@ -145,6 +147,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         login_enabled: false,
       };
     }
+    if (!token) throw new PinCloudAuthError();
 
     const email = formData.email.trim().toLowerCase();
     if (!email) throw new Error('Email is required for a system login account');

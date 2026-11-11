@@ -28,9 +28,11 @@ export interface AuthState {
 
   // Actions
   login: (email: string, password: string, apiBase?: string, options?: { requireCloud?: boolean; offlineOnly?: boolean }) => Promise<{ success: boolean; error?: string }>;
-  loginWithPin: (pin: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithPin: (pin: string) => Promise<{ success: boolean; error?: string; remaining_seconds?: number; attempts_remaining?: number }>;
   setLastSyncTime: (time: number) => void;
   setCloudSyncPaused: (paused: boolean, reason?: string | null) => void;
+  lockTerminal: () => Promise<void>;
+  switchToEmailLogin: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateDomain: (domain: string) => Promise<{ success: boolean; error?: string }>;
@@ -77,6 +79,74 @@ function formatError(err: unknown, fallback: string): string {
 // reference made tsc infer `any` for the whole store (every screen read tenantId etc. untyped).
 let authGeneration = 0;
 
+function clearRendererSession(set: (partial: Partial<AuthState>) => void): void {
+  localStorage.removeItem(BROWSER_AUTH_KEY);
+  try {
+    localStorage.removeItem('nafid_pos_ai_conversations_v3');
+    localStorage.removeItem('nafid_pos_ai_active_conv_id_v3');
+    localStorage.removeItem('nafid_pos_ai_conversations');
+  } catch { /* ignore */ }
+  useCartStore.getState().clearCart();
+  set({
+    isAuthenticated: false,
+    token: null,
+    tenantId: null,
+    userId: null,
+    role: null,
+    permissions: [],
+    userName: null,
+    shopName: null,
+    restrictedPage: null,
+    isCloudSyncPaused: true,
+    cloudSyncReason: null,
+    lastSyncTime: null,
+    authError: null,
+    isLoading: false,
+  });
+}
+
+function setEmailLoginPreference(preferEmail: boolean): void {
+  try {
+    if (preferEmail) sessionStorage.setItem('auth_prefer_email', '1');
+    else sessionStorage.removeItem('auth_prefer_email');
+  } catch { /* ignore */ }
+}
+
+async function lockTerminalSession(
+  set: (partial: Partial<AuthState>) => void,
+  preferEmail: boolean
+): Promise<void> {
+  ++authGeneration;
+  try {
+    if (isDesktopRuntime() && hasBridge('authLockSession') && typeof authApi.lockSession === 'function') {
+      const locked = await authApi.lockSession();
+      if (!locked?.success) throw new Error(locked?.error || 'Could not lock the terminal session.');
+    }
+  } catch {
+    set({ authError: 'Could not switch user right now. Your current work is still open. Please retry.' });
+    return;
+  }
+  setEmailLoginPreference(preferEmail);
+  clearRendererSession(set);
+}
+
+async function recoverSameUserCloudToken(
+  tenantId: string,
+  userId: string
+): Promise<{ token: string | null; cloudAvailable: boolean }> {
+  if (!hasBridge('authGetToken') || typeof authApi.getToken !== 'function') {
+    return { token: null, cloudAvailable: false };
+  }
+  try {
+    const cloud = await authApi.getToken();
+    const cloudAvailable = cloud?.tenant_id === tenantId && Boolean(cloud?.jwt_token) && !isTokenExpired(cloud!.jwt_token);
+    const sameUserToken = cloudAvailable && cloud?.user_id === userId ? cloud!.jwt_token : null;
+    return { token: sameUserToken, cloudAvailable };
+  } catch {
+    return { token: null, cloudAvailable: false };
+  }
+}
+
 export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState>()((set, _get) => ({
   isAuthenticated: false,
   authError: null,
@@ -104,6 +174,11 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       if (isDesktopRuntime()) {
         // Reset local store confirmation state before restoring either session type.
         useCartStore.getState().resetDomainConfirmation();
+        if (hasBridge('authIsLocked') && typeof authApi.isLocked === 'function' && await authApi.isLocked()) {
+          if (generation !== authGeneration) return;
+          set({ isAuthenticated: false, permissions: [] });
+          return;
+        }
         const offlineSession = await authApi.getOfflineSession();
         if (generation !== authGeneration) return;
         if (offlineSession?.tenant_id && offlineSession.user_id) {
@@ -114,18 +189,14 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
             set({ isAuthenticated: false, permissions: [] });
             return;
           }
-          let cloudAvailable = false;
-          try {
-            const cloud = await authApi.getToken();
-            cloudAvailable = cloud?.tenant_id === offlineSession.tenant_id && Boolean(cloud?.jwt_token) && !isTokenExpired(cloud!.jwt_token);
-          } catch { /* Cloud credential storage must not block a valid local session. */ }
+          const { token: sameUserToken, cloudAvailable } = await recoverSameUserCloudToken(offlineSession.tenant_id, offlineSession.user_id);
           const permissions = roleVal === 'ADMIN'
             ? ['*']
             : (Array.isArray(offlineSession.permissions) && offlineSession.permissions.length > 0 ? offlineSession.permissions : convertLegacyRestrictedPageToPermissions(offlineSession.restricted_page));
           if (generation !== authGeneration) return;
           set({
             isAuthenticated: true,
-            token: null,
+            token: sameUserToken,
             tenantId: offlineSession.tenant_id,
             userId: offlineSession.user_id,
             role: roleVal,
@@ -300,6 +371,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         cloudSyncReason: cloudReady ? null : reason,
       });
       useCartStore.getState().setRole(roleVal);
+      try { sessionStorage.removeItem('auth_prefer_email'); } catch { /* ignore */ }
       return { success: true };
     };
 
@@ -458,15 +530,24 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       const res = await authApi.loginWithPin({ pin });
       if (generation !== authGeneration) return { success: false, error: 'PIN login cancelled because the session changed.' };
       if (!res.success) {
-        return { success: false, error: res.error || 'Invalid PIN' };
+        return {
+          success: false,
+          error: res.error || 'Invalid PIN',
+          remaining_seconds: res.remaining_seconds,
+          attempts_remaining: res.attempts_remaining,
+        };
       }
       const u = res.user;
       const roleVal = normalizeRole(u.role);
       const permissions = roleVal === 'ADMIN' ? ['*'] : (u.permissions && u.permissions.length > 0 ? u.permissions : ['sales.create', 'sales.view', 'sales.reprint']);
+      const { token: sameUserToken } = res.cloud_sync_ready === true
+        ? await recoverSameUserCloudToken(u.tenant_id, u.user_id)
+        : { token: null };
+      if (generation !== authGeneration) return { success: false, error: 'PIN login cancelled because the session changed.' };
       useCartStore.getState().resetDomainConfirmation();
       set({
         isAuthenticated: true,
-        token: null,
+        token: sameUserToken,
         tenantId: u.tenant_id,
         userId: u.user_id,
         role: roleVal,
@@ -478,13 +559,18 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         cloudSyncReason: res.cloud_sync_ready === true ? null : 'Local PIN login — sign in online to reconnect cloud sync.',
       });
       useCartStore.getState().setRole(roleVal);
+      try { sessionStorage.removeItem('auth_prefer_email'); } catch { /* ignore */ }
       return { success: true };
     } catch (err) {
       return { success: false, error: formatError(err, 'PIN login failed') };
     }
   },
 
-  // ── Logout ────────────────────────────────────────────────────────────────
+  // ── Lock / Switch User & Full Logout ──────────────────────────────────────
+  lockTerminal: () => lockTerminalSession(set, false),
+
+  switchToEmailLogin: () => lockTerminalSession(set, true),
+
   logout: async () => {
     ++authGeneration;
     try {
@@ -496,14 +582,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       set({ token: null, isCloudSyncPaused: true, authError: 'Sign-out could not finish. Your current work is still open. Please retry signing out.' });
       return;
     }
-    localStorage.removeItem(BROWSER_AUTH_KEY);
-    try {
-      localStorage.removeItem('nafid_pos_ai_conversations_v3');
-      localStorage.removeItem('nafid_pos_ai_active_conv_id_v3');
-      localStorage.removeItem('nafid_pos_ai_conversations');
-    } catch { /* ignore */ }
-    useCartStore.getState().clearCart();
-    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, permissions: [], userName: null, shopName: null, restrictedPage: null, isCloudSyncPaused: true, cloudSyncReason: null, lastSyncTime: null, authError: null, isLoading: false });
+    setEmailLoginPreference(true);
+    clearRendererSession(set);
   },
 
   updateDomain: async (domain: string) => {
@@ -601,6 +681,10 @@ registerCloudAuth({
       } catch { /* keep going without a token */ }
     }
     return token;
+  },
+  isPinSession: () => {
+    const active = useAuthStore.getState();
+    return active.isAuthenticated && !active.token;
   },
   onUnauthorized: () => {
     // Concurrent requests can all reject the same session; notify once until the next login.
