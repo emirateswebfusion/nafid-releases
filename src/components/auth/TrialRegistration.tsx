@@ -17,7 +17,7 @@ export function TrialRegistration({ onSignIn }: { onSignIn: () => void }) {
   return (
     <div className="space-y-5">
       <div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"><Clock3 className="h-3 w-3" /> One month to explore Nafid</span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"><Clock3 className="h-3 w-3" /> {signup.days ? `${signup.days} days to explore Nafid` : 'Free trial of Nafid'}</span>
         <h2 className="text-2xl font-bold mt-3">Create your Nafid account</h2>
         <p className="text-sm text-muted-foreground mt-1">A few essentials to prepare your trial workspace.</p>
       </div>

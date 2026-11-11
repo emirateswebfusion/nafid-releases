@@ -4,6 +4,8 @@ import UpdateBanner from './components/app/UpdateBanner';
 import { useStartupReady } from './components/app/hooks/useStartupReady';
 import { PermissionGuard } from './components/app/PermissionGuard';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { TrialAccessScreen } from './components/auth/TrialAccessScreen';
+import { useTrialSession } from './components/auth/useTrialSession';
 import { OwnerDashboard } from './components/owner-dashboard/OwnerDashboard';
 import { useCartStore } from './store/cartStore';
 import { useTabStore } from './store/tabStore';
@@ -38,6 +40,8 @@ function App() {
   useFeatureFlagsRefresh(tenantId, isAuthenticated);
   const profileReady = useStoreProfile(tenantId, isAuthenticated);
   useStartupReady(!isLoading && (!isAuthenticated || profileReady));
+  // Renews trial leases online and enforces expiry offline; paid sessions pass straight through.
+  const trialAccess = useTrialSession();
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showVariantsManager, setShowVariantsManager] = useState(false);
   const [showInventoryManager, setShowInventoryManager] = useState(false);
@@ -166,6 +170,10 @@ function App() {
 
   if (!isAuthenticated) {
     return <><LoginScreen /><AuthErrorToast /></>;
+  }
+
+  if (trialAccess.blocked) {
+    return <TrialAccessScreen error={trialAccess.error} retry={trialAccess.retry} />;
   }
 
   if (role === 'SUPER_ADMIN') {

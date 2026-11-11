@@ -246,7 +246,6 @@ export function LoginScreen() {
               <div className="border-t border-border pt-5 text-center space-y-2">
                 <p className="text-sm text-muted-foreground">New to Nafid?</p>
                 <Button type="button" variant="outline" className="w-full h-11" onClick={() => switchTab('register')}>Sign up for a free trial</Button>
-                <p className="text-xs text-muted-foreground">Preview registration · Trial access coming soon</p>
               </div>
             </form>
           )}

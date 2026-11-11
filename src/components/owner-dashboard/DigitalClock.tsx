@@ -24,9 +24,11 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
   }, []);
 
   useEffect(() => {
-    // Timer tick every 1000ms
+    // Timer tick every 1000ms. The shop profile can load after mount (first sign-in, sync pull),
+    // so re-read the store timezone and format on each tick instead of only on settings events.
     const timer = setInterval(() => {
       setNow(new Date());
+      refreshSettings();
     }, 1000);
 
     // Listen to settings updates
