@@ -1,3 +1,4 @@
+import { roundMoney } from '../../../../utils/pricing/moneyRounding';
 import { localizeCurrencyText } from '../../../../utils/localization/storeProfile';
 import type * as B from '../../billingTypes';
 import React from 'react';
@@ -122,7 +123,7 @@ export const CartScrapRow: React.FC<CartScrapRowProps> = ({
                 removeItemDiscount(item.product_id);
               } else {
                 const pct = parseFloat(val);
-                const flat = scrapConvPrice > 0 ? Math.round(scrapConvPrice * pct / 100 * 100) / 100 : 0;
+                const flat = scrapConvPrice > 0 ? roundMoney(scrapConvPrice * pct / 100) : 0;
                 setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
                 setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
                 updateItemDiscount(item.product_id, 'PERCENT', pct);

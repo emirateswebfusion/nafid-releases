@@ -1,3 +1,4 @@
+import { getStoreCountrySetting, roundStoreMoney, storeMoneyMinorUnit } from './storeCountryService.js';
 import crypto from 'node:crypto';
 import { localDate, parseCleanDate, getStoreTimezoneSetting } from './storeTime.js';
 import * as cashDrawerSql from '../db/statements/cashDrawer.js';
@@ -313,13 +314,14 @@ export function syncPaymentSourcesForInvoice(db: Db, tenantId: string, invoice: 
     for (const row of cashDrawerSql.sumInvoicePaymentSourcePostings(db).all(tenantId, invoice.invoice_number) as Array<{ source_id: string; net: number }>) {
       posted.set(row.source_id, Number(row.net) || 0);
     }
+    const country = getStoreCountrySetting(db, tenantId);
     for (const [sourceId, { source, type, amount }] of target) {
-      const delta = round2(amount - (posted.get(sourceId) || 0));
-      if (Math.abs(delta) >= 0.01) postSourceMovement(db, tenantId, invoice, source, type, delta);
+      const delta = roundStoreMoney(amount - (posted.get(sourceId) || 0), country);
+      if (Math.abs(delta) >= storeMoneyMinorUnit(country)) postSourceMovement(db, tenantId, invoice, source, type, delta);
       posted.delete(sourceId);
     }
     for (const [sourceId, net] of posted) {
-      if (Math.abs(net) < 0.01) continue;
+      if (Math.abs(net) < storeMoneyMinorUnit(country)) continue;
       const source = cashDrawerSql.findPaymentSourcesBySourceId(db).get(sourceId, tenantId) as PaymentSourceRow | undefined;
       if (source) postSourceMovement(db, tenantId, invoice, source, String(source.type || 'account'), -net);
     }

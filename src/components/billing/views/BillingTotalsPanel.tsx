@@ -1,4 +1,4 @@
-import { isUaeStore } from '../../../utils/localization/storeProfile';
+import { isVatStore } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React from 'react';
 import type { DeductionState } from './DeductionEditor';
@@ -212,7 +212,7 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
           {isReturnMode && returned.tax > 0 && <div className="flex justify-between"><span>Original Invoice Tax</span><span>{formatCurrency(returned.tax)}</span></div>}
           {!isReturnMode && invoiceType === 'GST' && totalTax > 0 && (
             <>
-              {isUaeStore() ? <div className="flex justify-between items-center"><span>VAT</span><span>{formatCurrency(totalTax)}</span></div> : igst > 0 ? (
+              {isVatStore() ? <div className="flex justify-between items-center"><span>VAT</span><span>{formatCurrency(totalTax)}</span></div> : igst > 0 ? (
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground text-sm">IGST (Out of State)</span>
                   <span className="font-semibold text-foreground/80 text-sm">{formatCurrency(igst)}</span>

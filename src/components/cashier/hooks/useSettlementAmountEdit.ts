@@ -1,3 +1,4 @@
+import { roundMoney } from '../../../utils/pricing/moneyRounding';
 import type React from 'react';
 import type { CashierInvoiceRow } from '../cashierTypes';
 
@@ -72,7 +73,7 @@ export function useSettlementAmountEdit(ctx: UseSettlementAmountEditContext) {
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
     const rawNet = inv ? getRawNet(inv) : 0;
     const base = Math.max(0, rawNet);
-    const flat = base && !isNaN(percent) ? Math.round(((base * percent) / 100) * 100) / 100 : 0;
+    const flat = base && !isNaN(percent) ? roundMoney(((base * percent) / 100)) : 0;
     setRowDiscPercents((p) => ({ ...p, [invoiceId]: percent }));
     setRowDiscs((p) => ({ ...p, [invoiceId]: flat }));
   };
@@ -110,7 +111,7 @@ export function useSettlementAmountEdit(ctx: UseSettlementAmountEditContext) {
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
     const rawNet = inv ? getRawNet(inv) : 0;
     const base = Math.abs(rawNet);
-    const flat = base && !isNaN(percent) ? Math.round(((base * percent) / 100) * 100) / 100 : 0;
+    const flat = base && !isNaN(percent) ? roundMoney(((base * percent) / 100)) : 0;
     setRowPlusPercents((p) => ({ ...p, [invoiceId]: percent }));
     setRowPluses((p) => ({ ...p, [invoiceId]: flat }));
   };
@@ -156,7 +157,7 @@ export function useSettlementAmountEdit(ctx: UseSettlementAmountEditContext) {
     if (rawNet < 0) {
       if (!isNaN(netVal)) {
         const targetNet = netVal > 0 ? -netVal : netVal;
-        const plusVal = Math.round((targetNet - rawNet) * 100) / 100;
+        const plusVal = roundMoney((targetNet - rawNet));
         const base = Math.abs(rawNet);
         const percent = base ? Math.round(((plusVal / base) * 100) * 100) / 100 : 0;
         setRowPlusPercents((p) => ({ ...p, [invoiceId]: percent }));
@@ -164,7 +165,7 @@ export function useSettlementAmountEdit(ctx: UseSettlementAmountEditContext) {
       }
     } else {
       if (rawNet && !isNaN(netVal)) {
-        const flat = Math.max(0, Math.round((rawNet - netVal) * 100) / 100);
+        const flat = Math.max(0, roundMoney((rawNet - netVal)));
         const percent = Math.round(((flat / rawNet) * 100) * 100) / 100;
         setRowDiscPercents((p) => ({ ...p, [invoiceId]: percent }));
         setRowDiscs((p) => ({ ...p, [invoiceId]: flat }));

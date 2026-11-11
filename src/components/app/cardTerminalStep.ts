@@ -1,3 +1,4 @@
+import { moneyScale } from '../../utils/pricing/moneyRounding';
 import { cardTerminalApi, hasCardTerminal, type CardTerminalBillDetails, type CardTerminalPayment } from '../../data/cardTerminal';
 import { useCardTerminalStore, type CardTerminalPrompt } from '../../store/cardTerminalStore';
 import { getStoreProfile } from '../../utils/localization/storeProfile';
@@ -24,7 +25,7 @@ export interface CardStepInput {
   isEditing?: boolean;
 }
 
-const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+const round2 = (n: number) => Math.round((Number(n) || 0) * moneyScale()) / moneyScale();
 const ui = () => useCardTerminalStore.getState();
 
 /** The card part of a bill: the whole total for CARD, the Card tile for SPLIT, nothing otherwise. */

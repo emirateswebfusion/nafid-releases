@@ -1,3 +1,4 @@
+import { getStoreCountrySetting, roundStoreMoney, storeMoneyMinorUnit } from './storeCountryService.js';
 import type { CreditInvoice, CustomerCreditRow, EnrichedCreditInvoice, LedgerRow, ServiceDb } from './typesB.js';
 import * as partyLedgerSql from '../db/statements/partyLedger.js';
 import { CHECKOUT_PAYMENT_SUFFIXES, invoiceCreditTerms } from './partyLedgerService.js';
@@ -104,12 +105,13 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
       dueDate = new Date(new Date(inv.created_at).getTime() + creditPeriodDays * 24 * 60 * 60 * 1000);
     }
 
+    const country = getStoreCountrySetting(db, tenantId);
     let isOverdue = false;
     let overdueDays = 0;
     let remainingDays = 0;
     let status: string;
 
-    if (rem > 0.005) {
+    if (rem > storeMoneyMinorUnit(country) / 2) {
       if (dueDate) {
         const diffMs = dueDate.getTime() - now.getTime();
         const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
@@ -130,7 +132,7 @@ export function computeCustomerCreditStatusSync(db: ServiceDb, tenantId: string,
     }
 
     billAllocations.set(inv.invoice_id, {
-      outstanding: Math.round(rem * 100) / 100,
+      outstanding: roundStoreMoney(rem, country),
       dueDate,
       isOverdue,
       overdueDays,

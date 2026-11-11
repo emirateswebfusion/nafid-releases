@@ -1,6 +1,6 @@
 import { storeDate } from '../../../utils/time/dateDisplay';
 import { UaeQuotationDocumentView } from './UaeQuotationDocumentView';
-import { getStoreLocale, isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getStoreLocale, isVatStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { useRef } from 'react';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { formatDateLabel, type Quotation } from '../quotationTypes';
@@ -24,7 +24,7 @@ export function QuotationDocumentView({
   selectedQuotation, shopName,
 }: QuotationDocumentViewProps) {
   const printRef = useRef<HTMLDivElement>(null);
-  if (isUaeStore()) return <UaeQuotationDocumentView qm={qm} selectedQuotation={selectedQuotation} shopName={shopName} />;
+  if (isVatStore()) return <UaeQuotationDocumentView qm={qm} selectedQuotation={selectedQuotation} shopName={shopName} />;
   const {
     bankAccount, bankBranch, bankIfsc, bankName, previewGstEnabled, quotationItems, shopAddress, shopEmail, shopGstin,
     shopPhone, shopState, upiId,

@@ -1,3 +1,4 @@
+import { getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 
@@ -38,12 +39,12 @@ export function ItemTotalInput({
 }: ItemTotalInputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  const [localVal, setLocalVal] = useState<string>(() => (total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : ''));
+  const [localVal, setLocalVal] = useState<string>(() => (total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(getCurrencyDecimals())) : ''));
 
   useEffect(() => {
     if (!isFocused) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- total and isFocused refresh the draft only while blurred, so active typing remains untouched.
-      setLocalVal(total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : (total === 0 ? '0' : ''));
+      setLocalVal(total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(getCurrencyDecimals())) : (total === 0 ? '0' : ''));
       setIsDirty(false);
     }
   }, [total, isFocused]);
@@ -76,7 +77,7 @@ export function ItemTotalInput({
   const handleBlur = () => {
     setIsFocused(false);
     if (!isDirty) {
-      setLocalVal(total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : (total === 0 ? '0' : ''));
+      setLocalVal(total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(getCurrencyDecimals())) : (total === 0 ? '0' : ''));
       return;
     }
     setIsDirty(false);
@@ -87,7 +88,7 @@ export function ItemTotalInput({
       onClearLocalDiscounts(productId);
       const effectiveQty = qty > 0 ? qty : 1;
       const defaultTotal = rate * effectiveQty;
-      setLocalVal(defaultTotal > 0 ? (Number.isInteger(defaultTotal) ? String(defaultTotal) : defaultTotal.toFixed(2)) : '');
+      setLocalVal(defaultTotal > 0 ? (Number.isInteger(defaultTotal) ? String(defaultTotal) : defaultTotal.toFixed(getCurrencyDecimals())) : '');
       syncActiveSnapshot();
     } else {
       const effectiveQty = qty > 0 ? qty : 1;
@@ -97,7 +98,7 @@ export function ItemTotalInput({
       } else {
         onUpdateOfferPrice(productId, newUnitPrice);
       }
-      setLocalVal(Number.isInteger(parsed) ? String(parsed) : parsed.toFixed(2));
+      setLocalVal(Number.isInteger(parsed) ? String(parsed) : parsed.toFixed(getCurrencyDecimals()));
       onClearLocalDiscounts(productId);
       syncActiveSnapshot();
     }

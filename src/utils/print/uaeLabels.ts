@@ -3,6 +3,8 @@
  * quotations, purchase bills and the WhatsApp bill text. These label pairs live only here.
  * The English halves are the exact wording printed before Arabic was added, so turning Arabic off restores it.
  */
+import { getStoreCountry, type StoreCountry } from '../localization/storeProfile';
+
 export interface BilingualLabel { en: string; ar: string }
 
 export const UAE_LABELS = {
@@ -76,6 +78,19 @@ export const UAE_LABELS = {
   pdfAttached: { en: 'Detailed PDF invoice is attached below.', ar: 'الفاتورة التفصيلية مرفقة بصيغة PDF.' },
 } as const satisfies Record<string, BilingualLabel>;
 
+export const BAHRAIN_LABELS = {
+  ...UAE_LABELS,
+  trn: { en: 'VAT Account No.', ar: 'رقم الحساب الضريبي' },
+  customerTrn: { en: 'Customer VAT Account No.', ar: 'رقم الحساب الضريبي للعميل' },
+  currency: { en: 'Currency: BHD (Bahraini Dinar)', ar: 'العملة: دينار بحريني' },
+  amountsNote: { en: 'All amounts in BHD; rates exclude VAT', ar: 'المبالغ بالدينار؛ الأسعار غير شاملة الضريبة' },
+  simplifiedTaxInvoice: { en: 'SIMPLIFIED TAX INVOICE', ar: 'فاتورة ضريبية مبسطة' },
+} as const satisfies Record<string, BilingualLabel>;
+
+export function getVatLabels(country: StoreCountry = getStoreCountry()): typeof UAE_LABELS & { simplifiedTaxInvoice?: BilingualLabel } {
+  return country === 'BH' ? (BAHRAIN_LABELS as unknown as typeof UAE_LABELS & { simplifiedTaxInvoice?: BilingualLabel }) : UAE_LABELS;
+}
+
 export type UaeLabelKey = keyof typeof UAE_LABELS;
 
 const PAYMENT_METHODS: Record<string, string> = {
@@ -94,7 +109,10 @@ export function uaePaymentMethod(method: string | undefined): BilingualLabel | u
  * "Tax Credit Note" on credit notes. A shop with no TRN is not a registrant and cannot issue either. A VAT bill is an
  * invoiceType 'GST' sale, a B2B sale, or any sale that charged VAT; a zero-VAT bill of supply keeps "Invoice".
  */
-export function uaeDocumentTitle(doc: { invoiceType?: string; isB2B?: boolean; shopGstin?: string; tax?: number }): BilingualLabel {
+export function uaeDocumentTitle(
+  doc: { invoiceType?: string; isB2B?: boolean; shopGstin?: string; tax?: number; grandTotal?: number },
+  country: StoreCountry = getStoreCountry()
+): BilingualLabel {
   const registered = Boolean(doc.shopGstin?.trim());
   const type = doc.invoiceType || '';
   if (['RETURN', 'SALES_RETURN', 'CREDIT_NOTE'].includes(type)) return registered ? UAE_LABELS.taxCreditNote : UAE_LABELS.creditNote;
@@ -102,7 +120,12 @@ export function uaeDocumentTitle(doc: { invoiceType?: string; isB2B?: boolean; s
   if (type === 'QUOTATION') return UAE_LABELS.quotation;
   if (type === 'ESTIMATE') return UAE_LABELS.estimate;
   const chargesVat = type === 'GST' || Boolean(doc.isB2B) || Number(doc.tax) > 0;
-  return registered && chargesVat ? UAE_LABELS.taxInvoice : UAE_LABELS.invoice;
+  if (!registered || !chargesVat) return UAE_LABELS.invoice;
+  if (country === 'BH') {
+    const isSimplified = !doc.isB2B && (doc.grandTotal == null || doc.grandTotal <= 500);
+    return isSimplified ? BAHRAIN_LABELS.simplifiedTaxInvoice : UAE_LABELS.taxInvoice;
+  }
+  return UAE_LABELS.taxInvoice;
 }
 
 /** Number label that matches the document title. */

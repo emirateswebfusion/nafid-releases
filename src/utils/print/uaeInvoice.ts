@@ -3,7 +3,8 @@ import type { ReceiptData } from './receipt/receiptCore';
 import { formatBillDateTime } from './receipt/receiptCore';
 import { receiptCreditTotals } from '../pricing/receiptCredits';
 import { formatCurrency } from '../pricing/money';
-import { UAE_ARABIC_CSS, UAE_LABELS as L, bilingualHtml, escapeHtml as escape, getUaeArabicPrint, uaeDocumentTitle, uaeNumberLabel, uaePaymentMethod, uaeVatLabel, type BilingualLabel } from './uaeLabels';
+import { UAE_ARABIC_CSS, UAE_LABELS, getVatLabels, bilingualHtml, escapeHtml as escape, getUaeArabicPrint, uaeDocumentTitle, uaeNumberLabel, uaePaymentMethod, uaeVatLabel, type BilingualLabel } from './uaeLabels';
+const L = new Proxy({} as typeof UAE_LABELS, { get: (_, prop: string) => (getVatLabels() as unknown as Record<string, BilingualLabel>)[prop] });
 const amount = (value: unknown) => formatCurrency(value);
 const isPurchase = (data: InvoiceData | ReceiptData) => data.invoiceType === 'PURCHASE';
 

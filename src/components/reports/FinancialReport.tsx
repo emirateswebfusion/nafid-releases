@@ -1,3 +1,4 @@
+import { moneyFixed } from '../../utils/pricing/moneyRounding';
 import { storeCalendarDate, calendarDateKey } from '../../utils/time/timezoneHelper';
 import { getStoreBusinessDate } from '../../utils/time/timezoneHelper';
 import { storeDateTime } from '../../utils/time/dateDisplay';
@@ -279,23 +280,23 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       ['Generated On', storeDateTime(new Date(), getStoreLocale(), { timeZone: getStoreTimezone() })],
       [],
       ['Metric', `Amount (${getStoreProfile().currency})`],
-      ['Gross Sales Revenue', finData.grossSales.toFixed(2)],
-      ['Discounts Allowed', finData.totalDiscount.toFixed(2)],
-      ['Net Sales Revenue', finData.netSales.toFixed(2)],
-      ['Tax Collected (GST)', finData.totalTax.toFixed(2)],
-      ['Cost of Goods Sold (COGS)', finData.cogs.toFixed(2)],
-      ['Gross Profit', finData.grossProfit.toFixed(2)],
+      ['Gross Sales Revenue', moneyFixed(finData.grossSales)],
+      ['Discounts Allowed', moneyFixed(finData.totalDiscount)],
+      ['Net Sales Revenue', moneyFixed(finData.netSales)],
+      ['Tax Collected (GST)', moneyFixed(finData.totalTax)],
+      ['Cost of Goods Sold (COGS)', moneyFixed(finData.cogs)],
+      ['Gross Profit', moneyFixed(finData.grossProfit)],
       ['Gross Margin %', `${finData.grossMarginPercent.toFixed(2)}%`],
-      ['Scrap Revenue', finData.scrapRevenue.toFixed(2)],
-      ['Estimated Net Operating Profit', finData.netProfit.toFixed(2)],
+      ['Scrap Revenue', moneyFixed(finData.scrapRevenue)],
+      ['Estimated Net Operating Profit', moneyFixed(finData.netProfit)],
       [],
       ['Payment Method Breakdown'],
-      ['Cash', finData.paymentMethods.cash.toFixed(2)],
-      ['UPI / Digital', finData.paymentMethods.upi.toFixed(2)],
-      ['Card', finData.paymentMethods.card.toFixed(2)],
-      ['Bank Transfer', finData.paymentMethods.bank.toFixed(2)],
-      ['Cheque', finData.paymentMethods.cheque.toFixed(2)],
-      ['Credit Sales', finData.paymentMethods.credit.toFixed(2)],
+      ['Cash', moneyFixed(finData.paymentMethods.cash)],
+      ['UPI / Digital', moneyFixed(finData.paymentMethods.upi)],
+      ['Card', moneyFixed(finData.paymentMethods.card)],
+      ['Bank Transfer', moneyFixed(finData.paymentMethods.bank)],
+      ['Cheque', moneyFixed(finData.paymentMethods.cheque)],
+      ['Credit Sales', moneyFixed(finData.paymentMethods.credit)],
     ];
 
     const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');

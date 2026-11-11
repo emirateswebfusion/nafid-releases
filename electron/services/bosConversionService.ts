@@ -1,6 +1,7 @@
 import type { DomainAttributes, InvoiceItemRow, InvoiceRow, ProductRow, PurchaseBillItemRow, SeriesSetting, SettingRow } from './typesA.js';
 import { getDb } from '../db/localDb.js';
 import { getGuaranteedNextInvoiceNumber, peekGuaranteedNextInvoiceNumber, requestServerInvoiceNumber } from './invoiceNumberService.js';
+import { isVatCountry, parseStoreCountry } from './storeCountryService.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
 import { splitTaxAmount } from '../utils/taxSplit.js';
@@ -309,7 +310,7 @@ export async function convertBosToGst(payload: {
     };
 
     const countryRow = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'store_country') as SettingRow | undefined;
-    const isUae = parseSetting(countryRow) === 'AE';
+    const isVatShop = isVatCountry(parseStoreCountry(parseSetting(countryRow)));
 
     // Get shop state
     const shopStateRow = invoicesSql.findSettingsByKey(db).get(payload.tenant_id || 'global', 'shop_state') as SettingRow | undefined;
@@ -575,11 +576,11 @@ export async function convertBosToGst(payload: {
 
           const newInvoiceId = crypto.randomUUID();
 
-          const isInterStateConv = !isUae && shopState.trim().toUpperCase() !== '' && (inv.customer_state || '').trim().toUpperCase() !== '' && shopState.trim().toUpperCase() !== (inv.customer_state || '').trim().toUpperCase();
+          const isInterStateConv = !isVatShop && shopState.trim().toUpperCase() !== '' && (inv.customer_state || '').trim().toUpperCase() !== '' && shopState.trim().toUpperCase() !== (inv.customer_state || '').trim().toUpperCase();
           const convSupplyType: 'INTRA' | 'INTER' = isInterStateConv ? 'INTER' : 'INTRA';
           const invoiceTaxSplit = splitTaxAmount(adjustedTax);
-          const convCgstTotal = isUae || isInterStateConv ? 0 : invoiceTaxSplit.cgst;
-          const convSgstTotal = isUae || isInterStateConv ? 0 : invoiceTaxSplit.sgst;
+          const convCgstTotal = isVatShop || isInterStateConv ? 0 : invoiceTaxSplit.cgst;
+          const convSgstTotal = isVatShop || isInterStateConv ? 0 : invoiceTaxSplit.sgst;
           const convIgstTotal = isInterStateConv ? adjustedTax : 0;
 
           const originalReceived = Number(inv.received_amount) || 0;
@@ -683,11 +684,11 @@ export async function convertBosToGst(payload: {
           const insertItemStmt = invoicesSql.insertInvoiceItem4(db);
           for (const ci of copyItems) {
             const itemTaxSplit = splitTaxAmount(ci.newTaxAmount);
-            const itemCgst = isUae || isInterStateConv ? 0 : itemTaxSplit.cgst;
-            const itemSgst = isUae || isInterStateConv ? 0 : itemTaxSplit.sgst;
+            const itemCgst = isVatShop || isInterStateConv ? 0 : itemTaxSplit.cgst;
+            const itemSgst = isVatShop || isInterStateConv ? 0 : itemTaxSplit.sgst;
             const itemIgst = isInterStateConv ? ci.newTaxAmount : 0;
-            const itemCgstRate = isUae || isInterStateConv ? 0 : Math.round((ci.taxRate / 2) * 100) / 100;
-            const itemSgstRate = isUae || isInterStateConv ? 0 : Math.round((ci.taxRate / 2) * 100) / 100;
+            const itemCgstRate = isVatShop || isInterStateConv ? 0 : Math.round((ci.taxRate / 2) * 100) / 100;
+            const itemSgstRate = isVatShop || isInterStateConv ? 0 : Math.round((ci.taxRate / 2) * 100) / 100;
             const itemIgstRate = isInterStateConv ? ci.taxRate : 0;
 
             insertItemStmt.run(

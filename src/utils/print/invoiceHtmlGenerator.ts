@@ -1,4 +1,4 @@
-import { isUaeStore } from '../localization/storeProfile';
+import { isVatStore } from '../localization/storeProfile';
 import { generateUaeInvoiceHtml } from './uaeInvoice';
 import { getDocumentTitle, type InvoiceData } from './invoiceHtml/invoiceHtmlCore';
 import { generateBoxedHtml } from './invoiceHtml/styles/boxed';
@@ -13,7 +13,7 @@ export { generatePurchaseBillHtml } from './invoiceHtml/purchaseBillHtml';
 
 
 export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'boxed' | 'modern' | 'classic' | 'half-a4' = 'standard'): string {
-  if (isUaeStore()) return generateUaeInvoiceHtml(data);
+  if (isVatStore()) return generateUaeInvoiceHtml(data);
   const bs = data.billSettings;
   const isB2B = data.isB2B === true;
   const title = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B, bs?.nonGstBillTitle);

@@ -16,6 +16,8 @@ import { getUtcRangeForStoreDateRange, getStoreTimezoneSetting, parseCleanDate }
 import { getDb } from '../db/localDb.js';
 import * as vatSql from '../db/statements/vatReports.js';
 import { validateTRN, normalizeEmirate, UAE_EMIRATES_LIST, type UaeEmirateCode } from '../utils/trnValidator.js';
+import { roundStoreMoney, storeMoneyDecimals } from '../utils/moneyRounding.js';
+import { getStoreCountrySetting } from './storeCountryService.js';
 
 export interface VatPeriodFilter {
   tenant_id: string;
@@ -244,9 +246,7 @@ interface RawPurchaseItemRow {
   product_name?: string;
 }
 
-function r2(val: number): number {
-  return Math.round((Number(val) || 0) * 100) / 100;
-}
+
 
 /**
  * Generates the full UAE VAT 201 Return & FTA Audit Report.
@@ -259,6 +259,11 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
     }
 
     const db = getDb();
+    const country = getStoreCountrySetting(db, tenant_id);
+    const decimals = storeMoneyDecimals(country);
+    const r = (val: number) => roundStoreMoney(val, country);
+    const defaultRate: number = country === 'BH' ? 10 : 5;
+    const currencyName = country === 'BH' ? 'BHD' : 'AED';
     const timezone = getStoreTimezoneSetting(db, tenant_id);
     const activeEmirate = normalizeEmirate(shop_emirate);
 
@@ -313,13 +318,13 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
 
     for (const inv of invoices) {
       const items = invoiceItemMap.get(inv.invoice_id) || [];
-      const invTax = r2(inv.tax_total);
-      const invGrand = r2(inv.grand_total);
-      const invSub = r2(inv.subtotal);
+      const invTax = r(inv.tax_total);
+      const invGrand = r(inv.grand_total);
+      const invSub = r(inv.subtotal);
 
-      grossSales = r2(grossSales + invGrand);
-      netSalesTaxable = r2(netSalesTaxable + invSub);
-      totalOutputVat = r2(totalOutputVat + invTax);
+      grossSales = r(grossSales + invGrand);
+      netSalesTaxable = r(netSalesTaxable + invSub);
+      totalOutputVat = r(totalOutputVat + invTax);
 
       const hasTrn = Boolean(inv.customer_gstin && inv.customer_gstin.trim().length > 0);
       const isLargeInvoice = invGrand >= 10000;
@@ -338,7 +343,7 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
 
       // If customer has TRN, validate it
       if (hasTrn) {
-        const trnVal = validateTRN(inv.customer_gstin);
+        const trnVal = validateTRN(inv.customer_gstin, country);
         if (!trnVal.isValid) {
           validationIssues.push({
             severity: 'WARNING',
@@ -350,12 +355,12 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
       }
 
       // Tax reconciliation check: subtotal * 5% vs invTax
-      const expectedVat = r2(invSub * 0.05);
+      const expectedVat = r(invSub * (defaultRate / 100));
       if (Math.abs(expectedVat - invTax) > 0.05 && invTax > 0) {
         validationIssues.push({
           severity: 'INFO',
           code: 'VAT_ROUNDING_MISMATCH',
-          message: `Invoice ${inv.invoice_number} has VAT difference: stored ${invTax.toFixed(2)} AED vs calculated ${expectedVat.toFixed(2)} AED`,
+          message: `Invoice ${inv.invoice_number} has VAT difference: stored ${invTax.toFixed(decimals)} ${currencyName} vs calculated ${expectedVat.toFixed(decimals)} ${currencyName}`,
           documentRef: inv.invoice_number,
         });
       }
@@ -385,12 +390,12 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
     let creditNotesVat = 0;
 
     for (const ret of returns) {
-      const retSub = r2(ret.subtotal);
-      const retTax = r2(ret.tax_total);
-      const retGrand = r2(ret.grand_total);
+      const retSub = r(ret.subtotal);
+      const retTax = r(ret.tax_total);
+      const retGrand = r(ret.grand_total);
 
-      creditNotesTaxable = r2(creditNotesTaxable + retSub);
-      creditNotesVat = r2(creditNotesVat + retTax);
+      creditNotesTaxable = r(creditNotesTaxable + retSub);
+      creditNotesVat = r(creditNotesVat + retTax);
 
       const creditNoteNumber = ret.credit_note_number || ret.return_number;
       if (!ret.original_invoice_number) {
@@ -428,8 +433,8 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
 
     for (const pb of purchases) {
       const pItems = purchaseItemMap.get(pb.purchase_bill_id) || [];
-      const billTotal = r2(pb.total_amount);
-      grossPurchases = r2(grossPurchases + billTotal);
+      const billTotal = r(pb.total_amount);
+      grossPurchases = r(grossPurchases + billTotal);
 
       // Calculate taxable and VAT from items or bill
       let billTaxable = 0;
@@ -437,32 +442,32 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
 
       if (pItems.length > 0) {
         for (const pItem of pItems) {
-          const itemTotal = r2(pItem.total_amount);
+          const itemTotal = r(pItem.total_amount);
           const rate = pItem.tax_rate_percent !== null && pItem.tax_rate_percent !== undefined
             ? Number(pItem.tax_rate_percent)
-            : 5;
+            : defaultRate;
           const isTaxable = pItem.is_gst_applicable !== 0 && rate > 0;
           if (isTaxable) {
             // UAE VAT is usually inclusive or 5% on purchase
-            const tax = r2(itemTotal * (rate / (100 + rate)));
-            const taxable = r2(itemTotal - tax);
-            billTaxable = r2(billTaxable + taxable);
-            billVat = r2(billVat + tax);
+            const tax = r(itemTotal * (rate / (100 + rate)));
+            const taxable = r(itemTotal - tax);
+            billTaxable = r(billTaxable + taxable);
+            billVat = r(billVat + tax);
           } else {
-            billTaxable = r2(billTaxable + itemTotal);
+            billTaxable = r(billTaxable + itemTotal);
           }
         }
       } else {
         // Fallback: 5% standard VAT on purchase bill total
-        billVat = r2(billTotal * (5 / 105));
-        billTaxable = r2(billTotal - billVat);
+        billVat = r(billTotal * (defaultRate / (100 + defaultRate)));
+        billTaxable = r(billTotal - billVat);
       }
 
-      netPurchasesTaxable = r2(netPurchasesTaxable + billTaxable);
-      recoverableInputVat = r2(recoverableInputVat + billVat);
+      netPurchasesTaxable = r(netPurchasesTaxable + billTaxable);
+      recoverableInputVat = r(recoverableInputVat + billVat);
 
       if (pb.supplier_trn) {
-        const sTrnVal = validateTRN(pb.supplier_trn);
+        const sTrnVal = validateTRN(pb.supplier_trn, country);
         if (!sTrnVal.isValid) {
           validationIssues.push({
             severity: 'INFO',
@@ -504,20 +509,20 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
     for (const sale of salesAudit) {
       if (sale.taxCategory === 'STANDARD') {
         const e = normalizeEmirate(sale.emirate);
-        emirateBoxes[e].amount = r2(emirateBoxes[e].amount + sale.taxableAmount);
-        emirateBoxes[e].vat = r2(emirateBoxes[e].vat + sale.vatAmount);
+        emirateBoxes[e].amount = r(emirateBoxes[e].amount + sale.taxableAmount);
+        emirateBoxes[e].vat = r(emirateBoxes[e].vat + sale.vatAmount);
       } else if (sale.taxCategory === 'EXEMPT') {
-        exemptAmount = r2(exemptAmount + sale.taxableAmount);
+        exemptAmount = r(exemptAmount + sale.taxableAmount);
       } else {
-        zeroRatedAmount = r2(zeroRatedAmount + sale.taxableAmount);
+        zeroRatedAmount = r(zeroRatedAmount + sale.taxableAmount);
       }
     }
 
     // Allocate returns/credit notes as Adjustments to the store's Emirate
     for (const cn of creditNotesAudit) {
       const e = normalizeEmirate(cn.emirate);
-      emirateBoxes[e].adj = r2(emirateBoxes[e].adj + cn.taxableAmount);
-      emirateBoxes[e].adjVat = r2(emirateBoxes[e].adjVat + cn.vatAmount);
+      emirateBoxes[e].adj = r(emirateBoxes[e].adj + cn.taxableAmount);
+      emirateBoxes[e].adjVat = r(emirateBoxes[e].adjVat + cn.vatAmount);
     }
 
     const standardRatedSupplies = {
@@ -579,11 +584,11 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
       },
     };
 
-    const totalEmirateAmount = UAE_EMIRATES_LIST.reduce((acc, e) => r2(acc + emirateBoxes[e.code].amount), 0);
-    const totalEmirateVat = UAE_EMIRATES_LIST.reduce((acc, e) => r2(acc + emirateBoxes[e.code].vat), 0);
-    const totalEmirateAdj = UAE_EMIRATES_LIST.reduce((acc, e) => r2(acc + emirateBoxes[e.code].adj), 0);
-    const totalEmirateAdjVat = UAE_EMIRATES_LIST.reduce((acc, e) => r2(acc + emirateBoxes[e.code].adjVat), 0);
-    const totalOutputAmount = r2(totalEmirateAmount + zeroRatedAmount + exemptAmount);
+    const totalEmirateAmount = UAE_EMIRATES_LIST.reduce((acc, e) => r(acc + emirateBoxes[e.code].amount), 0);
+    const totalEmirateVat = UAE_EMIRATES_LIST.reduce((acc, e) => r(acc + emirateBoxes[e.code].vat), 0);
+    const totalEmirateAdj = UAE_EMIRATES_LIST.reduce((acc, e) => r(acc + emirateBoxes[e.code].adj), 0);
+    const totalEmirateAdjVat = UAE_EMIRATES_LIST.reduce((acc, e) => r(acc + emirateBoxes[e.code].adjVat), 0);
+    const totalOutputAmount = r(totalEmirateAmount + zeroRatedAmount + exemptAmount);
 
     const section1Output: Vat201SectionOutput = {
       standardRatedSupplies,
@@ -598,7 +603,7 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
         totalVat: totalEmirateVat,
         totalAdjustment: totalEmirateAdj,
         totalAdjustmentVat: totalEmirateAdjVat,
-        netOutputVatDue: r2(totalEmirateVat - totalEmirateAdjVat),
+        netOutputVatDue: r(totalEmirateVat - totalEmirateAdjVat),
       },
     };
 
@@ -634,7 +639,7 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
     // Section 3: Net VAT Due / Reclaimable (Boxes 12 to 14)
     const box12Due = section1Output.totalOutputTax.netOutputVatDue;
     const box13Recoverable = section2Input.totalInputTax.netInputVatRecoverable;
-    const netDiff = r2(box12Due - box13Recoverable);
+    const netDiff = r(box12Due - box13Recoverable);
 
     const netDue: Vat201NetDue = {
       totalDueTax: box12Due,

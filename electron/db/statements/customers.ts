@@ -1,3 +1,4 @@
+import { moneyDecimalsSql } from './moneyPrecision.js';
 import type { Db } from './types.js';
 
 /** SQL statements used by services/customersService.ts. Each factory prepares its statement on the given connection. */
@@ -147,7 +148,7 @@ export function getCustomersStatement(db: Db, args: { tenant_id: string; search:
            COALESCE(c.credit_period_basis,   p.credit_period_basis,   'BILL_BASED') AS credit_period_basis,
            COALESCE(c.restrict_on_credit_expiry, p.restrict_on_credit_expiry, 1)   AS restrict_on_credit_expiry,
            COALESCE(
-             (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), 2)
+             (SELECT ROUND(SUM(pl.credit_amount) - SUM(pl.debit_amount), ${moneyDecimalsSql('p.tenant_id')})
               FROM party_ledger pl
               WHERE pl.party_id = p.party_id
                 AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),

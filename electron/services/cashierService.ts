@@ -1,3 +1,4 @@
+import { getStoreCountrySetting, roundStoreMoney } from './storeCountryService.js';
 import { captureInvoicePoints, refreshInvoiceEarnings } from './loyaltyService.js';
 import type { CashCategoryRow, CashDrawerRow, CashTransactionRow, InvoiceRow, SettingRow, SplitDetails } from './typesA.js';
 import { getDb } from '../db/localDb.js';
@@ -58,7 +59,7 @@ export function getDrawer({ tenant_id, business_date }: { tenant_id: string; bus
     const invoices = registerSql.listRegisterInvoices(db).all(tenant_id, window.from, window.to, window.to) as Array<{
       payment_method: string; grand_total: number; received_amount: number; split_details: string | null;
     }>;
-    return { ...drawer, payment_totals: calculateRegisterPayments(invoices, getCashRegisterPreferences(db, tenant_id).paymentMethods) };
+    return { ...drawer, payment_totals: calculateRegisterPayments(invoices, getCashRegisterPreferences(db, tenant_id).paymentMethods, getStoreCountrySetting(db, tenant_id)) };
   } catch (error) {
     console.error(`[Cashier] getDrawer error:`, (error as Error).message);
     return { error: 'Operation failed' };
@@ -314,14 +315,15 @@ export function dayClosing({ tenant_id, actual_cash, closing_remarks, user_id, u
       
       drawer = reconcileCashDrawer(db, tenant_id, drawer);
 
-      const cashIn = Math.round(Number(drawer.cash_in || 0) * 100) / 100;
-      const cashOut = Math.round(Number(drawer.cash_out || 0) * 100) / 100;
-      const openingBal = Math.round(Number(drawer.opening_balance || 0) * 100) / 100;
-      const cashSales = Math.round(Number(drawer.cash_sales || 0) * 100) / 100;
+      const country = getStoreCountrySetting(db, tenant_id);
+      const cashIn = roundStoreMoney(Number(drawer.cash_in || 0), country);
+      const cashOut = roundStoreMoney(Number(drawer.cash_out || 0), country);
+      const openingBal = roundStoreMoney(Number(drawer.opening_balance || 0), country);
+      const cashSales = roundStoreMoney(Number(drawer.cash_sales || 0), country);
 
-      expected = Math.round(Number(drawer.expected_closing || (openingBal + cashSales + cashIn - cashOut)) * 100) / 100;
-      actual = Math.round(Number(actual_cash) * 100) / 100;
-      const variance = Math.round((actual - expected) * 100) / 100;
+      expected = roundStoreMoney(Number(drawer.expected_closing || (openingBal + cashSales + cashIn - cashOut)), country);
+      actual = roundStoreMoney(Number(actual_cash), country);
+      const variance = roundStoreMoney(actual - expected, country);
       cash_short = variance < 0 ? Math.abs(variance) : 0;
       cash_excess = variance > 0 ? variance : 0;
       

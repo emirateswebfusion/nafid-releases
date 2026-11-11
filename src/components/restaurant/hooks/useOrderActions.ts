@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { restaurantApi, type NewOrderLine, type OrderLine, type RestaurantOrder } from '../../../data/restaurant';
 import { printingApi } from '../../../data/printing';
 import { getProductsByIds } from '../../../data/products';
-import { isUaeStore } from '../../../utils/localization/storeProfile';
+import { isVatStore } from '../../../utils/localization/storeProfile';
 import { orderToCartItems } from '../restaurantRules';
 import { guestCheckText } from '../guestCheck';
 import { sendOrderToBilling } from '../restaurantBillHandover';
@@ -111,7 +111,7 @@ export function useOrderActions(ctx: ActionContext) {
   const printGuestCheck = useCallback((order: RestaurantOrder, lines: OrderLine[], applyServiceCharge = true) => run(async () => {
     const items = await cartFor(order, lines, applyServiceCharge);
     if (items.length === 0) { setMessage({ tone: 'warn', text: 'Nothing on the order yet' }); return false; }
-    const text = guestCheckText({ shopName: ctx.shopName, title: titleOf(order), items, taxLabel: isUaeStore() ? 'VAT' : 'GST' });
+    const text = guestCheckText({ shopName: ctx.shopName, title: titleOf(order), items, taxLabel: isVatStore() ? 'VAT' : 'GST' });
     const printed = await printingApi.printReceipt(tenantId, text);
     return report(printed.success ? printed : { success: false, error: `Guest check not printed: ${printed.error || 'printer error'}` }, 'Guest check printed');
   }), [run, cartFor, titleOf, report, tenantId, ctx.shopName]);

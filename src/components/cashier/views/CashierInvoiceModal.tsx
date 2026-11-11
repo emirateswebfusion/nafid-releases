@@ -1,5 +1,6 @@
+import { roundMoney } from '../../../utils/pricing/moneyRounding';
 import { InvoiceItemsTable } from '../../sales/views/InvoiceItemsTable';
-import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { isVatStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { useLoyaltyEnabled } from '../../../hooks/useLoyaltyEnabled';
 import type { DisplayInvoiceItem, DisplayComboItem } from '../../sales/invoiceDisplayTypes';
@@ -296,7 +297,7 @@ export function CashierInvoiceModal({
 
           {/* Items */}
           {(() => {
-            if (isUaeStore()) return <InvoiceItemsTable items={invoiceItems} itemsLoading={loadingItems} selectedInvoice={selectedInvoice} />;
+            if (isVatStore()) return <InvoiceItemsTable items={invoiceItems} itemsLoading={loadingItems} selectedInvoice={selectedInvoice} />;
             const isGstBill = selectedInvoice.invoice_type === 'GST' || 
                               Number(selectedInvoice.tax_total) > 0 || 
                               invoiceItems.some((it) => Number(it.tax_amount) > 0 || Number(it.cgst_rate) > 0 || Number(it.tax_rate) > 0);
@@ -366,12 +367,12 @@ export function CashierInvoiceModal({
 
                         // Taxable base (Base Amount = Total - Tax or Qty * Unit Price)
                         const taxableBase = itemTotal > itemTax 
-                          ? Math.round((itemTotal - itemTax) * 100) / 100 
-                          : Math.round((qty * unitPriceExcl) * 100) / 100;
+                          ? roundMoney((itemTotal - itemTax)) 
+                          : roundMoney((qty * unitPriceExcl));
 
                         // Unit price including tax
                         const unitPriceIncl = qty > 0 
-                          ? Math.round((itemTotal / qty) * 100) / 100 
+                          ? roundMoney((itemTotal / qty)) 
                           : (unitPriceExcl + itemTax);
 
                         let calculatedRate = directRate;
@@ -553,7 +554,7 @@ export function CashierInvoiceModal({
                     <span className="font-bold text-foreground">{formatCurrency(sub)}</span>
                   </div>
                   {tax > 0 && (() => {
-                    if (isUaeStore()) return <div className="flex justify-between text-xs"><span>VAT</span><span>{formatCurrency(tax)}</span></div>;
+                    if (isVatStore()) return <div className="flex justify-between text-xs"><span>VAT</span><span>{formatCurrency(tax)}</span></div>;
                     const effTaxRate = sub > 0 ? Math.round((tax / sub) * 100 * 10) / 10 : 0;
                     const isInter = selectedInvoice.supply_type === 'INTER';
                     let cgst = Number(selectedInvoice.cgst_total) || 0;

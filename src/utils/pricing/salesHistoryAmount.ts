@@ -1,3 +1,4 @@
+import { moneyScale } from './moneyRounding';
 type SalesAmountInvoice = { scrap_deduction?: number | string | null; return_deduction?: number | string | null; subtotal?: number | string | null; tax_total?: number | string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; actual_refund_paid?: number | string | null; grand_total?: number | string | null; invoice_type?: string | null };
 export interface SalesHistoryAmountSummary {
   amount: number;
@@ -55,7 +56,7 @@ export function getInvoiceNetTotal(inv: SalesAmountInvoice): number {
 
 /** Header GST is already calculated by checkout. Do not apply the GST rate to a tax-inclusive total again. */
 export function getSalesTaxBreakdown(summary: { totalSalesBeforeDeductions: number; totalTax: number }) {
-  const round = (value: number) => Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+  const round = (value: number) => Math.round((Number.isFinite(value) ? value : 0) * moneyScale()) / moneyScale();
   const grandTotalIncludingGst = round(Number(summary.totalSalesBeforeDeductions));
   const gstAmount = round(Number(summary.totalTax));
   return { salesExcludingGst: round(grandTotalIncludingGst - gstAmount), gstAmount, grandTotalIncludingGst };

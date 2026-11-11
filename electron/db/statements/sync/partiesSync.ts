@@ -1,3 +1,4 @@
+import { moneyDecimalsSql } from '../moneyPrecision.js';
 import type { Db } from '../types.js';
 
 /** SQL used by electron/sync/entities/partiesSync.ts. Each factory prepares its statement on the given connection. */
@@ -30,17 +31,17 @@ export const insertParties = (db: Db) => db.prepare(`
       gstin = excluded.gstin,
       balance = CASE
         WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        THEN (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), ${moneyDecimalsSql('parties.tenant_id')}) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
         ELSE excluded.balance
       END,
       gst_balance = CASE
         WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('parties.tenant_id')}) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
         ELSE excluded.gst_balance
       END,
       estimate_balance = CASE
         WHEN EXISTS (SELECT 1 FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
-        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+        THEN (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('parties.tenant_id')}) FROM party_ledger pl WHERE pl.party_id = parties.party_id AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
         ELSE excluded.estimate_balance
       END,
       balance_type = excluded.balance_type,
@@ -106,21 +107,21 @@ export const insertPartyLedger = (db: Db) => db.prepare(`
 export const updateParties3 = (db: Db) => db.prepare(`
             UPDATE parties
             SET balance = COALESCE(
-                  (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), 2)
+                  (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), ${moneyDecimalsSql('parties.tenant_id')})
                    FROM party_ledger pl
                    WHERE pl.party_id = parties.party_id
                      AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
                   parties.balance, 0
                 ),
                 gst_balance = COALESCE(
-                  (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+                  (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('parties.tenant_id')})
                    FROM party_ledger pl
                    WHERE pl.party_id = parties.party_id
                      AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
                   parties.gst_balance, parties.balance, 0
                 ),
                 estimate_balance = COALESCE(
-                  (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), 2)
+                  (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('parties.tenant_id')})
                    FROM party_ledger pl
                    WHERE pl.party_id = parties.party_id
                      AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),

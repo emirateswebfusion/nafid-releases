@@ -1,3 +1,4 @@
+import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import { storeDateTime, storeDate } from '../../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
 import type React from 'react';
@@ -59,11 +60,11 @@ export function usePurchaseCsvExport(ctx: UsePurchaseCsvExportContext) {
           escape(storeDateTime(b.bill_date as string, getStoreLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-')),
           escape(b.supplier_name),
           escape((b as typeof b & { supplier_gstin?: string }).supplier_gstin || ''),
-          escape((b.total_amount ?? 0).toFixed(2)),
-          escape(taxableAmount.toFixed(2)),
-          escape(cgst.toFixed(2)),
-          escape(sgst.toFixed(2)),
-          '0.00', '0.00', '0.00',
+          escape(moneyFixed(b.total_amount ?? 0)),
+          escape(moneyFixed(taxableAmount)),
+          escape(moneyFixed(cgst)),
+          escape(moneyFixed(sgst)),
+          moneyFixed(0), moneyFixed(0), moneyFixed(0),
         ];
       });
 

@@ -1,4 +1,4 @@
-import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { isVatStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { FileText, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
@@ -23,7 +23,7 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
 }) => {
   return (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {isUaeStore() && <UaeArabicPrintSetting />}
+            {isVatStore() && <UaeArabicPrintSetting />}
             {/* Card 1: General Bill Options & Checklist */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
@@ -77,7 +77,7 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
                     <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setBillSettings(s => ({ ...s, quotationGstEnabled: s.quotationGstEnabled === false ? true : false }))}>Enable {localizeTaxText("GST")} in Quotations</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">{isUaeStore() ? 'When enabled, quotations display net amounts, VAT rates and VAT totals.' : 'When enabled, quotations display HSN/SAC, Taxable Value, CGST/SGST/IGST columns, and tax summary.'} When disabled, generates a clean Non-{localizeTaxText("GST")} quotation.</p>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">{isVatStore() ? 'When enabled, quotations display net amounts, VAT rates and VAT totals.' : 'When enabled, quotations display HSN/SAC, Taxable Value, CGST/SGST/IGST columns, and tax summary.'} When disabled, generates a clean Non-{localizeTaxText("GST")} quotation.</p>
                   </div>
                   <button type="button" onClick={() => setBillSettings(s => ({ ...s, quotationGstEnabled: s.quotationGstEnabled === false ? true : false }))} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billSettings.quotationGstEnabled !== false ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billSettings.quotationGstEnabled !== false ? 'translate-x-5' : 'translate-x-0')} />
@@ -192,7 +192,7 @@ export const PrintOptionsSettingsTab: React.FC<PrintOptionsSettingsTabProps> = (
                     })}
                   </div>
 
-                  {!isUaeStore() && billSettings.showBosTaxBreakup && (
+                  {!isVatStore() && billSettings.showBosTaxBreakup && (
                     <div className="mt-4 pt-4 border-t border-border/40 space-y-4 animate-in slide-in-from-top-2 duration-200">
                       <div className="flex items-center gap-3">
                         <label className="text-xs text-foreground shrink-0 font-bold">CGST/SGST Rate %</label>

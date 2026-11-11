@@ -128,7 +128,7 @@ export function CashTransactionModal({
                     ? 'border-emerald-500/25 focus:border-emerald-500'
                     : 'border-rose-500/25 focus:border-rose-500'
                 )}
-                step="0.01" min="0" placeholder="Enter amount" autoFocus
+                step="any" min="0" placeholder="Enter amount" autoFocus
               />
             </div>
           </div>

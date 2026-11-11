@@ -1,3 +1,4 @@
+import { getStoreCountrySetting, roundStoreMoney } from './storeCountryService.js';
 import type { CashDrawerRow, LedgerRow, ServiceDb, StaffRow, UserRow } from './typesB.js';
 import crypto from 'node:crypto';
 import { getDb } from '../db/localDb.js';
@@ -282,13 +283,14 @@ export function addStaffTransaction(params: {
 export function recalcStaffLedgerBalances(dbInstance: ServiceDb | null | undefined, tenantId: string, staffId: string) {
   const db = getDb();
   const targetDb = dbInstance || db;
+  const country = getStoreCountrySetting(targetDb, tenantId);
   const rows = staffSql.findStaffLedgerByStaffId2(targetDb).all(staffId, tenantId) as LedgerRow[];
 
   let running = 0;
   for (const r of rows) {
     const debit = Number(r.debit_amount || 0);
     const credit = Number(r.credit_amount || 0);
-    running = Math.round((running + debit - credit) * 100) / 100;
+    running = roundStoreMoney(running + debit - credit, country);
     staffSql.updateStaffLedgerRunningBalance(targetDb).run(running, r.ledger_id);
   }
 }

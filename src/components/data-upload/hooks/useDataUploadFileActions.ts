@@ -1,3 +1,4 @@
+import { roundMoney } from '../../../utils/pricing/moneyRounding';
 declare function parseFloat(string: unknown): number;
 import { v4 as uuidv4 } from 'uuid';
 import Papa from 'papaparse';
@@ -104,7 +105,7 @@ export function useDataUploadFileActions(ctx: UseDataUploadFileActionsContext) {
       isValid: !row.error,
       errors: row.error ? [row.error] : [],
     })));
-    const sum = Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+    const sum = roundMoney(rows.reduce((s, r) => s + r.amount, 0));
     if (fileTotal !== null && Math.abs(fileTotal - sum) > 0.004) {
       setMessage({ type: 'error', text: `The rows add up to ${sum}, but the file's Total row says ${fileTotal}. Correct the file before importing.` });
     } else {

@@ -73,7 +73,7 @@ export const CreateGradeModal: React.FC<CreateGradeModalProps> = ({
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
-                    type="number" step="0.01"
+                    type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     placeholder="0.00"
                     value={newGradeForm.purchase_price}
@@ -87,7 +87,7 @@ export const CreateGradeModal: React.FC<CreateGradeModalProps> = ({
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
-                    type="number" step="0.01"
+                    type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     placeholder="0.00"
                     value={newGradeForm.rate}
@@ -101,7 +101,7 @@ export const CreateGradeModal: React.FC<CreateGradeModalProps> = ({
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{getCurrencyPrefix()}</span>
                   <input
-                    type="number" step="0.01"
+                    type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     placeholder="0.00"
                     value={newGradeForm.offer_price}

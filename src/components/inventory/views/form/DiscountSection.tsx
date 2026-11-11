@@ -34,7 +34,7 @@ export function DiscountSection({
               <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Percentage (%)</label>
               <input
                 type="number"
-                step="0.01"
+                step="any"
                 onWheel={e => (e.target as HTMLInputElement).blur()}
                 value={formData.discount_percent ?? ''}
                 onChange={e => handleDiscountPercentChange(e.target.value)}
@@ -46,7 +46,7 @@ export function DiscountSection({
               <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount ({getCurrencyPrefix()})</label>
               <input
                 type="number"
-                step="0.01"
+                step="any"
                 onWheel={e => (e.target as HTMLInputElement).blur()}
                 value={formData.discount_flat ?? ''}
                 onChange={e => handleDiscountFlatChange(e.target.value)}
@@ -66,7 +66,7 @@ export function DiscountSection({
           <div>                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price ({getCurrencyPrefix()})</label>
             <input
               type="number"
-              step="0.01"
+              step="any"
               onWheel={e => (e.target as HTMLInputElement).blur()}
               value={formData.offer_price ?? ''}
               onChange={e => handleOfferPriceChange(e.target.value)}

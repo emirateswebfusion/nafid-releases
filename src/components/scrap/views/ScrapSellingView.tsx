@@ -141,7 +141,7 @@ export function ScrapSellingView({
                         <input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="any"
                           value={entry.rate}
                           onChange={e => { const val = e.target.value === '' ? 0 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, rate: val } : s)); }}
                           className="w-full bg-background border border-border rounded-lg pl-6 pr-2 py-1.5 text-sm font-bold text-right text-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSettingsSectionSave } from '../../settings/hooks/useSettingsSectionSave';
 import { setSetting } from '../../../data/settings';
 import type { OrderType } from '../../../data/restaurant';
-import { isUaeStore } from '../../../utils/localization/storeProfile';
+import { isVatStore } from '../../../utils/localization/storeProfile';
 import { SERVICE_CHARGE_SETTING_KEY, type ServiceChargeSetting } from '../restaurantRules';
 
 interface ServiceChargeSetupProps {
@@ -39,7 +39,7 @@ export function ServiceChargeSetup({ tenantId, value, onChanged, onError }: Serv
           <input className="w-20 rounded-lg border border-border bg-background px-2 py-1 text-sm" value={form.percent}
             onChange={e => setForm({ ...form, percent: Math.min(100, Number(e.target.value.replace(/[^\d.]/g, '')) || 0) })} />
         </label>
-        <label className="text-xs font-bold">{isUaeStore() ? 'VAT' : 'GST'} %<br />
+        <label className="text-xs font-bold">{isVatStore() ? 'VAT' : 'GST'} %<br />
           <input className="w-16 rounded-lg border border-border bg-background px-2 py-1 text-sm" value={form.taxRate}
             onChange={e => setForm({ ...form, taxRate: Math.min(100, Number(e.target.value.replace(/[^\d.]/g, '')) || 0) })} />
         </label>
@@ -56,7 +56,7 @@ export function ServiceChargeSetup({ tenantId, value, onChanged, onError }: Serv
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        {isUaeStore()
+        {isVatStore()
           ? 'In the UAE a service charge is part of the price of the supply, so VAT is charged on it. It is added automatically as a separate bill line, on the same price basis as your menu prices. The same tax rate applies to the delivery fee.'
           : 'India: under the Central Consumer Protection Authority guidelines (July 2022) a service charge may not be added by default. The order screen shows a "guest agreed" tick; the charge is added only when it is ticked, with GST at the rate above. The same GST rate applies to the delivery fee.'}
       </p>

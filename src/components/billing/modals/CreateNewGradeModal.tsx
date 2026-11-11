@@ -76,7 +76,7 @@ export function CreateNewGradeModal({
                 <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Cost Price</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   value={form.purchase_price}
                   onChange={e => setForm({ ...form, purchase_price: e.target.value })}
@@ -87,7 +87,7 @@ export function CreateNewGradeModal({
                 <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Selling Price</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   value={form.rate}
                   onChange={e => setForm({ ...form, rate: e.target.value })}
@@ -98,7 +98,7 @@ export function CreateNewGradeModal({
                 <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Offer Price</label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
                   placeholder="0.00"
                   value={form.offer_price}
                   onChange={e => setForm({ ...form, offer_price: e.target.value })}

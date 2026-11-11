@@ -1,4 +1,4 @@
-import { isUaeStore, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { isVatStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { useLoyaltyEnabled } from '../../../hooks/useLoyaltyEnabled';
 import type { DisplayInvoice } from '../invoiceDisplayTypes';
 import React from 'react';
@@ -473,7 +473,7 @@ export function InvoiceDetailModal({
                           </span>
                           <span className="font-bold text-foreground font-mono">{formatCurrency(tax)}</span>
                         </div>
-                        {!isUaeStore() && (cgst > 0 || sgst > 0 || igst > 0) && (
+                        {!isVatStore() && (cgst > 0 || sgst > 0 || igst > 0) && (
                           <div className="p-2.5 rounded-xl bg-amber-500/[0.05] dark:bg-amber-500/[0.10] border border-amber-500/20 my-1 space-y-1 text-xs">
                             <div className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center justify-between pb-1 border-b border-amber-500/15">
                               <span>{localizeTaxText("GST")} Tax Summary</span>

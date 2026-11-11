@@ -1,3 +1,5 @@
+import { moneyScale } from './moneyRounding';
+import { moneyMinorUnit } from './moneyRounding';
 /**
  * Pure, deterministic tax calculation engine for Indian GST and UAE VAT.
  * Ensures exact reconciliation between line items and invoice header totals
@@ -56,7 +58,7 @@ export interface InvoiceTaxSummary {
 }
 
 export function round2(num: number): number {
-  return Math.round((Number(num) || 0) * 100) / 100;
+  return Math.round((Number(num) || 0) * moneyScale()) / moneyScale();
 }
 
 export const roundCurrency = round2;
@@ -117,7 +119,7 @@ export function allocateInvoiceDiscount(
 
   // Adjust rounding residual onto the largest line
   const residual = round2(effectiveDiscount - allocatedSum);
-  if (Math.abs(residual) >= 0.01 && maxIdx >= 0 && maxIdx < allocations.length) {
+  if (Math.abs(residual) >= moneyMinorUnit() && maxIdx >= 0 && maxIdx < allocations.length) {
     allocations[maxIdx] = round2(allocations[maxIdx] + residual);
   }
 

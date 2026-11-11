@@ -1,3 +1,4 @@
+import { moneyScale } from '../../../utils/pricing/moneyRounding';
 import { storeDate } from '../../../utils/time/dateDisplay';
 import { defaultQuotationTerms } from '../../../utils/localization/quotationTerms';
 import { getStoreLocale } from '../../../utils/localization/storeProfile';
@@ -6,7 +7,7 @@ import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { v4 as uuidv4 } from 'uuid';
 import { quotationsApi } from '../../../data/quotations';
-import { isUaeStore } from '../../../utils/localization/storeProfile';
+import { isVatStore } from '../../../utils/localization/storeProfile';
 import { buildQuotationLines } from '../../../utils/pricing/checkoutLines';
 import { type QuotationPrintData, generateQuotationHtml } from '../../../utils/print/quotationHtmlGenerator';
 import { getStoreTimezone } from '../../../utils/time/timezoneHelper';
@@ -92,7 +93,7 @@ export function useSaveQuotation(ctx: UseSaveQuotationContext) {
 
       const qSubtotal = qItems.reduce((s, i) => s + i.amount, 0);
       const qDiscountTotal = qItems.reduce((s, i) => s + (i.discount_amount || 0), 0);
-      const qTaxTotal = isGstQuotation ? qItems.reduce((s, i) => s + (isUaeStore() ? Math.round(i.taxable_amount * i.tax_rate_percent) / 100 : i.cgst_amount + i.sgst_amount + i.igst_amount), 0) : 0;
+      const qTaxTotal = isGstQuotation ? qItems.reduce((s, i) => s + (isVatStore() ? Math.round(i.taxable_amount * i.tax_rate_percent * (moneyScale() / 100)) / moneyScale() : i.cgst_amount + i.sgst_amount + i.igst_amount), 0) : 0;
       const qGrandTotal = qSubtotal + qTaxTotal;
 
       const quotationPayload = {

@@ -1,3 +1,4 @@
+import { moneyMinorUnit, roundMoney } from '../../../utils/pricing/moneyRounding';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Modal } from '../../ui/Modal';
@@ -59,10 +60,10 @@ export function SplitSettlementDialog({
         const cd = parseFloat(splitCard.toString()) || 0;
         const u = parseFloat(splitUpi.toString()) || 0;
         const b = parseFloat(splitBank.toString()) || 0;
-        const totalEntered = Math.round((c + cd + u + b) * 100) / 100;
-        const diff = Math.round((net - totalEntered) * 100) / 100;
-        const isMatched = Math.abs(diff) < 0.01;
-        const isShort = diff > 0.01;
+        const totalEntered = roundMoney((c + cd + u + b));
+        const diff = roundMoney((net - totalEntered));
+        const isMatched = Math.abs(diff) < moneyMinorUnit();
+        const isShort = diff > moneyMinorUnit();
 
         return (
           <div className="space-y-5">
@@ -92,7 +93,7 @@ export function SplitSettlementDialog({
                   <button
                     type="button"
                     onClick={() => {
-                      const rem = Math.max(0, Math.round((net - (cd + u + b)) * 100) / 100);
+                      const rem = Math.max(0, roundMoney((net - (cd + u + b))));
                       setSplitCash(rem > 0 ? rem : '');
                     }}
                     className="text-[9px] font-bold text-primary hover:underline cursor-pointer"
@@ -107,7 +108,7 @@ export function SplitSettlementDialog({
                     value={splitCash}
                     onChange={(e) => setSplitCash(e.target.value === '' ? '' : parseFloat(e.target.value))}
                     placeholder="0.00"
-                    step="0.01" min="0"
+                    step="any" min="0"
                     className="w-full pl-7 pr-3 py-1.5 text-sm font-extrabold bg-muted/20 border border-border rounded-lg outline-none text-foreground tabular-nums"
                   />
                 </div>
@@ -122,7 +123,7 @@ export function SplitSettlementDialog({
                   <button
                     type="button"
                     onClick={() => {
-                      const rem = Math.max(0, Math.round((net - (c + u + b)) * 100) / 100);
+                      const rem = Math.max(0, roundMoney((net - (c + u + b))));
                       setSplitCard(rem > 0 ? rem : '');
                     }}
                     className="text-[9px] font-bold text-primary hover:underline cursor-pointer"
@@ -137,7 +138,7 @@ export function SplitSettlementDialog({
                     value={splitCard}
                     onChange={(e) => setSplitCard(e.target.value === '' ? '' : parseFloat(e.target.value))}
                     placeholder="0.00"
-                    step="0.01" min="0"
+                    step="any" min="0"
                     className="w-full pl-7 pr-3 py-1.5 text-sm font-extrabold bg-muted/20 border border-border rounded-lg outline-none text-foreground tabular-nums"
                   />
                 </div>
@@ -152,7 +153,7 @@ export function SplitSettlementDialog({
                   <button
                     type="button"
                     onClick={() => {
-                      const rem = Math.max(0, Math.round((net - (c + cd + b)) * 100) / 100);
+                      const rem = Math.max(0, roundMoney((net - (c + cd + b))));
                       setSplitUpi(rem > 0 ? rem : '');
                     }}
                     className="text-[9px] font-bold text-primary hover:underline cursor-pointer"
@@ -167,7 +168,7 @@ export function SplitSettlementDialog({
                     value={splitUpi}
                     onChange={(e) => setSplitUpi(e.target.value === '' ? '' : parseFloat(e.target.value))}
                     placeholder="0.00"
-                    step="0.01" min="0"
+                    step="any" min="0"
                     className="w-full pl-7 pr-3 py-1.5 text-sm font-extrabold bg-muted/20 border border-border rounded-lg outline-none text-foreground tabular-nums"
                   />
                 </div>
@@ -198,7 +199,7 @@ export function SplitSettlementDialog({
                   <button
                     type="button"
                     onClick={() => {
-                      const rem = Math.max(0, Math.round((net - (c + cd + u)) * 100) / 100);
+                      const rem = Math.max(0, roundMoney((net - (c + cd + u))));
                       setSplitBank(rem > 0 ? rem : '');
                     }}
                     className="text-[9px] font-bold text-primary hover:underline cursor-pointer"
@@ -213,7 +214,7 @@ export function SplitSettlementDialog({
                     value={splitBank}
                     onChange={(e) => setSplitBank(e.target.value === '' ? '' : parseFloat(e.target.value))}
                     placeholder="0.00"
-                    step="0.01" min="0"
+                    step="any" min="0"
                     className="w-full pl-7 pr-3 py-1.5 text-sm font-extrabold bg-muted/20 border border-border rounded-lg outline-none text-foreground tabular-nums"
                   />
                 </div>

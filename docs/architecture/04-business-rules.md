@@ -418,6 +418,14 @@ backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test
 UAE price-basis changes after trading starts; neither operation converts balances. SQL remains in
 `electron/db/statements/settings.ts`. Existing India behavior and persisted invoice kinds remain compatible.
 
+Bahrain (`BH`, completed 11 Nov 2026): full statutory country support across POS and server.
+- **Profile:** Currency BHD (three decimals, 1 BHD = 1000 fils), locale `en-BH`, timezone `Asia/Bahrain`, default VAT 10%, 15-digit VAT Account Number, GS1 prefix 608.
+- **Selection & Locking:** Selectable in `SELECTABLE_STORE_COUNTRIES` (`['IN', 'AE', 'BH']`) and trial signup. Country changes after transactions/prices exist are refused by `saveStoreCountry` to protect financial ledger integrity.
+- **Precision & Math:** 3-decimal precision across renderer (`moneyFixed`, `parseAmount`, `step="any"` on all money inputs) and main process (`roundStoreMoney`, `storeMoneyDecimals`, `formatStoreMoney`). Floating point tolerances calibrated to 0.001. Widened server tenant schema to `NUMERIC(15, 3)` across 22 entities.
+- **Documents & Invoices:** Bahrain NBR compliant document titles (Simplified Tax Invoice for B2C <= 500 BHD; Tax Invoice for B2B or > 500 BHD). Bilingual labels (VAT Account No. / رقم الحساب الضريبي). Validated checkout requirements: seller name, address, 15-digit VAT account number, customer name and address for B2B / > 500 BHD.
+- **VAT Return:** Bahrain NBR VAT Return & Audit screen in POS with 10% standard rate, zero-rated, exempt, and input tax recovery (Box 1 Emirates breakdown omitted).
+- **Layering & Scope:** Country checks are cleanly partitioned into `isVatStore()` (renderer) / `isVatCountry()` (main) for shared single-rate VAT behavior, and `isUaeStore()` / `isBahrainStore()` for jurisdiction-specific rules. India (`IN`) and UAE (`AE`) behavior remains byte-for-byte identical.
+
 No screen in a UAE shop shows ₹, INR, en-IN grouping or Indian sample data. Amounts go through `money.ts`;
 legacy ₹ label strings go through `localizeCurrencyText` (`Rate (₹)` → `Rate (AED)`, `₹15` → `AED 15`); currency
 codes in labels use `getStoreProfile().currency`; preview/template barcodes use `getSampleBarcode()` (GS1 890 / 629);

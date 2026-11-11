@@ -133,7 +133,7 @@ export function SupplierCreateDialog({
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs pointer-events-none">{getCurrencyPrefix()}</span>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     placeholder="0.00"
                     value={newPartyForm.opening_balance}

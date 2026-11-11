@@ -1,5 +1,6 @@
 import { localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import React from 'react';
 import clsx from 'clsx';
 import { Pencil, Trash, Send } from 'lucide-react';
@@ -61,32 +62,32 @@ export function PurchaseBillItemsTable({
                   )}
                 </span>
                 <input
-                  type="number" step="0.01" min="0"
+                  type="number" step="any" min="0"
                   value={item.quantity}
                   onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
                   className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                 />
                 <input
-                  type="number" step="0.01" min="0"
+                  type="number" step="any" min="0"
                   value={item.purchase_price}
                   onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
                   className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                 />
                 <input
-                  type="number" step="0.01" min="0"
+                  type="number" step="any" min="0"
                   value={item.selling_price}
                   onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
                   className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                 />
                 <input
-                  type="number" step="0.01" min="0"
+                  type="number" step="any" min="0"
                   value={item.offer_price || ''}
                   onChange={e => updateBillItem(item.product_id, 'offer_price', e.target.value)}
                   className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                   placeholder="—"
                 />
                 <div className="text-right font-bold text-foreground text-xs">
-                  {getCurrencyPrefix()}{((Number(item.quantity) || 0) * (Number(item.purchase_price) || 0)).toFixed(2)}
+                  {getCurrencyPrefix()}{moneyFixed(((Number(item.quantity) || 0) * (Number(item.purchase_price) || 0)))}
                 </div>
                 <div className="flex items-center gap-0.5">
                   <button
@@ -191,25 +192,25 @@ export function PurchaseBillItemsTable({
                   placeholder="HSN"
                 />
                 <input
-                  type="number" step="0.01" min="0"
+                  type="number" step="any" min="0"
                   value={item.quantity}
                   onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
                   className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                 />
                 <input
-                  type="number" step="0.01" min="0"
+                  type="number" step="any" min="0"
                   value={item.purchase_price}
                   onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
                   className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                 />
                 <input
-                  type="number" step="0.01" min="0"
+                  type="number" step="any" min="0"
                   value={item.selling_price}
                   onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
                   className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                 />
                 <input
-                  type="number" step="0.01" min="0"
+                  type="number" step="any" min="0"
                   value={item.offer_price || ''}
                   onChange={e => updateBillItem(item.product_id, 'offer_price', e.target.value)}
                   className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
@@ -236,20 +237,20 @@ export function PurchaseBillItemsTable({
                 </select>
                 <div className="text-right text-xs">
                   {hasGst ? (
-                    <span className="font-bold text-foreground">{getCurrencyPrefix()}{(gstAmt / 2).toFixed(2)}</span>
+                    <span className="font-bold text-foreground">{getCurrencyPrefix()}{moneyFixed(gstAmt / 2)}</span>
                   ) : (
-                    <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}0.00</span>
+                    <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}{moneyFixed(0)}</span>
                   )}
                 </div>
                 <div className="text-right text-xs">
                   {hasGst ? (
-                    <span className="font-bold text-foreground">{getCurrencyPrefix()}{(gstAmt / 2).toFixed(2)}</span>
+                    <span className="font-bold text-foreground">{getCurrencyPrefix()}{moneyFixed(gstAmt / 2)}</span>
                   ) : (
-                    <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}0.00</span>
+                    <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}{moneyFixed(0)}</span>
                   )}
                 </div>
                 <div className="text-right font-bold text-foreground text-xs">
-                  {getCurrencyPrefix()}{itemTotal.toFixed(2)}
+                  {getCurrencyPrefix()}{moneyFixed(itemTotal)}
                 </div>
                 <div className="flex items-center gap-0.5">
                   <button

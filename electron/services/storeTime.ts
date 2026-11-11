@@ -1,5 +1,5 @@
 import { utcForWallClock } from '../utils/utc.js';
-import { getStoreCountrySetting } from './storeCountryService.js';
+import { getStoreCountrySetting, storeCountryTimezone } from './storeCountryService.js';
 import { toEpochMs } from '../utils/timestamps.js';
 import type { ServiceDb, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
@@ -17,7 +17,7 @@ export function getStoreTimezoneSetting(db: ServiceDb | null | undefined, tenant
       if (typeof tz === 'string' && tz) { new Intl.DateTimeFormat('en', { timeZone: tz }); return tz; }
     }
   } catch { /* ignore */ }
-  try { if (db && tenantId && getStoreCountrySetting(db, tenantId) === 'AE') return 'Asia/Dubai'; } catch { /* Legacy schemas retain the India default. */ }
+  try { if (db && tenantId) return storeCountryTimezone(getStoreCountrySetting(db, tenantId)); } catch { /* Legacy schemas retain the India default. */ }
   return 'Asia/Kolkata';
 }
 

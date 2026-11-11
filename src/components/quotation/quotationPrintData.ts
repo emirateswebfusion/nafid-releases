@@ -1,5 +1,5 @@
 import { storeDate } from '../../utils/time/dateDisplay';
-import { getStoreLocale, isUaeStore } from '../../utils/localization/storeProfile';
+import { getStoreLocale, isVatStore } from '../../utils/localization/storeProfile';
 import type { QuotationPrintData, QuotationPrintItem } from '../../utils/print/quotationPrintTypes';
 import { getStoreTimezone } from '../../utils/time/timezoneHelper';
 import type { QuotationState } from './hooks/useQuotationState';
@@ -40,7 +40,7 @@ export function buildQuotationPrintData(qm: QuotationState, shopName: string | n
       shopGstin: shopGstin || undefined,
       shopState: shopState || undefined,
       quotationNumber: selectedQuotation.quotation_number,
-      date: isUaeStore() ? selectedQuotation.created_at || '' : storeDate(selectedQuotation.created_at, getStoreLocale(), {
+      date: isVatStore() ? selectedQuotation.created_at || '' : storeDate(selectedQuotation.created_at, getStoreLocale(), {
         timeZone: getStoreTimezone(),
         day: '2-digit',
         month: 'long',

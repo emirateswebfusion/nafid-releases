@@ -1,3 +1,4 @@
+import { moneyMinorUnit } from '../../../utils/pricing/moneyRounding';
 import type React from 'react';
 import { useCartStore } from '../../../store/cartStore';
 import { detectScannerBurst } from '../BillingConstants';
@@ -213,7 +214,7 @@ export function useCartKeyboard(ctx: UseCartKeyboardContext) {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const currentSplitTotal = (Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.cheque) || 0) + (Number(splitDetails.credit) || 0);
-      if (currentField === 'CREDIT' || (Math.abs(currentSplitTotal - displayGrandTotal) < 0.01 && displayGrandTotal > 0)) {
+      if (currentField === 'CREDIT' || (Math.abs(currentSplitTotal - displayGrandTotal) < moneyMinorUnit() && displayGrandTotal > 0)) {
         focusDescriptionOrDiscount();
       } else {
         if (currentField === 'CASH') splitCardInputRef.current?.focus();

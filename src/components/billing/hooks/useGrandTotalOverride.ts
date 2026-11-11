@@ -1,3 +1,4 @@
+import { roundMoney } from '../../../utils/pricing/moneyRounding';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { useCallback } from 'react';
 import type { CartItem } from '../../../store/cartStore';
@@ -60,7 +61,7 @@ export function useGrandTotalOverride(ctx: UseGrandTotalOverrideContext) {
     if (targetVal < basePayableBeforeDiscount) {
       const shortfall = basePayableBeforeDiscount - targetVal;
       const neededDisc = effectiveTaxRate > 0 ? shortfall / (1 + effectiveTaxRate) : shortfall;
-      const roundedDisc = Math.round(neededDisc * 100) / 100;
+      const roundedDisc = roundMoney(neededDisc);
       setDiscount(roundedDisc, 'FIXED');
     } else {
       setDiscount(0, 'FIXED');

@@ -1,3 +1,4 @@
+import { getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { useEffect } from 'react';
 import { type SplitDetails } from '../../../store/tabStore';
@@ -46,7 +47,7 @@ export function useBillingQuickActions(ctx: UseBillingQuickActionsContext) {
     const bankTransfer = Number(splitDetails.bank_transfer) || 0;
 
     const otherSum = cash + card + upi + cheque + credit + bankTransfer;
-    const rem = Math.max(0, Number((displayGrandTotal - otherSum).toFixed(2)));
+    const rem = Math.max(0, Number((displayGrandTotal - otherSum).toFixed(getCurrencyDecimals())));
 
     const nextDetails: SplitDetails = {
       ...splitDetails,

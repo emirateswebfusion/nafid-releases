@@ -1,3 +1,4 @@
+import { moneyScale } from '../../utils/pricing/moneyRounding';
 import type { CartItem } from '../../store/cartStore';
 import type { Product } from '../../data/products';
 import { listRate, resolveLinePrice } from '../../utils/pricing/linePricing';
@@ -30,7 +31,7 @@ export function minutesSince(iso: string): number {
 /** Void / cancel reasons offered on screen (free text is allowed too); `MOVED` is reserved for moves. */
 export const VOID_REASONS = ['Customer changed mind', 'Wrong item entered', 'Kitchen mistake', 'Item not available', 'Quality complaint', 'Other'];
 
-const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * moneyScale()) / moneyScale();
 
 /** Unit price of a menu item at order time: the canonical line rule with the catalog offer / discount applied. */
 export function menuUnitPrice(product: Pick<Product, 'base_price' | 'pricing_mode' | 'grade_rate' | 'discount_percent' | 'discount_flat' | 'offer_price'>): number {

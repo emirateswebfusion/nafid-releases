@@ -245,7 +245,7 @@ export function PurchaseProductFormModal({
                   <div className="relative">
                     {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
                     <input
-                      type="number" step="0.01"
+                      type="number" step="any"
                       onWheel={e => (e.target as HTMLInputElement).blur()}
                       value={field === 'purchasePrice' ? newProductPurchasePrice : field === 'basePrice' ? newProductBasePrice : field === 'stock' ? newProductStock : newProductReorderLevel}
                       onChange={e => {
@@ -310,7 +310,7 @@ export function PurchaseProductFormModal({
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                         <input
-                          type="number" step="0.01"
+                          type="number" step="any"
                           onWheel={e => (e.target as HTMLInputElement).blur()}
                           value={tierPrices[tier.pricing_tier_id] ?? ''}
                           onChange={e => setTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}
@@ -337,7 +337,7 @@ export function PurchaseProductFormModal({
               <div className="flex gap-3 items-start">
                 <div className="flex-1 min-w-[100px]">
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Disc %</label>
-                  <input type="number" step="0.01"
+                  <input type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={newProductDiscountPercent}
                     onChange={e => handleDiscountPercentChange(e.target.value)}
@@ -346,7 +346,7 @@ export function PurchaseProductFormModal({
                 </div>
                 <div className="flex-1 min-w-[100px]">
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Disc {getCurrencyPrefix()}</label>
-                  <input type="number" step="0.01"
+                  <input type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={newProductDiscountFlat}
                     onChange={e => handleDiscountFlatChange(e.target.value)}
@@ -355,7 +355,7 @@ export function PurchaseProductFormModal({
                 </div>
                 <div className="flex-1 min-w-[110px]">
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Offer Price {getCurrencyPrefix()}</label>
-                  <input type="number" step="0.01"
+                  <input type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={newProductOfferPrice}
                     onChange={e => handleOfferPriceChange(e.target.value)}
@@ -373,7 +373,7 @@ export function PurchaseProductFormModal({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Percentage (%)</label>
-                      <input type="number" step="0.01"
+                      <input type="number" step="any"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={newProductDiscountPercent}
                         onChange={e => handleDiscountPercentChange(e.target.value)}
@@ -382,7 +382,7 @@ export function PurchaseProductFormModal({
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount ({getCurrencyPrefix()})</label>
-                      <input type="number" step="0.01"
+                      <input type="number" step="any"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={newProductDiscountFlat}
                         onChange={e => handleDiscountFlatChange(e.target.value)}
@@ -398,7 +398,7 @@ export function PurchaseProductFormModal({
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price ({getCurrencyPrefix()})</label>
-                    <input type="number" step="0.01"
+                    <input type="number" step="any"
                       onWheel={e => (e.target as HTMLInputElement).blur()}
                       value={newProductOfferPrice}
                       onChange={e => handleOfferPriceChange(e.target.value)}

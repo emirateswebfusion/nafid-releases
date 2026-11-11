@@ -80,7 +80,7 @@ export function EditScrapTxDialog({
               <input
                 required
                 type="number"
-                step="0.01"
+                step="any"
                 min="0.01"
                 value={editTxForm.rate}
                 onChange={e => setEditTxForm(f => ({ ...f, rate: e.target.value }))}

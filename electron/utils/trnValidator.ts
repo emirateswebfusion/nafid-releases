@@ -25,25 +25,28 @@ export type UaeEmirateCode = typeof UAE_EMIRATES_LIST[number]['code'];
  * Validates a UAE Tax Registration Number (TRN).
  * FTA standard mandates a 15-digit numeric string, typically starting with 100.
  */
-export function validateTRN(trn: string | null | undefined): TrnValidationResult {
+import type { StoreCountry } from './moneyRounding.js';
+
+export function validateTRN(trn: string | null | undefined, country: StoreCountry = 'AE'): TrnValidationResult {
+  const label = country === 'BH' ? 'VAT Account Number' : 'TRN';
   if (!trn || typeof trn !== 'string') {
-    return { isValid: false, error: 'TRN is empty' };
+    return { isValid: false, error: `${label} is empty` };
   }
 
   const clean = trn.trim();
   if (clean.length === 0) {
-    return { isValid: false, error: 'TRN is empty' };
+    return { isValid: false, error: `${label} is empty` };
   }
 
   if (!/^\d+$/.test(clean)) {
-    return { isValid: false, error: 'TRN must contain digits only' };
+    return { isValid: false, error: `${label} must contain digits only` };
   }
 
   if (clean.length !== 15) {
-    return { isValid: false, error: `TRN must be exactly 15 digits (got ${clean.length})` };
+    return { isValid: false, error: `${label} must be exactly 15 digits (got ${clean.length})` };
   }
 
-  if (!clean.startsWith('100')) {
+  if (country === 'AE' && !clean.startsWith('100')) {
     return {
       isValid: false,
       error: 'UAE FTA VAT TRN must begin with 100',

@@ -1,3 +1,4 @@
+import { roundMoney } from '../../../utils/pricing/moneyRounding';
 import { cancelledInvoicesReply } from './cancelledInvoices';
 import { parseUTCDate } from '../../../utils/time/utc';
 import { hasBridge } from '../../../data/client';
@@ -96,7 +97,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
 
       const chartItems = monthsArray.map(m => ({
         month: m.label,
-        sales: Math.round(m.sales * 100) / 100,
+        sales: roundMoney(m.sales),
         invoices: m.count,
       }));
 
@@ -284,7 +285,7 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
       const chartItems = (summaryList || []).slice(0, limit).map((p: Awaited<ReturnType<typeof productsApi.getProductSalesSummary>>[number]) => ({
         product: p.name,
         qty: p.total_qty || p.gst_qty || 0,
-        revenue: Math.round((Number(p.total_revenue) || 0) * 100) / 100,
+        revenue: roundMoney((Number(p.total_revenue) || 0)),
       }));
 
       const suggestedPrompts = isMal

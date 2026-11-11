@@ -70,12 +70,12 @@ export const StoreSettingsTab: React.FC<StoreSettingsTabProps> = ({
 
             <section className="bg-card border border-border rounded-2xl p-6 space-y-3">
               <label className="text-sm font-bold">Country &amp; currency</label>
-              <Select value={storeCountry} options={[{ value: 'IN', label: 'India — INR / GST' }, { value: 'AE', label: 'United Arab Emirates — AED / VAT' }]} onChange={value => {
+              <Select value={storeCountry} options={[{ value: 'IN', label: 'India — INR / GST' }, { value: 'AE', label: 'United Arab Emirates — AED / VAT' }, { value: 'BH', label: 'Bahrain — BHD / VAT' }]} onChange={value => {
                 const country: StoreCountry = value === 'AE' ? 'AE' : 'IN';
                 setStoreCountryState(country);
                 setStoreTimezoneState(getStoreProfile(country).timezone);
               }} />
-              {storeCountry === 'AE' && <label className="flex gap-2 text-sm"><input type="checkbox" checked={vatPriceInclusive} onChange={event => setVatPriceInclusive(event.target.checked)} /> Product selling prices include VAT</label>}
+              {(storeCountry === 'AE' || storeCountry === 'BH') && <label className="flex gap-2 text-sm"><input type="checkbox" checked={vatPriceInclusive} onChange={event => setVatPriceInclusive(event.target.checked)} /> Product selling prices include VAT</label>}
               <p className="text-xs text-muted-foreground">Choose before entering products or transactions. Currency changes do not convert balances. Save to apply the profile. UAE standard VAT is 5%; zero-rated and exempt supplies need their correct product tax treatment.</p>
             </section>
             {/* Card 1: Shop Profile */}
@@ -93,7 +93,7 @@ export const StoreSettingsTab: React.FC<StoreSettingsTabProps> = ({
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Phone Number</label>
-                  <Input type="text" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} placeholder={storeCountry === 'AE' ? 'e.g. +971 50 123 4567' : 'e.g. +91 98765 43210'} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  <Input type="text" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} placeholder={storeCountry === 'BH' ? 'e.g. +973 1712 3456' : storeCountry === 'AE' ? 'e.g. +971 50 123 4567' : 'e.g. +91 98765 43210'} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Email Address (E-Mail)</label>

@@ -1,3 +1,5 @@
+import { roundStoreMoney } from './moneyRounding.js';
+
 interface RegisterInvoice {
   payment_method?: string | null;
   grand_total?: number | null;
@@ -6,7 +8,7 @@ interface RegisterInvoice {
 }
 
 /** Non-cash receipts for display only; they never increase the cash drawer. */
-export function calculateRegisterPayments(invoices: RegisterInvoice[], selected: string[]): Record<string, number> {
+export function calculateRegisterPayments(invoices: RegisterInvoice[], selected: string[], countryOrDecimals?: string | number | null): Record<string, number> {
   const totals: Record<string, number> = Object.fromEntries(selected.map(m => [m, 0]));
   for (const invoice of invoices) {
     const method = invoice.payment_method?.toUpperCase();
@@ -28,5 +30,5 @@ export function calculateRegisterPayments(invoices: RegisterInvoice[], selected:
       }
     }
   }
-  return Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, Math.round(value * 100) / 100]));
+  return Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, roundStoreMoney(value, countryOrDecimals)]));
 }

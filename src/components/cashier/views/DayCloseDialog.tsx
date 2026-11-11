@@ -127,7 +127,7 @@ export function DayCloseDialog({
                     value={actualCash || ''}
                     onChange={(e) => setActualCash(e.target.value === '' ? 0 : Number(e.target.value))}
                     className="w-full pl-10 pr-4 py-3 text-lg font-black bg-card border-2 border-primary/25 rounded-2xl outline-none focus:border-primary text-foreground tabular-nums shadow-sm transition-all"
-                    step="0.01" min="0" placeholder="Enter physical cash count" autoFocus
+                    step="any" min="0" placeholder="Enter physical cash count" autoFocus
                     onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); closeRemarksRef.current?.focus(); } }}
                   />
                 </div>

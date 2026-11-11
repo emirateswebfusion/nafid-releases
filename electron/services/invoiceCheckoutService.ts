@@ -7,7 +7,7 @@ import { getCashAmountFromInvoice, adjustPaymentSourcesForInvoice, adjustCashDra
 import { normalizePaymentSplit, syncInvoiceCreditLedger, resetBackfillThrottle } from './partyLedgerService.js';
 import { checkCustomerOverdueSync } from './customerCreditService.js';
 import { getGuaranteedNextInvoiceNumber } from './invoiceNumberService.js';
-import { formatStoreMoney, getStoreCountrySetting, storeMoneyProfile } from './storeCountryService.js';
+import { formatStoreMoney, getStoreCountrySetting, roundStoreMoney, storeMoneyFixed, storeMoneyProfile } from './storeCountryService.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { localTimestamp, localDate } from './storeTime.js';
 import { calculateLoyaltyPoints } from '../utils/loyalty.js';
@@ -186,8 +186,9 @@ export function checkout(payload: CheckoutPayload) {
     if ((ptsRedeemed || suppliedDiscount) && (!config.enabled || !customerId || pm === 'HOLD' || policy.counts_in_revenue !== 1)) {
       throw new Error('Loyalty redemption is unavailable; refresh the bill');
     }
-    const ptsRedeemedDiscount = Math.round(ptsRedeemed * Math.max(0.01, Number(config.redemptionRate) || 1) * 100) / 100;
-    if (Math.abs(suppliedDiscount - ptsRedeemedDiscount) > 0.001) {
+    const country = getStoreCountrySetting(db, tenantId);
+    const ptsRedeemedDiscount = roundStoreMoney(ptsRedeemed * Math.max(0.01, Number(config.redemptionRate) || 1), country);
+    if (Math.abs(suppliedDiscount - ptsRedeemedDiscount) > 0.0001) {
       throw new Error('Points discount changed; refresh the bill');
     }
     const shouldEarn = config.enabled && customerId && pm !== 'HOLD' && (pm !== 'PENDING' || config.awardPointsOnPending)
@@ -253,7 +254,7 @@ export function checkout(payload: CheckoutPayload) {
           rTxId, tenantId, customerId, invoice.invoice_id,
           ptsRedeemed, runningPoints, afterRedeem,
           finalInvoiceNumber,
-          `Redeemed ${ptsRedeemed} points for ${storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix}${ptsRedeemedDiscount.toFixed(2)} discount on invoice ${finalInvoiceNumber}`,
+          `Redeemed ${ptsRedeemed} points for ${storeMoneyProfile(country).prefix}${storeMoneyFixed(ptsRedeemedDiscount, country)} discount on invoice ${finalInvoiceNumber}`,
           invoice.user_id || 'system',
           nowTimestamp, nowTimestamp
         );

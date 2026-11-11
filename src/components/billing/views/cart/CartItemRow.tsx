@@ -1,3 +1,4 @@
+import { roundMoney } from '../../../../utils/pricing/moneyRounding';
 import { localizeCurrencyText } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
@@ -411,7 +412,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
                   removeItemDiscount(item.product_id);
                 } else {
                   const pct = parseFloat(val);
-                  const flat = convCatalogPrice > 0 ? Math.round(convCatalogPrice * pct / 100 * 100) / 100 : 0;
+                  const flat = convCatalogPrice > 0 ? roundMoney(convCatalogPrice * pct / 100) : 0;
                   setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
                   setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
                   updateItemDiscount(item.product_id, 'PERCENT', pct);

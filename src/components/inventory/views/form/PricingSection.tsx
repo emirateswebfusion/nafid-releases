@@ -91,7 +91,7 @@ export function PricingSection({
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">{getCurrencyPrefix()}</span>
                 <input
-                  type="number" step="0.01"
+                  type="number" step="any"
                   onWheel={e => (e.target as HTMLInputElement).blur()}
                   value={formData.purchase_price}
                   onChange={e => handleInputChange('purchase_price', e.target.value)}
@@ -108,7 +108,7 @@ export function PricingSection({
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">{getCurrencyPrefix()}</span>
                 <input
-                  type="number" step="0.01"
+                  type="number" step="any"
                   onWheel={e => (e.target as HTMLInputElement).blur()}
                   value={formData.base_price}
                   onChange={e => handleInputChange('base_price', e.target.value)}
@@ -122,7 +122,7 @@ export function PricingSection({
                 Stock
               </label>
               <input
-                type="number" step="0.01"
+                type="number" step="any"
                 onWheel={e => (e.target as HTMLInputElement).blur()}
                 value={formData.current_stock}
                 onChange={e => handleInputChange('current_stock', e.target.value)}
@@ -135,7 +135,7 @@ export function PricingSection({
                 Low Stock Alert
               </label>
               <input
-                type="number" step="0.01"
+                type="number" step="any"
                 onWheel={e => (e.target as HTMLInputElement).blur()}
                 value={formData.reorder_level}
                 onChange={e => handleInputChange('reorder_level', e.target.value)}
@@ -203,7 +203,7 @@ export function PricingSection({
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">{getCurrencyPrefix()}</span>
                   <input
-                    type="number" step="0.01"
+                    type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={formData.gst_purchase_price}
                     onChange={e => handleInputChange('gst_purchase_price', e.target.value)}
@@ -219,7 +219,7 @@ export function PricingSection({
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">{getCurrencyPrefix()}</span>
                   <input
-                    type="number" step="0.01"
+                    type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={formData.domain_attributes?.paper_mrp ?? ''}
                     onChange={e => handleDomainAttrChange('paper_mrp', e.target.value)}
@@ -234,7 +234,7 @@ export function PricingSection({
                   Paper Stock ({localizeTaxText("GST")})
                 </label>
                 <input
-                  type="number" step="0.01"
+                  type="number" step="any"
                   onWheel={e => (e.target as HTMLInputElement).blur()}
                   value={formData.gst_purchase_quantity}
                   onChange={e => handleInputChange('gst_purchase_quantity', e.target.value)}
@@ -317,7 +317,7 @@ export function PricingSection({
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{getCurrencyPrefix()}</span>
                   <input
-                    type="number" step="0.01"
+                    type="number" step="any"
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={tierPrices[tier.pricing_tier_id] ?? ''}
                     onChange={e => setTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}

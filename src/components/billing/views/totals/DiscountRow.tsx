@@ -1,3 +1,4 @@
+import { getCurrencyDecimals } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
@@ -79,7 +80,7 @@ export function DiscountRow({
           pctVal = localDiscText;
           const p = parseFloat(localDiscText);
           if (discBase > 0 && !isNaN(p) && p > 0) {
-            flatVal = String(+((discBase * p) / 100).toFixed(2));
+            flatVal = String(+((discBase * p) / 100).toFixed(getCurrencyDecimals()));
           }
         } else if (activeDiscField === 'FLAT') {
           flatVal = localDiscText;
@@ -90,7 +91,7 @@ export function DiscountRow({
         } else {
           if (discountType === 'PERCENTAGE') {
             pctVal = discountValue > 0 ? String(discountValue) : '';
-            flatVal = discBase > 0 && discountValue > 0 ? String(+((discBase * discountValue) / 100).toFixed(2)) : '';
+            flatVal = discBase > 0 && discountValue > 0 ? String(+((discBase * discountValue) / 100).toFixed(getCurrencyDecimals())) : '';
           } else {
             flatVal = discountValue > 0 ? String(discountValue) : '';
             pctVal = discBase > 0 && discountValue > 0 ? String(+((discountValue / discBase) * 100).toFixed(2)) : '';

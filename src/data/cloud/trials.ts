@@ -2,7 +2,7 @@ import { cloudRequest } from './client';
 
 export interface TrialSignup {
   shop_name: string; owner_name: string; owner_email: string; owner_password: string;
-  phone: string; country: 'AE' | 'IN'; city: string;
+  phone: string; country: 'AE' | 'IN' | 'BH'; city: string;
 }
 export interface TrialSession {
   token: string; trial: { expires_at: string; days: number; started_at: string };

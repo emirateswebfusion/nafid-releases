@@ -1,5 +1,6 @@
+import { getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { resolveQuotationTerms } from '../../../utils/localization/quotationTerms';
-import { isUaeStore, getStoreVatInclusive } from '../../../utils/localization/storeProfile';
+import { isVatStore, getStoreVatInclusive } from '../../../utils/localization/storeProfile';
 import { restoreQuotationSellingPrice } from '../../../utils/pricing/quotationPrice';
 import { restoreVatPrice } from '../../../utils/pricing/vat';
 import { priceReturnSource } from '../../../utils/pricing/returnPricing';
@@ -208,7 +209,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
               discount_percent = null;
             } else if (soldPrice < catalogEffectivePrice) {
               // Cashier gave an additional ad-hoc discount below catalog price!
-              discount_flat = Number((catalogEffectivePrice - soldPrice).toFixed(2));
+              discount_flat = Number((catalogEffectivePrice - soldPrice).toFixed(getCurrencyDecimals()));
               discount_percent = catalogEffectivePrice > 0 ? Number(((catalogEffectivePrice - soldPrice) / catalogEffectivePrice * 100).toFixed(2)) : null;
               offer_price = null;
             } else {
@@ -226,7 +227,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             }
           }
 
-          if (isUaeStore() && invoice.invoice_type === 'GST') {
+          if (isVatStore() && invoice.invoice_type === 'GST') {
             const netPrice = Number(item.unit_price) || 0;
             const base = netPrice * Number(item.quantity);
             tax_rate_percent = base > 0 ? (Number(item.tax_amount) || 0) / base * 100 : 0;
@@ -631,14 +632,14 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
                 discount_flat = null;
                 discount_percent = null;
               } else if (soldRate < catalogEffectivePrice) {
-                discount_flat = Number((catalogEffectivePrice - soldRate).toFixed(2));
+                discount_flat = Number((catalogEffectivePrice - soldRate).toFixed(getCurrencyDecimals()));
                 discount_percent = catalogEffectivePrice > 0 ? Number(((catalogEffectivePrice - soldRate) / catalogEffectivePrice * 100).toFixed(2)) : null;
               } else {
                 offer_price = soldRate;
               }
             }
 
-            if (isUaeStore() && quotation.is_gst) {
+            if (isVatStore() && quotation.is_gst) {
               offer_price = restoreQuotationSellingPrice({ ...item, quantity: qty }, getStoreVatInclusive());
               discount_flat = null; discount_percent = null;
             }
@@ -647,7 +648,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
               name: item.name || dbProduct.name || 'Product',
               base_price: basePrice,
               purchase_price: Number(dbProduct.purchase_price || item.purchase_price) || 0,
-              tax_rate_percent: isUaeStore() ? Number(item.tax_rate_percent ?? dbProduct.tax_rate_percent ?? (dbProduct as B.BillingProduct).gst_percent ?? 0)
+              tax_rate_percent: isVatStore() ? Number(item.tax_rate_percent ?? dbProduct.tax_rate_percent ?? (dbProduct as B.BillingProduct).gst_percent ?? 0)
                 : Number(item.tax_rate_percent || dbProduct.tax_rate_percent || (dbProduct as B.BillingProduct).gst_percent || 0),
               hsn_sac_code: item.hsn_code || (item as B.BillingInvoiceItem).hsn_sac_code || dbProduct.hsn_sac_code || dbProduct.hsn_code || null,
               is_gst_applicable: (dbProduct as B.BillingProduct).is_gst_applicable !== 0,

@@ -74,7 +74,7 @@ export const MatrixRow = React.memo(({
               <input
                 type="number"
                 min="0"
-                step="0.01"
+                step="any"
                 value={val}
                 onChange={e => onPriceChange(pId, t.pricing_tier_id, e.target.value)}
                 onWheel={e => (e.target as HTMLInputElement).blur()}

@@ -3,7 +3,8 @@ import { recalcStaffLedgerBalances } from './staffService.js';
 import { CustomerIdentityService } from '../db/customerIdentity.js';
 import { deterministicUUID } from '../utils/ids.js';
 import { localTimestamp } from './storeTime.js';
-import { getStoreCountrySetting, storeMoneyProfile } from './storeCountryService.js';
+import { getStoreCountrySetting, roundStoreMoney, storeMoneyFixed, storeMoneyProfile, StoreCountry } from './storeCountryService.js';
+import * as partiesSql from '../db/statements/parties.js';
 import * as partyLedgerSql from '../db/statements/partyLedger.js';
 import type Database from 'better-sqlite3';
 import type { Db } from '../db/statements/types.js';
@@ -19,21 +20,24 @@ import type { CreditLedgerInvoice, PartyLedgerBalanceRow, PartyLedgerRow, Return
  * returns are never touched by a bill.
  */
 
-const money = (n: unknown) => Math.round((Number(n) || 0) * 100) / 100;
+const money = (n: unknown, country?: StoreCountry) => roundStoreMoney(Number(n) || 0, country);
 
 // Recompute a party's running balances and its GST / Estimate / total balances from its active ledger rows
 export function recalcPartyBalances(db: Db, partyId: string) {
+  const party = partiesSql.findPartiesByPartyId(db).get(partyId) as { tenant_id?: string } | undefined;
+  const country = party?.tenant_id ? getStoreCountrySetting(db, party.tenant_id) : 'IN';
+  const round = (n: unknown) => roundStoreMoney(Number(n) || 0, country);
   const activeEntries = partyLedgerSql.findPartyLedgerByPartyId3(db).all(partyId) as PartyLedgerRow[];
   let running = 0;
   for (const row of activeEntries) {
-    running = money(running + (Number(row.credit_amount) || 0) - (Number(row.debit_amount) || 0));
+    running = round(running + (Number(row.credit_amount) || 0) - (Number(row.debit_amount) || 0));
     partyLedgerSql.updatePartyLedgerRunningBalance(db).run(running, row.ledger_id);
   }
 
   const rows = partyLedgerSql.findPartyLedgerByPartyId4(db).get(partyId) as PartyLedgerBalanceRow;
-  const gst = money(parseFloat(rows.gst as string));
-  const estimate = money(parseFloat(rows.estimate as string));
-  const total = money(gst + estimate);
+  const gst = round(parseFloat(rows.gst as string));
+  const estimate = round(parseFloat(rows.estimate as string));
+  const total = round(gst + estimate);
   const latest = partyLedgerSql.findOnePartyLedgerByPartyId(db).get(partyId) as PartyLedgerRow | undefined;
   partyLedgerSql.updatePartyByPartyId(db)
     .run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
@@ -272,8 +276,9 @@ export function syncInvoiceCreditLedger(
       const nowTimestamp = localTimestamp();
 
       if (creditDue > 0) {
-        const cur = storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix;
-        const desc = `Staff Purchase - Bill #${invoiceNumber} (Total ${cur}${invoiceGrandTotal.toFixed(2)})`;
+        const country = getStoreCountrySetting(db, tenantId);
+        const cur = storeMoneyProfile(country).prefix;
+        const desc = `Staff Purchase - Bill #${invoiceNumber} (Total ${cur}${storeMoneyFixed(invoiceGrandTotal, country)})`;
         const existingStaffTx = partyLedgerSql.findOneStaffTransactionByReferenceNumberAndType(db).get(invoiceNumber) as StaffTransactionRow | undefined;
 
         if (existingStaffTx) {
@@ -351,12 +356,13 @@ export function syncInvoiceCreditLedger(
     const balanceType: 'GST' | 'ESTIMATE' = (invoice.invoice_type === 'ESTIMATE') ? 'ESTIMATE' : 'GST';
     const txDate = invoice.created_at || localTimestamp();
 
-    const cur = storeMoneyProfile(getStoreCountrySetting(db, tenantId)).prefix;
+    const country = getStoreCountrySetting(db, tenantId);
+    const cur = storeMoneyProfile(country).prefix;
     const breakdownParts = payments.map(p => `${p.type === 'Cash' && isPureCredit ? 'Paid' : p.type} ${cur}${p.amount}`);
     if (isCredit) breakdownParts.push(`Credit ${cur}${creditPortion}`);
     const breakdownText = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : '';
     const salePrefix = isCredit ? 'Credit Sale' : 'Cash Sale';
-    const saleDescription = `${salePrefix} ${invoiceNumber} - Total ${cur}${invoiceGrandTotal.toFixed(2)}${breakdownText} - ${custName || 'Customer'}`;
+    const saleDescription = `${salePrefix} ${invoiceNumber} - Total ${cur}${storeMoneyFixed(invoiceGrandTotal, country)}${breakdownText} - ${custName || 'Customer'}`;
 
     // Sale entry (credit = the bill total)
     partyLedgerSql.upsertPartyLedger(db).run(

@@ -1,6 +1,6 @@
 import { storeDate } from '../../../utils/time/dateDisplay';
 import { parseAmount } from '../../../utils/pricing/money';
-import { isUaeStore } from '../../../utils/localization/storeProfile';
+import { getDefaultTaxRate, isVatStore } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
@@ -56,11 +56,11 @@ export function useProductFormHandlers(ctx: UseProductFormHandlersContext) {
     setNewProductStock('');
     setNewProductReorderLevel('');
     setNewProductHsn('');
-    setNewProductTaxRate(isUaeStore() ? 5 : 0);
+    setNewProductTaxRate(getDefaultTaxRate());
     setNewProductDiscountPercent('');
     setNewProductDiscountFlat('');
     setNewProductOfferPrice('');
-    setNewProductIsGstApplicable(isUaeStore());
+    setNewProductIsGstApplicable(isVatStore());
     setNewProductIsDummy(false);
     setNewProductIsCustomCategory(false);
     setProductFormTierPrices({});

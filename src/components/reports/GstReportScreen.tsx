@@ -4,6 +4,7 @@ import {
   Layers
 } from 'lucide-react';
 import clsx from 'clsx';
+import { getStoreCountry } from '../../utils/localization/storeProfile';
 import { useGstReport, type GstTabType } from './gst/useGstReport';
 import { GstSummaryTab } from './gst/GstSummaryTab';
 import { GstTablesView } from './gst/GstTablesView';
@@ -91,7 +92,7 @@ export function GstReportScreen({ onBack }: GstReportScreenProps) {
               }}
               className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-xs active:scale-95 cursor-pointer"
             >
-              Open UAE VAT 201 Return
+              {getStoreCountry() === 'BH' ? 'Open Bahrain VAT Return' : 'Open UAE VAT 201 Return'}
             </button>
             <button
               type="button"

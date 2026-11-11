@@ -1,4 +1,4 @@
-import { isUaeStore } from '../../localization/storeProfile';
+import { isVatStore } from '../../localization/storeProfile';
 import { generateUaeReceipt } from '../uaeInvoice';
 import { getEffectiveBillSettings, type ReceiptData } from './receiptCore';
 import { renderStandardReceipt } from './styles/standard';
@@ -124,7 +124,7 @@ export type ReceiptTextContext = ReturnType<typeof createReceiptTextContext>;
 export type ReceiptStyle = 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed';
 
 export function generateReceiptText(data: ReceiptData, widthCm: number = 8.0, charsPerLine?: number, style: ReceiptStyle | string = 'boxed'): string {
-  if (isUaeStore()) return generateUaeReceipt(data, charsPerLine ?? (widthCm >= 7.5 ? 42 : 32));
+  if (isVatStore()) return generateUaeReceipt(data, charsPerLine ?? (widthCm >= 7.5 ? 42 : 32));
   const ctx = createReceiptTextContext(data, widthCm, charsPerLine);
   let text = '';
 

@@ -1,3 +1,4 @@
+import { getStoreCountrySetting, roundStoreMoney } from './storeCountryService.js';
 import { recalcPartyBalances } from './partyLedgerService.js';
 import { deterministicUUID } from '../utils/ids.js';
 import { getDb } from '../db/localDb.js';
@@ -61,6 +62,8 @@ export function importOpeningBalances(input: OpeningImportInput) {
     if (!input?.tenant_id || !Array.isArray(input.rows) || Number.isNaN(asOf.getTime())) {
       return { success: false, error: 'A shop, rows and a valid as-of date are required' };
     }
+    const country = getStoreCountrySetting(db, input.tenant_id);
+    const money = (n: unknown) => roundStoreMoney(Number(n) || 0, country);
     const partyType = input.party_type === 'SUPPLIER' ? 'SUPPLIER' : 'CUSTOMER';
     const parties = partiesSql.listOpeningBalanceParties(db).all(input.tenant_id, partyType) as Array<{ party_id: string; name: string }>;
     const partiesByName = new Map<string, string[]>();

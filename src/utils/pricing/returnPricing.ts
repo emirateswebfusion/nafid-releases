@@ -1,3 +1,4 @@
+import { moneyScale } from './moneyRounding';
 import { resolveLinePrice } from './linePricing';
 
 /** Invoice line rates already include catalog and cashier adjustments. Apply only the invoice discount. */
@@ -15,7 +16,7 @@ interface ReturnLine {
   originalTaxAmount?: number;
   rawUnitPrice?: number;
 }
-const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const round2 = (value: number) => Math.round((value + Number.EPSILON) * moneyScale()) / moneyScale();
 
 /** Prorate the stored invoice tax, including zero-tax and BOS lines, instead of today's catalog tax rate. */
 export function priceReturnLine(item: ReturnLine) {

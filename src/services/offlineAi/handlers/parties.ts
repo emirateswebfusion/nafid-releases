@@ -1,3 +1,4 @@
+import { roundMoney } from '../../../utils/pricing/moneyRounding';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { hasBridge } from '../../../data/client';
 import { customersApi } from '../../../data/customers';
@@ -26,7 +27,7 @@ export async function handlePartiesIntent(parsed: ParsedOfflineIntent, ctx: AiQu
       const seenKeys = new Set<string>();
 
       [...(partiesList || []), ...(custList || [])].forEach((p: AiRow) => {
-        const bal = Math.round((Number(p.current_balance ?? p.balance ?? 0)) * 100) / 100;
+        const bal = roundMoney((Number(p.current_balance ?? p.balance ?? 0)));
         if (hasPartyRole(p.party_type, 'CUSTOMER') && bal > 0 && bal >= minAmount) {
           const key = (p.party_id || p.customer_id || p.phone || p.name || '').toLowerCase();
           if (!seenKeys.has(key)) {
