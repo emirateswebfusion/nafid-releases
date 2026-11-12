@@ -1,5 +1,7 @@
 import { outboxEnabled } from './outboxSync.js';
-import { BrowserWindow, type WebContents } from 'electron';
+import { BrowserWindow, powerMonitor, type WebContents } from 'electron';
+import { restaurantModeEnabled } from './entities/restaurantSync.js';
+import { shouldSkipIdleCycle } from './requestBudget.js';
 import { getDb } from '../db/localDb.js';
 import { startLocalHostServer } from './localHostServer.js';
 import { cloudTokenUnusable, LAN_PLACEHOLDER_TOKEN } from './syncAuth.js';
@@ -157,13 +159,34 @@ export function setPageContext(page: string | null, active: boolean) {
   }
 }
 
+/**
+ * True when the terminal is idle and synced recently enough to skip this background cycle (see requestBudget.ts).
+ * The timer keeps its normal interval, so the first tick after the user returns syncs again.
+ */
+function idleCycleSkippable(): boolean {
+  try {
+    const config = getAuthConfig();
+    if (!config) return false;
+    return shouldSkipIdleCycle({
+      route: getSyncEndpoints().primaryRoute,
+      restaurantMode: restaurantModeEnabled(config.tenant_id),
+      pendingRecords: getTotalPendingRecords(getDb(), config.tenant_id),
+      idleSeconds: powerMonitor.getSystemIdleTime(),
+      lastCycleAt: syncState.lastCycleAt,
+      now: Date.now(),
+    });
+  } catch {
+    return false;
+  }
+}
+
 function scheduleNextSyncCycle() {
   if (syncState.syncCycleTimerId) {
     clearTimeout(syncState.syncCycleTimerId);
   }
   const intervalMs = getSyncIntervalMs();
   syncState.syncCycleTimerId = setTimeout(async () => {
-    if (syncState.isSyncActive) {
+    if (syncState.isSyncActive && !idleCycleSkippable()) {
       try {
         await runSyncCycle();
       } catch (err) {

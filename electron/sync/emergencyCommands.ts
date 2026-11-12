@@ -6,6 +6,7 @@ import * as syncSql from '../db/statements/sync.js';
 import { dbEmergencyPurgeLocalData } from '../services/emergencyPurgeService.js';
 import { appendEmergencyAudit } from '../services/emergencyAudit.js';
 import { getEncryptedPath, getConfigPath, getOfflineSessionPath, getTerminalLockPath } from '../services/authStorage.js';
+import { EMERGENCY_POLL_MS, takeTurn } from './requestBudget.js';
 
 /**
  * Owner-issued emergency wipe commands (nafid-server routes/emergency.ts). The server lists only commands issued
@@ -31,8 +32,12 @@ function readTerminalCode(): string {
   } catch { return 'POS1'; }
 }
 
-/** Checks for a pending command for this terminal and executes the first one. `onWiped` stops the sync worker. */
+/**
+ * Checks for a pending command for this terminal and executes the first one. `onWiped` stops the sync worker.
+ * Checks at most every EMERGENCY_POLL_MS (the first cycle after start always checks).
+ */
 export async function pollEmergencyCommands(token: string, request: CloudRequest, onWiped: () => void): Promise<void> {
+  if (!takeTurn('emergency-commands', EMERGENCY_POLL_MS)) return;
   const terminalCode = readTerminalCode();
   try {
     const res = await request(`/api/sync/emergency-commands?terminal_code=${encodeURIComponent(terminalCode)}`, {

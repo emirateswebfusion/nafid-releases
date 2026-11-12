@@ -21,4 +21,6 @@ export const syncState = {
   urgentCashSyncInProgress: false as boolean,
   lastUrgentCashSyncTime: 0 as number,
   pullProgressCtx: null as { done: number; total: number } | null,
+  /** Start time (ms) of the last sync cycle that ran; the idle request budget measures from it. */
+  lastCycleAt: 0 as number,
 };
