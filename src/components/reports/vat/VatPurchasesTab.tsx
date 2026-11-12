@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { getCurrencyDecimals, getCurrencyPrefix, getDefaultTaxRate, getStoreProfile, isUaeStore } from '../../../utils/localization/storeProfile';
+import { getCurrencyDecimals, getCurrencyPrefix, getDefaultTaxRate, getStoreProfile } from '../../../utils/localization/storeProfile';
 import { Search, Building2 } from 'lucide-react';
 import type { Vat201Report } from '../../../../electron/services/vatReportService';
 

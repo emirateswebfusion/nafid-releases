@@ -1,5 +1,5 @@
 import { Undo2, AlertCircle } from 'lucide-react';
-import { getCurrencyDecimals, getCurrencyPrefix, getDefaultTaxRate, getStoreProfile, isUaeStore } from '../../../utils/localization/storeProfile';
+import { getCurrencyDecimals, getCurrencyPrefix, getDefaultTaxRate, getStoreProfile } from '../../../utils/localization/storeProfile';
 import type { Vat201Report } from '../../../../electron/services/vatReportService';
 
 interface VatCreditNotesTabProps {
