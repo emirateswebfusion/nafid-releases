@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../localization/storeProfile';
 /** Shared invoice types and helpers of the A4 / A5 invoice HTML generators. */
 import { DEFAULT_BILL_SETTINGS, type BillSettings } from '../receiptGenerator';
 
@@ -160,9 +160,9 @@ export function renderHtmlBalanceRows(data: InvoiceData, layout: 'table' | 'div'
     }
     if (data.receivedAmount != null && data.receivedAmount > 0) {
       if (layout === 'table') {
-        html += `<tr><td style="padding-right: 10px; font-weight: bold;">Cash Received</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">${getCurrencyPrefix()}${data.receivedAmount.toFixed(2)}</td></tr>`;
+        html += `<tr><td style="padding-right: 10px; font-weight: bold;">Cash Received</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">${getCurrencyPrefix()}${data.receivedAmount.toFixed(getCurrencyDecimals())}</td></tr>`;
       } else {
-        html += `<div class="row"><span>Cash Received</span><span>${getCurrencyPrefix()}${data.receivedAmount.toFixed(2)}</span></div>`;
+        html += `<div class="row"><span>Cash Received</span><span>${getCurrencyPrefix()}${data.receivedAmount.toFixed(getCurrencyDecimals())}</span></div>`;
       }
     }
     const netBal = data.customerBalance ?? data.balanceAmount;
@@ -178,23 +178,23 @@ export function renderHtmlBalanceRows(data: InvoiceData, layout: 'table' | 'div'
   } else {
     if (data.receivedAmount != null && data.receivedAmount > 0) {
       if (layout === 'table') {
-        html += `<tr><td style="padding-right: 10px; font-weight: bold;">Received</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">${getCurrencyPrefix()}${data.receivedAmount.toFixed(2)}</td></tr>`;
+        html += `<tr><td style="padding-right: 10px; font-weight: bold;">Received</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">${getCurrencyPrefix()}${data.receivedAmount.toFixed(getCurrencyDecimals())}</td></tr>`;
       } else {
-        html += `<div class="row"><span>Received</span><span>${getCurrencyPrefix()}${data.receivedAmount.toFixed(2)}</span></div>`;
+        html += `<div class="row"><span>Received</span><span>${getCurrencyPrefix()}${data.receivedAmount.toFixed(getCurrencyDecimals())}</span></div>`;
       }
       const change = data.receivedAmount - data.grandTotal;
       if (change > 0) {
         if (layout === 'table') {
-          html += `<tr class="double-underline"><td style="padding-right: 10px; font-weight: bold;">Change Return</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">${getCurrencyPrefix()}${change.toFixed(2)}</td></tr>`;
+          html += `<tr class="double-underline"><td style="padding-right: 10px; font-weight: bold;">Change Return</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">${getCurrencyPrefix()}${change.toFixed(getCurrencyDecimals())}</td></tr>`;
         } else {
-          html += `<div class="row" style="font-weight:bold"><span>Change Return</span><span>${getCurrencyPrefix()}${change.toFixed(2)}</span></div>`;
+          html += `<div class="row" style="font-weight:bold"><span>Change Return</span><span>${getCurrencyPrefix()}${change.toFixed(getCurrencyDecimals())}</span></div>`;
         }
       }
     } else if (data.balanceAmount != null && data.balanceAmount > 0 && !data.isReprint) {
       if (layout === 'table') {
-        html += `<tr class="double-underline"><td style="padding-right: 10px; font-weight: bold;">Change Return</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">${getCurrencyPrefix()}${data.balanceAmount.toFixed(2)}</td></tr>`;
+        html += `<tr class="double-underline"><td style="padding-right: 10px; font-weight: bold;">Change Return</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">${getCurrencyPrefix()}${data.balanceAmount.toFixed(getCurrencyDecimals())}</td></tr>`;
       } else {
-        html += `<div class="row" style="font-weight:bold"><span>Change Return</span><span>${getCurrencyPrefix()}${data.balanceAmount.toFixed(2)}</span></div>`;
+        html += `<div class="row" style="font-weight:bold"><span>Change Return</span><span>${getCurrencyPrefix()}${data.balanceAmount.toFixed(getCurrencyDecimals())}</span></div>`;
       }
     }
   }

@@ -1,5 +1,5 @@
 import { storeDate } from '../../../utils/time/dateDisplay';
-import { getStoreLocale, localizeTaxText, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
+import { getStoreLocale, localizeTaxText, getCurrencyDecimals, getStoreCountry } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import type * as B from '../billingTypes';
@@ -433,9 +433,9 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
                   B2B
                 </button>
               </div>
-              <div className="flex-1">
+              {getStoreCountry() !== 'BH' && (<div className="flex-1">
                 <Select size="sm" triggerClassName="h-auto" value={customerState} onChange={setCustomerState} options={isUaeStore() ? UAE_EMIRATES : INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="w-full" />
-              </div>
+              </div>)}
               <div className="relative flex-1">
                 <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                 <input

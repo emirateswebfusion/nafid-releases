@@ -1,4 +1,4 @@
-import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { localizeTaxText, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type { DisplayInvoice } from '../invoiceDisplayTypes';
 import type { UpiSourceOption } from '../salesTypes';
@@ -149,11 +149,11 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
             const sd = parseSplitDetails(inv.split_details);
             if (!sd) return null;
             const parts: string[] = [];
-            if (Number(sd.cash) > 0) parts.push(`Cash: ${getCurrencyPrefix()}${Number(sd.cash).toFixed(2)}`);
-            if (Number(sd.upi) > 0) parts.push(`UPI: ${getCurrencyPrefix()}${Number(sd.upi).toFixed(2)}`);
-            if (Number(sd.card) > 0) parts.push(`Card: ${getCurrencyPrefix()}${Number(sd.card).toFixed(2)}`);
-            if (Number(sd.bank_transfer) > 0) parts.push(`Bank: ${getCurrencyPrefix()}${Number(sd.bank_transfer).toFixed(2)}`);
-            if (Number(sd.credit) > 0) parts.push(`Credit: ${getCurrencyPrefix()}${Number(sd.credit).toFixed(2)}`);
+            if (Number(sd.cash) > 0) parts.push(`Cash: ${getCurrencyPrefix()}${Number(sd.cash).toFixed(getCurrencyDecimals())}`);
+            if (Number(sd.upi) > 0) parts.push(`UPI: ${getCurrencyPrefix()}${Number(sd.upi).toFixed(getCurrencyDecimals())}`);
+            if (Number(sd.card) > 0) parts.push(`Card: ${getCurrencyPrefix()}${Number(sd.card).toFixed(getCurrencyDecimals())}`);
+            if (Number(sd.bank_transfer) > 0) parts.push(`Bank: ${getCurrencyPrefix()}${Number(sd.bank_transfer).toFixed(getCurrencyDecimals())}`);
+            if (Number(sd.credit) > 0) parts.push(`Credit: ${getCurrencyPrefix()}${Number(sd.credit).toFixed(getCurrencyDecimals())}`);
             if (parts.length === 0) return null;
             return (
               <div className="text-[10px] font-black text-purple-700 dark:text-purple-300 mt-0.5 leading-snug">

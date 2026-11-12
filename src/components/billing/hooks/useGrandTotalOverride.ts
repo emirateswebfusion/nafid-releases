@@ -1,5 +1,5 @@
 import { roundMoney } from '../../../utils/pricing/moneyRounding';
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React, { useCallback } from 'react';
 import type { CartItem } from '../../../store/cartStore';
 import type { Tab } from '../../../store/tabStore';
@@ -69,7 +69,7 @@ export function useGrandTotalOverride(ctx: UseGrandTotalOverrideContext) {
 
     updateActiveTab({ manualTotalOverride: targetVal });
     setIsEditingTotal(false);
-    setInfoToast(`Grand Total overridden to ${getCurrencyPrefix()}${targetVal.toFixed(2)}`);
+    setInfoToast(`Grand Total overridden to ${getCurrencyPrefix()}${targetVal.toFixed(getCurrencyDecimals())}`);
     setTimeout(() => setInfoToast(null), 2500);
   }, [overrideTotalInput, subtotal, totalTax, discount, storeScrapDeduction, storeReturnDeduction, setDiscount, updateActiveTab, handleResetGrandTotalOverride, setInfoToast, setIsEditingTotal]);
 

@@ -568,7 +568,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <input
                     type="number"
                     step="any"
-                    placeholder={autoRoundOff.toFixed(2)}
+                    placeholder={autoRoundOff.toFixed(getCurrencyDecimals())}
                     value={manualRoundOff}
                     onChange={e => setManualRoundOff(e.target.value)}
                     className="w-20 text-right bg-background border border-border/80 rounded px-1.5 py-0.5 text-foreground font-bold text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20"
@@ -599,7 +599,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <input
                     type="number"
                     step="any"
-                    placeholder={autoRoundOff.toFixed(2)}
+                    placeholder={autoRoundOff.toFixed(getCurrencyDecimals())}
                     value={manualRoundOff}
                     onChange={e => setManualRoundOff(e.target.value)}
                     className="w-20 text-right bg-background border border-border/80 rounded px-1.5 py-0.5 text-foreground font-bold text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20"
