@@ -15,6 +15,7 @@ changing code. This file is the version-control workflow.
 | `release/vX.Y.Z` (optional) | Stabilising a release | Only fixes; merge back to `main` and tag |
 
 Delete a branch after it is merged. Long-lived branches drift: rebase on `main` at least weekly.
+Always work strictly within the repository workspace. Never leave active development, dev servers, or orphaned directories in external worktree paths (e.g. `C:\nafid-wt\...`).
 
 ## Commits
 

@@ -99,3 +99,13 @@ it('is reachable from the dashboard for every user and opens through the open-no
   window.removeEventListener('open-notifications', listener);
   expect(listener).toHaveBeenCalledTimes(1);
 });
+
+it('closes when clicking the close button or pressing Escape', () => {
+  const onClose = vi.fn();
+  render(<NotificationsPage onClose={onClose} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(onClose).toHaveBeenCalledTimes(1);
+
+  fireEvent.keyDown(window, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledTimes(2);
+});
