@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
@@ -39,7 +39,7 @@ export const DeleteTxModal: React.FC<DeleteTxModalProps> = ({
             Are you sure?
           </p>
           <p className="text-xs text-muted-foreground mt-2">
-            This will permanently delete this transaction of <strong>{getCurrencyPrefix()}{(txToDelete ? (txToDelete.credit_amount > 0 ? txToDelete.credit_amount : txToDelete.debit_amount) : 0).toFixed(2)}</strong>
+            This will permanently delete this transaction of <strong>{getCurrencyPrefix()}{(txToDelete ? (txToDelete.credit_amount > 0 ? txToDelete.credit_amount : txToDelete.debit_amount) : 0).toFixed(getCurrencyDecimals())}</strong>
             {txToDelete?.description ? <> (<strong>{txToDelete.description}</strong>)</> : ''} for <strong>{selectedPartyName}</strong>.
             The party balance will be recalculated.
           </p>

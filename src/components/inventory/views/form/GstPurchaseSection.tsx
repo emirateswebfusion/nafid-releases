@@ -1,4 +1,4 @@
-import { localizeTaxText } from '../../../../utils/localization/storeProfile';
+import { localizeTaxText, getCurrencyDecimals } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import { Receipt, FileText, Building2, Plus } from 'lucide-react';
 import { CurrencyIcon } from '../../../ui/CurrencyIcon';
@@ -236,7 +236,7 @@ export function GstPurchaseSection({
                             <span className="font-bold">{s.name}</span>
                             {s.phone && <span className="text-xs text-muted-foreground">{s.phone}</span>}
                             {s.balance_type === 'PAYABLE' && (s.balance ?? 0) > 0 && (
-                              <span className="text-xs text-red-500 ml-auto font-bold">{getCurrencyPrefix()}{Number(s.balance).toFixed(2)}</span>
+                              <span className="text-xs text-red-500 ml-auto font-bold">{getCurrencyPrefix()}{Number(s.balance).toFixed(getCurrencyDecimals())}</span>
                             )}
                           </button>
                         ))}

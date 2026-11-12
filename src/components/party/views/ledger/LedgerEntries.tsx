@@ -1,4 +1,4 @@
-import { localizeTaxText } from '../../../../utils/localization/storeProfile';
+import { localizeTaxText, getCurrencyDecimals } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import { Skeleton } from '../../../ui/Skeleton';
 import { BookOpen, PlusCircle, ArrowDown, ArrowUp, Hash, TrendingUp, FileText, Eye, Pencil, Trash } from 'lucide-react';
@@ -126,7 +126,7 @@ export function LedgerEntries({
                     statementData.openingBalance < 0 ? "text-emerald-600 dark:text-emerald-400" :
                     "text-muted-foreground"
                   )}>
-                    {getCurrencyPrefix()}{Math.abs(statementData.openingBalance).toFixed(2)}
+                    {getCurrencyPrefix()}{Math.abs(statementData.openingBalance).toFixed(getCurrencyDecimals())}
                   </span>
                   <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
                     {statementData.openingBalance > 0 ? tLabels.receivable : statementData.openingBalance < 0 ? tLabels.payable : 'Settled'}
@@ -195,12 +195,12 @@ export function LedgerEntries({
 
                   {/* Gave / Sale Amount (Red) */}
                   <td className="py-3 px-4 text-right font-mono font-black text-sm text-rose-600 dark:text-rose-400 bg-rose-500/5 border-l border-r border-border/40">
-                    {entry.credit_amount > 0 ? `${getCurrencyPrefix()}${entry.credit_amount.toFixed(2)}` : <span className="text-muted-foreground/30 font-normal">—</span>}
+                    {entry.credit_amount > 0 ? `${getCurrencyPrefix()}${entry.credit_amount.toFixed(getCurrencyDecimals())}` : <span className="text-muted-foreground/30 font-normal">—</span>}
                   </td>
 
                   {/* Got / Payment Amount (Green) */}
                   <td className="py-3 px-4 text-right font-mono font-black text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border-r border-border/40">
-                    {entry.debit_amount > 0 ? `${getCurrencyPrefix()}${entry.debit_amount.toFixed(2)}` : <span className="text-muted-foreground/30 font-normal">—</span>}
+                    {entry.debit_amount > 0 ? `${getCurrencyPrefix()}${entry.debit_amount.toFixed(getCurrencyDecimals())}` : <span className="text-muted-foreground/30 font-normal">—</span>}
                   </td>
 
                   {/* Running Balance */}
@@ -215,7 +215,7 @@ export function LedgerEntries({
                             runBal < 0 ? "text-emerald-600 dark:text-emerald-400" :
                             "text-muted-foreground"
                           )}>
-                            {getCurrencyPrefix()}{Math.abs(runBal).toFixed(2)}
+                            {getCurrencyPrefix()}{Math.abs(runBal).toFixed(getCurrencyDecimals())}
                           </span>
                           <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
                             {runBal > 0 ? tLabels.receivable : runBal < 0 ? tLabels.payable : 'Settled'}
@@ -296,10 +296,10 @@ export function LedgerEntries({
                     Statement Totals ({entryCount} {entryCount === 1 ? 'entry' : 'entries'}):
                   </td>
                   <td className="py-3.5 px-4 text-right font-mono text-sm text-rose-600 dark:text-rose-400 bg-rose-500/10 border-l border-r border-border/40">
-                    {getCurrencyPrefix()}{totalCreditSum.toFixed(2)}
+                    {getCurrencyPrefix()}{totalCreditSum.toFixed(getCurrencyDecimals())}
                   </td>
                   <td className="py-3.5 px-4 text-right font-mono text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-r border-border/40">
-                    {getCurrencyPrefix()}{totalDebitSum.toFixed(2)}
+                    {getCurrencyPrefix()}{totalDebitSum.toFixed(getCurrencyDecimals())}
                   </td>
                   <td className="py-3.5 px-4 text-right">
                     <span className={clsx(
@@ -308,7 +308,7 @@ export function LedgerEntries({
                       closingBal < 0 ? "text-emerald-600 dark:text-emerald-400" :
                       "text-foreground"
                     )}>
-                      {getCurrencyPrefix()}{Math.abs(closingBal).toFixed(2)}
+                      {getCurrencyPrefix()}{Math.abs(closingBal).toFixed(getCurrencyDecimals())}
                     </span>
                     <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
                       {closingBal > 0 ? tLabels.receivable : closingBal < 0 ? tLabels.payable : 'Settled'}
@@ -378,10 +378,10 @@ export function LedgerEntries({
 
               <div className="text-right shrink-0">
                 <p className={clsx('text-lg font-black font-mono', isCreditSale ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
-                  {isCreditSale ? '+' : '−'}{getCurrencyPrefix()}{amount.toFixed(2)}
+                  {isCreditSale ? '+' : '−'}{getCurrencyPrefix()}{amount.toFixed(getCurrencyDecimals())}
                 </p>
                 <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                  Bal: {getCurrencyPrefix()}{Math.abs((entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance !== undefined ? (entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance : entry.running_balance).toFixed(2)}
+                  Bal: {getCurrencyPrefix()}{Math.abs((entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance !== undefined ? (entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance : entry.running_balance).toFixed(getCurrencyDecimals())}
                 </p>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { storeDate } from '../../../utils/time/dateDisplay';
-import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getStoreLocale, localizeTaxText, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import type * as B from '../billingTypes';
@@ -236,7 +236,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
         const available = Math.max(0, limit - currentBal);
         const exceeded = projected > limit;
         const excess = exceeded ? projected - limit : 0;
-        const fmtN = (n: number) => n.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtN = (n: number) => n.toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
         return (
           <div className={`mb-2 rounded-xl px-3 py-2 border text-xs flex flex-col gap-1 transition-all duration-300 ${
             exceeded
@@ -272,7 +272,7 @@ export function BillingCustomerDetails({ activeTab, canOverrideTier, customerAdd
         const overdueCount = (party as B.DirectoryRecord).overdue_bills_count || 0;
         const overdueAmt = Number((party as B.DirectoryRecord).overdue_amount || 0);
         const creditDays = (party as B.DirectoryRecord).credit_period_days || 30;
-        const fmtN = (n: number) => n.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtN = (n: number) => n.toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
 
         if (hasOverdue) {
           return (

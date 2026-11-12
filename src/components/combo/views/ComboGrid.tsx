@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { Check, Copy, Edit3, Package, Percent, Tag, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { ComboOffer } from '../comboTypes';
@@ -121,18 +121,18 @@ export function ComboGrid({
                       <div>
                         {totalRegular > combo.combo_price && (
                           <div className="text-[10px] text-muted-foreground/60 line-through font-bold">
-                            MRP: {getCurrencyPrefix()}{totalRegular.toFixed(2)}
+                            MRP: {getCurrencyPrefix()}{totalRegular.toFixed(getCurrencyDecimals())}
                           </div>
                         )}
                         <div className="text-xl font-black text-foreground">
-                          {getCurrencyPrefix()}{combo.combo_price.toFixed(2)}
+                          {getCurrencyPrefix()}{combo.combo_price.toFixed(getCurrencyDecimals())}
                         </div>
                       </div>
 
                       {discountPct > 0 && (
                         <div className="text-right">
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs rounded-xl border border-emerald-500/20">
-                            <Percent className="w-3 h-3" /> SAVE {discountPct}% ({getCurrencyPrefix()}{savings.toFixed(2)})
+                            <Percent className="w-3 h-3" /> SAVE {discountPct}% ({getCurrencyPrefix()}{savings.toFixed(getCurrencyDecimals())})
                           </span>
                         </div>
                       )}

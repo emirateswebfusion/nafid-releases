@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { X, Save } from 'lucide-react';
 import clsx from 'clsx';
@@ -60,7 +60,7 @@ export const MatrixRow = React.memo(({
 
       {/* Base MRP */}
       <div className="w-28 text-center text-xs font-black text-muted-foreground shrink-0">
-        {getCurrencyPrefix()}{Number(product.base_price || 0).toFixed(2)}
+        {getCurrencyPrefix()}{Number(product.base_price || 0).toFixed(getCurrencyDecimals())}
       </div>
 
       {/* Tier Price Inputs */}

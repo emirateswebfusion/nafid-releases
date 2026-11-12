@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Search, Plus, Package } from 'lucide-react';
 import clsx from 'clsx';
@@ -133,7 +133,7 @@ export function PurchaseProductSearch({
                 </div>
                 <div className="text-right text-[11px] shrink-0">
                   <div className="font-semibold text-foreground">Stock: {Number(p.current_stock).toFixed(0)}</div>
-                  <div className="text-muted-foreground">{getCurrencyPrefix()}{Number(p.base_price).toFixed(2)}</div>
+                  <div className="text-muted-foreground">{getCurrencyPrefix()}{Number(p.base_price).toFixed(getCurrencyDecimals())}</div>
                 </div>
               </button>
             );

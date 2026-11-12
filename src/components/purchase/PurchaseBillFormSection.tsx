@@ -1,5 +1,5 @@
 import { roundMoney } from '../../utils/pricing/moneyRounding';
-import { localizeTaxText } from '../../utils/localization/storeProfile';
+import { localizeTaxText, getCurrencyDecimals } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { forwardRef, useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react';
 import { type PurchaseBillFormHandle, type Product, type PurchaseFormItem, type PurchaseAddItem } from './purchaseTypes';
@@ -545,21 +545,21 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               <div className="w-64 space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground font-semibold">Taxable Value</span>
-                  <span className="font-bold text-foreground">{getCurrencyPrefix()}{taxableValue.toFixed(2)}</span>
+                  <span className="font-bold text-foreground">{getCurrencyPrefix()}{taxableValue.toFixed(getCurrencyDecimals())}</span>
                 </div>
                 {totalGst > 0 && (
                   <>
                     <div className="flex justify-between text-xs pl-3">
                       <span className="text-emerald-600 dark:text-emerald-400 font-semibold">CGST</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{halfGst.toFixed(2)}</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{halfGst.toFixed(getCurrencyDecimals())}</span>
                     </div>
                     <div className="flex justify-between text-xs pl-3">
                       <span className="text-emerald-600 dark:text-emerald-400 font-semibold">SGST</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{halfGst.toFixed(2)}</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{halfGst.toFixed(getCurrencyDecimals())}</span>
                     </div>
                     <div className="flex justify-between text-xs border-t border-border/40 pt-1">
                       <span className="text-muted-foreground font-bold">Total {localizeTaxText("GST")}</span>
-                      <span className="font-black text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{totalGst.toFixed(2)}</span>
+                      <span className="font-black text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{totalGst.toFixed(getCurrencyDecimals())}</span>
                     </div>
                   </>
                 )}
@@ -576,7 +576,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 </div>
                 <div className="flex justify-between text-sm border-t-2 border-emerald-500/40 pt-1.5">
                   <span className="font-black uppercase tracking-wider text-foreground">Grand Total</span>
-                  <span className="text-base font-black text-emerald-600">{getCurrencyPrefix()}{roundedTotal.toFixed(2)}</span>
+                  <span className="text-base font-black text-emerald-600">{getCurrencyPrefix()}{roundedTotal.toFixed(getCurrencyDecimals())}</span>
                 </div>
               </div>
             </div>
@@ -592,7 +592,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               <div className="w-64 space-y-1.5">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-muted-foreground font-semibold">Subtotal</span>
-                  <span className="font-bold text-foreground">{getCurrencyPrefix()}{total.toFixed(2)}</span>
+                  <span className="font-bold text-foreground">{getCurrencyPrefix()}{total.toFixed(getCurrencyDecimals())}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs border-t border-border/40 pt-1">
                   <span className="text-muted-foreground font-semibold">Round Off</span>
@@ -607,7 +607,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 </div>
                 <div className="flex justify-between text-sm border-t-2 border-amber-500/40 pt-1.5">
                   <span className="font-black uppercase tracking-wider text-foreground">Total</span>
-                  <p className="text-base font-black text-amber-600">{getCurrencyPrefix()}{roundedTotal.toFixed(2)}</p>
+                  <p className="text-base font-black text-amber-600">{getCurrencyPrefix()}{roundedTotal.toFixed(getCurrencyDecimals())}</p>
                 </div>
               </div>
             </div>
