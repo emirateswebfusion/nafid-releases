@@ -362,8 +362,10 @@ export function syncInvoiceCreditLedger(
 
     const country = getStoreCountrySetting(db, tenantId);
     const cur = storeMoneyProfile(country).prefix;
-    const breakdownParts = payments.map(p => `${p.type === 'Cash' && isPureCredit ? 'Paid' : p.type} ${cur}${p.amount}`);
-    if (isCredit) breakdownParts.push(`Credit ${cur}${creditPortion}`);
+    // India and UAE keep their historical text (`Credit ₹1500`); Bahrain shows every fils (`Credit BHD 0.465`).
+    const partAmount = (amount: number) => (country === 'BH' ? storeMoneyFixed(amount, country) : String(amount));
+    const breakdownParts = payments.map(p => `${p.type === 'Cash' && isPureCredit ? 'Paid' : p.type} ${cur}${partAmount(p.amount)}`);
+    if (isCredit) breakdownParts.push(`Credit ${cur}${partAmount(creditPortion)}`);
     const breakdownText = breakdownParts.length > 0 ? ` (${breakdownParts.join(', ')})` : '';
     const salePrefix = isCredit ? 'Credit Sale' : 'Cash Sale';
     const saleDescription = `${salePrefix} ${invoiceNumber} - Total ${cur}${storeMoneyFixed(invoiceGrandTotal, country)}${breakdownText} - ${custName || 'Customer'}`;
