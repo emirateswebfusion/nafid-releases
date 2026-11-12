@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { getCurrencyDecimals, getCurrencyPrefix, getDefaultTaxRate, getStoreProfile, isUaeStore } from '../../../utils/localization/storeProfile';
 import { Search, Building2 } from 'lucide-react';
 import type { Vat201Report } from '../../../../electron/services/vatReportService';
 
@@ -54,9 +55,9 @@ export function VatPurchasesTab({ report }: VatPurchasesTabProps) {
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Supplier Invoice #</th>
                 <th className="py-3 px-4">Supplier Details</th>
-                <th className="py-3 px-4 text-right">Net Taxable (AED)</th>
-                <th className="py-3 px-4 text-right">Recoverable VAT (5%)</th>
-                <th className="py-3 px-4 text-right">Grand Total (AED)</th>
+                <th className="py-3 px-4 text-right">Net Taxable ({getStoreProfile().currency})</th>
+                <th className="py-3 px-4 text-right">Recoverable VAT ({getDefaultTaxRate()}%)</th>
+                <th className="py-3 px-4 text-right">Grand Total ({getStoreProfile().currency})</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60 font-medium text-foreground">
@@ -90,13 +91,13 @@ export function VatPurchasesTab({ report }: VatPurchasesTabProps) {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-semibold">
-                      {p.taxableAmount.toFixed(2)}
+                      {p.taxableAmount.toFixed(getCurrencyDecimals())}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                      {p.vatAmount.toFixed(2)}
+                      {p.vatAmount.toFixed(getCurrencyDecimals())}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-black text-foreground">
-                      {p.grandTotal.toFixed(2)}
+                      {p.grandTotal.toFixed(getCurrencyDecimals())}
                     </td>
                   </tr>
                 ))
@@ -109,13 +110,13 @@ export function VatPurchasesTab({ report }: VatPurchasesTabProps) {
                     Box 9 Input Tax Total ({filtered.length} Bills)
                   </td>
                   <td className="py-3 px-4 text-right font-mono">
-                    AED {totalTaxable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {getCurrencyPrefix()}{totalTaxable.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                    AED {totalInputVat.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {getCurrencyPrefix()}{totalInputVat.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-foreground font-black">
-                    AED {totalGrand.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {getCurrencyPrefix()}{totalGrand.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                 </tr>
               </tfoot>

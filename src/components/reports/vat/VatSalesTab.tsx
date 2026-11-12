@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { getCurrencyDecimals, getCurrencyPrefix, getDefaultTaxRate, getStoreProfile, isUaeStore } from '../../../utils/localization/storeProfile';
 import { Search, Building2, User } from 'lucide-react';
 import type { Vat201Report } from '../../../../electron/services/vatReportService';
 
@@ -94,10 +95,10 @@ export function VatSalesTab({ report }: VatSalesTabProps) {
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Customer Details</th>
                 <th className="py-3 px-4">Invoice Type</th>
-                <th className="py-3 px-4">Emirate</th>
-                <th className="py-3 px-4 text-right">Taxable (AED)</th>
-                <th className="py-3 px-4 text-right">VAT (5%)</th>
-                <th className="py-3 px-4 text-right">Grand Total (AED)</th>
+                {isUaeStore() && <th className="py-3 px-4">Emirate</th>}
+                <th className="py-3 px-4 text-right">Taxable ({getStoreProfile().currency})</th>
+                <th className="py-3 px-4 text-right">VAT ({getDefaultTaxRate()}%)</th>
+                <th className="py-3 px-4 text-right">Grand Total ({getStoreProfile().currency})</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60 font-medium text-foreground">
@@ -140,17 +141,15 @@ export function VatSalesTab({ report }: VatSalesTabProps) {
                         {inv.invoiceType === 'FULL' ? 'Full Tax' : 'Simplified'}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-muted-foreground font-medium">
-                      {inv.emirate}
-                    </td>
+                    {isUaeStore() && <td className="py-3 px-4 text-muted-foreground font-medium">{inv.emirate}</td>}
                     <td className="py-3 px-4 text-right font-mono font-semibold">
-                      {inv.taxableAmount.toFixed(2)}
+                      {inv.taxableAmount.toFixed(getCurrencyDecimals())}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-teal-600 dark:text-teal-400 font-bold">
-                      {inv.vatAmount.toFixed(2)}
+                      {inv.vatAmount.toFixed(getCurrencyDecimals())}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-black text-foreground">
-                      {inv.grandTotal.toFixed(2)}
+                      {inv.grandTotal.toFixed(getCurrencyDecimals())}
                     </td>
                   </tr>
                 ))
@@ -159,17 +158,17 @@ export function VatSalesTab({ report }: VatSalesTabProps) {
             {filtered.length > 0 && (
               <tfoot className="sticky bottom-0 bg-muted/95 backdrop-blur-xs border-t-2 border-border font-black text-foreground">
                 <tr>
-                  <td colSpan={5} className="py-3 px-4 font-bold">
+                  <td colSpan={isUaeStore() ? 5 : 4} className="py-3 px-4 font-bold">
                     Filtered Total ({filtered.length} invoices)
                   </td>
                   <td className="py-3 px-4 text-right font-mono">
-                    AED {totalFilteredTaxable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {getCurrencyPrefix()}{totalFilteredTaxable.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-teal-600 dark:text-teal-400 font-bold">
-                    AED {totalFilteredVat.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {getCurrencyPrefix()}{totalFilteredVat.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-primary font-black">
-                    AED {totalFilteredGrand.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {getCurrencyPrefix()}{totalFilteredGrand.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                 </tr>
               </tfoot>
