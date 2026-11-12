@@ -14,6 +14,7 @@ import { calculateLoyaltyPoints } from '../utils/loyalty.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
 import { RestaurantSettleError, settleInTransaction } from './restaurantOrderService.js';
+import { applyReturnCredit, ReturnCreditError } from './returnsService.js';
 /** Checkout use-case: creates an invoice with items, stock, payments, cash drawer and credit ledger in one transaction. Called by electron/ipc handlers via invoicesService. */
 
 /** Short-lived dedupe cache shared by checkout and updateInvoice (4 s window). */
@@ -396,6 +397,13 @@ export function checkout(payload: CheckoutPayload) {
       is_staff: Boolean(invoice.is_staff || invoice.isStaffCustomer),
       staff_id: invoice.staff_id || null,
     });
+    // An "Adjust Bill" return credit used on this bill is consumed in the same transaction: the bill is refused when
+    // the return was refunded another way or is already used, so one return can never be deducted twice.
+    const returnDeduction = Number(invoice.return_deduction) || 0;
+    if (returnDeduction > 0 && invoice.return_invoice_number) {
+      const consumed = Math.min(returnDeduction, Math.max(0, Number(payload.return_consumed ?? returnDeduction) || 0));
+      if (consumed > 0) applyReturnCredit(db, { tenant_id: invoice.tenant_id || 'global', return_number: invoice.return_invoice_number, adjusted_invoice_number: finalInvoiceNumber, amount: consumed });
+    }
     // Restaurant mode: the order this bill pays is closed in the same transaction (refused if already billed).
     if (payload.restaurant_order_id) settleInTransaction(db, payload.restaurant_order_id, invoice.invoice_id, finalInvoiceNumber);
     // Reset backfill cooldown so the next db:getParties call immediately
@@ -461,6 +469,6 @@ export function checkout(payload: CheckoutPayload) {
     return res;
   } catch (error) {
     console.error('[db:checkout]', error);
-    return { success: false, error: error instanceof RestaurantSettleError ? error.message : 'Operation failed' };
+    return { success: false, error: error instanceof RestaurantSettleError || error instanceof ReturnCreditError ? error.message : 'Operation failed' };
   }
 }

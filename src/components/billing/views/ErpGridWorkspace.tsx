@@ -1,3 +1,4 @@
+import { findReturnCredit } from '../deductionLookup';
 import { buildCheckoutLines } from '../../../utils/pricing/checkoutLines';
 import { isVatStore, localizeTaxText } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
@@ -12,7 +13,6 @@ import clsx from 'clsx';
 import { X, Banknote, QrCode, CreditCard, BookOpen, Clock, Recycle, ArrowLeftRight, Coins, Save } from 'lucide-react';
 import { type PaymentMethod, formatCurrency } from '../BillingConstants';
 import { scrapApi } from '../../../data/scrap';
-import { returnsApi } from '../../../data/returns';
 import type { Tab } from '../../../store/tabStore';
 import type { CartItem, InvoiceType, ShopDomain } from '../../../store/cartStore';
 import type { MatchedParty } from '../customerDirectory';
@@ -467,17 +467,12 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
                           const q = returnDeductionSearchQuery.trim();
                           if (!q) return;
                           try {
-                            const res = await returnsApi.getReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
-                            if (res && res.grand_total) {
-                              const remaining = res.grand_total - (res.adjusted_amount || 0);
-                              if (remaining > 0) {
-                                setReturnDeduction(remaining, q);
-                                setReturnDeductionSearchQuery('');
-                              } else {
-                                setHardwareError('Return already fully adjusted');
-                              }
+                            const found = await findReturnCredit(tenantId || 'global', q);
+                            if (found.status === 'found') {
+                              setReturnDeduction(found.amount, found.number);
+                              setReturnDeductionSearchQuery('');
                             } else {
-                              setHardwareError(`Return "${q}" not found`);
+                              setHardwareError(found.status === 'error' ? found.message : `Return "${q}" not found`);
                             }
                           } catch {
                             setHardwareError('Failed to fetch return');

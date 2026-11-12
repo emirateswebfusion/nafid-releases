@@ -55,7 +55,7 @@ export const findReturnsByReturnNumber3 = (db: Db) => db.prepare(`
 
 export const updateReturnAdjustedAmountAndAdjustedInvoiceNumber = (db: Db) => db.prepare(`
     UPDATE returns 
-    SET adjusted_amount = COALESCE(adjusted_amount, 0) + ?,
+    SET adjusted_amount = MIN(grand_total, COALESCE(adjusted_amount, 0) + ?),
         adjusted_invoice_number = ?,
         sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
     WHERE tenant_id = ? AND return_number = ? AND grand_total > COALESCE(adjusted_amount, 0)

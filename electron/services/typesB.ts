@@ -173,6 +173,8 @@ export interface CheckoutPayload extends InvoiceRow {
     items: InvoiceItem[];
     /** Restaurant order settled by this bill (restaurant mode only). */
     restaurant_order_id?: string | null;
+    /** Part of the return credit (`return_deduction`) this bill actually uses: at most the bill total; the rest stays for a later bill. */
+    return_consumed?: number | null;
     scrap_items?: Array<{
         transaction_id: string;
         scrap_category_id: string;
