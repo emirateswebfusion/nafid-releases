@@ -109,6 +109,9 @@ export function uaePaymentMethod(method: string | undefined): BilingualLabel | u
  * "Tax Credit Note" on credit notes. A shop with no TRN is not a registrant and cannot issue either. A VAT bill is an
  * invoiceType 'GST' sale, a B2B sale, or any sale that charged VAT; a zero-VAT bill of supply keeps "Invoice".
  */
+/** Largest total (BHD) for which a VAT-registered customer may still receive a simplified tax invoice. */
+export const BAHRAIN_SIMPLIFIED_INVOICE_LIMIT = 500;
+
 export function uaeDocumentTitle(
   doc: { invoiceType?: string; isB2B?: boolean; shopGstin?: string; tax?: number; grandTotal?: number },
   country: StoreCountry = getStoreCountry()
@@ -122,7 +125,9 @@ export function uaeDocumentTitle(
   const chargesVat = type === 'GST' || Boolean(doc.isB2B) || Number(doc.tax) > 0;
   if (!registered || !chargesVat) return UAE_LABELS.invoice;
   if (country === 'BH') {
-    const isSimplified = !doc.isB2B && (doc.grandTotal == null || doc.grandTotal <= 500);
+    // NBR invoicing rules: a simplified tax invoice may be issued when the customer is not VAT-registered, or is
+    // registered and the total does not exceed BHD 500. Only a registered customer above BHD 500 needs a full one.
+    const isSimplified = !doc.isB2B || doc.grandTotal == null || doc.grandTotal <= BAHRAIN_SIMPLIFIED_INVOICE_LIMIT;
     return isSimplified ? BAHRAIN_LABELS.simplifiedTaxInvoice : UAE_LABELS.taxInvoice;
   }
   return UAE_LABELS.taxInvoice;

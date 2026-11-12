@@ -1,3 +1,4 @@
+import { BAHRAIN_SIMPLIFIED_INVOICE_LIMIT } from '../../../utils/print/uaeLabels';
 import { moneyMinorUnit, roundMoney } from '../../../utils/pricing/moneyRounding';
 import { getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { storeDate } from '../../../utils/time/dateDisplay';
@@ -115,8 +116,8 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         if (!shopNameState?.trim() && !shopName?.trim() || !shopAddress?.trim() || !shopGstin?.trim() || !isValidTaxRegistration(shopGstin, 'BH')) {
           setHardwareError('Set the shop name, address and valid 15-digit VAT Account Number before issuing a Bahrain tax invoice.'); return;
         }
-        if (!isValidTaxRegistration(customerGstin || '', 'BH') || ((isB2B || displayGrandTotal > 500) && (!(customerName || '').trim() || !(customerAddress || '').trim()))) {
-          setHardwareError('Enter a valid customer VAT Account Number when registered, and customer name and address for a full tax invoice.'); return;
+        if (!isValidTaxRegistration(customerGstin || '', 'BH') || ((isB2B || (customerGstin || '').trim()) && displayGrandTotal > BAHRAIN_SIMPLIFIED_INVOICE_LIMIT && (!(customerName || '').trim() || !(customerAddress || '').trim()))) {
+          setHardwareError('Enter a valid customer VAT Account Number when registered. A registered customer above BHD 500 needs a full tax invoice with name and address.'); return;
         }
       }
       if (!isVatStore() && invoiceType === 'GST' && isB2B && !isQuotationMode && !isReturnMode && !isScrapMode) {

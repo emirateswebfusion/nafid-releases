@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { getStoreCountry } from '../../utils/localization/storeProfile';
 import { useVatReport, type VatTabType } from './vat/useVatReport';
 import { Vat201ReturnTab } from './vat/Vat201ReturnTab';
+import { BahrainVatReturnTab } from './vat/BahrainVatReturnTab';
 import { VatEmiratesTab } from './vat/VatEmiratesTab';
 import { VatSalesTab } from './vat/VatSalesTab';
 import { VatCreditNotesTab } from './vat/VatCreditNotesTab';
@@ -368,7 +369,8 @@ export function VatReportScreen({ onBack }: VatReportScreenProps) {
             </div>
           ) : (
             <>
-              {activeTab === 'vat201' && (
+              {activeTab === 'vat201' && getStoreCountry() === 'BH' && <BahrainVatReturnTab report={report} />}
+              {activeTab === 'vat201' && getStoreCountry() !== 'BH' && (
                 <Vat201ReturnTab 
                   report={report} 
                   onNavigateTab={tab => setActiveTab(tab)} 

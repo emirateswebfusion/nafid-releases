@@ -37,19 +37,26 @@ describe('Bahrain Documents and Labels', () => {
     expect(b2cSmall.en).toBe('SIMPLIFIED TAX INVOICE');
     expect(b2cSmall.ar).toBe('فاتورة ضريبية مبسطة');
 
-    // Registered shop, B2C, > 500 BHD -> Standard Tax Invoice
+    // NBR rule: a customer who is not VAT-registered may always receive a simplified invoice, whatever the amount.
     const b2cLarge = uaeDocumentTitle(
       { shopGstin: '123456789012345', isB2B: false, grandTotal: 500.001, tax: 45.455 },
       'BH'
     );
-    expect(b2cLarge.en).toBe('TAX INVOICE');
+    expect(b2cLarge.en).toBe('SIMPLIFIED TAX INVOICE');
 
-    // Registered shop, B2B -> Standard Tax Invoice regardless of amount
+    // A VAT-registered customer may receive a simplified invoice up to BHD 500 ...
     const b2bSmall = uaeDocumentTitle(
-      { shopGstin: '123456789012345', isB2B: true, grandTotal: 10.000, tax: 0.909 },
+      { shopGstin: '123456789012345', isB2B: true, grandTotal: 500, tax: 45.455 },
       'BH'
     );
-    expect(b2bSmall.en).toBe('TAX INVOICE');
+    expect(b2bSmall.en).toBe('SIMPLIFIED TAX INVOICE');
+
+    // ... and needs a full tax invoice above it.
+    const b2bLarge = uaeDocumentTitle(
+      { shopGstin: '123456789012345', isB2B: true, grandTotal: 500.001, tax: 45.455 },
+      'BH'
+    );
+    expect(b2bLarge.en).toBe('TAX INVOICE');
 
     // UAE always prints TAX INVOICE for registered tax sales
     const uaeSale = uaeDocumentTitle(
