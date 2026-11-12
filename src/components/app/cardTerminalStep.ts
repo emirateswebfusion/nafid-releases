@@ -1,7 +1,7 @@
 import { moneyScale } from '../../utils/pricing/moneyRounding';
 import { cardTerminalApi, hasCardTerminal, type CardTerminalBillDetails, type CardTerminalPayment } from '../../data/cardTerminal';
 import { useCardTerminalStore, type CardTerminalPrompt } from '../../store/cardTerminalStore';
-import { getStoreProfile } from '../../utils/localization/storeProfile';
+import { getStoreProfile, getCurrencyDecimals } from '../../utils/localization/storeProfile';
 
 /**
  * Card machine steps around bill documents (design: docs/architecture/card-terminal-design.md). Every function is a
@@ -140,7 +140,7 @@ export async function runCardTerminalStep(input: CardStepInput): Promise<CardSte
     const canVoid = !existing.manual && !!existing.ecr_ref;
     const choice = await ui().ask({
       title: 'Card amount changed', amount, tone: 'warning',
-      message: `This bill was already paid ${getStoreProfile().currencyPrefix}${Number(existing.amount).toFixed(2)} by card. `
+      message: `This bill was already paid ${getStoreProfile().currencyPrefix}${Number(existing.amount).toFixed(getCurrencyDecimals())} by card. `
         + (canVoid ? 'Void that payment on the terminal and charge the new amount?' : 'Charge the new amount on the terminal?'),
       actions: [
         { id: 'charge', label: canVoid ? 'Void and charge new amount' : 'Charge new amount', tone: 'primary' },

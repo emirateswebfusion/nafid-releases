@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { Skeleton } from '../../../ui/Skeleton';
 import { formatCurrency } from '../../BillingConstants';
@@ -176,7 +176,7 @@ export function GrandTotalSection({
                 paymentOptionRefs.current[paymentMethod]?.focus();
               }
             }}
-            placeholder={(Number(grandTotal) || 0).toFixed(2)}
+            placeholder={(Number(grandTotal) || 0).toFixed(getCurrencyDecimals())}
             inputMode="decimal"
             className="w-full pl-12 pr-2 py-1.5 bg-background/80 border border-border focus:border-primary focus:ring-1 focus:ring-primary/15 rounded-lg text-sm font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />

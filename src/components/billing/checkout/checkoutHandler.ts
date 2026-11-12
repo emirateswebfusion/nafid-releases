@@ -423,25 +423,25 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           created_at: activeTab?.billDate || undefined,
           subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,
-          received_amount: effectiveReceivedAmount,
-          balance_amount: effectiveFinalPaymentMethod === 'CREDIT'
+          grand_total: roundMoney(effectiveGrandTotal), payment_method: effectiveFinalPaymentMethod,
+          received_amount: roundMoney(effectiveReceivedAmount),
+          balance_amount: roundMoney(effectiveFinalPaymentMethod === 'CREDIT'
             ? partyNewBalance
             : isSplitCreditBill
             ? partyNewBalance
-            : (partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount),
+            : (partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount)),
           split_details: {
             ...splitDetailsForSave,
             ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
             ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
-            ...(tracksPartyBalance ? { new_due: partyNewBalance } : {})
+            ...(tracksPartyBalance ? { new_due: roundMoney(partyNewBalance) } : {})
           },
           customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           is_staff: Boolean(activeTab?.isStaffCustomer),
           staff_id: activeTab?.staffId || (activeTab?.isStaffCustomer ? activeTab.customerId : null),
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
-          customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
+          customer_state: getStoreCountry() !== 'BH' && (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
           customer_address: customerAddress || null,
           description: activeTab?.description || null,
           notes: activeTab?.description || null,
@@ -472,25 +472,25 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           invoice_number,
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: effectiveGrandTotal, payment_method: effectiveFinalPaymentMethod,
+          grand_total: roundMoney(effectiveGrandTotal), payment_method: effectiveFinalPaymentMethod,
           split_details: {
             ...splitDetailsForSave,
             ...(currentSelectedUpi ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id } : {}),
             ...(partyOldBalance !== 0 ? { old_due: partyOldBalance, old_balance: partyOldBalance } : {}),
-            ...(tracksPartyBalance ? { new_due: partyNewBalance } : {})
+            ...(tracksPartyBalance ? { new_due: roundMoney(partyNewBalance) } : {})
           },
-          received_amount: effectiveReceivedAmount,
-          balance_amount: effectiveFinalPaymentMethod === 'CREDIT'
+          received_amount: roundMoney(effectiveReceivedAmount),
+          balance_amount: roundMoney(effectiveFinalPaymentMethod === 'CREDIT'
             ? partyNewBalance
             : isSplitCreditBill
             ? partyNewBalance
-            : (partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount),
+            : (partyOldBalance !== 0 ? partyNewBalance : effectiveBalanceAmount)),
           customer_id: activeTab?.customerId || loyaltyCustomerData.customerId || null,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           is_staff: Boolean(activeTab?.isStaffCustomer),
           staff_id: activeTab?.staffId || (activeTab?.isStaffCustomer ? activeTab.customerId : null),
           customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
-          customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
+          customer_state: getStoreCountry() !== 'BH' && (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
           customer_address: customerAddress || null,
           description: activeTab?.description || null,
           notes: activeTab?.description || null,

@@ -1,5 +1,5 @@
 import { storeDate, storeDateTime } from '../../time/dateDisplay';
-import { getStoreLocale } from '../../localization/storeProfile';
+import { getStoreLocale, getCurrencyDecimals } from '../../localization/storeProfile';
 import { getCurrencyPrefix } from '../../localization/storeProfile';
 import { isVatStore } from '../../localization/storeProfile';
 import { generateUaeInvoiceHtml } from '../uaeInvoice';
@@ -69,11 +69,11 @@ export function generatePurchaseBillHtml(
         </td>
         ${isGst ? `<td style="text-align: center; padding: 6px 8px; border: 1px solid #d1d5db;">${item.hsn_sac_code || '—'}</td>` : ''}
         <td style="text-align: center; padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 600;">${qty}</td>
-        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${rate.toFixed(2)}</td>
-        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${itemTaxable.toFixed(2)}</td>
+        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${rate.toFixed(getCurrencyDecimals())}</td>
+        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${itemTaxable.toFixed(getCurrencyDecimals())}</td>
         ${isGst ? `<td style="text-align: center; padding: 6px 8px; border: 1px solid #d1d5db;">${taxRate}%</td>` : ''}
-        ${isGst ? `<td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${taxAmount.toFixed(2)}</td>` : ''}
-        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700;">${getCurrencyPrefix()}${itemTotal.toFixed(2)}</td>
+        ${isGst ? `<td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db;">${getCurrencyPrefix()}${taxAmount.toFixed(getCurrencyDecimals())}</td>` : ''}
+        <td style="text-align: right; padding: 6px 8px; border: 1px solid #d1d5db; font-weight: 700;">${getCurrencyPrefix()}${itemTotal.toFixed(getCurrencyDecimals())}</td>
       </tr>
     `;
   }).join('');
@@ -309,31 +309,31 @@ export function generatePurchaseBillHtml(
       </div>
       <div class="totals-row">
         <span>Subtotal / Taxable:</span>
-        <span>${getCurrencyPrefix()}${totalTaxable.toFixed(2)}</span>
+        <span>${getCurrencyPrefix()}${totalTaxable.toFixed(getCurrencyDecimals())}</span>
       </div>
       ${isGst && totalTax > 0 ? `
         <div class="totals-row">
           <span>CGST:</span>
-          <span>${getCurrencyPrefix()}${taxSplit.cgst.toFixed(2)}</span>
+          <span>${getCurrencyPrefix()}${taxSplit.cgst.toFixed(getCurrencyDecimals())}</span>
         </div>
         <div class="totals-row">
           <span>SGST:</span>
-          <span>${getCurrencyPrefix()}${taxSplit.sgst.toFixed(2)}</span>
+          <span>${getCurrencyPrefix()}${taxSplit.sgst.toFixed(getCurrencyDecimals())}</span>
         </div>
         <div class="totals-row" style="font-weight: 700;">
           <span>Total Tax:</span>
-          <span>${getCurrencyPrefix()}${totalTax.toFixed(2)}</span>
+          <span>${getCurrencyPrefix()}${totalTax.toFixed(getCurrencyDecimals())}</span>
         </div>
       ` : ''}
       ${roundOff !== 0 ? `
         <div class="totals-row">
           <span>Round Off:</span>
-          <span>${getCurrencyPrefix()}${roundOff.toFixed(2)}</span>
+          <span>${getCurrencyPrefix()}${roundOff.toFixed(getCurrencyDecimals())}</span>
         </div>
       ` : ''}
       <div class="totals-row grand">
         <span>Grand Total:</span>
-        <span>${getCurrencyPrefix()}${finalTotal.toFixed(2)}</span>
+        <span>${getCurrencyPrefix()}${finalTotal.toFixed(getCurrencyDecimals())}</span>
       </div>
     </div>
   </div>

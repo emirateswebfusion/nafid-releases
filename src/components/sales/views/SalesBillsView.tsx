@@ -334,7 +334,7 @@ export function SalesBillsView({
           {accountingView !== 'REAL_SALES' && (() => {
             const typeOptions = accountingView === 'TAX_FILING'
               ? [
-                  { value: '', label: 'All GST Types' },
+                  { value: '', label: localizeTaxText('All GST Types') },
                   { value: 'GST_B2B', label: 'B2B' },
                   { value: 'GST_B2C', label: 'B2C' },
                   { value: 'CONVERTED_GST', label: 'Converted from BOS' },

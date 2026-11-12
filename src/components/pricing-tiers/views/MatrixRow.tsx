@@ -78,7 +78,7 @@ export const MatrixRow = React.memo(({
                 value={val}
                 onChange={e => onPriceChange(pId, t.pricing_tier_id, e.target.value)}
                 onWheel={e => (e.target as HTMLInputElement).blur()}
-                placeholder={Number(product.base_price || 0).toFixed(2)}
+                placeholder={Number(product.base_price || 0).toFixed(getCurrencyDecimals())}
                 className={clsx(
                   'w-full pl-7 pr-6 py-2 text-xs font-bold bg-background border rounded-xl focus:outline-none focus:ring-2 no-spinners text-right',
                   isCustom

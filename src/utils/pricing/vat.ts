@@ -4,7 +4,7 @@ export function calculateVat(amount: number, ratePercent: number, inclusive: boo
   const rate = Math.max(0, Number(ratePercent) || 0) / 100;
   const round = (value: number) => Math.round((value + Number.EPSILON) * moneyScale()) / moneyScale();
   const tax = round(inclusive ? amount * rate / (1 + rate) : amount * rate);
-  return { taxable: inclusive ? round(amount - tax) : amount, tax };
+  return { taxable: round(inclusive ? amount - tax : amount), tax };
 }
 
 /** Reopen a saved net rate in a cart that expects VAT-inclusive selling prices. */
