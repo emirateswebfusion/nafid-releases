@@ -12,6 +12,7 @@ import {
 import { useAuthStore } from '../../../store/authStore';
 import { settingsApi } from '../../../data/settings';
 import { FloatToast, type ToastMessage } from '../../ui/FloatToast';
+import { PinCloudBanner } from '../../ui/PinCloudBanner';
 
 interface GstIntegrationSettingsTabProps {
   shopGstin: string;
@@ -224,6 +225,7 @@ export function GstIntegrationSettingsTab({ shopGstin, onGstinChange }: GstInteg
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      <PinCloudBanner feature="GST cloud integration and GSP credentials" />
       {/* Statutory Guidance */}
       <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-teal-800 dark:text-teal-300 text-xs flex items-start gap-3">
         <Landmark className="w-5 h-5 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />

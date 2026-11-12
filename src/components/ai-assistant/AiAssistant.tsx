@@ -3,6 +3,7 @@ import { Trash2, PanelLeftClose, PanelLeft, X, Pencil } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { CustomDialog } from '../ui/CustomDialog';
 import { FloatToast } from '../ui/FloatToast';
+import { PinCloudBanner } from '../ui/PinCloudBanner';
 import { type Conversation, getAiConversationsStorageKey, getAiActiveConvIdStorageKey, BENTO_CARDS_EN, BENTO_CARDS_ML } from './aiAssistantTypes';
 import { useAiAssistantState } from './hooks/useAiAssistantState';
 import { useAiConversations } from './hooks/useAiConversations';
@@ -194,6 +195,7 @@ export function AiAssistant({ onClose }: { onClose?: () => void }) {
 
         {/* ── Content View (Dynamic ChatGPT-style Responsive View) ─────────── */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 flex flex-col min-w-0 w-full">
+          <PinCloudBanner feature="cloud AI answers (local offline assistant remains active)" className="mb-4" />
           <AiMessageList
             bentoCards={bentoCards} handleCopy={handleCopy} handleSend={handleSend} handleSpeak={handleSpeak}
             messages={messages} messagesEndRef={messagesEndRef} renderFormattedContent={renderFormattedContent} ai={ai}

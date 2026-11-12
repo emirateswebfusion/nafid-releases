@@ -7,6 +7,7 @@ import fs from 'node:fs';
 export const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
 export const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
 export const getOfflineSessionPath = () => path.join(app.getPath('userData'), 'offline-auth.enc');
+export const getTerminalLockPath = () => path.join(app.getPath('userData'), 'terminal.lock');
 
 export const encrypt = (text: string): Buffer | null => {
   if (!safeStorage.isEncryptionAvailable()) {
@@ -52,4 +53,37 @@ export function readOfflineSession(): unknown {
     const decrypted = decrypt(fs.readFileSync(offlinePath));
     return decrypted ? JSON.parse(decrypted) as unknown : null;
   } catch { return null; }
+}
+
+/** Persists the cloud auth payload; omits plaintext config.json whenever OS encryption is available. */
+export function writeAuthPayload(plaintext: string): boolean {
+  const encrypted = encrypt(plaintext);
+  if (safeStorage.isEncryptionAvailable()) {
+    if (!encrypted) return false;
+    fs.writeFileSync(getEncryptedPath(), encrypted);
+    const configPath = getConfigPath();
+    if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    return true;
+  }
+  fs.writeFileSync(getConfigPath(), plaintext, 'utf-8');
+  if (encrypted) fs.writeFileSync(getEncryptedPath(), encrypted);
+  return true;
+}
+
+/** Tracks an explicit Lock / Switch User screen so startup does not auto-restore a preserved cloud session. */
+export function setTerminalLocked(locked: boolean): void {
+  const lockPath = getTerminalLockPath();
+  if (locked) {
+    fs.writeFileSync(lockPath, '1', 'utf-8');
+  } else if (fs.existsSync(lockPath)) {
+    fs.unlinkSync(lockPath);
+  }
+}
+
+export function isTerminalLocked(): boolean {
+  try {
+    return fs.existsSync(getTerminalLockPath());
+  } catch {
+    return false;
+  }
 }

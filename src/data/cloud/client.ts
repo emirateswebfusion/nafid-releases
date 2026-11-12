@@ -9,15 +9,28 @@
 /** Cloud API base URL (VITE_CLOUD_API, no trailing slash). */
 export const CLOUD_API = String(import.meta.env.VITE_CLOUD_API ?? '').replace(/\/$/, '');
 
+/** Shown when a PIN-switched operator opens a feature that requires an operator JWT from Email & Password login. */
+export const PIN_CLOUD_AUTH_MESSAGE = 'Signed in with PIN. Sign in with Email & Password to use cloud-only features.';
+
+export class PinCloudAuthError extends Error {
+  constructor(message = PIN_CLOUD_AUTH_MESSAGE) {
+    super(message);
+    this.name = 'PinCloudAuthError';
+  }
+}
+
 export interface CloudAuthHandlers {
   /** The current session token, recovering a stored one if the in-memory session lost it. */
   getToken: () => Promise<string | null>;
+  /** True when the active POS operator signed in locally via PIN without a personal cloud JWT. */
+  isPinSession?: () => boolean;
   /** The cloud answered 401: pause cloud sync and ask the user to sign in again. */
   onUnauthorized: () => void;
 }
 
 let auth: CloudAuthHandlers = {
   getToken: async () => null,
+  isPinSession: () => false,
   onUnauthorized: () => undefined,
 };
 
@@ -40,7 +53,10 @@ export async function cloudFetch<T = unknown>(endpoint: string, options: Request
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     // A response from an older login must not pause the replacement session.
-    if (response.status === 401 && token && token === await auth.getToken()) auth.onUnauthorized();
+    if (response.status === 401) {
+      if (!token && auth.isPinSession?.()) throw new PinCloudAuthError();
+      if (token && token === await auth.getToken()) auth.onUnauthorized();
+    }
     const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : '';
     throw new Error(message || 'An error occurred');
   }

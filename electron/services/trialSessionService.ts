@@ -1,6 +1,5 @@
-import fs from 'node:fs';
 import { setSyncActive } from '../sync/syncWorker.js';
-import { clearOfflineSession, encrypt, getConfigPath, getEncryptedPath, readAuthPayload, readOfflineSession } from './authStorage.js';
+import { clearOfflineSession, readAuthPayload, readOfflineSession, setTerminalLocked, writeAuthPayload } from './authStorage.js';
 import { rememberTrialToken } from './trialAccessService.js';
 import { localSaveUser } from './localAuthService.js';
 
@@ -21,10 +20,8 @@ export function refreshTrialSession(input: TrialRefreshInput) {
     user_name: input.user_name, restricted_page: input.restricted_page };
   rememberTrialToken(input.token);
   const plaintext = JSON.stringify(payload);
-  const encrypted = encrypt(plaintext);
-  if (!encrypted) return { success: false, error: 'Unable to save trial access.' };
-  fs.writeFileSync(getEncryptedPath(), encrypted);
-  fs.writeFileSync(getConfigPath(), plaintext, 'utf8');
+  if (!writeAuthPayload(plaintext)) return { success: false, error: 'Unable to save trial access.' };
+  setTerminalLocked(false);
   if (typeof current.email === 'string') localSaveUser({ user_id: input.user_id, tenant_id: input.tenant_id,
     name: input.user_name, email: current.email, role: input.role, permissions: input.permissions,
     restricted_page: input.restricted_page || undefined });

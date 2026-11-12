@@ -14,6 +14,7 @@ import { emergencyCloud } from '../../data/cloud/emergency';
 import { useAuthStore } from '../../store/authStore';
 import { hasBridge } from '../../data/client';
 import { settingsApi } from '../../data/settings';
+import { PinCloudBanner } from '../ui/PinCloudBanner';
 
 const HOTKEY_OPTIONS = [
   { value: 'Ctrl+Alt+Shift+X', label: 'Ctrl + Alt + Shift + X (Recommended)' },
@@ -189,6 +190,8 @@ export function EmergencyPurgeSettings({ config: propConfig, onChange: propOnCha
             When an emergency wipe is triggered, only local SQLite database bills, sales cache, and active sessions on this computer are cleared. Your master cloud records, account details, and historical data remain completely safe and protected on the central cloud.
           </p>
         </div>
+
+        <PinCloudBanner feature="sending cloud remote wipe commands" />
 
         <div className="flex justify-end pt-2">
           <button

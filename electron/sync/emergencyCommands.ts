@@ -5,7 +5,7 @@ import { getDb } from '../db/localDb.js';
 import * as syncSql from '../db/statements/sync.js';
 import { dbEmergencyPurgeLocalData } from '../services/emergencyPurgeService.js';
 import { appendEmergencyAudit } from '../services/emergencyAudit.js';
-import { getEncryptedPath, getConfigPath, getOfflineSessionPath } from '../services/authStorage.js';
+import { getEncryptedPath, getConfigPath, getOfflineSessionPath, getTerminalLockPath } from '../services/authStorage.js';
 
 /**
  * Owner-issued emergency wipe commands (nafid-server routes/emergency.ts). The server lists only commands issued
@@ -71,7 +71,7 @@ function executeRemoteEmergencyWipe(cmd: RemoteWipeCommand, terminalCode: string
     appendEmergencyAudit({ source: 'REMOTE', wipe_mode: wipeMode, reason: 'REMOTE_OWNER_COMMAND', command_id: cmd.command_id, issued_by: cmd.issued_by_name || undefined, terminal_code: terminalCode });
 
     dbEmergencyPurgeLocalData(wipeMode);
-    for (const file of [getEncryptedPath(), getConfigPath(), getOfflineSessionPath()]) {
+    for (const file of [getEncryptedPath(), getConfigPath(), getOfflineSessionPath(), getTerminalLockPath()]) {
       try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch { /* ignore */ }
     }
 

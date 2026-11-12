@@ -1,8 +1,9 @@
 import { storeDate, storeTime } from '../../utils/time/dateDisplay';
 import { useState, useEffect, useCallback } from 'react';
-import { Clock, Globe } from 'lucide-react';
+import { Clock, Globe, Lock } from 'lucide-react';
 import { getStoreTimezone, SUPPORTED_TIMEZONES } from '../../utils/time/timezoneHelper';
 import { getAppTimeFormat } from '../../utils/print/receiptGenerator';
+import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
 import { FinancialYearDropup } from './FinancialYearDropup';
 
@@ -193,6 +194,15 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
           className
         )}
       >
+        <button
+          type="button"
+          onClick={() => void useAuthStore.getState().lockTerminal()}
+          className="inline-flex items-center justify-center p-1.5 rounded-lg border border-border/80 bg-card text-muted-foreground hover:text-primary hover:bg-muted/40 hover:border-border transition-all duration-150 cursor-pointer select-none active:scale-95"
+          title="Lock / Switch User (PIN)"
+          aria-label="Lock terminal"
+        >
+          <Lock className="w-3.5 h-3.5" />
+        </button>
         <FinancialYearDropup />
         <span className="text-muted-foreground/60">•</span>
         <span className="font-semibold text-foreground/80">© {now.getFullYear()} Nafid</span>

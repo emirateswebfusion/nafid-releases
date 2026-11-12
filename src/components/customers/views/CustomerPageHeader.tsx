@@ -145,12 +145,12 @@ export function CustomerPageHeader({
 
           {isRestricted ? (
             <button
-              onClick={() => useAuthStore.getState().logout()}
+              onClick={() => void useAuthStore.getState().lockTerminal()}
               className="h-9 px-3.5 text-xs font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center gap-2"
-              title="Logout"
+              title="Switch User / Lock"
             >
               <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
+              <span className="hidden sm:inline">Switch User</span>
             </button>
           ) : (
             <RedCrossButton

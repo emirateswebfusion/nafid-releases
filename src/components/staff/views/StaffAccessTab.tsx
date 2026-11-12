@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { Shield, User, SlidersHorizontal, Check, Lock, EyeOff, Eye } from 'lucide-react';
 import { PermissionSelector } from '../PermissionSelector';
+import { PinCloudBanner } from '../../ui/PinCloudBanner';
 import type { StaffManagerState } from '../hooks/useStaffManagerState';
 
 export interface StaffAccessTabProps {
@@ -14,6 +15,7 @@ export function StaffAccessTab({
   const { formData, setFormData } = sm;
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
+      <PinCloudBanner feature="creating or editing staff login accounts" />
 
       <div>
         <h3 className="text-base font-extrabold text-foreground">System Access</h3>

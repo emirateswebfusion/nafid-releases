@@ -20,6 +20,8 @@ export function LoginScreen() {
   const [shopName, setShopName] = useState('');
   const [lastUser, setLastUser] = useState({ name: '', role: '' });
   const [terminalConfigured, setTerminalConfigured] = useState(false);
+  const [terminalCloudReady, setTerminalCloudReady] = useState<boolean | undefined>(undefined);
+  const [pinLockoutSeconds, setPinLockoutSeconds] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -112,7 +114,11 @@ export function LoginScreen() {
           setTerminalConfigured(true);
           if (cfg.shop_name) setShopName(cfg.shop_name);
           setLastUser({ name: cfg.user_name || '', role: cfg.role || '' });
-          setTab('pin');
+          setTerminalCloudReady(cfg.cloud_sync_ready);
+          setPinLockoutSeconds(cfg.lockout_remaining_seconds ?? 0);
+          let preferEmail = false;
+          try { preferEmail = sessionStorage.getItem('auth_prefer_email') === '1'; } catch { /* ignore */ }
+          if (!preferEmail) setTab('pin');
         }
       }).catch(() => {});
     }
@@ -137,6 +143,8 @@ export function LoginScreen() {
           {tab === 'pin' && (
             <QuickPinLogin
               shopName={shopName} userName={lastUser.name} role={lastUser.role}
+              cloudSyncReady={terminalCloudReady}
+              initialLockoutSeconds={pinLockoutSeconds}
               onSwitchToEmail={() => switchTab('login')}
             />
           )}

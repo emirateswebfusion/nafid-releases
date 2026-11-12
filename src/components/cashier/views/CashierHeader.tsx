@@ -37,6 +37,7 @@ export function CashierHeader({
   onClose, openHistory, pageTitle, setActualCash, setCloseResult, setShowDayClose, showSettlement,
   yesterdayNotClosed,
 }: CashierHeaderProps) {
+  const isCloudSyncPaused = useAuthStore(state => state.isCloudSyncPaused);
   return (
     <header className="relative shrink-0 z-30 border-b border-border bg-card shadow-sm">
       <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(217,91%,60%) 50%, transparent 100%)' }} />
@@ -101,6 +102,17 @@ export function CashierHeader({
 
         {/* Right: action buttons */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {isCloudSyncPaused && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('open-session-expired-modal'))}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold tracking-wider hover:bg-amber-500/20 active:scale-95 transition-all cursor-pointer"
+              title="Cloud sync is paused — click to sign in and reconnect cloud sync"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <span>Re-Login Needed</span>
+            </button>
+          )}
           {showSettlement && (
             <>
               <div className="flex items-center gap-1.5">
@@ -143,8 +155,8 @@ export function CashierHeader({
             </button>
           )}
           <RedCrossButton
-            onClick={isRestricted ? () => useAuthStore.getState().logout() : onClose}
-            title="Close"
+            onClick={isRestricted ? () => void useAuthStore.getState().lockTerminal() : onClose}
+            title={isRestricted ? 'Switch User / Lock' : 'Close'}
           />
         </div>
       </div>

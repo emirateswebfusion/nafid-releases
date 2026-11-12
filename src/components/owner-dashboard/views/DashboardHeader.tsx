@@ -5,7 +5,7 @@ import { Button } from '../../ui/Button';
 import { isAdminRole, formatRoleName } from '../../../utils/security/permissions';
 import clsx from 'clsx';
 import { DigitalClock } from '../DigitalClock';
-import { SlidersHorizontal, LayoutGrid, Grid3x3, Sun, Moon, Settings, LogOut, RotateCcw, Download, Loader2 } from 'lucide-react';
+import { SlidersHorizontal, LayoutGrid, Grid3x3, Sun, Moon, Settings, LogOut, Lock, RotateCcw, Download, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../../store/authStore';
 import { useUpdateStore } from '../../../store/updateStore';
 import type { OwnerDashboardState } from '../hooks/useOwnerDashboardState';
@@ -216,8 +216,23 @@ export function DashboardHeader({
                     <span>{isEditMode ? 'Exit Reorder Mode' : 'Reorder Cards on Grid'}</span>
                   </button>
                   <button
-                    onClick={() => useAuthStore.getState().logout()}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void useAuthStore.getState().lockTerminal();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-foreground hover:bg-muted rounded-lg transition-colors text-left cursor-pointer"
+                    title="Switch cashier / lock screen while keeping cloud sync connected"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-primary" />
+                    <span>Switch User / Lock (PIN)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void useAuthStore.getState().logout();
+                    }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left cursor-pointer"
+                    title="Full sign out (disconnects cloud sync on this PC)"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Logout</span>

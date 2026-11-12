@@ -3,8 +3,10 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { Megaphone, Plus, Eye, Trash2, Loader2, X, Image as ImageIcon, Phone, Flame, ToggleLeft, ToggleRight, RefreshCw, Heart, Share2 } from 'lucide-react';
 import clsx from 'clsx';
 import { adsCloud } from '../../data/cloud/ads';
+import { PinCloudAuthError } from '../../data/cloud/client';
 import { useAuthStore } from '../../store/authStore';
 import { FloatToast, type ToastMessage } from '../ui/FloatToast';
+import { PinCloudBanner } from '../ui/PinCloudBanner';
 
 interface Advertisement {
   ad_id: string;
@@ -54,6 +56,7 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
         setAds(data);
       }
     } catch (err) {
+      if (err instanceof PinCloudAuthError) return;
       const isAuthErr = (err as Error).message?.toLowerCase().includes('token') || (err as Error).message?.toLowerCase().includes('unauthorized');
       showToast(
         isAuthErr ? 'Session expired or unauthorized. Please re-authenticate to sync ads.' : ((err as Error).message || 'Failed to load advertisements'),
@@ -203,6 +206,7 @@ export const AdsManager: React.FC<AdsManagerProps> = ({ onClose }) => {
 
       {/* Main Body */}
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 w-full space-y-6">
+        <PinCloudBanner feature="loading and publishing cloud advertisements" />
         {/* Analytics Hero Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-5 rounded-2xl bg-card border border-border shadow-sm flex items-center justify-between">

@@ -43,7 +43,7 @@ export interface PinAuthenticatedUser {
 
 export type PinLoginResult =
   | { success: true; user: PinAuthenticatedUser; cloud_sync_ready?: boolean }
-  | { success: false; error: string };
+  | { success: false; error: string; remaining_seconds?: number; attempts_remaining?: number };
 
 export interface TerminalConfigResult {
   user_name?: string;
@@ -52,6 +52,8 @@ export interface TerminalConfigResult {
   isConfigured: boolean;
   tenant_id?: string;
   shop_name?: string;
+  cloud_sync_ready?: boolean;
+  lockout_remaining_seconds?: number;
 }
 
 /** Session token and offline-login persistence. Channel catalog — the only way UI code reaches these IPC channels. */
@@ -63,6 +65,8 @@ export const authApi = bindBridge({
   saveOfflineSession: 'authSaveOfflineSession',
   getOfflineSession: 'authGetOfflineSession',
   clearToken: 'authClearToken',
+  lockSession: 'authLockSession',
+  isLocked: 'authIsLocked',
   saveLocalUser: 'authSaveLocalUser',
   loginOffline: 'authLoginOffline',
   loginWithPin: 'authLoginWithPin',

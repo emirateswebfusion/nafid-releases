@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, Check, Copy, Search, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { Modal } from '../../ui/Modal';
+import { PinCloudBanner } from '../../ui/PinCloudBanner';
 
 const fieldCls = "w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm";
 
@@ -52,6 +53,7 @@ export const PartyConnectModal: React.FC<PartyConnectModalProps> = ({
       }
     >
       <div className="space-y-4 min-w-[420px] text-foreground">
+        <PinCloudBanner feature="Nafid Connect cloud party search and requests" />
         {/* Your Store Connect Code Banner */}
         <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center justify-between gap-3">
           <div>
