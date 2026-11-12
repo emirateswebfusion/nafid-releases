@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import {
   Check, ChevronRight, Edit3, Folder, Layers, Plus, Search, Trash, TrendingUp, X,
 } from 'lucide-react';
@@ -55,7 +55,7 @@ export function AllCategoriesDashboard({
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{avgPurchasePrice.toFixed(2)}</p>
+            <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{avgPurchasePrice.toFixed(getCurrencyDecimals())}</p>
             <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Purchase Price</p>
           </div>
         </div>
@@ -64,7 +64,7 @@ export function AllCategoriesDashboard({
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{avgRate.toFixed(2)}</p>
+            <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{avgRate.toFixed(getCurrencyDecimals())}</p>
             <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Base MRP</p>
           </div>
         </div>

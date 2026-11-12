@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Plus, X, Loader2 } from 'lucide-react';
 import { Select } from '../../ui/Select';
@@ -106,7 +106,7 @@ export function AddInvoiceItemDialog({
           {addItemForm.quantity && addItemForm.rate && Number(addItemForm.quantity) > 0 && Number(addItemForm.rate) > 0 && (
             <div className="pt-2 flex items-center justify-between text-sm border-t border-border font-bold">
               <span className="text-muted-foreground">Line Total:</span>
-              <span className="text-orange-500 text-base">{getCurrencyPrefix()}{(Number(addItemForm.quantity) * Number(addItemForm.rate)).toFixed(2)}</span>
+              <span className="text-orange-500 text-base">{getCurrencyPrefix()}{(Number(addItemForm.quantity) * Number(addItemForm.rate)).toFixed(getCurrencyDecimals())}</span>
             </div>
           )}
         </div>

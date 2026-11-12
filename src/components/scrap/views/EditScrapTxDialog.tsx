@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Pencil, X, Loader2, Save } from 'lucide-react';
 import { Select } from '../../ui/Select';
@@ -115,7 +115,7 @@ export function EditScrapTxDialog({
             <div className="pt-3 border-t border-border flex items-center justify-between">
               <span className="text-xs font-semibold text-muted-foreground">New Line Total:</span>
               <span className="text-lg font-black text-orange-500">
-                {getCurrencyPrefix()}{(Number(editTxForm.quantity) * Number(editTxForm.rate)).toFixed(2)}
+                {getCurrencyPrefix()}{(Number(editTxForm.quantity) * Number(editTxForm.rate)).toFixed(getCurrencyDecimals())}
               </span>
             </div>
           )}

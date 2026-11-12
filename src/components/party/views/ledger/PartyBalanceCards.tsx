@@ -1,5 +1,5 @@
 import { roundMoney } from '../../../../utils/pricing/moneyRounding';
-import { localizeTaxText } from '../../../../utils/localization/storeProfile';
+import { localizeTaxText, getCurrencyDecimals } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { FileText, TrendingUp, Wallet } from 'lucide-react';
@@ -63,7 +63,7 @@ export function PartyBalanceCards({
                   </span>
                 </div>
                 <p className="text-sm font-black font-mono tracking-tight text-foreground">
-                  {getCurrencyPrefix()}{Math.abs(activeGstBal).toFixed(2)}
+                  {getCurrencyPrefix()}{Math.abs(activeGstBal).toFixed(getCurrencyDecimals())}
                 </p>
               </button>
 
@@ -91,7 +91,7 @@ export function PartyBalanceCards({
                   </span>
                 </div>
                 <p className="text-sm font-black font-mono tracking-tight text-foreground">
-                  {getCurrencyPrefix()}{Math.abs(activeEstimateBal).toFixed(2)}
+                  {getCurrencyPrefix()}{Math.abs(activeEstimateBal).toFixed(getCurrencyDecimals())}
                 </p>
               </button>
 
@@ -122,7 +122,7 @@ export function PartyBalanceCards({
                   </span>
                 </div>
                 <p className="text-base font-black font-mono tracking-tight">
-                  {getCurrencyPrefix()}{Math.abs(activeBal).toFixed(2)}
+                  {getCurrencyPrefix()}{Math.abs(activeBal).toFixed(getCurrencyDecimals())}
                 </p>
               </button>
             </div>
@@ -156,7 +156,7 @@ export function PartyBalanceCards({
                 </span>
               </div>
               <p className="text-base font-black font-mono tracking-tight">
-                {getCurrencyPrefix()}{Math.abs(singleBal).toFixed(2)}
+                {getCurrencyPrefix()}{Math.abs(singleBal).toFixed(getCurrencyDecimals())}
               </p>
             </div>
           </div>

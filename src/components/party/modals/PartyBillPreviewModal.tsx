@@ -1,4 +1,4 @@
-import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { localizeTaxText, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Receipt, Loader2, Printer, Edit3, Building2, Phone } from 'lucide-react';
@@ -124,12 +124,12 @@ export const PartyBillPreviewModal: React.FC<PartyBillPreviewModalProps> = ({
                               <td className="py-3 px-4 font-mono text-center text-muted-foreground">{idx + 1}</td>
                               <td className="py-3 px-4 font-bold text-foreground">{item.name}</td>
                               <td className="py-3 px-4 font-mono text-center">{item.quantity} {item.uom || 'Pcs'}</td>
-                              <td className="py-3 px-4 font-mono text-right">{getCurrencyPrefix()}{(Number(item.unit_price) || 0).toFixed(2)}</td>
+                              <td className="py-3 px-4 font-mono text-right">{getCurrencyPrefix()}{(Number(item.unit_price) || 0).toFixed(getCurrencyDecimals())}</td>
                               <td className="py-3 px-4 font-mono text-right text-emerald-600 font-semibold">
-                                {Number(item.tax_amount) > 0 ? `+${getCurrencyPrefix()}${Number(item.tax_amount).toFixed(2)}` : '—'}
+                                {Number(item.tax_amount) > 0 ? `+${getCurrencyPrefix()}${Number(item.tax_amount).toFixed(getCurrencyDecimals())}` : '—'}
                               </td>
                               <td className="py-3 px-4 font-mono text-right font-bold text-foreground">
-                                {getCurrencyPrefix()}{(Number(item.total) || (Number(item.quantity) * Number(item.unit_price)) || 0).toFixed(2)}
+                                {getCurrencyPrefix()}{(Number(item.total) || (Number(item.quantity) * Number(item.unit_price)) || 0).toFixed(getCurrencyDecimals())}
                               </td>
                             </tr>
                           ))}
@@ -146,24 +146,24 @@ export const PartyBillPreviewModal: React.FC<PartyBillPreviewModalProps> = ({
                     <div className="flex justify-between text-muted-foreground font-semibold">
                       <span>Subtotal:</span>
                       <span className="font-mono text-foreground font-bold">
-                        {getCurrencyPrefix()}{Number(viewingInvoice.subtotal || viewingInvoice.grand_total || 0).toFixed(2)}
+                        {getCurrencyPrefix()}{Number(viewingInvoice.subtotal || viewingInvoice.grand_total || 0).toFixed(getCurrencyDecimals())}
                       </span>
                     </div>
                     {Number(viewingInvoice.tax_total) > 0 && (
                       <div className="flex justify-between text-emerald-600 font-bold">
                         <span>Tax Total ({localizeTaxText("GST")}):</span>
-                        <span className="font-mono">+{getCurrencyPrefix()}{Number(viewingInvoice.tax_total).toFixed(2)}</span>
+                        <span className="font-mono">+{getCurrencyPrefix()}{Number(viewingInvoice.tax_total).toFixed(getCurrencyDecimals())}</span>
                       </div>
                     )}
                     {Number(viewingInvoice.discount_total || viewingInvoice.discount_value) > 0 && (
                       <div className="flex justify-between text-amber-600 font-bold">
                         <span>Trade Discount:</span>
-                        <span className="font-mono">-{getCurrencyPrefix()}{Number(viewingInvoice.discount_total || viewingInvoice.discount_value).toFixed(2)}</span>
+                        <span className="font-mono">-{getCurrencyPrefix()}{Number(viewingInvoice.discount_total || viewingInvoice.discount_value).toFixed(getCurrencyDecimals())}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-extrabold text-base pt-2.5 border-t border-border">
                       <span>Grand Total:</span>
-                      <span className="text-primary font-mono">{getCurrencyPrefix()}{Number(viewingInvoice.grand_total || 0).toFixed(2)}</span>
+                      <span className="text-primary font-mono">{getCurrencyPrefix()}{Number(viewingInvoice.grand_total || 0).toFixed(getCurrencyDecimals())}</span>
                     </div>
                   </div>
                 </div>
@@ -215,13 +215,13 @@ export const PartyBillPreviewModal: React.FC<PartyBillPreviewModalProps> = ({
                         "text-2xl font-black font-mono",
                         viewingLedgerVoucher.credit_amount > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
                       )}>
-                        {getCurrencyPrefix()}{(viewingLedgerVoucher.credit_amount > 0 ? viewingLedgerVoucher.credit_amount : viewingLedgerVoucher.debit_amount).toFixed(2)}
+                        {getCurrencyPrefix()}{(viewingLedgerVoucher.credit_amount > 0 ? viewingLedgerVoucher.credit_amount : viewingLedgerVoucher.debit_amount).toFixed(getCurrencyDecimals())}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold uppercase text-muted-foreground">Running Balance</p>
                       <p className="text-sm font-black font-mono text-foreground">
-                        {getCurrencyPrefix()}{Math.abs(viewingLedgerVoucher.running_balance || 0).toFixed(2)}
+                        {getCurrencyPrefix()}{Math.abs(viewingLedgerVoucher.running_balance || 0).toFixed(getCurrencyDecimals())}
                       </p>
                     </div>
                   </div>

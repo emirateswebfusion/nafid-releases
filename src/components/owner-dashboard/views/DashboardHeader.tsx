@@ -1,4 +1,4 @@
-import { getStoreLocale } from '../../../utils/localization/storeProfile';
+import { getStoreLocale, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React, { useEffect } from 'react';
 import { Button } from '../../ui/Button';
@@ -57,7 +57,7 @@ export function DashboardHeader({
           <div className="hidden sm:flex items-center gap-2">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20" title={isRevenueMetric ? 'Total Revenue (Net realized collections after scrap/return deductions)' : 'Total Sales (Gross product sales before deductions)'}>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{displaySalesAmount.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {displaySalesLabel}</span>
+              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{displaySalesAmount.toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })} {displaySalesLabel}</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
               <span className="w-2 h-2 rounded-full bg-amber-500" />

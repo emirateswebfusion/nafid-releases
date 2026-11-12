@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { Edit3, Trash2 } from 'lucide-react';
 import type { ComboOffer } from '../comboTypes';
 
@@ -61,10 +61,10 @@ export function ComboTable({
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right font-black text-foreground">
-                        {getCurrencyPrefix()}{combo.combo_price.toFixed(2)}
+                        {getCurrencyPrefix()}{combo.combo_price.toFixed(getCurrencyDecimals())}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {discountPct > 0 ? `${getCurrencyPrefix()}${savings.toFixed(2)} (${discountPct}%)` : '—'}
+                        {discountPct > 0 ? `${getCurrencyPrefix()}${savings.toFixed(getCurrencyDecimals())} (${discountPct}%)` : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1.5">

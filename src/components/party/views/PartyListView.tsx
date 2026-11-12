@@ -1,4 +1,4 @@
-import { getStoreLocale, localizeTaxText } from '../../../utils/localization/storeProfile';
+import { getStoreLocale, localizeTaxText, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { Link, CheckCircle2, X, Search, Loader2, UserPlus, Activity, TrendingUp, TrendingDown, AlertTriangle, Tag, BookOpen, Phone, Pencil, Trash, ChevronRight, LayoutList, Table, Clock, CreditCard, Calendar } from 'lucide-react';
@@ -141,7 +141,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{totalReceivable.toFixed(2)}</p>
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{totalReceivable.toFixed(getCurrencyDecimals())}</p>
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">{tLabels.receivable}</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{tLabels.receivableSub}</p>
                 </div>
@@ -153,7 +153,7 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                   <TrendingDown className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{totalPayable.toFixed(2)}</p>
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{totalPayable.toFixed(getCurrencyDecimals())}</p>
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">{tLabels.payable}</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{tLabels.payableSub}</p>
                 </div>
@@ -436,13 +436,13 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                               isPayable ? "text-emerald-600 dark:text-emerald-400" :
                               "text-muted-foreground"
                             )}>
-                              {getCurrencyPrefix()}{Math.abs(balance).toFixed(2)}
+                              {getCurrencyPrefix()}{Math.abs(balance).toFixed(getCurrencyDecimals())}
                             </span>
                             {enablePartyGst && enablePartyEstimate && (
                               <div className="flex items-center justify-end gap-1.5 text-[9px] font-bold font-mono mt-0.5">
-                                <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: {getCurrencyPrefix()}{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(2)}</span>
+                                <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: {getCurrencyPrefix()}{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(getCurrencyDecimals())}</span>
                                 <span className="text-muted-foreground/30">•</span>
-                                <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: {getCurrencyPrefix()}{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(2)}</span>
+                                <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: {getCurrencyPrefix()}{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(getCurrencyDecimals())}</span>
                               </div>
                             )}
                             {enablePartyGst && !enablePartyEstimate && (
@@ -639,13 +639,13 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                           isPayable ? 'text-emerald-600 dark:text-emerald-400' :
                           'text-muted-foreground'
                         )}>
-                          {getCurrencyPrefix()}{Math.abs(balance).toFixed(2)}
+                          {getCurrencyPrefix()}{Math.abs(balance).toFixed(getCurrencyDecimals())}
                         </p>
                         {enablePartyGst && enablePartyEstimate && (
                           <div className="flex items-center justify-end gap-1 text-[9px] font-bold font-mono mt-1">
-                            <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: {getCurrencyPrefix()}{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(2)}</span>
+                            <span className="text-sky-600 dark:text-sky-400" title="GST Balance">G: {getCurrencyPrefix()}{Math.abs(Number(party.current_gst_balance ?? party.gst_balance ?? 0)).toFixed(getCurrencyDecimals())}</span>
                             <span className="text-muted-foreground/30">•</span>
-                            <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: {getCurrencyPrefix()}{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(2)}</span>
+                            <span className="text-violet-600 dark:text-violet-400" title="Estimate Balance">E: {getCurrencyPrefix()}{Math.abs(Number(party.current_estimate_balance ?? party.estimate_balance ?? 0)).toFixed(getCurrencyDecimals())}</span>
                           </div>
                         )}
                         {enablePartyGst && !enablePartyEstimate && (

@@ -1,4 +1,4 @@
-import { getStoreLocale } from '../../../../utils/localization/storeProfile';
+import { getStoreLocale, getCurrencyDecimals } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix, localizeCurrencyText } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import { PackagePlus, Package, X, Check, Plus, RefreshCw } from 'lucide-react';
@@ -189,7 +189,7 @@ export function CoreSection({
                       <>
                         <div className="flex-1 min-w-0">
                           <div className={clsx('text-sm truncate', isSelected && 'font-medium')}>{grade?.grade_name || '(General)'}</div>
-                          <div className="text-xs text-muted-foreground">{getCurrencyPrefix()}{Number(grade?.rate || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                          <div className="text-xs text-muted-foreground">{getCurrencyPrefix()}{Number(grade?.rate || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}</div>
                         </div>
                         {isSelected && <Check className="w-4 h-4 shrink-0 text-primary" />}
                       </>

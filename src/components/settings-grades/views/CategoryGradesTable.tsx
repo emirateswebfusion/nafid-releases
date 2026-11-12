@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import {
   ArrowLeft, Check, Edit2, Edit3, Loader2, Plus, Search, Tag, Trash, X,
 } from 'lucide-react';
@@ -51,9 +51,9 @@ export function CategoryGradesTable({
                 {filteredGrades.length > 0 && (
                   <>
                     {' '}
-                    {getCurrencyPrefix()} Avg Purchase: <span className="font-mono font-bold text-foreground/80">{getCurrencyPrefix()}{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(2)}</span>
+                    {getCurrencyPrefix()} Avg Purchase: <span className="font-mono font-bold text-foreground/80">{getCurrencyPrefix()}{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(getCurrencyDecimals())}</span>
                     {' '}
-                    {getCurrencyPrefix()} Avg MRP: <span className="font-mono font-bold text-foreground/80">{getCurrencyPrefix()}{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span>
+                    {getCurrencyPrefix()} Avg MRP: <span className="font-mono font-bold text-foreground/80">{getCurrencyPrefix()}{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(getCurrencyDecimals())}</span>
                   </>
                 )}
               </p>
@@ -245,13 +245,13 @@ export function CategoryGradesTable({
                       <span className="text-xs font-bold text-foreground truncate">{grade.grade_name || '(General)'}</span>
                     </div>
                     <div className="col-span-2 font-mono font-bold text-foreground/80 text-xs">
-                      {getCurrencyPrefix()}{(grade.purchase_price || 0).toFixed(2)}
+                      {getCurrencyPrefix()}{(grade.purchase_price || 0).toFixed(getCurrencyDecimals())}
                     </div>
                     <div className="col-span-2 font-mono font-extrabold text-primary text-xs">
-                      {getCurrencyPrefix()}{grade.rate.toFixed(2)}
+                      {getCurrencyPrefix()}{grade.rate.toFixed(getCurrencyDecimals())}
                     </div>
                     <div className="col-span-2 font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
-                      {(grade.offer_price ?? 0) > 0 ? `${getCurrencyPrefix()}${(grade.offer_price ?? 0).toFixed(2)}` : '-'}
+                      {(grade.offer_price ?? 0) > 0 ? `${getCurrencyPrefix()}${(grade.offer_price ?? 0).toFixed(getCurrencyDecimals())}` : '-'}
                     </div>
                     <div className="col-span-2 flex items-center justify-end gap-1.5 border-l border-border/60 pl-3">
                       <button

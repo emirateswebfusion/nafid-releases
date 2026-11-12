@@ -1,4 +1,5 @@
 import { Undo2, AlertCircle } from 'lucide-react';
+import { getCurrencyDecimals, getCurrencyPrefix, getDefaultTaxRate, getStoreProfile } from '../../../utils/localization/storeProfile';
 import type { Vat201Report } from '../../../../electron/services/vatReportService';
 
 interface VatCreditNotesTabProps {
@@ -39,9 +40,9 @@ export function VatCreditNotesTab({ report }: VatCreditNotesTabProps) {
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Original Invoice Link</th>
                 <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4 text-right">Adjusted Taxable (AED)</th>
-                <th className="py-3 px-4 text-right">Adjusted VAT (5%)</th>
-                <th className="py-3 px-4 text-right">Total Refund (AED)</th>
+                <th className="py-3 px-4 text-right">Adjusted Taxable ({getStoreProfile().currency})</th>
+                <th className="py-3 px-4 text-right">Adjusted VAT ({getDefaultTaxRate()}%)</th>
+                <th className="py-3 px-4 text-right">Total Refund ({getStoreProfile().currency})</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60 font-medium text-foreground">
@@ -82,13 +83,13 @@ export function VatCreditNotesTab({ report }: VatCreditNotesTabProps) {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-muted-foreground">
-                      -{cn.taxableAmount.toFixed(2)}
+                      -{cn.taxableAmount.toFixed(getCurrencyDecimals())}
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-amber-600 dark:text-amber-400 font-bold">
-                      -{cn.vatAmount.toFixed(2)}
+                      -{cn.vatAmount.toFixed(getCurrencyDecimals())}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-black text-foreground">
-                      {cn.grandTotal.toFixed(2)}
+                      {cn.grandTotal.toFixed(getCurrencyDecimals())}
                     </td>
                   </tr>
                 ))
@@ -101,13 +102,13 @@ export function VatCreditNotesTab({ report }: VatCreditNotesTabProps) {
                     Total Adjustments ({creditNotesAudit.length} Credit Notes)
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-muted-foreground">
-                    -AED {totalAdjustedTaxable.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    -{getCurrencyPrefix()}{totalAdjustedTaxable.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-amber-600 dark:text-amber-400 font-bold">
-                    -AED {totalAdjustedVat.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    -{getCurrencyPrefix()}{totalAdjustedVat.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-foreground font-black">
-                    AED {totalRefund.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {getCurrencyPrefix()}{totalRefund.toLocaleString('en-US', { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() })}
                   </td>
                 </tr>
               </tfoot>

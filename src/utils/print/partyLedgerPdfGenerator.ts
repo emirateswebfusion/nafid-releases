@@ -1,6 +1,6 @@
 import { roundMoney } from '../pricing/moneyRounding';
 import { storeDate, storeDateTime } from '../time/dateDisplay';
-import { getStoreLocale } from '../localization/storeProfile';
+import { getStoreLocale, getCurrencyDecimals } from '../localization/storeProfile';
 import { getCurrencyPrefix } from '../localization/storeProfile';
 import { parseUTCDate } from './receiptGenerator';
 import { getStoreTimezone, getStoreBusinessDate } from '../time/timezoneHelper';
@@ -102,8 +102,8 @@ function formatIndianCurrency(amount: number | string | null | undefined): strin
   const num = Number(amount) || 0;
   const abs = Math.abs(num);
   const formatted = abs.toLocaleString(getStoreLocale(), {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: getCurrencyDecimals(),
+    maximumFractionDigits: getCurrencyDecimals(),
   });
   return formatted;
 }

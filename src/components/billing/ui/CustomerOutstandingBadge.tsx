@@ -1,4 +1,4 @@
-import { getStoreLocale } from '../../../utils/localization/storeProfile';
+import { getStoreLocale, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
@@ -32,7 +32,7 @@ export function CustomerOutstandingBadge({ partyObj }: { partyObj: { name?: stri
 
   const bal = Number(activeParty.balance || 0);
   const isDue = bal > 0;
-  const fmtN = (n: number) => Math.abs(n).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtN = (n: number) => Math.abs(n).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
 
   return (
     <div

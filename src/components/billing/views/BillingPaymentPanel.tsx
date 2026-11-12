@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import type * as B from '../billingTypes';
 import React from 'react';
 import type { DeductionState } from './DeductionEditor';
@@ -176,7 +176,7 @@ export const BillingPaymentPanel: React.FC<BillingPaymentPanelProps> = ({
                       const due = Number(selectedReturnInvoice.balance_amount || selectedReturnInvoice.grand_total) || 0;
                       return (
                         <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
-                          Credit Bill · Balance Due: {getCurrencyPrefix()}{due.toFixed(2)}
+                          Credit Bill · Balance Due: {getCurrencyPrefix()}{due.toFixed(getCurrencyDecimals())}
                         </span>
                       );
                     }

@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { nameToHue, getInitials, formatCurrency, formatStock, formatDateTime } from '../scrapFormat';
 import clsx from 'clsx';
@@ -138,7 +138,7 @@ export function ScrapTransactionsView({
                             {formatDateTime(entry.created_at)}
                           </span>
                           <span className="text-[11px] text-muted-foreground font-medium">
-                            {entry.quantity.toFixed(3)} {selectedCategory.unit} × {getCurrencyPrefix()}{entry.rate.toFixed(2)}
+                            {entry.quantity.toFixed(3)} {selectedCategory.unit} × {getCurrencyPrefix()}{entry.rate.toFixed(getCurrencyDecimals())}
                           </span>
                         </div>
                       </div>
@@ -148,7 +148,7 @@ export function ScrapTransactionsView({
                           'text-xl font-black leading-none',
                           isPurchase ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
                         )}>
-                          {isPurchase ? '+' : '−'}{getCurrencyPrefix()}{entry.total_amount.toFixed(2)}
+                          {isPurchase ? '+' : '−'}{getCurrencyPrefix()}{entry.total_amount.toFixed(getCurrencyDecimals())}
                         </p>
                         {isOwner && (
                           <div className="flex items-center gap-1 mt-1">

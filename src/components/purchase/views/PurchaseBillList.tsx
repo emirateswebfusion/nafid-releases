@@ -1,4 +1,4 @@
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React, { Fragment } from 'react';
 import { Search, X, Download, Plus, Receipt, FileText, User, Calendar, Printer, Pencil, Trash, Eye, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
@@ -261,7 +261,7 @@ export function PurchaseBillList({
                 </div>
 
                 <div className="col-span-1 text-right">
-                  <span className="text-sm font-black text-foreground">{getCurrencyPrefix()}{Number(bill.total_amount).toFixed(2)}</span>
+                  <span className="text-sm font-black text-foreground">{getCurrencyPrefix()}{Number(bill.total_amount).toFixed(getCurrencyDecimals())}</span>
                 </div>
                 <div className="col-span-1 flex items-center justify-center gap-1">
                   <button

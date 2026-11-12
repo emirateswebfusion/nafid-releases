@@ -76,22 +76,22 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
 
   {
     if (data.subtotal !== undefined) {
-      const subtotalFmt = Number(data.subtotal || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const subtotalFmt = Number(data.subtotal || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
       paymentText += `\n📋 *${t(L.subtotal)}:* ${getCurrencyPrefix()}${subtotalFmt}`;
     }
     if (!uae && (Number(data.cgst) > 0 || Number(data.sgst) > 0)) {
-      const cgstFmt = Number(data.cgst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const sgstFmt = Number(data.sgst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const cgstFmt = Number(data.cgst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
+      const sgstFmt = Number(data.sgst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
       paymentText += `\n🏛️ *CGST:* ${getCurrencyPrefix()}${cgstFmt}`;
       paymentText += `\n🏛️ *SGST:* ${getCurrencyPrefix()}${sgstFmt}`;
     } else if (!uae && data.igst && data.igst > 0) {
-      const igstFmt = Number(data.igst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const igstFmt = Number(data.igst || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
       paymentText += `\n🏛️ *IGST:* ${getCurrencyPrefix()}${igstFmt}`;
     } else if (Number(data.tax) > 0) {
       if (!uae) {
         const split = splitTaxAmount(Number(data.tax));
-        const cgstFmt = split.cgst.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const sgstFmt = split.sgst.toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const cgstFmt = split.cgst.toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
+        const sgstFmt = split.sgst.toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
         paymentText += `\n🏛️ *CGST:* ${getCurrencyPrefix()}${cgstFmt}`;
         paymentText += `\n🏛️ *SGST:* ${getCurrencyPrefix()}${sgstFmt}`;
       } else {
@@ -124,7 +124,7 @@ export function formatWhatsAppBillMessage(data: WhatsAppBillDetails): string {
   }
 
   if (data.customerBalance && data.customerBalance > 0) {
-    const totalOutstanding = Number(data.customerBalance).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 });
+    const totalOutstanding = Number(data.customerBalance).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals() });
     paymentText += `\n📊 *${t(L.totalOutstanding)}:* ${getCurrencyPrefix()}${totalOutstanding}`;
   }
 
@@ -148,7 +148,7 @@ export interface WhatsAppStatementDetails {
 
 export function formatWhatsAppStatementMessage(data: WhatsAppStatementDetails): string {
   const shop = data.shopName || 'STORE';
-  const bal = Math.abs(data.balance).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const bal = Math.abs(data.balance).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
   const typeText = data.balance > 0 ? 'Receivable (Due)' : data.balance < 0 ? 'Payable (Advance/Credit)' : 'Settled';
 
   return withNafidFooter(`📑 *ACCOUNT STATEMENT*\n🏢 *${shop}*\n👤 *Party:* ${data.partyName} (${data.partyType || 'Customer'})\n\n💰 *Current Balance:* ${getCurrencyPrefix()}${bal} [${data.balanceLabel || typeText}]\n📊 *Total Entries:* ${data.entryCount}${data.lastDate ? `\n📅 *Last Activity:* ${data.lastDate}` : ''}\n\n🙏 *Thank you!*`);
@@ -165,8 +165,8 @@ export interface WhatsAppStaffSalaryDetails {
 
 export function formatWhatsAppStaffSalaryMessage(data: WhatsAppStaffSalaryDetails): string {
   const shop = data.shopName || 'STORE';
-  const bal = Number(data.currentBalance || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const sal = data.monthlySalary ? Number(data.monthlySalary).toLocaleString(getStoreLocale(), { minimumFractionDigits: 2 }) : null;
+  const bal = Number(data.currentBalance || 0).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals(), maximumFractionDigits: getCurrencyDecimals() });
+  const sal = data.monthlySalary ? Number(data.monthlySalary).toLocaleString(getStoreLocale(), { minimumFractionDigits: getCurrencyDecimals() }) : null;
 
   return withNafidFooter(`👤 *STAFF SALARY STATEMENT*\n🏢 *${shop}*\n👔 *Employee:* ${data.staffName} (${data.staffCode || 'Staff'})\n${sal ? `💼 *Monthly Salary:* ${getCurrencyPrefix()}${sal}\n` : ''}💰 *Pending Balance:* ${getCurrencyPrefix()}${bal}\n\n🙏 *Thank you!*`);
 }

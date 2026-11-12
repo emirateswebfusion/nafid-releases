@@ -1,4 +1,4 @@
-import { localizeTaxText } from '../../../utils/localization/storeProfile';
+import { localizeTaxText, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import {
@@ -327,7 +327,7 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
               <div className="text-xs text-muted-foreground font-medium">
                 {txForm.amount && parseFloat(txForm.amount) > 0 && (
                   <span className={clsx('font-bold', txForm.transaction_type === 'CREDIT' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                    {txForm.transaction_type === 'CREDIT' ? '+' : '-'}{getCurrencyPrefix()}{parseFloat(txForm.amount).toFixed(2)}
+                    {txForm.transaction_type === 'CREDIT' ? '+' : '-'}{getCurrencyPrefix()}{parseFloat(txForm.amount).toFixed(getCurrencyDecimals())}
                   </span>
                 )}
               </div>

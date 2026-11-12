@@ -121,15 +121,16 @@ export function VatReportScreen({ onBack }: VatReportScreenProps) {
     { id: 'purchases', label: 'Purchases (Input Tax)', count: report?.purchaseAudit.length },
     { 
       id: 'validation', 
-      label: 'FTA Audit & Compliance', 
+      label: isBahrain ? 'Audit & Compliance' : 'FTA Audit & Compliance', 
       count: report?.validationIssues.length,
       hasAlert: Boolean(report?.validationIssues.some(i => i.severity === 'BLOCKING')),
     },
-    {
-      id: 'filings_guide',
+    // EmaraTax filing tracking is UAE-only; Bahrain returns are filed on the NBR portal.
+    ...(isBahrain ? [] : [{
+      id: 'filings_guide' as VatTabType,
       label: 'EmaraTax Filing & Guide',
       count: filings.length,
-    },
+    }]),
   ];
 
   return (
@@ -147,18 +148,18 @@ export function VatReportScreen({ onBack }: VatReportScreenProps) {
             <div className="min-w-0 leading-tight">
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-black tracking-tight text-foreground truncate">
-                  UAE VAT Return 201 &amp; FTA Audit
+                  {isBahrain ? 'Bahrain VAT Return' : 'UAE VAT Return 201 & FTA Audit'}
                 </h1>
                 <span className="hidden sm:inline-flex px-2 py-0.5 text-[10px] font-bold rounded-md bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
-                  Federal Tax Authority (FTA)
+                  {isBahrain ? 'National Bureau for Revenue (NBR)' : 'Federal Tax Authority (FTA)'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground font-semibold mt-0.5 truncate">
-                {shopName || 'Store'} • TRN:{' '}
+                {shopName || 'Store'} • {isBahrain ? 'VAT Account No.' : 'TRN'}:{' '}
                 <span className="font-mono font-bold text-foreground">
                   {shopTrn || 'Not set (Update in Settings)'}
                 </span>
-                {' '}• Emirate: <span className="font-semibold text-foreground">{shopEmirate}</span>
+                {!isBahrain && <>{' '}• Emirate: <span className="font-semibold text-foreground">{shopEmirate}</span></>}
               </p>
             </div>
           </div>
@@ -176,38 +177,44 @@ export function VatReportScreen({ onBack }: VatReportScreenProps) {
               <span className="hidden md:inline">Refresh</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleExportFaf}
-              disabled={!report || loading}
-              className="h-9 px-3.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
-              title="Export official FTA Audit File (FAF)"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Export FAF</span>
-            </button>
+            {!isBahrain && (
+              <button
+                type="button"
+                onClick={handleExportFaf}
+                disabled={!report || loading}
+                className="h-9 px-3.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Export official FTA Audit File (FAF)"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Export FAF</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              disabled={!report || loading}
-              className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
-              title="Export Form VAT 201 multi-sheet Excel workbook"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Export Excel</span>
-            </button>
+            {!isBahrain && (
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={!report || loading}
+                className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Export Form VAT 201 multi-sheet Excel workbook"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Export Excel</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={handleExportJson}
-              disabled={!report || loading}
-              className="h-9 px-3 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
-              title="Export VAT 201 JSON payload"
-            >
-              <FileCode className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">JSON</span>
-            </button>
+            {!isBahrain && (
+              <button
+                type="button"
+                onClick={handleExportJson}
+                disabled={!report || loading}
+                className="h-9 px-3 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Export VAT 201 JSON payload"
+              >
+                <FileCode className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">JSON</span>
+              </button>
+            )}
 
             <button
               type="button"
