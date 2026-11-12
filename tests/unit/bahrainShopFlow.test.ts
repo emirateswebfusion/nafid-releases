@@ -75,6 +75,7 @@ describe('Bahrain shop: a bill keeps its fils in the database and the customer a
     setCountry('BH');
     expect(creditBill('B1', 0.555, 0.25).success).toBe(true);
     expect(balance()).toBeCloseTo(0.305, 9);
+    expect(saleText()).toContain('(Paid BHD 0.250, Credit BHD 0.305)');
   });
 
   it('adds bills to the fils: 0.185 + 1.070 = 1.255 owed', () => {
