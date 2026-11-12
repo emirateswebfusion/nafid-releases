@@ -1,3 +1,4 @@
+import { returnsApi } from '../../../data/returns';
 import { BAHRAIN_SIMPLIFIED_INVOICE_LIMIT } from '../../../utils/print/uaeLabels';
 import { moneyMinorUnit, roundMoney } from '../../../utils/pricing/moneyRounding';
 import { getCurrencyDecimals } from '../../../utils/localization/storeProfile';
@@ -25,7 +26,6 @@ import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { invoicesApi } from '../../../data/invoices';
 import { printingApi } from '../../../data/printing';
 import { quotationsApi } from '../../../data/quotations';
-import { returnsApi } from '../../../data/returns';
 import { sendConfiguredBill } from '../../../data/whatsappSharing';
 import { calculateLoyaltyPoints } from '../../../utils/pricing/loyalty';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
@@ -261,7 +261,20 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         : isSplitCreditBill
         ? Math.max(0, effectiveGrandTotal - splitNonCreditPaid)
         : 0;
-      const partyNewBalance = partyOldBalance + newPartyContribution;
+      // An "Adjust Bill" return of this customer used on this bill: its credit is already in the old balance (as an
+      // advance) and the ledger cancels it now, so the new balance must too, or the bill and receipt show it twice.
+      let returnCreditUsedForParty = 0;
+      if (!isEditing && matchedParty && storeReturnDeduction > 0 && storeReturnInvoiceNumber && isDesktopRuntime()) {
+        try {
+          const ret = await returnsApi.getReturnInvoiceByNumber({ tenant_id: tenantId || 'global', return_number: storeReturnInvoiceNumber });
+          const digits = (v: unknown) => String(v || '').replace(/\D/g, '').slice(-10);
+          const retPhone = digits(ret?.customer_phone), retName = String(ret?.customer_name || '').trim().toLowerCase();
+          const samePhone = Boolean(retPhone) && retPhone === digits(cleanCustPhone);
+          const sameName = !retPhone && Boolean(retName) && retName === cleanCustName.toLowerCase();
+          if (samePhone || sameName) returnCreditUsedForParty = Math.min(storeReturnDeduction, returnConsumed > 0 ? returnConsumed : grandTotal);
+        } catch { /* the balance is then shown as before; the ledger itself is still correct */ }
+      }
+      const partyNewBalance = partyOldBalance + newPartyContribution + returnCreditUsedForParty;
       const tracksPartyBalance = partyOldBalance !== 0 || effectiveFinalPaymentMethod === 'CREDIT' || isSplitCreditBill;
       const splitDetailsForSave: SplitDetails = { ...(splitDetails || {}) };
       if (effectiveFinalPaymentMethod !== 'SPLIT') {
@@ -495,7 +508,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
           description: activeTab?.description || null,
           notes: activeTab?.description || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
-          return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
+          return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null, return_consumed: storeReturnDeduction > 0 ? Math.min(storeReturnDeduction, returnConsumed > 0 ? returnConsumed : grandTotal) : 0,
           actual_refund_paid: refundAmount > 0 && paymentMethod !== 'PENDING'
             ? (actualRefundPaid > 0 ? actualRefundPaid : refundAmount)
             : 0,
@@ -527,22 +540,7 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
         receiptData.date = formatBillDateTime(result.created_at);
       }
 
-      // Consume ADJUST_BILL return credit. Only the portion actually applied to this
-      // bill (clamped to the bill total) is settled; any leftover stays as pending
-      // credit for a future bill. Editing a bill never re-consumes credit.
-      if (!isEditing && storeReturnDeduction > 0 && storeReturnInvoiceNumber && isDesktopRuntime()) {
-        try {
-          const consumed = Math.min(storeReturnDeduction, returnConsumed > 0 ? returnConsumed : grandTotal);
-          await returnsApi.settleReturnInvoice({
-            tenant_id: tenantId || 'global',
-            return_number: storeReturnInvoiceNumber,
-            adjusted_invoice_number: invoice_number,
-            amount: consumed,
-          });
-        } catch (e) {
-          console.error('Failed to settle ADJUST_BILL return credit:', e);
-        }
-      }
+      // The ADJUST_BILL return credit was consumed inside the checkout transaction (invoiceCheckoutService).
 
       // Auto-record cash out if there was a leftover refund amount and payment method is CASH.
       // refundAmount only covers SCRAP credit excess — ADJUST_BILL leftover stays as credit.

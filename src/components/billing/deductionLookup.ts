@@ -30,8 +30,10 @@ export async function lookupScrapCredit(tenantId: string, number: string): Promi
 export async function lookupReturnCredit(tenantId: string, number: string): Promise<CreditLookup> {
   const res = await returnsApi.getReturnInvoiceByNumber({ tenant_id: tenantId, return_number: number });
   if (!res?.grand_total) return NONE;
+  const method = String(res.refund_method ?? '').trim().toUpperCase();
+  if (method !== '' && method !== 'ADJUST_BILL') return { status: 'error', message: `Return ${res.return_number || number} was refunded by ${method}; it cannot also be deducted.` };
   const remaining = res.grand_total - (res.adjusted_amount || 0);
-  return remaining > 0 ? { status: 'found', amount: remaining, number } : { status: 'error', message: 'Return already fully adjusted' };
+  return remaining > 0 ? { status: 'found', amount: remaining, number: res.return_number || number } : { status: 'error', message: 'Return already fully adjusted' };
 }
 
 /** Exact lookup, then a loose match on the digits against pending scrap invoices. */

@@ -208,7 +208,7 @@ export function getReturnInvoiceByNumber({ tenant_id, return_number }: { tenant_
     const list = returnsSql.findReturns(db).all(tenant_id) as ReturnRow[];
     const match = list.find((r: ReturnRow) => {
       const numStr = (String(r.return_number || '').match(/\d+/g) || []).join('');
-      return numStr === qNum || Number(numStr) === Number(qNum) || numStr.endsWith(qNum);
+      return numStr === qNum || Number(numStr) === Number(qNum);
     });
     if (match) return match;
   }
@@ -222,43 +222,65 @@ export function getPendingReturnInvoices({ tenant_id, search }: { tenant_id: str
   return statement.all(...params);
 }
 
-/** IPC `db:settleReturnInvoice` */
+/** A return credit that cannot be used on a bill; its message is shown to the cashier. */
+export class ReturnCreditError extends Error {}
+
+/** Refund methods whose credit stays with the customer to be used on a later bill. */
+export function isAdjustableReturn(refundMethod: unknown): boolean {
+  const method = String(refundMethod ?? '').trim().toUpperCase();
+  return method === '' || method === 'ADJUST_BILL';
+}
+
+/**
+ * Uses part of an "Adjust Bill" return credit on a bill. Throws when the return does not exist, was refunded another
+ * way (cash, UPI, card, ...), or has nothing left. Uses at most what is left and returns the amount used. Runs inside
+ * the caller's transaction, so a bill and the use of its return credit are saved together or not at all.
+ */
+export function applyReturnCredit(db: ReturnType<typeof getDb>, args: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }): number {
+  const requested = Math.max(0, Number(args.amount) || 0);
+  if (requested <= 0) throw new ReturnCreditError('Invalid return adjustment amount');
+  const returnData = returnsSql.findReturnsByReturnNumber3(db).get(args.tenant_id, args.return_number) as ReturnRow | undefined;
+  if (!returnData) throw new ReturnCreditError(`Return ${args.return_number} not found`);
+  if (!isAdjustableReturn(returnData.refund_method)) {
+    throw new ReturnCreditError(`Return ${args.return_number} was refunded by ${returnData.refund_method}; it cannot also be deducted from a bill`);
+  }
+  const current = returnsSql.findReturnsByReturnNumber(db).get(args.tenant_id, args.return_number) as ReturnRow;
+  const remaining = (Number(current.grand_total) || 0) - (Number(current.adjusted_amount) || 0);
+  if (remaining <= 0.0005) throw new ReturnCreditError(`Return ${args.return_number} is already fully adjusted`);
+  const amt = Math.min(requested, remaining);
+  const res = returnsSql.updateReturnAdjustedAmountAndAdjustedInvoiceNumber(db).run(amt, args.adjusted_invoice_number, args.tenant_id, args.return_number);
+  if (res.changes === 0) throw new ReturnCreditError(`Return ${args.return_number} is already fully adjusted`);
+  syncReturnLedger(db, {
+    tenant_id: args.tenant_id || 'global',
+    return_number: returnData.return_number,
+    return_id: returnData.return_id,
+    // The same customer the return was posted to (createReturn falls back to the original bill's customer).
+    invoice_number: returnData.orig_invoice_number || null,
+    customer_id: returnData.orig_customer_id || null,
+    customer_name: (returnData.customer_name || '').trim() || returnData.orig_customer_name || null,
+    customer_phone: (returnData.customer_phone || '').trim() || returnData.orig_customer_phone || null,
+    customer_address: returnData.customer_address || returnData.orig_customer_address || null,
+    customer_gstin: returnData.orig_customer_gstin || null,
+    grand_total: returnData.grand_total,
+    refund_method: 'ADJUST_BILL',
+    adjusted_invoice_number: args.adjusted_invoice_number,
+    amount: amt,
+    user_id: returnData.user_id,
+    user_name: returnData.user_name || returnData.user_id,
+    created_at: localTimestamp(),
+  });
+  return amt;
+}
+
+/** IPC `db:settleReturnInvoice` (kept for older callers; new bills use the return credit inside checkout). */
 export function settleReturnInvoice({ tenant_id, return_number, adjusted_invoice_number, amount }: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }) {
   const db = getDb();
-  const amt = Math.max(0, Number(amount) || 0);
-  if (amt <= 0) return { success: false, error: 'Invalid adjustment amount' };
-  
-  // Get return details for ledger sync
-  const returnData = returnsSql.findReturnsByReturnNumber3(db).get(tenant_id, return_number) as ReturnRow;
-  
-  const res = returnsSql.updateReturnAdjustedAmountAndAdjustedInvoiceNumber(db).run(amt, adjusted_invoice_number, tenant_id, return_number);
-  
-  if (res.changes === 0) return { success: false, error: 'Return not found or already fully adjusted' };
-  
-  // Sync party ledger for ADJUST_BILL
-  if (returnData && returnData.refund_method === 'ADJUST_BILL') {
-    syncReturnLedger(db, {
-      tenant_id: tenant_id || 'global',
-      return_number: returnData.return_number,
-      return_id: returnData.return_id,
-      // The same customer the return was posted to (createReturn falls back to the original bill's customer).
-      invoice_number: returnData.orig_invoice_number || null,
-      customer_id: returnData.orig_customer_id || null,
-      customer_name: (returnData.customer_name || '').trim() || returnData.orig_customer_name || null,
-      customer_phone: (returnData.customer_phone || '').trim() || returnData.orig_customer_phone || null,
-      customer_address: returnData.customer_address || returnData.orig_customer_address || null,
-      customer_gstin: returnData.orig_customer_gstin || null,
-      grand_total: returnData.grand_total,
-      refund_method: 'ADJUST_BILL',
-      adjusted_invoice_number: adjusted_invoice_number,
-      amount: amt,
-      user_id: returnData.user_id,
-      user_name: returnData.user_name || returnData.user_id,
-      created_at: localTimestamp(),
-    });
+  try {
+    db.transaction(() => applyReturnCredit(db, { tenant_id, return_number, adjusted_invoice_number, amount }))();
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
-  
-  return { success: true };
 }
 
 /** IPC `db:getReturns` */

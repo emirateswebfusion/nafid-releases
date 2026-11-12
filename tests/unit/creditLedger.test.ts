@@ -258,7 +258,9 @@ describe('credit balance after billing operations', () => {
     returnGoods('R-1', 'B-1', 200, 'ADJUST_BILL');
     expect(owed(sara)).toBe(-200);
     bill('B-2', sara, 800, { method: 'CREDIT' }, { subtotal: 1000, return_deduction: 200, return_invoice_number: 'R-1' });
-    expect(settleReturnInvoice({ tenant_id: SHOP, return_number: 'R-1', adjusted_invoice_number: 'B-2', amount: 200 }).success).toBe(true);
+    // The bill consumes the return credit in its own save; a second, separate settle is refused.
+    expect(raw.prepare("SELECT adjusted_amount, adjusted_invoice_number FROM returns WHERE return_number = 'R-1'").get()).toMatchObject({ adjusted_amount: 200, adjusted_invoice_number: 'B-2' });
+    expect(settleReturnInvoice({ tenant_id: SHOP, return_number: 'R-1', adjusted_invoice_number: 'B-2', amount: 200 }).success).toBe(false);
     expect(owed(sara)).toBe(800);
   });
 
@@ -266,7 +268,7 @@ describe('credit balance after billing operations', () => {
     bill('B-1', sara, 1000, { method: 'CASH' });
     returnGoods('R-1', 'B-1', 200, 'ADJUST_BILL');
     bill('B-2', sara, 800, { method: 'CREDIT' }, { subtotal: 1000, return_deduction: 200, return_invoice_number: 'R-1' });
-    settleReturnInvoice({ tenant_id: SHOP, return_number: 'R-1', adjusted_invoice_number: 'B-2', amount: 200 });
+    expect(raw.prepare("SELECT adjusted_amount FROM returns WHERE return_number = 'R-1'").get()).toMatchObject({ adjusted_amount: 200 });
     expect(deleteInvoice(id('B-2')).success).toBe(true);
     expect(owed(sara)).toBe(-200);
     expect(raw.prepare("SELECT adjusted_amount FROM returns WHERE return_number = 'R-1'").get()).toMatchObject({ adjusted_amount: 0 });

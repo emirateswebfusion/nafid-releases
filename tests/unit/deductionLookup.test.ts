@@ -47,6 +47,14 @@ describe('scrap credit lookup', () => {
 });
 
 describe('return credit lookup', () => {
+  it('refuses a return that was refunded in cash, UPI or card: it cannot also be deducted', async () => {
+    returns.getReturnInvoiceByNumber.mockResolvedValue({ return_number: 'RET-7', grand_total: 500, adjusted_amount: 0, refund_method: 'CASH' });
+    expect(await lookupReturnCredit('t1', 'RET-7')).toEqual({ status: 'error', message: 'Return RET-7 was refunded by CASH; it cannot also be deducted.' });
+  });
+  it('uses the stored return number when the cashier typed a short form', async () => {
+    returns.getReturnInvoiceByNumber.mockResolvedValue({ return_number: 'POS1-RTN-007', grand_total: 500, adjusted_amount: 0, refund_method: 'ADJUST_BILL' });
+    expect(await lookupReturnCredit('t1', '7')).toEqual({ status: 'found', amount: 500, number: 'POS1-RTN-007' });
+  });
   it('deducts only the unadjusted remainder', async () => {
     returns.getReturnInvoiceByNumber.mockResolvedValue({ grand_total: 500, adjusted_amount: 120 });
     expect(await lookupReturnCredit('t1', 'RET-1')).toEqual({ status: 'found', amount: 380, number: 'RET-1' });
