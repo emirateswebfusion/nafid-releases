@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { ArrowLeft, Bell, BellOff, CheckCheck, Circle, Download, PackageX, RefreshCw, Search, TriangleAlert, CloudOff, type LucideIcon } from 'lucide-react';
+import { Bell, BellOff, CheckCheck, Circle, Download, PackageX, RefreshCw, Search, TriangleAlert, CloudOff, type LucideIcon } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { RedCrossButton } from '../ui/RedCrossButton';
+import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { useNotifications } from './hooks/useNotifications';
 import {
   filterNotifications, type AppNotification, type NotificationKind, type NotificationStatusFilter,
@@ -33,6 +35,7 @@ export interface NotificationsPageProps {
 
 /** Notifications page: list of shop alerts with search, read/unread filter, and mark-as-read actions. */
 export function NotificationsPage({ onClose }: NotificationsPageProps) {
+  useCloseOnEscape(onClose);
   const { notifications, unreadCount, isLoading, error, reload, markRead, markUnread, markAllRead } = useNotifications();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<NotificationStatusFilter>('ALL');
@@ -47,13 +50,10 @@ export function NotificationsPage({ onClose }: NotificationsPageProps) {
   };
 
   return (
-    <div className="flex h-full w-full flex-col bg-background">
+    <div className="flex h-full w-full flex-col bg-card">
       <header className="shrink-0 border-b border-border bg-card shadow-xs">
         <div className="flex items-center justify-between gap-4 px-6 py-3.5">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Back to dashboard" title="Back to dashboard">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Bell className="h-4.5 w-4.5" />
             </div>
@@ -71,6 +71,8 @@ export function NotificationsPage({ onClose }: NotificationsPageProps) {
             <Button size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
               <CheckCheck className="mr-1.5 h-3.5 w-3.5" /> Mark all as read
             </Button>
+            <div className="h-6 w-px bg-border/80 mx-1" />
+            <RedCrossButton onClick={onClose} title="Close" />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 px-6 pb-3">
@@ -102,7 +104,7 @@ export function NotificationsPage({ onClose }: NotificationsPageProps) {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-6 py-4">
+      <main className="flex-1 overflow-y-auto px-6 py-4 bg-card">
         {error && (
           <div className="mb-3 rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive">{error}</div>
         )}
@@ -112,7 +114,7 @@ export function NotificationsPage({ onClose }: NotificationsPageProps) {
             <p className="text-sm font-semibold">{query || status !== 'ALL' ? 'No notifications match your search' : 'No notifications'}</p>
           </div>
         ) : (
-          <ul className="mx-auto flex max-w-4xl flex-col gap-2" aria-label="Notifications">
+          <ul className="flex w-full flex-col gap-2.5" aria-label="Notifications">
             {visible.map(n => {
               const Icon = KIND_ICON[n.kind];
               return (
@@ -120,8 +122,12 @@ export function NotificationsPage({ onClose }: NotificationsPageProps) {
                   key={n.id}
                   data-testid="notification-item"
                   data-read={n.read ? 'true' : 'false'}
-                  className={clsx('flex items-start gap-3 rounded-2xl border p-4 transition-colors',
-                    n.read ? 'border-border bg-card/60' : 'border-primary/20 bg-card shadow-sm')}
+                  className={clsx(
+                    'flex w-full items-start gap-3.5 rounded-xl border p-4 transition-all',
+                    n.read
+                      ? 'border-border/60 bg-muted/15 text-muted-foreground hover:bg-muted/25'
+                      : 'border-border bg-card hover:bg-muted/20 hover:border-primary/40 shadow-xs'
+                  )}
                 >
                   <div className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', SEVERITY_STYLE[n.severity])}>
                     <Icon className="h-4.5 w-4.5" />
