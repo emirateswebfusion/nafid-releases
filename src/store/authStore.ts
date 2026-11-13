@@ -29,7 +29,7 @@ export interface AuthState {
 
   // Actions
   login: (email: string, password: string, apiBase?: string, options?: { requireCloud?: boolean; offlineOnly?: boolean }) => Promise<{ success: boolean; error?: string }>;
-  loginWithPin: (pin: string) => Promise<{ success: boolean; error?: string; remaining_seconds?: number; attempts_remaining?: number }>;
+  loginWithPin: (pin: string, userId?: string) => Promise<{ success: boolean; error?: string; remaining_seconds?: number; attempts_remaining?: number }>;
   setLastSyncTime: (time: number) => void;
   setCloudSyncPaused: (paused: boolean, reason?: string | null) => void;
   lockTerminal: () => Promise<void>;
@@ -125,7 +125,7 @@ async function lockTerminalSession(
       if (!locked?.success) throw new Error(locked?.error || 'Could not lock the terminal session.');
     }
   } catch {
-    set({ authError: 'Could not switch user right now. Your current work is still open. Please retry.' });
+    set({ authError: 'Could not lock terminal right now. Your current work is still open. Please retry.' });
     return;
   }
   setEmailLoginPreference(preferEmail);
@@ -530,7 +530,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
   },
 
   // ── Login with PIN ────────────────────────────────────────────────────────
-  loginWithPin: async (pin: string) => {
+  loginWithPin: async (pin: string, userId?: string) => {
     const generation = ++authGeneration;
     set({ authError: null });
     if (!isDesktopRuntime()) {
@@ -540,7 +540,8 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       return { success: false, error: 'PIN login is not supported in this version.' };
     }
     try {
-      const res = await authApi.loginWithPin({ pin });
+      const lockedUserId = userId || useAuthStore.getState().userId;
+      const res = await authApi.loginWithPin({ pin, user_id: lockedUserId || undefined });
       if (generation !== authGeneration) return { success: false, error: 'PIN login cancelled because the session changed.' };
       if (!res.success) {
         return {
@@ -580,32 +581,32 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
     }
   },
 
-  // ── Lock / Switch User & Full Logout ──────────────────────────────────────
+  // ── Lock Terminal & Logout ────────────────────────────────────────────────
   lockTerminal: async () => {
-    let preferEmail = false;
-    if (isDesktopRuntime()) {
-      if (hasBridge('authCheckUserPin') && typeof authApi.checkUserPin === 'function') {
-        try {
-          const current = useAuthStore.getState();
-          const res = await authApi.checkUserPin({
-            tenant_id: current.tenantId || undefined,
-            user_id: current.userId || undefined,
-            email: current.userEmail || undefined,
-          });
-          if (res && res.has_pin === false) {
-            preferEmail = true;
-          }
-        } catch {
-          preferEmail = true;
-        }
-      }
-    } else {
-      preferEmail = true;
+    if (!isDesktopRuntime()) {
+      await lockTerminalSession(set, true);
+      return;
     }
-    await lockTerminalSession(set, preferEmail);
+    if (hasBridge('authCheckUserPin') && typeof authApi.checkUserPin === 'function') {
+      try {
+        const current = useAuthStore.getState();
+        const res = await authApi.checkUserPin({
+          tenant_id: current.tenantId || undefined,
+          user_id: current.userId || undefined,
+          email: current.userEmail || undefined,
+        });
+        if (res && res.has_pin === false) {
+          set({ authError: 'No PIN configured for your account. Please set a 4-digit PIN in Staff settings to lock the terminal, or Log Out.' });
+          return;
+        }
+      } catch {
+        // If check failed, proceed to lock
+      }
+    }
+    await lockTerminalSession(set, false);
   },
 
-  switchToEmailLogin: () => lockTerminalSession(set, true),
+  switchToEmailLogin: () => useAuthStore.getState().logout(),
 
   logout: async () => {
     ++authGeneration;

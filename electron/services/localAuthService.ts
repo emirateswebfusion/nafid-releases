@@ -1,7 +1,7 @@
 import type { SettingRow, UserRow } from './typesB.js';
 import crypto from 'node:crypto';
 import { readTerminalSession, parseTerminalSession } from './terminalSession.js';
-import { readAuthPayload, readOfflineSession } from './authStorage.js';
+import { readAuthPayload, readOfflineSession, isTerminalLocked } from './authStorage.js';
 import { cloudTokenUnusable } from '../sync/syncAuth.js';
 import { syncState } from '../sync/syncState.js';
 import bcrypt from 'bcryptjs';
@@ -239,23 +239,25 @@ function isTerminalCloudSyncReady(tenantId?: string): boolean {
 
 export function getTerminalConfig(): {
   isConfigured: boolean; tenant_id?: string; shop_name?: string; user_name?: string; role?: string; user_id?: string;
-  cloud_sync_ready?: boolean; lockout_remaining_seconds?: number;
+  cloud_sync_ready?: boolean; lockout_remaining_seconds?: number; is_locked?: boolean;
 } {
   const db = getOpenDb();
   if (!db) return { isConfigured: false };
+  const locked = isTerminalLocked();
   const session = readTerminalSession() || parseTerminalSession(readOfflineSession()) || parseTerminalSession(readAuthPayload());
   if (session) {
     const lockout = getPinLockoutStatus(session.tenant_id);
     return {
       isConfigured: true,
       ...session,
+      is_locked: locked,
       cloud_sync_ready: isTerminalCloudSyncReady(session.tenant_id),
       ...(lockout.locked ? { lockout_remaining_seconds: lockout.remainingSeconds } : {}),
     };
   }
   // An older install with multiple shops needs an explicit email login to choose the shop.
   const tenants = localAuthSql.listConfiguredTenants(db).all() as { tenant_id: string }[];
-  if (tenants.length !== 1) return { isConfigured: false };
+  if (tenants.length !== 1) return { isConfigured: false, is_locked: locked };
   const tenantId = tenants[0].tenant_id;
   const shop = localAuthSql.findSettingShopName(db).get(tenantId, tenantId) as { value?: string } | undefined;
   const lockout = getPinLockoutStatus(tenantId);
@@ -263,12 +265,13 @@ export function getTerminalConfig(): {
     isConfigured: true,
     tenant_id: tenantId,
     shop_name: shop?.value || 'My Shop',
+    is_locked: locked,
     cloud_sync_ready: isTerminalCloudSyncReady(tenantId),
     ...(lockout.locked ? { lockout_remaining_seconds: lockout.remainingSeconds } : {}),
   };
 }
 
-export function localAuthenticatePin(payload: { pin: string; tenant_id?: string }): {
+export function localAuthenticatePin(payload: { pin: string; tenant_id?: string; user_id?: string }): {
   success: boolean;
   error?: string;
   remaining_seconds?: number;
@@ -348,7 +351,11 @@ export function localAuthenticatePin(payload: { pin: string; tenant_id?: string 
       : { success: false, error: reason, attempts_remaining: next.attemptsRemaining };
   };
 
-  const staff = localAuthSql.findStaffByPinHash(db).get(tenantId, pinHash) as StaffPinRow | undefined;
+  const targetUserId = payload?.user_id?.trim();
+  const staff = targetUserId
+    ? (localAuthSql.findLockedStaffByPinHash(db).get(tenantId, targetUserId, targetUserId, targetUserId, targetUserId, pinHash) as StaffPinRow | undefined)
+    : (localAuthSql.findStaffByPinHash(db).get(tenantId, pinHash) as StaffPinRow | undefined);
+
   if (!staff) return fail('Invalid PIN');
   if (staff.status !== 'ACTIVE') return fail('Staff account is inactive');
   if (staff.user_login_enabled === 0) return fail('System login is disabled for this account');

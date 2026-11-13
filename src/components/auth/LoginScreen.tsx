@@ -18,8 +18,9 @@ export function LoginScreen() {
 
   const [tab, setTab] = useState<Tab>('login');
   const [shopName, setShopName] = useState('');
-  const [lastUser, setLastUser] = useState({ name: '', role: '' });
+  const [lastUser, setLastUser] = useState({ name: '', role: '', userId: '' });
   const [terminalConfigured, setTerminalConfigured] = useState(false);
+  const [isLockedTerminal, setIsLockedTerminal] = useState(false);
   const [terminalCloudReady, setTerminalCloudReady] = useState<boolean | undefined>(undefined);
   const [pinLockoutSeconds, setPinLockoutSeconds] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -113,12 +114,15 @@ export function LoginScreen() {
         if (cfg?.isConfigured) {
           setTerminalConfigured(true);
           if (cfg.shop_name) setShopName(cfg.shop_name);
-          setLastUser({ name: cfg.user_name || '', role: cfg.role || '' });
+          setLastUser({ name: cfg.user_name || '', role: cfg.role || '', userId: cfg.user_id || '' });
           setTerminalCloudReady(cfg.cloud_sync_ready);
           setPinLockoutSeconds(cfg.lockout_remaining_seconds ?? 0);
+          const locked = cfg.is_locked === true;
+          setIsLockedTerminal(locked);
           let preferEmail = false;
           try { preferEmail = sessionStorage.getItem('auth_prefer_email') === '1'; } catch { /* ignore */ }
-          if (!preferEmail) setTab('pin');
+          if (locked && !preferEmail) setTab('pin');
+          else setTab('login');
         }
       }).catch(() => {});
     }
@@ -142,7 +146,7 @@ export function LoginScreen() {
           <div className="flex lg:hidden items-center gap-2 mb-8"><img src="./logo.png" alt="" className="h-8 w-8 object-contain" /><span className="text-xl font-black">NAFID</span></div>
           {tab === 'pin' && (
             <QuickPinLogin
-              shopName={shopName} userName={lastUser.name} role={lastUser.role}
+              shopName={shopName} userName={lastUser.name} userId={lastUser.userId} role={lastUser.role}
               cloudSyncReady={terminalCloudReady}
               initialLockoutSeconds={pinLockoutSeconds}
               onSwitchToEmail={() => switchTab('login')}
@@ -153,14 +157,14 @@ export function LoginScreen() {
           {/* ── LOGIN ────────────────────────────────────────────────────── */}
           {tab === 'login' && (
             <form onSubmit={handleLogin} className="space-y-5">
-              {terminalConfigured && (
+              {terminalConfigured && isLockedTerminal && (
                 <button
                   type="button"
                   onClick={() => switchTab('pin')}
                   className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1 font-semibold group cursor-pointer mb-2"
                 >
                   <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-                  Back to Quick PIN Sign In
+                  Back to Locked Terminal
                 </button>
               )}
               <div className="mb-6">

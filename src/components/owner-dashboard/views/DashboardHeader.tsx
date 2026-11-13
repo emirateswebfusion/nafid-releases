@@ -221,10 +221,10 @@ export function DashboardHeader({
                       void useAuthStore.getState().lockTerminal();
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-foreground hover:bg-muted rounded-lg transition-colors text-left cursor-pointer"
-                    title="Switch cashier / lock screen while keeping cloud sync connected"
+                    title="Lock terminal screen (unlock with PIN)"
                   >
                     <Lock className="w-3.5 h-3.5 text-primary" />
-                    <span>Switch User / Lock (PIN)</span>
+                    <span>Lock Terminal</span>
                   </button>
                   <button
                     onClick={() => {

@@ -2,7 +2,7 @@ import { storeDate } from '../../utils/time/dateDisplay';
 import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { Undo2, Search, X, Package, User, AlertCircle, LogOut, Phone, Trash, Clock, Printer, RefreshCw } from 'lucide-react';
+import { Undo2, Search, X, Package, User, AlertCircle, Lock, Phone, Trash, Clock, Printer, RefreshCw } from 'lucide-react';
 import { CurrencyIcon } from '../ui/CurrencyIcon';
 import clsx from 'clsx';
 import { Skeleton } from '../ui/Skeleton';
@@ -262,8 +262,8 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
               <span className="hidden sm:inline">{isResyncing ? 'Syncing...' : 'Re-sync'}</span>
             </button>
             {isRestricted ? (
-              <button onClick={() => void useAuthStore.getState().lockTerminal()} className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all duration-200 active:scale-95 border border-red-500/20 cursor-pointer">
-                <LogOut className="w-4 h-4" /> Switch User
+              <button onClick={() => void useAuthStore.getState().lockTerminal()} title="Lock Terminal" className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all duration-200 active:scale-95 border border-red-500/20 cursor-pointer">
+                <Lock className="w-4 h-4" /> Lock
               </button>
             ) : (
               <RedCrossButton onClick={onClose} title="Close" />

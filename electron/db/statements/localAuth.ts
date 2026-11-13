@@ -43,6 +43,23 @@ export const findStaffByPinHash = (db: Db) => db.prepare(`
   WHERE s.tenant_id = ? AND s.biller_pin_hash = ? AND s.is_deleted = 0
 `);
 
+export const findLockedStaffByPinHash = (db: Db) => db.prepare(`
+  SELECT s.staff_id, s.staff_code, s.name, s.role_designation, s.user_id, s.status, s.tenant_id,
+         u.email as user_email, u.role as user_role, u.permissions as user_permissions,
+         u.restricted_page as user_restricted_page, u.login_enabled as user_login_enabled
+  FROM staff s
+  LEFT JOIN users u ON (u.user_id = s.user_id OR LOWER(u.email) = LOWER(s.email)) AND u.tenant_id = s.tenant_id
+  WHERE s.tenant_id = ?
+    AND (
+      s.user_id = ?
+      OR s.staff_id = ?
+      OR u.user_id = ?
+      OR (s.email IS NOT NULL AND LOWER(s.email) = (SELECT LOWER(email) FROM users WHERE user_id = ? LIMIT 1))
+    )
+    AND s.biller_pin_hash = ?
+    AND s.is_deleted = 0
+`);
+
 export const findSettingShopName = (db: Db) => db.prepare(`
   SELECT value FROM settings WHERE (tenant_id = ? OR tenant_id = 'global') AND key = 'shop_name' ORDER BY (CASE WHEN tenant_id = ? THEN 1 ELSE 2 END) ASC LIMIT 1
 `);

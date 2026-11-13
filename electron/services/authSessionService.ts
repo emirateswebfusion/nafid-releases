@@ -139,7 +139,7 @@ export function loginWithPin(payload: Parameters<typeof localAuthenticatePin>[0]
     }
 }
 
-/** Locks the terminal for PIN/user switching without deleting the terminal's cloud credential. */
+/** Locks the terminal for PIN unlock without deleting the terminal's cloud credential. */
 export function lockSession(payload?: { prefer_email?: boolean }) {
     try {
       const current = readOfflineSession() || readAuthPayload();

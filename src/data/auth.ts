@@ -54,6 +54,7 @@ export interface TerminalConfigResult {
   shop_name?: string;
   cloud_sync_ready?: boolean;
   lockout_remaining_seconds?: number;
+  is_locked?: boolean;
 }
 
 /** Session token and offline-login persistence. Channel catalog — the only way UI code reaches these IPC channels. */
