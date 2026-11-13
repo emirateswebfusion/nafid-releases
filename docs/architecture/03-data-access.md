@@ -228,7 +228,7 @@ keeps its own choice; no server change is needed (the settings push accepts any 
 
 ### UAE e-invoicing (migration 017, 3 Nov 2026)
 
-`einvoice_documents` is a read-only mirror of the server-owned statuses. `electron/sync/einvoiceSync.ts` fills it after each cloud cycle: `POST /api/einvoice/process`, then `GET /api/sync/einvoice-documents`. It is cloud-only, so it stays outside `sync/entities/` (the LAN table rules cover entities only).
+`einvoice_documents` is a read-only mirror of the server-owned statuses. `electron/sync/einvoiceSync.ts` fills it after a cloud cycle that uploaded records, and otherwise at most every 5 minutes (`sync/requestBudget.ts`): `POST /api/einvoice/process`, then `GET /api/sync/einvoice-documents`. It is cloud-only, so it stays outside `sync/entities/` (the LAN table rules cover entities only).
 
 `customers.einvoice_profile` (JSON) is synced in both directions. A pull with no profile keeps the local one. The outbox trigger for `customers` is rebuilt by 017.
 

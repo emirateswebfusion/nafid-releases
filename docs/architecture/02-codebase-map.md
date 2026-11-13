@@ -128,7 +128,8 @@ electron/
     syncWorker.ts    public API + scheduler: init, fast bill pull, urgent triggers, page context, initial sync
     syncCycle.ts     one cycle: cloud status, lightweight / delta pulls, the push → pull sequence
     syncTransport.ts endpoints + connectivity, fetch with LAN→cloud fallback, pushBatch + outbox, cursors, pullPaginated
-    einvoiceSync.ts  cloud-only UAE e-invoicing step after each cycle (process request + status mirror pull)
+    einvoiceSync.ts  cloud-only UAE e-invoicing step (process request + status mirror pull), every 5 min or after an upload
+    requestBudget.ts cloud request budget: idle terminals sync every 5 / 15 min, emergency + e-invoice checks every 5 min
     syncConfig.ts / cloudAccess.ts / syncProgress.ts / syncState.ts   limits + stored login / access rules / progress / shared state
     invoiceItemOrder.ts  pure legacy invoice-pull rule: retain surviving local line order; append new incoming lines
     entities/        per-table push + pull: catalog, salesDocs, parties, cash, stockDocs, settings

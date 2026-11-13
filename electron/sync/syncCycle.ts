@@ -185,6 +185,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
 
   syncState.syncInProgress = true;
   syncState.currentSyncProgress = null;
+  syncState.lastCycleAt = Date.now();
 
   syncState.syncPromise = (async () => {
     try {
@@ -260,8 +261,9 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       notifyOnlineStatus(true, activeRoute);
       if (activeRoute === 'CLOUD' && outboxEnabled(tenant_id)) {
         try {
+          const uploadedRecords = getTotalPendingRecords(getDb(), tenant_id) > 0;
           if (await runOutboxSync(jwt_token, tenant_id, sender)) notifyRenderer('outbox-sync');
-          if (await syncEinvoices(jwt_token, tenant_id)) notifyRenderer('sync-cycle-completed-with-changes');
+          if (await syncEinvoices(jwt_token, tenant_id, { force: uploadedRecords })) notifyRenderer('sync-cycle-completed-with-changes');
           await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then(r => r.response), () => { syncState.isSyncActive = false; });
         } finally { notifyCycleComplete(sender); }
         return;
@@ -356,7 +358,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.5, sender, undefined, totalRecords); await syncWarranties(jwt_token, tenant_id);
         if (await syncRestaurant(jwt_token, tenant_id)) notifyRenderer('restaurant-sync');
         // UAE e-invoicing runs after documents and customers are pushed; it is cloud-only and never blocks the cycle.
-        if (activeRoute === 'CLOUD' && await syncEinvoices(jwt_token, tenant_id)) dataUpdated = true;
+        if (activeRoute === 'CLOUD' && await syncEinvoices(jwt_token, tenant_id, { force: totalRecords > 0 })) dataUpdated = true;
         if (activeRoute === 'CLOUD') await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then((r) => r.response), () => { syncState.isSyncActive = false; });
         if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         // Pre-check if cloud has any new changes before running pull requests

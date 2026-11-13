@@ -4,15 +4,18 @@ import { notifyPullProgress } from './syncProgress.js';
 import { fetchWithFallback, pullPaginated } from './syncTransport.js';
 import { getStoreCountrySetting } from '../services/storeCountryService.js';
 import * as einvoiceSql from '../db/statements/einvoice.js';
+import { EINVOICE_PROCESS_MS, takeTurn } from './requestBudget.js';
 
 /**
  * UAE e-invoicing after a cloud sync: ask the server to process newly synced invoices / credit notes
  * (build PINT AE, submit to the shop's ASP, poll status), then mirror the server-owned statuses.
  * Never blocks checkout and never fails the sync cycle: an older server (404) or a network error is ignored.
+ * Runs at most every EINVOICE_PROCESS_MS, or right away (`force`) when the cycle uploaded local records.
  */
-export async function syncEinvoices(token: string, tenantId: string): Promise<boolean> {
+export async function syncEinvoices(token: string, tenantId: string, { force = false }: { force?: boolean } = {}): Promise<boolean> {
   const db = getDb();
   if (getStoreCountrySetting(db, tenantId) !== 'AE') return false;
+  if (!takeTurn('einvoice', force ? 0 : EINVOICE_PROCESS_MS)) return false;
   try {
     const { response } = await fetchWithFallback('/api/einvoice/process', {
       method: 'POST',
