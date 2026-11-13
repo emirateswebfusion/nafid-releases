@@ -1,4 +1,3 @@
-import { moneyScale } from '../../utils/pricing/moneyRounding';
 import type { CartItem } from '../../store/cartStore';
 import type { Product } from '../../data/products';
 import { listRate, resolveLinePrice } from '../../utils/pricing/linePricing';
@@ -11,15 +10,26 @@ import { lineModifiers, type ActiveOrders, type ModifierGroup, type Modifier, ty
  * lines go through the normal cart, so `cartStore` / `checkoutLines` compute tax exactly as for any sale.
  */
 
-export type TableState = 'free' | 'occupied' | 'billing' | 'ready';
+export type TableState = 'free' | 'occupied' | 'billed' | 'billing' | 'ready';
 
-/** State of a table from its open orders: ready food wins (the waiter must act), then billing, then occupied. */
-export function tableState(tableId: string, active: Pick<ActiveOrders, 'orders' | 'kots'>): { state: TableState; orders: RestaurantOrder[] } {
+/** State of a table from its open orders: ready food wins (the waiter must act), then billing, then billed, then occupied. */
+export function tableState(
+  tableId: string,
+  active: Pick<ActiveOrders, 'orders' | 'kots'>,
+  billedOrderIds?: string[] | Set<string> | Record<string, boolean>
+): { state: TableState; orders: RestaurantOrder[] } {
   const orders = active.orders.filter(o => o.table_id === tableId);
   if (orders.length === 0) return { state: 'free', orders };
   const ready = active.kots.some(k => k.kind === 'NEW' && k.kds_status === 'READY' && orders.some(o => o.order_id === k.order_id));
   if (ready) return { state: 'ready', orders };
-  return { state: orders.some(o => o.status === 'BILLING') ? 'billing' : 'occupied', orders };
+  if (orders.some(o => o.status === 'BILLING')) return { state: 'billing', orders };
+  const isBilled = billedOrderIds && orders.some(o => {
+    if (billedOrderIds instanceof Set) return billedOrderIds.has(o.order_id);
+    if (Array.isArray(billedOrderIds)) return billedOrderIds.includes(o.order_id);
+    return Boolean(billedOrderIds[o.order_id]);
+  });
+  if (isBilled) return { state: 'billed', orders };
+  return { state: 'occupied', orders };
 }
 
 /** Whole minutes since an ISO instant (0 for a bad value), for order and ticket ages. */
@@ -31,7 +41,7 @@ export function minutesSince(iso: string): number {
 /** Void / cancel reasons offered on screen (free text is allowed too); `MOVED` is reserved for moves. */
 export const VOID_REASONS = ['Customer changed mind', 'Wrong item entered', 'Kitchen mistake', 'Item not available', 'Quality complaint', 'Other'];
 
-const round2 = (n: number) => Math.round((n + Number.EPSILON) * moneyScale()) / moneyScale();
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 /** Unit price of a menu item at order time: the canonical line rule with the catalog offer / discount applied. */
 export function menuUnitPrice(product: Pick<Product, 'base_price' | 'pricing_mode' | 'grade_rate' | 'discount_percent' | 'discount_flat' | 'offer_price'>): number {

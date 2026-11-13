@@ -23,7 +23,8 @@ export function channelStyle(channel: string | null | undefined) {
 export const TABLE_STYLE: Record<TableState, { label: string; stripe: string; tile: string; dot: string }> = {
   free: { label: 'Free', stripe: 'bg-border', tile: 'border-dashed border-border bg-card hover:border-primary/60 hover:bg-primary/5', dot: 'bg-muted-foreground/40' },
   occupied: { label: 'Occupied', stripe: 'bg-sky-500', tile: 'border-sky-500/60 bg-sky-500/[0.08] hover:bg-sky-500/[0.14]', dot: 'bg-sky-500' },
-  billing: { label: 'Billing', stripe: 'bg-amber-500', tile: 'border-amber-500/60 bg-amber-500/[0.08] hover:bg-amber-500/[0.14]', dot: 'bg-amber-500' },
+  billed: { label: 'Billed', stripe: 'bg-indigo-500', tile: 'border-indigo-500/60 bg-indigo-500/[0.08] hover:bg-indigo-500/[0.14]', dot: 'bg-indigo-500' },
+  billing: { label: 'In payment', stripe: 'bg-amber-500', tile: 'border-amber-500/60 bg-amber-500/[0.08] hover:bg-amber-500/[0.14]', dot: 'bg-amber-500' },
   ready: { label: 'Food ready', stripe: 'bg-emerald-500', tile: 'border-emerald-500/60 bg-emerald-500/[0.08] hover:bg-emerald-500/[0.14]', dot: 'bg-emerald-500' },
 };
 

@@ -42,7 +42,10 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
   const [opening, setOpening] = useState<{ type: OrderType; table?: DiningTable } | null>(null);
   // Unsent items per order live in an app-level store, so leaving an order or this screen does not drop them.
   const drafts = useRestaurantDraftStore(s => s.drafts);
+  const billedOrderIds = useRestaurantDraftStore(s => s.billedOrderIds);
   const updateDrafts = useRestaurantDraftStore(s => s.update);
+  const markBilled = useRestaurantDraftStore(s => s.markBilled);
+  const clearBilled = useRestaurantDraftStore(s => s.clearBilled);
   const selected = data.active.orders.find(o => o.order_id === selectedId) ?? null;
 
   const { tables, orders, kots, lines } = { tables: data.setup.tables.filter(t => t.is_active), orders: data.active.orders, kots: data.active.kots, lines: data.active.lines };
@@ -72,12 +75,15 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
           ) : selected ? (
             <OrderPanel order={selected} data={data} actions={actions} can={can} onBack={() => setSelectedId(null)} onSelectOrder={setSelectedId}
               drafts={drafts[selected.order_id] ?? []}
-              setDrafts={update => updateDrafts(selected.order_id, update)} />
+              setDrafts={update => updateDrafts(selected.order_id, update)}
+              isBilled={Boolean(billedOrderIds[selected.order_id])}
+              onMarkBilled={markBilled}
+              onClearBilled={clearBilled} />
           ) : view === 'floor' ? (
-            <FloorView tables={data.setup.tables} active={data.active} unsentOrderIds={Object.keys(drafts)} onOpenOrder={o => setSelectedId(o.order_id)}
+            <FloorView tables={data.setup.tables} active={data.active} unsentOrderIds={Object.keys(drafts)} billedOrderIds={billedOrderIds} onOpenOrder={o => setSelectedId(o.order_id)}
               onFreeTable={table => startOrder('DINE_IN', table)} onSetup={() => { if (can('restaurant.manage')) setManaging(true); }} />
           ) : view === 'tokens' ? (
-            <TokenOrdersView active={data.active} onOpenOrder={o => setSelectedId(o.order_id)} onNew={type => startOrder(type)} />
+            <TokenOrdersView active={data.active} billedOrderIds={billedOrderIds} onOpenOrder={o => setSelectedId(o.order_id)} onNew={type => startOrder(type)} />
           ) : (
             <KitchenDisplay tenantId={tenant} stations={data.setup.stations} />
           )}
