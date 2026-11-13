@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BellRing, Clock, Plus, Receipt, Users } from 'lucide-react';
+import { BellRing, Clock, Plus, Receipt, ScrollText, Users } from 'lucide-react';
 import type { ActiveOrders, DiningTable, RestaurantOrder } from '../../../data/restaurant';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { minutesSince, orderValue, tableState, type TableState } from '../restaurantRules';
@@ -10,13 +10,15 @@ interface FloorViewProps {
   active: ActiveOrders;
   /** Orders with items added but not sent to the kitchen. */
   unsentOrderIds: string[];
+  /** Orders that have had their bill / guest check printed. */
+  billedOrderIds?: string[] | Record<string, boolean>;
   onFreeTable: (table: DiningTable) => void;
   onOpenOrder: (order: RestaurantOrder) => void;
   onSetup: () => void;
 }
 
-function TableTile({ table, active, unsentOrderIds, onFreeTable, onOpenOrder }: { table: DiningTable } & Omit<FloorViewProps, 'tables' | 'onSetup'>) {
-  const { state, orders } = tableState(table.table_id, active);
+function TableTile({ table, active, unsentOrderIds, billedOrderIds, onFreeTable, onOpenOrder }: { table: DiningTable } & Omit<FloorViewProps, 'tables' | 'onSetup'>) {
+  const { state, orders } = tableState(table.table_id, active, billedOrderIds);
   const style = TABLE_STYLE[state];
   const first = orders[0];
   if (!first) {
@@ -46,7 +48,8 @@ function TableTile({ table, active, unsentOrderIds, onFreeTable, onOpenOrder }: 
         <span className="whitespace-nowrap text-lg font-black tabular-nums">{formatCurrency(orderValue(lines))}</span>
         {state === 'ready' && <span className="flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black uppercase text-white shadow animate-pulse"><BellRing className="h-3 w-3" />Ready</span>}
         {orders.some(o => unsentOrderIds.includes(o.order_id)) && <span className="rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-black uppercase text-white shadow">Unsent</span>}
-        {state === 'billing' && <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-black uppercase text-white shadow"><Receipt className="h-3 w-3" />Billing</span>}
+        {state === 'billed' && <span className="flex items-center gap-1 rounded-full bg-indigo-500 px-2 py-0.5 text-[10px] font-black uppercase text-white shadow"><ScrollText className="h-3 w-3" />Billed</span>}
+        {state === 'billing' && <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-black uppercase text-white shadow"><Receipt className="h-3 w-3" />In payment</span>}
       </div>
       <div className="mt-auto flex items-center justify-between gap-2 text-[11px] font-semibold">
         <span className={`flex items-center gap-1 ${ageTone(minutes, 45, 90)}`}><Clock className="h-3 w-3" />{formatElapsed(minutes)}</span>
@@ -57,7 +60,7 @@ function TableTile({ table, active, unsentOrderIds, onFreeTable, onOpenOrder }: 
 }
 
 /** Floor plan: area tabs, a legend with counts, and one tile per table (tap a free table to seat guests). */
-export function FloorView({ tables, active, unsentOrderIds, onFreeTable, onOpenOrder, onSetup }: FloorViewProps) {
+export function FloorView({ tables, active, unsentOrderIds, billedOrderIds, onFreeTable, onOpenOrder, onSetup }: FloorViewProps) {
   const visible = tables.filter(t => t.is_active);
   const areas = [...new Set(visible.map(t => t.area || 'Main'))];
   const [area, setArea] = useState<string>('');
@@ -71,7 +74,7 @@ export function FloorView({ tables, active, unsentOrderIds, onFreeTable, onOpenO
       </div>
     );
   }
-  const counts = visible.reduce((acc, t) => { acc[tableState(t.table_id, active).state]++; return acc; }, { free: 0, occupied: 0, billing: 0, ready: 0 } as Record<TableState, number>);
+  const counts = visible.reduce((acc, t) => { acc[tableState(t.table_id, active, billedOrderIds).state]++; return acc; }, { free: 0, occupied: 0, billed: 0, billing: 0, ready: 0 } as Record<TableState, number>);
   const shown = area ? visible.filter(t => (t.area || 'Main') === area) : visible;
   const groups = area ? [area] : areas;
   return (
@@ -96,7 +99,7 @@ export function FloorView({ tables, active, unsentOrderIds, onFreeTable, onOpenO
           {groups.length > 1 && <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">{g}</h3>}
           <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
             {shown.filter(t => (t.area || 'Main') === g).map(table => (
-              <TableTile key={table.table_id} table={table} active={active} unsentOrderIds={unsentOrderIds} onFreeTable={onFreeTable} onOpenOrder={onOpenOrder} />
+              <TableTile key={table.table_id} table={table} active={active} unsentOrderIds={unsentOrderIds} billedOrderIds={billedOrderIds} onFreeTable={onFreeTable} onOpenOrder={onOpenOrder} />
             ))}
           </div>
         </section>

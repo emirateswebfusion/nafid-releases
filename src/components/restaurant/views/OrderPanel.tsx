@@ -27,12 +27,15 @@ interface OrderPanelProps {
   /** Unsent items of this order; kept by the page so they survive leaving the order screen. */
   drafts: DraftLine[];
   setDrafts: (update: (prev: DraftLine[]) => DraftLine[]) => void;
+  isBilled?: boolean;
+  onMarkBilled?: (orderId: string) => void;
+  onClearBilled?: (orderId: string) => void;
 }
 
 type Dialog = null | 'void' | 'split' | 'cancel' | 'transfer' | 'details';
 
 /** One open order: menu (category rail + tiles) on the left, the order ticket with totals and actions on the right. */
-export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, drafts, setDrafts }: OrderPanelProps) {
+export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, drafts, setDrafts, isBilled = false, onMarkBilled, onClearBilled }: OrderPanelProps) {
   const [picking, setPicking] = useState<Product | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   // India: the service charge is added only when the guest agrees (restaurantRules.serviceChargeMode).
@@ -66,7 +69,10 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
 
   const send = async () => {
     const ok = await actions.sendItems(order, drafts.map(({ key: _key, ...line }) => line));
-    if (ok) setDrafts(() => []);
+    if (ok) {
+      setDrafts(() => []);
+      onClearBilled?.(order.order_id);
+    }
   };
 
   const menu = data.products.filter(p => !Number(p.is_service_item) || p.category);
@@ -103,7 +109,7 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
         {locked ? (
           <div className="m-auto flex max-w-sm flex-col items-center gap-3 text-center">
             <div className="rounded-3xl bg-amber-500/15 p-5 text-amber-600"><Receipt className="h-10 w-10" /></div>
-            <h2 className="text-lg font-black">Being billed</h2>
+            <h2 className="text-lg font-black">In payment checkout</h2>
             <p className="text-sm text-muted-foreground">This order is open in Billing{order.billing_terminal && order.billing_terminal !== data.active.terminal ? ' on another terminal' : ''}. Reopen it to add items.</p>
             <Button disabled={actions.working} className="mt-3 min-h-14 w-full max-w-xs justify-center rounded-2xl px-8 py-4 text-base font-bold shadow-sm" onClick={() => void actions.releaseClaim(order)}><Undo2 className="mr-2 h-5 w-5" />{actions.working ? 'Reopening…' : 'Reopen order'}</Button>
           </div>
@@ -155,17 +161,44 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
               Add {data.serviceCharge.label.toLowerCase()} {data.serviceCharge.percent}% (guest agreed)
             </label>
           )}
+          {isBilled && (
+            <div className="flex items-center justify-between rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+              <span className="flex items-center gap-1.5"><ScrollText className="h-3.5 w-3.5" />Bill issued (pro-forma check)</span>
+              <span className="text-[11px] font-medium opacity-80">Awaiting payment</span>
+            </div>
+          )}
           {!locked && (draftQty > 0 ? (
-            <Button className="h-12 w-full text-base" disabled={actions.working} onClick={() => void send()}>
+            <Button className="h-12 w-full text-base font-bold" disabled={actions.working} onClick={() => void send()}>
               <ChefHat className="mr-2 h-5 w-5" />Send to kitchen · {draftQty} item{draftQty === 1 ? '' : 's'}
             </Button>
           ) : (
-            <Button className="h-12 w-full text-base" disabled={actions.working || nothingActive}
-              onClick={() => void actions.billOrder(order, lines, applyServiceCharge)}><Receipt className="mr-2 h-5 w-5" />Bill & take payment</Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 font-bold"
+                disabled={actions.working || nothingActive}
+                onClick={async () => {
+                  const ok = await actions.printGuestCheck(order, lines, applyServiceCharge);
+                  if (ok) onMarkBilled?.(order.order_id);
+                }}
+              >
+                <ScrollText className="mr-2 h-4 w-4 text-primary" />
+                {isBilled ? 'Reprint bill' : 'Print bill / check'}
+              </Button>
+              <Button
+                type="button"
+                className="h-12 font-bold"
+                disabled={actions.working || nothingActive}
+                onClick={() => void actions.billOrder(order, lines, applyServiceCharge)}
+              >
+                <Receipt className="mr-2 h-4 w-4" />
+                {order.order_type === 'DINE_IN' ? 'Proceed to payment' : 'Take payment'}
+              </Button>
+            </div>
           ))}
           {!locked && (
-            <div className="grid grid-cols-5 gap-1.5">
-              {secondary('Guest check', ScrollText, () => void actions.printGuestCheck(order, lines, applyServiceCharge), actions.working || nothingActive)}
+            <div className="grid grid-cols-4 gap-1.5">
               {secondary('Void', Ban, () => setDialog('void'), !can('restaurant.void') || nothingActive)}
               {secondary('Split', Scissors, () => setDialog('split'), !can('restaurant.transfer') || nothingActive)}
               {secondary(order.order_type === 'DINE_IN' ? 'Move' : 'Merge', ArrowRightLeft, () => setDialog('transfer'), !can('restaurant.transfer'))}

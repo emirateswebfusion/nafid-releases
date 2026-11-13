@@ -2,11 +2,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildKotText, routeToStations, stationForCategory, type KotStation } from '../../electron/services/restaurantKot';
 import { deliveryChannels, groupsForProduct, menuUnitPrice, serviceChargeMode, modifierChoiceError, orderToCartItems, orderValue, parseServiceChargeSetting,
-  serviceChargeAmount, DEFAULT_SERVICE_CHARGE } from '../../src/components/restaurant/restaurantRules';
+  serviceChargeAmount, DEFAULT_SERVICE_CHARGE, tableState } from '../../src/components/restaurant/restaurantRules';
 import { guestCheckTotals } from '../../src/components/restaurant/guestCheck';
 import { buildCheckoutLines } from '../../src/utils/pricing/checkoutLines';
 import { setStoreCountry, setStoreVatInclusive } from '../../src/utils/localization/storeProfile';
-import type { ModifierGroup, OrderLine } from '../../src/data/restaurant';
+import type { KotTicket, ModifierGroup, OrderLine, RestaurantOrder } from '../../src/data/restaurant';
 
 afterEach(() => { setStoreCountry('IN'); setStoreVatInclusive(false); });
 
@@ -145,5 +145,58 @@ describe('order → billing cart', () => {
     setStoreCountry('AE'); setStoreVatInclusive(false);
     const cart = orderToCartItems({ order_type: 'DINE_IN', delivery_fee: 0 }, [line({ quantity: 1, unit_price: 100 })], ctx());
     expect(guestCheckTotals(cart)).toEqual({ net: 110, tax: 5.5, total: 115.5 });
+  });
+});
+
+describe('tableState lifecycle and priorities', () => {
+  const makeOrder = (over: Partial<RestaurantOrder>): RestaurantOrder => ({
+    order_id: 'o1', tenant_id: 't1', order_no: '1', order_type: 'DINE_IN', table_id: 't1', covers: 2,
+    waiter_user_id: null, waiter_name: 'Waiter', customer_name: null, customer_phone: null, delivery_address: null,
+    channel: 'OWN', channel_ref: null, delivery_fee: 0, status: 'OPEN', billing_terminal: null, billing_since: null,
+    invoice_id: null, invoice_number: null, parent_order_id: null, note: null, opened_by: 'u1', opened_at: new Date().toISOString(),
+    business_date: '2026-11-13', closed_at: null, sync_status: 'PENDING', created_at: '', updated_at: '', ...over,
+  });
+
+  const makeKot = (over: Partial<KotTicket>): KotTicket => ({
+    kot_id: 'k1', tenant_id: 't1', order_id: 'o1', kot_no: 'K-1', station_id: 's1', station_name: 'Kitchen',
+    kind: 'NEW', printed_at: null, print_error: null, kds_status: 'NEW', reprint_count: 0, created_by: null, created_at: '', ...over,
+  });
+
+  it('returns free when table has no open orders', () => {
+    const res = tableState('t1', { orders: [], kots: [] });
+    expect(res.state).toBe('free');
+    expect(res.orders).toEqual([]);
+  });
+
+  it('returns occupied when order is open and no ready tickets or bill printed', () => {
+    const order = makeOrder({ table_id: 't1', status: 'OPEN' });
+    const res = tableState('t1', { orders: [order], kots: [] });
+    expect(res.state).toBe('occupied');
+    expect(res.orders).toEqual([order]);
+  });
+
+  it('returns ready when kitchen marks tickets READY (highest operational priority)', () => {
+    const order = makeOrder({ order_id: 'o1', table_id: 't1', status: 'BILLING' });
+    const kot = makeKot({ order_id: 'o1', kind: 'NEW', kds_status: 'READY' });
+    const res = tableState('t1', { orders: [order], kots: [kot] }, ['o1']);
+    expect(res.state).toBe('ready');
+  });
+
+  it('returns billing when claimed by cashier/billing screen', () => {
+    const order = makeOrder({ order_id: 'o1', table_id: 't1', status: 'BILLING' });
+    const res = tableState('t1', { orders: [order], kots: [] }, ['o1']);
+    expect(res.state).toBe('billing');
+  });
+
+  it('returns billed when guest check / bill was printed and not yet in checkout', () => {
+    const order = makeOrder({ order_id: 'o1', table_id: 't1', status: 'OPEN' });
+    // Supports Array
+    expect(tableState('t1', { orders: [order], kots: [] }, ['o1']).state).toBe('billed');
+    // Supports Set
+    expect(tableState('t1', { orders: [order], kots: [] }, new Set(['o1'])).state).toBe('billed');
+    // Supports Record<string, boolean>
+    expect(tableState('t1', { orders: [order], kots: [] }, { o1: true }).state).toBe('billed');
+    // Returns occupied if another order is billed but not this one
+    expect(tableState('t1', { orders: [order], kots: [] }, { o2: true }).state).toBe('occupied');
   });
 });
