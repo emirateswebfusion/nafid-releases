@@ -27,7 +27,7 @@ it('shows the last user and an explicit switch action on PIN sign in', () => {
   const switchUser=vi.fn();
   render(<QuickPinLogin shopName="Shop B" userName="Mohammed" role="ADMIN" onSwitchToEmail={switchUser}/>);
   expect(screen.getByText(/Mohammed - Admin/)).toBeDefined();expect(screen.getByText('Shop B')).toBeDefined();
-  fireEvent.click(screen.getByRole('button',{name:/Switch User/}));expect(switchUser).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole('button',{name:/Log out to switch account/}));expect(switchUser).toHaveBeenCalledOnce();
 });
 it('offers every date in an empty attendance month and preserves recorded states', () => {
   expect(buildAttendanceMonth('2026-11',[])).toHaveLength(30);

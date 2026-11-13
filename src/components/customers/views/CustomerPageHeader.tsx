@@ -1,4 +1,4 @@
-import { UserCheck, UserPlus, Edit3, Trash2, LogOut, RefreshCw, Filter } from 'lucide-react';
+import { UserCheck, UserPlus, Edit3, Trash2, Lock, RefreshCw, Filter } from 'lucide-react';
 import clsx from 'clsx';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import { useAuthStore } from '../../../store/authStore';
@@ -147,10 +147,10 @@ export function CustomerPageHeader({
             <button
               onClick={() => void useAuthStore.getState().lockTerminal()}
               className="h-9 px-3.5 text-xs font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center gap-2"
-              title="Switch User / Lock"
+              title="Lock Terminal"
             >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Switch User</span>
+              <Lock className="w-4 h-4" />
+              <span className="hidden sm:inline">Lock</span>
             </button>
           ) : (
             <RedCrossButton

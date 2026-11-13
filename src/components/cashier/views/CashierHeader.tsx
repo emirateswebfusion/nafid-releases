@@ -156,7 +156,7 @@ export function CashierHeader({
           )}
           <RedCrossButton
             onClick={isRestricted ? () => void useAuthStore.getState().lockTerminal() : onClose}
-            title={isRestricted ? 'Switch User / Lock' : 'Close'}
+            title={isRestricted ? 'Lock Terminal' : 'Close'}
           />
         </div>
       </div>

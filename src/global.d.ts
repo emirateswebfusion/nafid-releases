@@ -134,7 +134,7 @@ export interface IElectronAPI {
   authCheckUserPin: (payload: { tenant_id?: string; user_id?: string; email?: string }) => Promise<{ has_pin: boolean }>;
   authSaveLocalUser: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   authLoginOffline: (payload: { email: string; password: string }) => Promise<OfflineLoginResult>;
-  authLoginWithPin: (payload: { pin: string; tenant_id?: string }) => Promise<PinLoginResult>;
+  authLoginWithPin: (payload: { pin: string; tenant_id?: string; user_id?: string }) => Promise<PinLoginResult>;
   authGetTerminalConfig: () => Promise<TerminalConfigResult>;
   authGetTrialAccess: (payload: { tenant_id: string }) => Promise<{ is_trial: boolean; allowed: boolean; error?: string; token?: string; expires_at?: number }>;
   authRefreshTrialSession: (payload: { expected_token: string; tenant_id: string; user_id: string; token: string; role: 'ADMIN' | 'STAFF'; permissions: string[]; user_name: string; restricted_page: string | null }) => Promise<{ success: boolean; error?: string }>;

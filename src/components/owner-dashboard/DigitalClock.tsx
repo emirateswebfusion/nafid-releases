@@ -198,7 +198,7 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
           type="button"
           onClick={() => void useAuthStore.getState().lockTerminal()}
           className="inline-flex items-center justify-center p-1.5 rounded-lg border border-border/80 bg-card text-muted-foreground hover:text-primary hover:bg-muted/40 hover:border-border transition-all duration-150 cursor-pointer select-none active:scale-95"
-          title="Lock / Switch User (PIN)"
+          title="Lock Terminal"
           aria-label="Lock terminal"
         >
           <Lock className="w-3.5 h-3.5" />

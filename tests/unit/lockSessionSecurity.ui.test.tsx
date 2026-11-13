@@ -129,7 +129,7 @@ describe('Lock / Switch User & Encrypted Auth Storage', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
-  it('offers Switch User / Lock (PIN) in DashboardHeader menu', async () => {
+  it('offers Lock Terminal in DashboardHeader menu', async () => {
     function Harness() {
       const od = useOwnerDashboardState();
       return (
@@ -151,7 +151,7 @@ describe('Lock / Switch User & Encrypted Auth Storage', () => {
     }
     render(<Harness />);
     fireEvent.click(screen.getByTitle('Profile'));
-    fireEvent.click(await screen.findByText('Switch User / Lock (PIN)'));
+    fireEvent.click(await screen.findByText('Lock Terminal'));
     await waitFor(() => expect(state.lockSession).toHaveBeenCalledOnce());
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
@@ -273,11 +273,9 @@ describe('Lock / Switch User & Encrypted Auth Storage', () => {
     expect(screen.getByRole('status').textContent).toContain('UAE e-invoice cloud settings requires an Email & Password sign-in');
 
     fireEvent.click(screen.getByRole('button', { name: /Sign in with Email/i }));
-    await waitFor(() => expect(state.lockSession).toHaveBeenCalledOnce());
-    expect(sessionStorage.getItem('auth_prefer_email')).toBe('1');
-    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
 
-    state.getTerminalConfig.mockResolvedValueOnce({ isConfigured: true, tenant_id: 'shop-1', shop_name: 'Shop', user_name: 'Manager B', role: 'ADMIN', cloud_sync_ready: true } as never);
+    state.getTerminalConfig.mockResolvedValueOnce({ isConfigured: true, tenant_id: 'shop-1', shop_name: 'Shop', user_name: 'Manager B', role: 'ADMIN', cloud_sync_ready: true, is_locked: false } as never);
     render(<LoginScreen />);
     await waitFor(() => expect(state.getTerminalConfig).toHaveBeenCalled());
     expect(screen.getByPlaceholderText('you@yourshop.com')).toBeTruthy();
@@ -285,33 +283,32 @@ describe('Lock / Switch User & Encrypted Auth Storage', () => {
     sessionStorage.removeItem('auth_prefer_email');
   });
 
-  it('redirects logout to Email login by default and lockTerminal to Quick PIN by default', async () => {
-    const cfg = { isConfigured: true, tenant_id: 'shop-1', shop_name: 'Shop', user_name: 'Owner', role: 'ADMIN', cloud_sync_ready: false };
+  it('redirects logout to Email login by default and lockTerminal to Terminal Locked screen by default', async () => {
+    const cfg = { isConfigured: true, tenant_id: 'shop-1', shop_name: 'Shop', user_name: 'Owner', role: 'ADMIN', cloud_sync_ready: false, is_locked: true };
 
     // 1. Full logout -> Email & Password screen by default
     useAuthStore.setState({ isAuthenticated: true, token: 'jwt', tenantId: 'shop-1', userId: 'owner-1', role: 'ADMIN' });
     await useAuthStore.getState().logout();
     expect(sessionStorage.getItem('auth_prefer_email')).toBe('1');
 
-    state.getTerminalConfig.mockResolvedValueOnce(cfg as never);
+    state.getTerminalConfig.mockResolvedValueOnce({ ...cfg, is_locked: false } as never);
     const { unmount } = render(<LoginScreen />);
     await waitFor(() => expect(state.getTerminalConfig).toHaveBeenCalledTimes(1));
     expect(screen.getByPlaceholderText('you@yourshop.com')).toBeTruthy();
     unmount();
 
-    // 2. Lock terminal -> clears email preference and opens Quick PIN flow by default
+    // 2. Lock terminal -> clears email preference and opens Locked Terminal PIN screen by default
     useAuthStore.setState({ isAuthenticated: true, token: 'jwt', tenantId: 'shop-1', userId: 'owner-1', role: 'ADMIN' });
     await useAuthStore.getState().lockTerminal();
     expect(sessionStorage.getItem('auth_prefer_email')).toBeNull();
 
     state.getTerminalConfig.mockResolvedValueOnce(cfg as never);
     render(<LoginScreen />);
-    await waitFor(() => expect(screen.getByText(/Switch User \/ Sign in with Email/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Terminal Locked')).toBeTruthy());
+    expect(screen.getByText(/Log out to switch account/i)).toBeTruthy();
   });
 
-  it('redirects lockTerminal to Email login by default when PIN is not set for the logged-in user, allowing switch to PIN if needed', async () => {
-    const cfg = { isConfigured: true, tenant_id: 'shop-1', shop_name: 'Shop', user_name: 'Owner', role: 'ADMIN', cloud_sync_ready: false };
-
+  it('prompts to configure PIN when lockTerminal is invoked by a user without a PIN', async () => {
     // Logged in user without PIN configured
     state.checkUserPin.mockResolvedValueOnce({ has_pin: false });
     useAuthStore.setState({
@@ -329,19 +326,24 @@ describe('Lock / Switch User & Encrypted Auth Storage', () => {
       user_id: 'owner-no-pin',
       email: 'owner@shop.com',
     });
-    expect(state.lockSession).toHaveBeenCalledWith({ prefer_email: true });
-    expect(sessionStorage.getItem('auth_prefer_email')).toBe('1');
-    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(state.lockSession).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().authError).toContain('No PIN configured');
+  });
 
-    state.getTerminalConfig.mockResolvedValueOnce(cfg as never);
-    const { unmount } = render(<LoginScreen />);
-    await waitFor(() => expect(screen.getByPlaceholderText('you@yourshop.com')).toBeTruthy());
-    await waitFor(() => expect(screen.getByRole('button', { name: /Quick PIN/i })).toBeTruthy());
-
-    // User can switch to PIN screen if needed
-    fireEvent.click(screen.getByRole('button', { name: /Quick PIN/i }));
-    await waitFor(() => expect(screen.getByText(/Switch User \/ Sign in with Email/i)).toBeTruthy());
-    unmount();
+  it('logs out and redirects to email login when clicking Log out to switch account on the lock screen', async () => {
+    useAuthStore.setState({ isAuthenticated: true, token: 'jwt', tenantId: 'shop-1', userId: 'owner-1', role: 'ADMIN' });
+    render(
+      <QuickPinLogin
+        shopName="Shop"
+        userName="Owner"
+        role="ADMIN"
+        cloudSyncReady={true}
+        onSwitchToEmail={() => {}}
+      />
+    );
+    fireEvent.click(screen.getByText(/Log out to switch account/i));
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
   });
 
   it('locks the terminal from the footer lock icon next to the FY selector', async () => {

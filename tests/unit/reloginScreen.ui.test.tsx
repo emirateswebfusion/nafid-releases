@@ -35,8 +35,6 @@ it('allows password-only users to enter the POS offline when cloud login is unav
   fixture.login.mockResolvedValue(new Response(JSON.stringify({ error: 'Cloud service unavailable' }), { status: 503 }));
   fixture.offline.mockResolvedValue({ success: true, user: { tenant_id: 'shop', user_id: 'staff', role: 'STAFF', name: 'Staff', permissions: ['sales.create'] } });
   render(<StrictMode><LoginScreen /></StrictMode>);
-  await screen.findByRole('button', { name: /Switch User/ });
-  fireEvent.click(screen.getByRole('button', { name: /Switch User/ }));
   fireEvent.change(screen.getByPlaceholderText('you@yourshop.com'), { target: { value: 'owner@example.test' } });
   fireEvent.change(screen.getByPlaceholderText('Your password'), { target: { value: 'test-password' } });
   fireEvent.click(screen.getByRole('button', { name: /^Sign in$/i }));

@@ -413,6 +413,38 @@ describe('Quick PIN Login & Staff Security', () => {
     expect(getTerminalLockMode()).toBeNull();
   });
 
+  it('prevents PIN collision and user switching by strictly verifying PIN against the locked user', () => {
+    const tenantId = 'shop-collision-test';
+    raw!.prepare("INSERT INTO settings (tenant_id, key, value) VALUES (?, 'shop_name', 'Collision Shop')").run(tenantId);
+
+    // Two staff members have the EXACT SAME PIN '1234'
+    const pinHash = hashStaffPin('1234', tenantId);
+    raw!.prepare("INSERT INTO staff (staff_id, tenant_id, staff_code, name, role_designation, user_id, biller_pin_hash, status, is_deleted) VALUES ('staff-a', ?, 'SA', 'Alice', 'STAFF', 'usr-a', ?, 'ACTIVE', 0)").run(tenantId, pinHash);
+    raw!.prepare("INSERT INTO staff (staff_id, tenant_id, staff_code, name, role_designation, user_id, biller_pin_hash, status, is_deleted) VALUES ('staff-b', ?, 'SB', 'Bob', 'STAFF', 'usr-b', ?, 'ACTIVE', 0)").run(tenantId, pinHash);
+
+    // Alice locked the terminal
+    saveOfflineSession({
+      tenant_id: tenantId,
+      user_id: 'usr-a',
+      user_name: 'Alice',
+      shop_name: 'Collision Shop',
+      role: 'STAFF',
+      permissions: ['sales.create'],
+    });
+    lockSession();
+
+    // When terminal is locked for Alice, entering 1234 unlocks Alice's session, never switching to Bob
+    const res = loginWithPin({ pin: '1234', tenant_id: tenantId, user_id: 'usr-a' });
+    expect(res).toMatchObject({
+      success: true,
+      user: expect.objectContaining({ user_id: 'usr-a', name: 'Alice' }),
+    });
+
+    // Unlocking with Bob's PIN while locked for Alice fails
+    const bobRes = loginWithPin({ pin: '5678', tenant_id: tenantId, user_id: 'usr-a' });
+    expect(bobRes).toMatchObject({ success: false, error: 'Invalid PIN' });
+  });
+
 });
 
 import { rememberTerminalSession } from '../../electron/services/terminalSession';

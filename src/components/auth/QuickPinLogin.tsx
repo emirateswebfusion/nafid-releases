@@ -1,18 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Store, Delete, RotateCcw, Loader2, Lock, ArrowRight, CloudOff } from 'lucide-react';
+import { Store, Delete, RotateCcw, Loader2, CloudOff, LogOut } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuthStore } from '../../store/authStore';
 
 interface QuickPinLoginProps {
   shopName: string;
   userName?: string;
+  userId?: string;
   role?: string;
   cloudSyncReady?: boolean;
   initialLockoutSeconds?: number;
   onSwitchToEmail: () => void;
 }
 
-export function QuickPinLogin({ shopName, userName, role, cloudSyncReady, initialLockoutSeconds = 0, onSwitchToEmail }: QuickPinLoginProps) {
+export function QuickPinLogin({ shopName, userName, userId, role, cloudSyncReady, initialLockoutSeconds = 0, onSwitchToEmail }: QuickPinLoginProps) {
   const loginWithPin = useAuthStore(state => state.loginWithPin);
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,7 +46,7 @@ export function QuickPinLogin({ shopName, userName, role, cloudSyncReady, initia
     setLoading(true);
     setError('');
 
-    const res = await loginWithPin(pinToSubmit);
+    const res = await loginWithPin(pinToSubmit, userId);
     if (!res.success) {
       if (typeof res.remaining_seconds === 'number' && res.remaining_seconds > 0) {
         failedAttemptsRef.current = 5;
@@ -73,7 +74,7 @@ export function QuickPinLogin({ shopName, userName, role, cloudSyncReady, initia
     }
     setLoading(false);
     isSubmittingRef.current = false;
-  }, [loginWithPin]);
+  }, [loginWithPin, userId]);
 
   const handleDigit = useCallback((d: string) => {
     if (loading || isSubmittingRef.current || lockoutTimer > 0) return;
@@ -134,9 +135,9 @@ export function QuickPinLogin({ shopName, userName, role, cloudSyncReady, initia
           <span>{shopName || 'POS Counter Terminal'}</span>
         </div>
         {userName && <p className="text-sm text-foreground">👤 {userName}{role ? ` - ${role === 'ADMIN' ? 'Admin' : role === 'STAFF' ? 'Staff' : role}` : ''}</p>}
-        <h2 className="text-2xl font-black text-foreground tracking-tight">Quick PIN Sign In</h2>
+        <h2 className="text-2xl font-black text-foreground tracking-tight">Terminal Locked</h2>
         <p className="text-xs text-muted-foreground">
-          Enter 4-digit PIN or scan staff badge
+          Enter your 4-digit PIN to unlock
         </p>
         {cloudSyncReady === false && (
           <p className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400 text-[11px] font-semibold">
@@ -234,16 +235,18 @@ export function QuickPinLogin({ shopName, userName, role, cloudSyncReady, initia
         </button>
       </div>
 
-      {/* Switch to Email / Password Login */}
+      {/* Log out / Switch Account */}
       <div className="pt-2 text-center border-t border-border/60">
         <button
           type="button"
-          onClick={onSwitchToEmail}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors py-1 px-3 rounded-lg hover:bg-muted/50 cursor-pointer"
+          onClick={() => {
+            onSwitchToEmail();
+            void useAuthStore.getState().logout();
+          }}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-destructive transition-colors py-1.5 px-3 rounded-lg hover:bg-destructive/10 cursor-pointer"
         >
-          <Lock className="w-3.5 h-3.5" />
-          <span>Switch User / Sign in with Email</span>
-          <ArrowRight className="w-3 h-3" />
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Log out to switch account</span>
         </button>
       </div>
     </div>
