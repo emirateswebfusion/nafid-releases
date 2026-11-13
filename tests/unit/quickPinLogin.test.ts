@@ -25,12 +25,13 @@ import {
   getTerminalConfig,
   localAuthenticatePin,
   localAuthenticateUser,
+  hasUserPin,
 } from '../../electron/services/localAuthService';
 vi.mock('../../electron/sync/syncWorker', () => ({setSyncActive: vi.fn()}));
 vi.mock('../../electron/services/syncService', () => ({isLanSyncConfigured: () => false}));
 import { saveToken, saveOfflineSession, clearToken, lockSession, loginWithPin } from '../../electron/services/authSessionService';
 import { resumeCloudSession } from '../../electron/services/cloudSessionRecoveryService';
-import { readOfflineSession, readAuthPayload, isTerminalLocked } from '../../electron/services/authStorage';
+import { readOfflineSession, readAuthPayload, isTerminalLocked, getTerminalLockMode } from '../../electron/services/authStorage';
 import { saveStaff } from '../../electron/services/staffService';
 import { setSyncActive } from '../../electron/sync/syncWorker';
 
@@ -371,6 +372,45 @@ describe('Quick PIN Login & Staff Security', () => {
 
     saveToken({ tenant_id: tenantId, user_id: 'owner', role: 'ADMIN', jwt_token: 'valid.jwt.token' });
     expect(localAuthenticatePin({ pin: '1234', tenant_id: tenantId })).toMatchObject({ success: true });
+  });
+
+  it('checks if a user has a PIN configured and tracks lock mode accordingly', () => {
+    const tenantId = 'shop-pin-check';
+    raw!.prepare("INSERT INTO settings (tenant_id, key, value) VALUES (?, 'shop_name', 'Pin Check Shop')").run(tenantId);
+
+    // 1. User without staff record has no PIN
+    expect(hasUserPin({ tenant_id: tenantId, user_id: 'usr-no-pin', email: 'none@shop.com' })).toEqual({ has_pin: false });
+
+    // 2. Staff without biller_pin_hash has no PIN
+    raw!.prepare("INSERT INTO staff (staff_id, tenant_id, staff_code, name, role_designation, user_id, email, status, is_deleted) VALUES ('stf-1', ?, 'S1', 'Staff 1', 'STAFF', 'usr-1', 'staff1@shop.com', 'ACTIVE', 0)").run(tenantId);
+    expect(hasUserPin({ tenant_id: tenantId, user_id: 'usr-1' })).toEqual({ has_pin: false });
+    expect(hasUserPin({ tenant_id: tenantId, email: 'staff1@shop.com' })).toEqual({ has_pin: false });
+
+    // 3. Setting PIN updates hasUserPin to true
+    raw!.prepare("UPDATE staff SET biller_pin_hash = ? WHERE staff_id = 'stf-1'").run(hashStaffPin('4321', tenantId));
+    expect(hasUserPin({ tenant_id: tenantId, user_id: 'usr-1' })).toEqual({ has_pin: true });
+    expect(hasUserPin({ tenant_id: tenantId, email: 'STAFF1@SHOP.COM' })).toEqual({ has_pin: true });
+
+    // 4. Inactive or deleted staff does not count as having active PIN
+    raw!.prepare("UPDATE staff SET status = 'INACTIVE' WHERE staff_id = 'stf-1'").run();
+    expect(hasUserPin({ tenant_id: tenantId, user_id: 'usr-1' })).toEqual({ has_pin: false });
+
+    raw!.prepare("UPDATE staff SET status = 'ACTIVE', is_deleted = 1 WHERE staff_id = 'stf-1'").run();
+    expect(hasUserPin({ tenant_id: tenantId, user_id: 'usr-1' })).toEqual({ has_pin: false });
+
+    // 5. Locking with prefer_email sets email lock mode
+    lockSession({ prefer_email: true });
+    expect(isTerminalLocked()).toBe(true);
+    expect(getTerminalLockMode()).toBe('email');
+
+    // 6. Locking without prefer_email sets pin lock mode
+    lockSession({ prefer_email: false });
+    expect(isTerminalLocked()).toBe(true);
+    expect(getTerminalLockMode()).toBe('pin');
+
+    clearToken();
+    expect(isTerminalLocked()).toBe(false);
+    expect(getTerminalLockMode()).toBeNull();
   });
 
 });

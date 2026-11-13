@@ -379,3 +379,18 @@ export function localAuthenticatePin(payload: { pin: string; tenant_id?: string 
     }
   };
 }
+
+/** Checks whether a specific user/staff has an active 4-digit PIN configured. */
+export function hasUserPin(params: { tenant_id?: string; user_id?: string; email?: string }): { has_pin: boolean } {
+  const db = getOpenDb();
+  if (!db || !params?.tenant_id || (!params.user_id && !params.email)) return { has_pin: false };
+  try {
+    const tenantId = params.tenant_id.trim();
+    const userId = params.user_id?.trim() || '__NO_USER__';
+    const email = params.email?.trim().toLowerCase() || '__NO_EMAIL__';
+    const row = localAuthSql.checkUserHasPin(db).get(tenantId, userId, userId, userId, email, email);
+    return { has_pin: Boolean(row) };
+  } catch {
+    return { has_pin: false };
+  }
+}

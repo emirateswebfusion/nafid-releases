@@ -67,6 +67,8 @@ export const authApi = bindBridge({
   clearToken: 'authClearToken',
   lockSession: 'authLockSession',
   isLocked: 'authIsLocked',
+  getLockMode: 'authGetLockMode',
+  checkUserPin: 'authCheckUserPin',
   saveLocalUser: 'authSaveLocalUser',
   loginOffline: 'authLoginOffline',
   loginWithPin: 'authLoginWithPin',

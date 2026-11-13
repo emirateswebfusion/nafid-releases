@@ -128,8 +128,10 @@ export interface IElectronAPI {
   authSaveOfflineSession: (payload: { tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] }) => Promise<{ success: boolean; error?: string; cloud_sync_ready?: boolean }>;
   authGetOfflineSession: () => Promise<{ tenant_id: string; user_id: string; role: string; user_name: string; shop_name: string; restricted_page?: string | null; permissions: string[] } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
-  authLockSession: () => Promise<{ success: boolean; error?: string; cloud_sync_ready?: boolean }>;
+  authLockSession: (payload?: { prefer_email?: boolean }) => Promise<{ success: boolean; error?: string; cloud_sync_ready?: boolean }>;
   authIsLocked: () => Promise<boolean>;
+  authGetLockMode: () => Promise<'pin' | 'email' | null>;
+  authCheckUserPin: (payload: { tenant_id?: string; user_id?: string; email?: string }) => Promise<{ has_pin: boolean }>;
   authSaveLocalUser: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   authLoginOffline: (payload: { email: string; password: string }) => Promise<OfflineLoginResult>;
   authLoginWithPin: (payload: { pin: string; tenant_id?: string }) => Promise<PinLoginResult>;

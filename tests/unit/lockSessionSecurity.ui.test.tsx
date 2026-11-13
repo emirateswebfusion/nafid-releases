@@ -19,6 +19,8 @@ const state = vi.hoisted(() => ({
   encryptionAvailable: true,
   lockSession: vi.fn(async () => ({ success: true, cloud_sync_ready: true })),
   isLocked: vi.fn(async () => false),
+  getLockMode: vi.fn(async () => 'pin' as const),
+  checkUserPin: vi.fn(async () => ({ has_pin: true })),
   loginWithPin: vi.fn(),
   getToken: vi.fn(),
   getOfflineSession: vi.fn(),
@@ -48,6 +50,8 @@ vi.mock('../../src/data/auth', () => ({
   authApi: {
     lockSession: state.lockSession,
     isLocked: state.isLocked,
+    getLockMode: state.getLockMode,
+    checkUserPin: state.checkUserPin,
     loginWithPin: state.loginWithPin,
     getToken: state.getToken,
     getOfflineSession: state.getOfflineSession,
@@ -75,6 +79,8 @@ beforeEach(() => {
   state.encryptionAvailable = true;
   state.lockSession.mockResolvedValue({ success: true, cloud_sync_ready: true });
   state.isLocked.mockResolvedValue(false);
+  state.getLockMode.mockResolvedValue('pin');
+  state.checkUserPin.mockResolvedValue({ has_pin: true });
   state.getOfflineSession.mockResolvedValue(null);
   state.getTerminalConfig.mockResolvedValue({ isConfigured: false });
   state.getToken.mockResolvedValue(null);
@@ -301,6 +307,41 @@ describe('Lock / Switch User & Encrypted Auth Storage', () => {
     state.getTerminalConfig.mockResolvedValueOnce(cfg as never);
     render(<LoginScreen />);
     await waitFor(() => expect(screen.getByText(/Switch User \/ Sign in with Email/i)).toBeTruthy());
+  });
+
+  it('redirects lockTerminal to Email login by default when PIN is not set for the logged-in user, allowing switch to PIN if needed', async () => {
+    const cfg = { isConfigured: true, tenant_id: 'shop-1', shop_name: 'Shop', user_name: 'Owner', role: 'ADMIN', cloud_sync_ready: false };
+
+    // Logged in user without PIN configured
+    state.checkUserPin.mockResolvedValueOnce({ has_pin: false });
+    useAuthStore.setState({
+      isAuthenticated: true,
+      token: 'jwt',
+      tenantId: 'shop-1',
+      userId: 'owner-no-pin',
+      userEmail: 'owner@shop.com',
+      role: 'ADMIN',
+    });
+
+    await useAuthStore.getState().lockTerminal();
+    expect(state.checkUserPin).toHaveBeenCalledWith({
+      tenant_id: 'shop-1',
+      user_id: 'owner-no-pin',
+      email: 'owner@shop.com',
+    });
+    expect(state.lockSession).toHaveBeenCalledWith({ prefer_email: true });
+    expect(sessionStorage.getItem('auth_prefer_email')).toBe('1');
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+
+    state.getTerminalConfig.mockResolvedValueOnce(cfg as never);
+    const { unmount } = render(<LoginScreen />);
+    await waitFor(() => expect(screen.getByPlaceholderText('you@yourshop.com')).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('button', { name: /Quick PIN/i })).toBeTruthy());
+
+    // User can switch to PIN screen if needed
+    fireEvent.click(screen.getByRole('button', { name: /Quick PIN/i }));
+    await waitFor(() => expect(screen.getByText(/Switch User \/ Sign in with Email/i)).toBeTruthy());
+    unmount();
   });
 
   it('locks the terminal from the footer lock icon next to the FY selector', async () => {
