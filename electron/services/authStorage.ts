@@ -71,10 +71,10 @@ export function writeAuthPayload(plaintext: string): boolean {
 }
 
 /** Tracks an explicit Lock / Switch User screen so startup does not auto-restore a preserved cloud session. */
-export function setTerminalLocked(locked: boolean): void {
+export function setTerminalLocked(locked: boolean, preferEmail?: boolean): void {
   const lockPath = getTerminalLockPath();
   if (locked) {
-    fs.writeFileSync(lockPath, '1', 'utf-8');
+    fs.writeFileSync(lockPath, preferEmail ? 'email' : 'pin', 'utf-8');
   } else if (fs.existsSync(lockPath)) {
     fs.unlinkSync(lockPath);
   }
@@ -85,5 +85,16 @@ export function isTerminalLocked(): boolean {
     return fs.existsSync(getTerminalLockPath());
   } catch {
     return false;
+  }
+}
+
+export function getTerminalLockMode(): 'pin' | 'email' | null {
+  try {
+    const lockPath = getTerminalLockPath();
+    if (!fs.existsSync(lockPath)) return null;
+    const content = fs.readFileSync(lockPath, 'utf-8').trim();
+    return content === 'email' ? 'email' : 'pin';
+  } catch {
+    return null;
   }
 }

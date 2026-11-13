@@ -66,3 +66,21 @@ export const listConfiguredTenants = (db: Db) => db.prepare(`
   SELECT tenant_id FROM settings WHERE key = 'shop_name' AND tenant_id NOT IN ('global', 'unset', '')
   UNION SELECT tenant_id FROM users WHERE tenant_id NOT IN ('global', 'unset', '')
 `);
+
+export const checkUserHasPin = (db: Db) => db.prepare(`
+  SELECT 1 FROM staff s
+  LEFT JOIN users u ON (u.user_id = s.user_id OR LOWER(u.email) = LOWER(s.email)) AND u.tenant_id = s.tenant_id
+  WHERE s.tenant_id = ?
+    AND (
+      s.user_id = ?
+      OR s.staff_id = ?
+      OR u.user_id = ?
+      OR (s.email IS NOT NULL AND LOWER(s.email) = LOWER(?))
+      OR (u.email IS NOT NULL AND LOWER(u.email) = LOWER(?))
+    )
+    AND s.biller_pin_hash IS NOT NULL
+    AND TRIM(s.biller_pin_hash) != ''
+    AND s.is_deleted = 0
+    AND s.status = 'ACTIVE'
+  LIMIT 1
+`);

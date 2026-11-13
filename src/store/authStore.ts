@@ -16,6 +16,7 @@ export interface AuthState {
   token: string | null;
   tenantId: string | null;
   userId: string | null;
+  userEmail: string | null;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | null;
   permissions: string[];
   userName: string | null;
@@ -92,6 +93,7 @@ function clearRendererSession(set: (partial: Partial<AuthState>) => void): void 
     token: null,
     tenantId: null,
     userId: null,
+    userEmail: null,
     role: null,
     permissions: [],
     userName: null,
@@ -119,7 +121,7 @@ async function lockTerminalSession(
   ++authGeneration;
   try {
     if (isDesktopRuntime() && hasBridge('authLockSession') && typeof authApi.lockSession === 'function') {
-      const locked = await authApi.lockSession();
+      const locked = await authApi.lockSession({ prefer_email: preferEmail });
       if (!locked?.success) throw new Error(locked?.error || 'Could not lock the terminal session.');
     }
   } catch {
@@ -153,6 +155,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
   token: null,
   tenantId: null,
   userId: null,
+  userEmail: null,
   role: null,
   permissions: [],
   userName: null,
@@ -176,6 +179,12 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         useCartStore.getState().resetDomainConfirmation();
         if (hasBridge('authIsLocked') && typeof authApi.isLocked === 'function' && await authApi.isLocked()) {
           if (generation !== authGeneration) return;
+          if (hasBridge('authGetLockMode') && typeof authApi.getLockMode === 'function') {
+            try {
+              const mode = await authApi.getLockMode();
+              setEmailLoginPreference(mode === 'email');
+            } catch { /* ignore */ }
+          }
           set({ isAuthenticated: false, permissions: [] });
           return;
         }
@@ -243,6 +252,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
             token: stored.jwt_token,
             tenantId: stored.tenant_id,
             userId: stored.user_id,
+            userEmail: stored.email || null,
             role: rawRole,
             permissions: perms,
             userName: stored.user_name || null,
@@ -291,6 +301,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
             token: stored.jwt_token,
             tenantId: stored.tenant_id || null,
             userId: stored.user_id || null,
+            userEmail: stored.email || null,
             role: roleVal,
             permissions: parsePermissionsFromToken(stored.jwt_token),
             userName: stored.user_name || null,
@@ -318,7 +329,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
     const cancelledResult = { success: false, error: 'Login cancelled because the session changed.' };
     set({ authError: null });
     let receivedCloudResponse = false;
-    const applyOfflineLogin = async (user: { role?: string; permissions?: string[]; restricted_page?: string | null; tenant_id: string; user_id: string; name?: string }, reason: string) => {
+    const applyOfflineLogin = async (user: { role?: string; permissions?: string[]; restricted_page?: string | null; tenant_id: string; user_id: string; name?: string; email?: string }, reason: string) => {
       const roleVal = normalizeRole(user.role);
       if (roleVal === 'SUPER_ADMIN') {
         return { success: false, error: 'Super Admin login is restricted to the Central Web Portal and is not allowed on POS terminals.' };
@@ -362,6 +373,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         token: null,
         tenantId: offlineSession.tenant_id,
         userId: offlineSession.user_id,
+        userEmail: user.email || email || null,
         role: roleVal,
         permissions,
         userName: offlineSession.user_name,
@@ -468,6 +480,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         token: data.token,
         tenantId: data.tenant_id,
         userId: data.user_id,
+        userEmail: email,
         role: roleVal,
         permissions: perms,
         userName: data.user_name || null,
@@ -550,6 +563,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
         token: sameUserToken,
         tenantId: u.tenant_id,
         userId: u.user_id,
+        userEmail: u.email || null,
         role: roleVal,
         permissions,
         userName: u.name,
@@ -567,7 +581,29 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
   },
 
   // ── Lock / Switch User & Full Logout ──────────────────────────────────────
-  lockTerminal: () => lockTerminalSession(set, false),
+  lockTerminal: async () => {
+    let preferEmail = false;
+    if (isDesktopRuntime()) {
+      if (hasBridge('authCheckUserPin') && typeof authApi.checkUserPin === 'function') {
+        try {
+          const current = useAuthStore.getState();
+          const res = await authApi.checkUserPin({
+            tenant_id: current.tenantId || undefined,
+            user_id: current.userId || undefined,
+            email: current.userEmail || undefined,
+          });
+          if (res && res.has_pin === false) {
+            preferEmail = true;
+          }
+        } catch {
+          preferEmail = true;
+        }
+      }
+    } else {
+      preferEmail = true;
+    }
+    await lockTerminalSession(set, preferEmail);
+  },
 
   switchToEmailLogin: () => lockTerminalSession(set, true),
 

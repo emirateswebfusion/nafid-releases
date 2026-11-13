@@ -140,12 +140,12 @@ export function loginWithPin(payload: Parameters<typeof localAuthenticatePin>[0]
 }
 
 /** Locks the terminal for PIN/user switching without deleting the terminal's cloud credential. */
-export function lockSession() {
+export function lockSession(payload?: { prefer_email?: boolean }) {
     try {
       const current = readOfflineSession() || readAuthPayload();
       rememberTerminalSession(current);
       clearOfflineSession();
-      setTerminalLocked(true);
+      setTerminalLocked(true, payload?.prefer_email);
       const existingAuth = readAuthPayload();
       const cloudReady = Boolean(existingAuth?.tenant_id && isCloudCredentialUsable(existingAuth, existingAuth.tenant_id));
       setSyncActive(cloudReady || isLanSyncReady());
