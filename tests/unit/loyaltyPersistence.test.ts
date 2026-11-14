@@ -17,7 +17,7 @@ vi.mock('../../electron/sync/syncWorker', () => ({ runInitialSync: async () => {
 import { settlePayment } from '../../electron/services/cashierService';
 import { checkout, recentCheckoutsCache } from '../../electron/services/invoiceCheckoutService';
 import { applyInvoiceDiscount, deleteInvoice, updateInvoice, updateInvoicePayment } from '../../electron/services/invoiceEditService';
-import { createCustomer, updateCustomer, getCustomers, adjustCustomerLoyaltyPoints, recalculateCustomerLoyaltyPoints } from '../../electron/services/customersService';
+import { createCustomer, updateCustomer, getCustomers, adjustCustomerLoyaltyPoints, recalculateCustomerLoyaltyPoints, getCustomerInvoices, getCustomerLoyaltyTransactions } from '../../electron/services/customersService';
 import { createReturn, deleteReturn } from '../../electron/services/returnsService';
 let raw: DatabaseSync;
 beforeEach(() => {
@@ -239,4 +239,19 @@ it('zero-counter recovery preserves nonzero opening balances and stays tenant sc
   raw.prepare("UPDATE customers SET current_points_balance = 7 WHERE customer_id = 'c'").run();
   getCustomers({ tenant_id: 't' });
   expect(balance()).toBe(7);
+});
+
+it('reconciles duplicate historical awards automatically when customer invoices or transactions are loaded', () => {
+  sale(6);
+  raw.prepare("UPDATE customers SET current_points_balance = 12, total_points_earned = 12 WHERE customer_id = 'c'").run();
+  raw.prepare("INSERT INTO loyalty_transactions (transaction_id, tenant_id, customer_id, invoice_id, transaction_type, points, points_balance_before, points_balance_after, reference_number, description, created_by, created_at, updated_at, sync_status) VALUES ('tx1', 't', 'c', 'i', 'EARNED', 6, 0, 6, 'POS1-1', 'Earned 6 points on invoice POS1-1', 'system', '2026-10-18T10:00:00Z', '2026-10-18T10:00:00Z', 'SYNCED'), ('tx2', 't', 'c', 'i', 'EARNED', 6, 6, 12, 'POS1-1', 'Earned 6 points on invoice POS1-1', 'u', '2026-10-20T10:00:00Z', '2026-10-20T10:00:00Z', 'SYNCED')").run();
+
+  expect(balance()).toBe(12);
+  const invs = getCustomerInvoices({ customer_id: 'c', tenant_id: 't' });
+  expect(Array.isArray(invs)).toBe(true);
+  expect(balance()).toBe(6);
+
+  const txs = getCustomerLoyaltyTransactions({ customer_id: 'c', tenant_id: 't' }) as Array<{ transaction_type?: string; points?: number }>;
+  expect(txs).toHaveLength(3);
+  expect(txs.some(t => t.transaction_type === 'ADJUSTED' && t.points === 6)).toBe(true);
 });

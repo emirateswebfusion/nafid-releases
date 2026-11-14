@@ -46,7 +46,7 @@ export function parseMerchantIntent({ text }: IntentParseContext): ParsedOffline
   if (/price|വില|vila/.test(text) && !/below|lower|negative|കുറച്ച്|കുറവ|kurachu|kurav|vilayekkal/.test(text) && entity('price')) return result('PRODUCT_PRICE_LOOKUP', 'PRICING', { productName: entity('price') });
 
   if (/out of stock|zero stock|തീർന്ന|നിലവിലില്ലാത്ത|theernna|theernnath/.test(text)) return result('INVENTORY_OUT_OF_STOCK', 'INVENTORY');
-  if (/low.*stock|stock.*low|reorder|തീരാറായ|വീണ്ടും വാങ്ങേണ്ട|stock kuranja|veendum vangenda/.test(text)) return result('INVENTORY_LOW_STOCK', 'INVENTORY');
+  if (/low.*stock|stock.*low|reorder|തീരാറായ|വീണ്ടും വാങ്ങേണ്ട|സ്റ്റോക്ക് കുറഞ്ഞ|stock kuranja|veendum vangenda/.test(text)) return result('INVENTORY_LOW_STOCK', 'INVENTORY');
   if (/expiry|expired|കാലാവധി കഴി|kaalavadhi kazhinja/.test(text) && !w.customer.test(text)) return result('INVENTORY_EXPIRY_ALERT', 'INVENTORY');
   if (/dead stock|not sold|non selling|വിൽപ്പന നടക്കാത്ത|വിറ്റുപോകാത്ത|vilkkatha stock|vittupokatha/.test(text)) return result('INVENTORY_NON_SELLING', 'INVENTORY', { days: 30, ...range('last_30_days') });
   if (/negative margin|sell below purchase|വാങ്ങിയ വിലയേക്കാൾ|നഷ്ടത്തിൽ വിൽക്കുന്ന|vilayekkal kurachu/.test(text)) return result('INVENTORY_NEGATIVE_MARGIN', 'INVENTORY');
@@ -59,14 +59,15 @@ export function parseMerchantIntent({ text }: IntentParseContext): ParsedOffline
   if (/units of|എത്ര എണ്ണം ബാക്കിയുണ്ട്|ethra ennam undu/.test(text) && entity('stock')) return result('INVENTORY_PRODUCT_STOCK', 'INVENTORY', { productName: entity('stock') });
 
   if (refund && w.methods.test(text)) return result('RETURNS_BY_METHOD', 'RETURNS_LOYALTY', range('this_month'));
+  if (refund && /\b(?:how much|total|amount|value)\b/.test(text)) return result('RETURNS_SUMMARY', 'RETURNS_LOYALTY', range('this_month'));
   if (w.returned.test(text)) {
-    if (/items|products|സാധനങ്ങൾ|ഉൽപ്പന്നങ്ങൾ|sadhanangal/.test(text)) return result('RETURNS_ITEMS', 'RETURNS_LOYALTY', range('this_month'));
-    if (sales || /customers return/.test(text)) return result('RETURNS_SUMMARY', 'RETURNS_LOYALTY', range('this_month'));
+    if (/items|products|സാധനങ്ങൾ|ഉൽപ്പന്നങ്ങൾ|sadhanangal|എന്തൊക്കെ തിരിച്ചു ?തന്ന/.test(text)) return result('RETURNS_ITEMS', 'RETURNS_LOYALTY', range('this_month'));
+    if (sales || /customers return|\breturns?\s+vannathinte\s+thuka\b/.test(text)) return result('RETURNS_SUMMARY', 'RETURNS_LOYALTY', range('this_month'));
   }
   if (purchase && !w.customer.test(text)) {
     if (/unpaid|pending purchas|pending.*payment|പണം നൽകാത്ത|അടയ്ക്കാനുള്ള|panam kodukkatha/.test(text)) return result('PURCHASES_UNPAID', 'PURCHASES');
     if (/by supplier|by vendor|group.*vendor|സപ്ലയർ തിരിച്ച്|വിതരണക്കാരൻ അനുസരിച്ച്|supplier thirichu|vendor anusarichu/.test(text)) return result('PURCHASES_BY_SUPPLIER', 'PURCHASES', range('this_month'));
-    if (!expense && !/history|price|compare|highest|താരതമ്യം/.test(text)) return result('PURCHASES_SUMMARY', 'PURCHASES', range('this_month'));
+    if ((!expense || /\b(?:spend|spent|spending) on (?:purchases?|supplier bills?)\b/.test(text)) && !/history|price|compare|highest|താരതമ്യം/.test(text)) return result('PURCHASES_SUMMARY', 'PURCHASES', range('this_month'));
     if (/supplier bills/.test(text) && !sales) return result('PURCHASES_SUMMARY', 'PURCHASES', range('this_month'));
   }
   if ((sales && purchase && expense) || /complete.*business report|സമഗ്ര ബിസിനസ്സ് റിപ്പോർട്ട്|വിൽപ്പന വാങ്ങൽ ചെലവ്|sales purchase chilavu/.test(text)) return result('DAILY_BUSINESS_REPORT', 'SALES', range());
@@ -76,21 +77,22 @@ export function parseMerchantIntent({ text }: IntentParseContext): ParsedOffline
     if (w.largest.test(text)) return result('EXPENSES_LARGEST', 'EXPENSES', { ...range('this_month'), limit: 5 });
     if (!/cash paid out|cash.*expense|expense.*match|sum of|missing/.test(text)) return result('EXPENSES_SUMMARY', 'EXPENSES', range('this_month'));
   }
-  if (/cancelled|canceled|voided|റദ്ദാക്കിയ|കാൻസൽ ചെയ്ത|cancel cheytha|raddakkiya/.test(text)) return result('SALES_CANCELLED_INVOICES', 'SALES');
+  if (/\b(?:bills?|invoices?) (?:that )?(?:i |we )?deleted\b|cancelled|canceled|voided|റദ്ദാക്കിയ|കാൻസൽ ചെയ്ത|cancel cheytha|raddakkiya/.test(text)) return result('SALES_CANCELLED_INVOICES', 'SALES');
   if (/discount|ഡിസ്കൗണ്ട്|കിഴിവ്|kizhivu/.test(text) && !/greater than|for each invoice|invoices with/.test(text)) return result('SALES_GROSS_NET', 'SALES', { metric: 'discount', ...range() });
   if (sales && /\bvat\b|വാറ്റ്|\btax\b/.test(text) && !/rate|product/.test(text)) return result('SALES_GROSS_NET', 'SALES', { metric: 'tax', ...range() });
   if (/average.*bill|average ticket|avg ticket|ശരാശരി ബിൽ|ബില്ലിന്റെ ശരാശരി|sharashari bill/.test(text)) return result('SALES_AVERAGE_TICKET', 'SALES', range());
   if (/average sales per day|daily average|average daily|പ്രതിദിന ശരാശരി|ദിവസേന ശരാശരി|prathidina sharashari/.test(text)) return result('SALES_AVERAGE_DAILY', 'SALES', range('this_month'));
   if (/highest value invoice|biggest bill|ഏറ്റവും വലിയ ബിൽ|ഉയർന്ന തുകയുള്ള ഇൻവോയ്സ്|valiya invoice/.test(text)) return result('SALES_INVOICE_EXTREMES', 'SALES', range());
-  if (/count.*invoices|invoice.*ennam|എത്ര ബില്ലുകൾ|ബില്ലുകളുടെ എണ്ണം|ethra bill|bill.*adichu/.test(text)) return result('SALES_INVOICE_COUNT', 'SALES', range());
+  if (/count.*invoices|number of invoices|invoice.*ennam|എത്ര ബില്ലുകൾ|ബില്ലുകളുടെ എണ്ണം|എത്ര ബിൽ (?:എഴുതി|അടിച്ചു)|എത്ര ബില്ലുണ്ടാക്കി|ethra bill|bill.*adichu/.test(text)) return result('SALES_INVOICE_COUNT', 'SALES', range());
+  if (!refund && /\bcharged to (?:credit |debit )?cards?\b/.test(text)) return result('SALES_PAYMENT_METHODS', 'SALES', { method: 'CARD', ...range() });
   if (sales) {
     if (/daily.*trend|by day|ദിവസേന|ദിവസം തിരിച്ച്|divasam thirichu/.test(text)) return result('SALES_DAILY_TREND', 'SALES', range('this_month'));
-    if (/by biller|by staff|സ്റ്റാഫ് തിരിച്ച്|ബില്ലറുടെ|staff thirichu|oro biller/.test(text)) return result('SALES_BILLER_STAFF', 'SALES', range());
+    if (/by biller|by cashier|by staff|സ്റ്റാഫ് തിരിച്ച്|ബില്ലറുടെ|staff thirichu|oro biller/.test(text)) return result('SALES_BILLER_STAFF', 'SALES', range());
     if (/by.*counter|each counter|കൗണ്ടർ തിരിച്ച്|ബില്ലിംഗ് കൗണ്ടറിലും|counter thirichu|oro billing counter/.test(text)) return result('SALES_BY_COUNTER', 'SALES', range());
     if (w.methods.test(text)) return result('SALES_PAYMENT_METHODS', 'SALES', { method: 'ALL', ...range() });
     const method = /\bcash\b|ക്യാഷ്|പണമായി|panamayi/.test(text) ? 'CASH' : /\bcard\b|കാർഡ്/.test(text) ? 'CARD' : /credit|കടം വിൽപ്പന|ക്രെഡിറ്റിൽ|kadamayi/.test(text) ? 'CREDIT' : undefined;
     if (method) return result('SALES_PAYMENT_METHODS', 'SALES', { method, ...range() });
-    if (/top.*(?:product|selling)|sold the most|കൂടുതൽ വിറ്റ|മികച്ച.*ഉൽപ്പന്ന|kooduthal vitta/.test(text)) return result('TOP_SELLING_PRODUCTS', 'SALES', { limit: Number(text.match(/\b(\d+)\b/)?.[1] || 5), ...range() });
+    if (/top.*(?:product|selling)|sold the most|sell (?:the )?most|കൂടുതൽ വിറ്റ|മികച്ച.*ഉൽപ്പന്ന|kooduthal vitta/.test(text)) return result('TOP_SELLING_PRODUCTS', 'SALES', { limit: Number(text.match(/\b(\d+)\b/)?.[1] || 5), ...range() });
     if (period && !/compar|highest|lowest|best|most|hour|match|sum|missing|താരതമ്യം/.test(text)) return result(period === 'today' ? 'SALES_TODAY' : 'SALES_PERIOD', 'SALES', range());
   }
   return undefined;

@@ -1,5 +1,5 @@
 import { customerNameKey, customerPhoneKey } from '../utils/customerIdentityKey.js';
-import { repairZeroLoyaltyCounters, readLoyaltyConfig, captureInvoicePoints, reconcileInvoicePoints } from './loyaltyService.js';
+import { repairZeroLoyaltyCounters, readLoyaltyConfig, captureInvoicePoints, reconcileInvoicePoints, reconcileCustomerPoints } from './loyaltyService.js';
 import * as loyaltySql from '../db/statements/loyalty.js';
 import type { CreditInvoice, CustomerCreditRow, CustomerInput } from './typesB.js';
 import { getDb } from '../db/localDb.js';
@@ -372,7 +372,7 @@ export function getCustomerInvoices({ customer_id, tenant_id, phone, name }: { c
     const targetPartyId = party?.party_id || '';
     const nameNorm = searchName ? searchName.toLowerCase().replace(/\s+/g, ' ') : '';
 
-    // 3. Self-healing: link any unlinked invoices belonging to this customer
+    // 3. Self-healing: link any unlinked invoices belonging to this customer and reconcile customer points
     if (targetCustomerId) {
       if (phoneLast10) {
         customersSql.updateInvoiceCustomerId(db).run(targetCustomerId, effectiveTenantId, `%${phoneLast10}`);
@@ -380,6 +380,7 @@ export function getCustomerInvoices({ customer_id, tenant_id, phone, name }: { c
       if (nameNorm) {
         customersSql.updateInvoiceCustomerId2(db).run(targetCustomerId, effectiveTenantId, nameNorm, phoneLast10, `%${phoneLast10}`);
       }
+      reconcileCustomerPoints(db, effectiveTenantId, targetCustomerId);
     }
 
     // 4. Query all matching invoices
@@ -405,6 +406,7 @@ export function getCustomerLoyaltyTransactions({ customer_id, tenant_id }: { cus
     if (!customer_id) return [];
     const tid = tenant_id || 'global';
     if (!readLoyaltyConfig(db, tid).enabled) return [];
+    reconcileCustomerPoints(db, tid, customer_id);
     return customersSql.findLoyaltyTransactionsByCustomerId(db).all(customer_id, tid, tid);
   } catch (error) {
     console.error('[db:getCustomerLoyaltyTransactions]', error);

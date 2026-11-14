@@ -454,3 +454,12 @@ Real desktop test used a network-isolated synthetic profile. QA-001 opened with 
 20 redeemed points, a historical discount of 10 and total 90. Saving through the billing Save action retained
 total 90, earned 9, redeemed 20, discount 10 and customer balance 0. This evidence covers the development UI.
 Packaged installer acceptance is recorded separately by the Windows installer workflow.
+
+### Loyalty points self-healing migration & startup reconciliation (14 November 2026, v2.2.65)
+
+- **Migration 23 (`023-reconcile-customer-loyalty-points.ts`)**: Runs on application upgrade/startup. Audits all historical customer invoices across all tenants, balances duplicate `EARNED` awards from legacy (< v2.2.0) bill edits with idempotent `ADJUSTED` transactions, and synchronizes `customers.current_points_balance` and `customers.total_points_earned`. Ensures cashiers selecting customers on the Billing page immediately see reconciled balances without prior screen visits.
+- **Service-level self-healing (`customersService.ts`, `loyaltyService.ts`)**: Integrated `reconcileCustomerPoints` into `getCustomerInvoices` and `getCustomerLoyaltyTransactions`. Sequences customer balance queries after reconciliation in `useCustomerData.ts`.
+- **UI clean-up**: Removed any manual recalculate actions from the customer purchase history toolbar; reconciliation operates silently and automatically.
+- **Timer unmount cleanup (`useSettingsSave.ts`)**: Safely clears transient notification timeouts on component unmount, preventing React memory leaks and post-test teardown unhandled exceptions.
+- **Verification**: `verify` passed (`tsc -b`, `typecheck:electron`, 251 test suites / 2,549 tests, `check:arch`); `lint:ratchet` passed with 0 errors and 0 warnings.
+

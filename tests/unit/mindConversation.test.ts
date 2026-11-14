@@ -44,6 +44,12 @@ describe('Mind clarification conversations', () => {
     expect(Parser.parse(q).clarificationRequired).toBe(true);
   });
 
+  it('uses the prior sales report for a colloquial Malayalam yesterday follow-up', () => {
+    const first = Parser.parse('ഇന്നത്തെ വിൽപ്പന എത്രയാണ്?');
+    expect(Parser.parse('ഇന്നലെയോ?', after(first)))
+      .toMatchObject({ intent: 'SALES_PERIOD', params: { rangeType: 'yesterday' } });
+  });
+
   it('does not mistake an ordinary follow-up for a comparison', () => {
     expect(Parser.parse('yesterday', after(Parser.parse('sales today'))).intent).toBe('SALES_PERIOD');
   });

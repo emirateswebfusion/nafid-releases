@@ -1,6 +1,7 @@
 import type { SettingsSaveSession } from '../settingsSaveSession';
 import { setStoreCountry, setStoreVatInclusive, isValidTaxRegistration, getStoreProfile } from '../../../utils/localization/storeProfile';
 import { setStoreTimezone } from '../../../utils/time/timezoneHelper';
+import { useRef, useEffect } from 'react';
 import type React from 'react';
 import { isDesktopRuntime, hasBridge } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
@@ -39,6 +40,12 @@ export interface UseSettingsSaveContext {
 export function useSettingsSave(ctx: UseSettingsSaveContext) {
   const { activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix, returnStartNumber, role, shopDomain, updateDomain } = ctx;
   const { a4Printer, a4Style, a5Orientation, autoCloseCashDrawer, autoCloseCashDrawerTime, autoOpenCashDrawer, autoPrintBarcode, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, bankAccount, bankBranch, bankIfsc, bankName, barcodePrinter, billingUIConfig, billSettings, defaultOpeningBalance, detectedLocalIp, emergencyPanicConfig, enableConvertToGst, enablePartyEstimate, enablePartyGst, enableRealPaperStock, enableThreeInvoiceSeries, gstConversionTaxInclusive, gstProfitPercentage, inventoryDefaultView, invoiceStartNumber, labelCodeType, labelShowShopName, lanHostIp, lanPort, lanRole, loyaltyIncludeTax, loyaltyAwardOnPending, loyaltyEarningRate, loyaltyRedemptionRate, openCashDrawerOnPending, osPrinters, priceCoding, printFormat, printWidth, purchaseBillPrefix, purchaseBillStartNumber, quotationPrefix, quotationStartNumber, receiptFont, receiptPrinter, scale, scrapBillSettings, scrapPrefix, scrapStartNumber, serviceChargeBarcode, serviceChargeProduct, setBarcodePrinter, setEnableScrap, setMessage, setReceiptPrinter, setSaveRevision, setSaving, setServiceChargeProduct, shopAddress, shopClosingConfig, shopEmail, shopGstin, shopNameLocal, shopPhone, shopState, shopWebsite, showFullyPaidCashInLedger, showPaperOnlyProducts, showPaperStockInEstimate, showPaperStockInGst, showPriceOverrideMrp, showPriceTiersInInventory, showProductGstBadge, showProductOffers, showUpiQr, showZeroPaperStock, staffDataMaskingConfig, stockReportDefaultView, vatPriceInclusive, storeCountry, storeTimezone, syncFrequency, syncMode, terminalCode, thermalStyle, timeFormat, upiId } = ctx.form;
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    };
+  }, []);
   const handleSave = async () => {
     if (!isDesktopRuntime()) return;
     setSaving(true); setMessage(null);
@@ -353,12 +360,14 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         featureFlags
       }));
       setSaveRevision(v => v + 1);
-      setTimeout(() => setMessage(null), 3000);
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+      messageTimerRef.current = setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       console.error('Failed to save settings:', err);
       const reason = err instanceof Error && err.message ? ` (${err.message})` : '';
       setMessage({ type: 'error', text: `Failed to save settings. Please try again${reason}` });
-      setTimeout(() => setMessage(null), 3000);
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+      messageTimerRef.current = setTimeout(() => setMessage(null), 3000);
     }
     setSaving(false);
   };

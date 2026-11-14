@@ -1,11 +1,12 @@
 import { normalizeInput } from './format';
+import { merchantWords } from './merchantLanguage';
 import type { AiHistoryMessage, ParsedOfflineIntent } from './types';
 
 type Parse = (message: string) => ParsedOfflineIntent;
 
 const periods: Record<string, string> = {
   today: 'today', innu: 'today', inn: 'today', 'ഇന്ന്': 'today', 'ഇന്നത്തെ': 'today',
-  yesterday: 'yesterday', innale: 'yesterday', 'ഇന്നലെ': 'yesterday',
+  yesterday: 'yesterday', innale: 'yesterday', 'ഇന്നലെയോ': 'yesterday', 'ഇന്നലെ': 'yesterday',
   'this month': 'this_month', 'ee masam': 'this_month', 'ഈ മാസം': 'this_month',
   'last month': 'last_month', 'kazhinja masam': 'last_month', 'കഴിഞ്ഞ മാസം': 'last_month',
   'this week': 'this_week', 'ഈ ആഴ്ച': 'this_week', 'last week': 'last_week', 'കഴിഞ്ഞ ആഴ്ച': 'last_week',
@@ -96,7 +97,7 @@ export function parseConversation(message: string, history: AiHistoryMessage[], 
   }
   const ambiguousMoney = /(?:എത്ര.*(?:കിട്ടി|ലഭിച്ചു|വന്നു)|(?:ethra|etra).*(?:kitti|kity|vannu)|how much (?:did we (?:get|make)|money)|\b(?:collection|takings)\b|കളക്ഷൻ|കലക്ഷൻ)/u.test(text);
   const explicitMetric = /\b(?:sales|profit|drawer|invoices?|customers?|suppliers?|expenses?|receivables?|payables?)\b|വിൽപ്പന|സെയിൽസ്|ലാഭം|ഡ്രോയർ|ചെലവ്|കസ്റ്റമർ|സപ്ലയർ/u.test(text);
-  if (ambiguousMoney && !explicitMetric) {
+  if (ambiguousMoney && !explicitMetric && !merchantWords.expense.test(text)) {
     const range = /yesterday|innale|ഇന്നലെ/.test(text) ? 'yesterday' : /last month|കഴിഞ്ഞ മാസം/.test(text) ? 'last_month' : /this month|ee masam|ഈ മാസം/.test(text) ? 'this_month' : /today|\binn(?:u)?\b|ഇന്ന്|ഇന്നത്തെ/.test(text) ? 'today' : undefined;
     const result = clarify('financial_metric',
       'Do you mean sales value, cash sales, or the current cash drawer balance? Cash sales exclude old debt collections; drawer balance is money on hand, not total collections.',

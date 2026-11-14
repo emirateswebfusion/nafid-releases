@@ -17,6 +17,13 @@ import { backfillCreditInvoices, recalcPartyBalances } from './services/partyLed
 import { setupAutoUpdater } from './services/updaterService.js';
 import * as mainSql from './db/statements/main.js';
 
+const testProfile = !app.isPackaged && process.env.NAFID_POS_TEST_PROFILE === '1';
+if (testProfile) {
+  const profile = fs.mkdtempSync(path.join(app.getPath('temp'), 'nafid-pos-test-'));
+  app.setPath('appData', profile);
+  app.setPath('userData', profile);
+}
+
 // Initialize and configure structured logging
 log.initialize();
 log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
@@ -35,7 +42,9 @@ const envPath = app.isPackaged
   ? path.join(process.resourcesPath, 'app.env')
   : path.join(__dirname, '..', '.env');
 
-if (fs.existsSync(envPath)) {
+if (testProfile) {
+  log.info('[Main] Isolated POS test profile');
+} else if (fs.existsSync(envPath)) {
   dotenv.config({ path: envPath });
 } else {
   dotenv.config(); // Fallback to root .env
@@ -57,11 +66,11 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.nafid');
 }
 
-if (process.defaultApp) {
+if (!testProfile && process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
   }
-} else {
+} else if (!testProfile) {
   app.setAsDefaultProtocolClient(PROTOCOL);
 }
 
@@ -262,13 +271,13 @@ function createWindow(): BrowserWindow {
     log.info('[Main] Renderer became responsive again');
   });
 
-  if (!app.isPackaged) {
+  if (!app.isPackaged && (!testProfile || process.env.ELECTRON_DEV_SERVER_URL)) {
     const devUrl = process.env.ELECTRON_DEV_SERVER_URL;
     if (!devUrl) {
       throw new Error('[Electron] ELECTRON_DEV_SERVER_URL environment variable is required in development mode.');
     }
     win.loadURL(devUrl);
-    win.webContents.openDevTools({ mode: 'detach' });
+    if (!testProfile) win.webContents.openDevTools({ mode: 'detach' });
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -316,6 +325,11 @@ app.whenReady().then(async () => {
   log.info(`[Main] Platform: ${process.platform}`);
   log.info(`[Main] Executable: ${process.execPath}`);
 
+  if (testProfile) {
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details, callback) => {
+      callback({ cancel: !details.url.startsWith('http://127.0.0.1:') && !details.url.startsWith('ws://127.0.0.1:') });
+    });
+  }
   initDb();
   log.info('[Main] Database initialized');
 
@@ -347,7 +361,7 @@ app.whenReady().then(async () => {
     }
   });
 
-  if (mainWindow) {
+  if (mainWindow && !testProfile) {
     initBarcodeScanner(mainWindow);
     initWeighingScale(mainWindow);
     initPrinter();
@@ -410,7 +424,7 @@ app.whenReady().then(async () => {
     }
   }, 30000);
 
-  setupAutoUpdater();
+  if (!testProfile) setupAutoUpdater();
 });
 
 app.on('activate', () => {

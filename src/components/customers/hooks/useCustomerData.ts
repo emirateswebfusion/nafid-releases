@@ -114,7 +114,7 @@ export function useCustomerData(ctx: UseCustomerDataContext) {
 
     if (!isDesktopRuntime()) return;
     try {
-      const [invData, loyaltyData, freshCustomers] = await Promise.all([
+      const [invData, loyaltyData] = await Promise.all([
         customersApi.getCustomerInvoices({
           customer_id: customer.customer_id,
           tenant_id: tenantId as string,
@@ -122,8 +122,8 @@ export function useCustomerData(ctx: UseCustomerDataContext) {
           name: customer.name,
         }),
         customersApi.getCustomerLoyaltyTransactions({ customer_id: customer.customer_id, tenant_id: tenantId as string }),
-        customersApi.getCustomers({ tenant_id: tenantId as string, search: customer.name }),
       ]);
+      const freshCustomers = await customersApi.getCustomers({ tenant_id: tenantId as string, search: customer.name });
       if (lastInteractedCustomerIdRef.current !== customer.customer_id) return;
       const fresh = Array.isArray(freshCustomers) ? freshCustomers.find(row => row.customer_id === customer.customer_id) : undefined;
       if (fresh) setSelectedCustomer(previous => previous?.customer_id === customer.customer_id ? fresh : previous);

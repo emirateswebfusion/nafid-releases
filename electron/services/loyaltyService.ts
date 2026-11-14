@@ -115,6 +115,17 @@ export function validateInvoicePointsEdit(db: Db, id: string, customerId: string
   }
 }
 
+export function reconcileCustomerPoints(db: Db, tenant: string, customerId: string) {
+  if (!customerId) return;
+  const config = readLoyaltyConfig(db, tenant);
+  if (!config.enabled) return;
+  const invoices = sql.customerInvoices(db).all(tenant, customerId) as { invoice_id: string }[];
+  for (const inv of invoices) {
+    captureInvoicePoints(db, inv.invoice_id);
+    reconcileInvoicePoints(db, inv.invoice_id);
+  }
+}
+
 /** Recover erased customer counters only from recorded movements, never from today's earning rate.
  * A nonzero opening/manual balance is deliberately left for explicit review. */
 export function repairZeroLoyaltyCounters(db: Db, tenant: string) {

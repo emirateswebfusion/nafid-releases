@@ -362,6 +362,8 @@ Tests: `whatsappSharing`, `whatsappSendFlows`, `whatsappPurchaseRegression`, `wh
 
 ## Loyalty points
 
+Historical points self-healing & startup migration (14 November 2026, v2.2.65): Migration 23 (`023-reconcile-customer-loyalty-points.ts`) audits all customer invoices on application upgrade and startup, reconciling historical duplicate awards from legacy (< v2.2.0) bill edits or settlements. Discrepancies are balanced with `ADJUSTED` transactions, synchronizing `customers.current_points_balance` and `total_points_earned`. At runtime, `reconcileCustomerPoints` silently verifies and heals customer ledger consistency during invoice/transaction queries without exposing manual recalculation buttons on the customer UI. Tests: `loyaltyPersistence`, `migrationBranchCompatibility`.
+
 Bill edit redemption (14 November 2026): the billing tab stores the original invoice id, redeemed points and
 historical discount, plus an optional explicit redemption draft. Totals and checkout consume the same resolved
 values. An unchanged redemption survives a zero current balance, a changed redemption rate, disabled loyalty

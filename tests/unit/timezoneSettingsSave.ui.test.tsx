@@ -8,7 +8,10 @@ vi.mock('../../src/data/client', async original => ({ ...await original<typeof i
 import { useSettingsFormState } from '../../src/components/settings/hooks/useSettingsFormState';
 import { useSettingsSave } from '../../src/components/settings/hooks/useSettingsSave';
 import { useAuthStore } from '../../src/store/authStore';
-afterEach(cleanup);
+afterEach(() => {
+  vi.clearAllTimers();
+  cleanup();
+});
 it('persists the selected shop timezone with the settings save, not only localStorage', async () => {
   useAuthStore.setState({tenantId:'timezone-shop',role:'ADMIN'});
   const { result } = renderHook(() => {

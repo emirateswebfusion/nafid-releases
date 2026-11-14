@@ -182,6 +182,7 @@ export async function handleReturnsAndPricingIntent(parsed: ParsedOfflineIntent,
       const matched = prods.filter((p: AiRow) => p.sku_barcode === code || p.item_code?.toLowerCase() === code.toLowerCase() || (Boolean(parsed.params.productName) && p.name?.toLowerCase().includes(code.toLowerCase())));
 
       if (matched.length === 0) {
+        if (parsed.params.productName) return { content: isMal ? `"${code}" എന്ന പേരിൽ ഉൽപ്പന്നം കണ്ടെത്താനായില്ല.` : `Could not find product matching "${code}".` };
         return { content: isMal ? `"${code}" എന്ന ബാർകോഡിൽ ഉൽപ്പന്നങ്ങൾ ഒന്നുമില്ല.` : `No product found with barcode "${code}".` };
       }
 

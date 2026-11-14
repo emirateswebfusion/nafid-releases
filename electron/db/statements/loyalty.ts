@@ -17,6 +17,7 @@ export const updateBalance = (db: Db) => db.prepare("UPDATE invoices SET previou
 export const updateEarned = (db: Db) => db.prepare("UPDATE invoices SET points_earned = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?");
 
 export const tenantInvoices = (db: Db) => db.prepare("SELECT invoice_id FROM invoices WHERE tenant_id = ? AND customer_id IS NOT NULL AND converted_from_invoice_id IS NULL");
+export const customerInvoices = (db: Db) => db.prepare("SELECT invoice_id FROM invoices WHERE tenant_id = ? AND customer_id = ? AND converted_from_invoice_id IS NULL");
 export const ledgerTotals = (db: Db) => db.prepare(`SELECT customer_id, SUM(points_balance_after - points_balance_before) AS balance,
  SUM(CASE WHEN transaction_type != 'REDEEMED' THEN points_balance_after - points_balance_before ELSE 0 END) AS earned,
  SUM(CASE WHEN transaction_type = 'REDEEMED' THEN points_balance_before - points_balance_after ELSE 0 END) AS redeemed

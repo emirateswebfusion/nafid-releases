@@ -16,16 +16,16 @@ export function merchantPeriod(text: string): string | undefined {
 export const merchantWords = {
   sales: /\bsales?\b|\bsell\b|\bselling\b|\bsold\b|kooduthal vitta|turnover|വിൽപ്പന|വില്പന|സെയിൽ|vilpana|vilpanay|വിൽക്കുന്ന|vilkkunna/,
   expense: /expense|spend|spent|payout|spending|ചെല|ചിലവ|chilav|chelavu|chelav/,
-  purchase: /purchas|\bbuy\b|\bbought\b|supplier bills?|vendor bills?|പർച്ചേസ്|വാങ്ങൽ|വാങ്ങിയ സാധന|vangal|vangiya sadhan/,
+  purchase: /purchas|\bbuy\b|\bbought\b|supplier bills?|vendor bills?|പർച്ചേസ്|വാങ്ങൽ|വാങ്ങിയ സാധന|സാധന(?:ം|ങ്ങൾ) വാങ്ങിയ|vangal|vangiya sadhan/,
   stock: /\bstock(?:ile|il)?\b|inventory|സ്റ്റോക്ക്|സ്റ്റോക്|ഇൻവെന്ററ/,
   customer: /customer|കസ്റ്റമ|ഉപഭോക്ത/,
   supplier: /supplier|vendor|സപ്ലയ|വിതരണക്കാ/,
-  returned: /\breturns?\b|returned|റിട്ടേൺ|തിരിച്ചുതന്ന|തിരിച്ചു വന്ന|thirichu vanna|thirichu thanna/,
+  returned: /\breturns?\b|returned|(?:customers?|they) brought back|റിട്ടേൺ|തിരിച്ചു ?തന്ന|തിരിച്ചു വന്ന|thirichu vanna|thirichu thanna/,
   methods: /payment method|by method|രീതി തിരിച്ച്|method venam|cash card|cash.*card.*credit|പേയ്‌മെന്റ് രീതി|ക്യാഷും കാർഡും|method thirichu/,
   category: /category|കാറ്റഗറി|വിഭാഗം|vibhagam/,
   compare: /compar|താരതമ്യം|tharatamyam|ത്തേക്കാൾ.*കൂടിയോ/,
   largest: /largest|biggest|highest|ഏറ്റവും വലിയ|ഏറ്റവും ഉയർന്ന|കൂടിയ|valiya/,
-  drawer: /drawer|register|രജിസ്റ്റ|ഡ്രോയറ|ഡ്രോയർ|കൗണ്ടറിലെ.*ക്യാഷ്|counter cash/,
+  drawer: /drawer|register|രജിസ്റ്റ|ഡ്രോയറ|ഡ്രോയർ|കൗണ്ടറിലെ.*ക്യാഷ്|counter cash|counteril.*cash|പെട്ടിയ.*കാശ/,
 } as const;
 
 export function merchantEntity(text: string, kind: 'stock' | 'price' | 'barcode' | 'ledger' | 'loyalty'): string | undefined {
