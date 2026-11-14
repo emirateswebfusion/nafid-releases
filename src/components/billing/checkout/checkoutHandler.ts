@@ -36,7 +36,7 @@ export type { CheckoutContext } from './checkoutTypes';
 import type { CheckoutContext } from './checkoutTypes';
 
 export function createCheckoutHandler(ctx: CheckoutContext) {
-  const { items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, customerName, customerPhone, tenantId, customerAddress, userId, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod: tabPaymentMethod, splitDetails: tabSplitDetails, splitTotal, displayGrandTotal, loyaltyEnabled, pointsToRedeem, loyaltyCustomerData, loyaltyRedemptionRate, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem } = ctx;
+  const { items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, customerName, customerPhone, tenantId, customerAddress, userId, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod: tabPaymentMethod, splitDetails: tabSplitDetails, splitTotal, displayGrandTotal, loyaltyEnabled, pointsRedeemedCalc: pointsRedeemed, pointsRedeemedDiscountCalc: pointsRedeemedDiscount, loyaltyCustomerData, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem } = ctx;
   // Credit mode with amounts in the Cash / Card / UPI / Cheque tiles is a split payment: save it as SPLIT with each
   // part kept and the rest on credit. (Saved as CREDIT, the parts collapsed into one "received" amount that every
   // report and the ledger count as cash.)
@@ -221,10 +221,6 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       const pointsEarned = loyaltyEnabled && hasCustomerForPoints && shouldAwardPointsNow
         ? calculateLoyaltyPoints(displayGrandTotal, totalTax, { earningRate: loyaltyEarningRate, includeTax: earningConfig?.includeTax })
         : 0;
-      const pointsRedeemed = loyaltyEnabled && pointsToRedeem > 0
-        ? Math.min(pointsToRedeem, Number(loyaltyCustomerData.pointsBalance) || 0)
-        : 0;
-      const pointsRedeemedDiscount = pointsRedeemed * loyaltyRedemptionRate;
       const remainingPointsBalance = previousPointsBalance + pointsEarned - pointsRedeemed;
       // Adjust grand total for points redemption discount (already calculated above as effectiveGrandTotal)
 
@@ -536,6 +532,11 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       const confirmedInvoiceNumber = (result && result.invoice_number) ? result.invoice_number : invoice_number;
       invoice_number = confirmedInvoiceNumber;
       receiptData.invoiceNumber = confirmedInvoiceNumber;
+      if (result.editedLoyalty && (loyaltyEnabled || pointsRedeemed > 0)) {
+        receiptData.pointsEarned = result.editedLoyalty.earned ?? undefined;
+        receiptData.previousPointsBalance = result.editedLoyalty.previous ?? undefined;
+        receiptData.remainingPointsBalance = result.editedLoyalty.remaining ?? undefined;
+      }
       if (result && result.created_at) {
         receiptData.date = formatBillDateTime(result.created_at);
       }

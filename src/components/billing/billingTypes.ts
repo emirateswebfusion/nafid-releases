@@ -136,7 +136,7 @@ export interface PaymentOption { value: PaymentMethod; label: string; icon: Comp
 export type SplitField = 'CASH' | 'CARD' | 'UPI' | 'CREDIT' | 'CHEQUE';
 export type SplitKeyHandler = (e: KeyboardEvent<HTMLInputElement>, field: SplitField) => void;
 export type InvoiceStyle = Parameters<typeof import('../../utils/print/invoiceHtmlGenerator').generateInvoiceHtml>[1];
-export interface CheckoutResult { created_at?: string; success: boolean; error?: string; invoice_id?: string; invoice_number?: string; customer_id?: string; points_earned?: number; points_redeemed?: number; loyalty_points_earned?: number }
+export interface CheckoutResult { editedLoyalty?: { earned?: number | null; previous?: number | null; remaining?: number | null }; created_at?: string; success: boolean; error?: string; invoice_id?: string; invoice_number?: string; customer_id?: string; points_earned?: number; points_redeemed?: number; loyalty_points_earned?: number }
 export type PrintSetting = { billSettings?: { bosTaxRatePercent?: number; bosTaxInclusive?: boolean; showDescription?: boolean } } | null;
 export type SettingsEvent = Event & { detail?: { terminalCode?: string; shopName?: string } };
 export type ScrapEditEvent = Event & { detail?: { invoiceNumber?: string } };

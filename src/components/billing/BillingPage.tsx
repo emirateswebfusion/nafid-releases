@@ -361,11 +361,11 @@ export function BillingPage() {
 
   const {
     returnConsumed, refundAmount, returnTotal, originalReturnTotal,
-    returnDiscountTotal, rawDisplayGrandTotal, customerPointsBalance, pointsRedeemedCalc, pointsRedeemedDiscountCalc,
+    setBillPointsToRedeem, savedRedemption, returnDiscountTotal, rawDisplayGrandTotal, customerPointsBalance, pointsRedeemedCalc, pointsRedeemedDiscountCalc,
     isGrandTotalOverridden, displayGrandTotal, balanceAmount,
   } = useBillingTotals({
-    activeTab, extraBonus, grandTotal, isLoyaltyModuleEnabled, isReturnMode, isScrapMode, items,
-    loyaltyCustomerData, loyaltyRedemptionRate, pointsToRedeem, receivedAmount, scrapTotal,
+    activeTab, editingInvoiceId: editingActive, extraBonus, grandTotal, isLoyaltyModuleEnabled, isReturnMode, isScrapMode, items,
+    loyaltyCustomerData, loyaltyRedemptionRate, pointsToRedeem, setPointsToRedeem, receivedAmount, scrapTotal,
     storeReturnDeduction, storeScrapDeduction,
   });
 
@@ -536,7 +536,7 @@ export function BillingPage() {
   });
 
   const handleCheckout = (saveOnly = false) => createCheckoutHandler({
-    items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, scrapTotal, extraBonus, scrapPaymentStatus, customerName, customerPhone, tenantId, customerAddress, userId: userId as string, userName, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, uiConfig, setIsScrapMode, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveScrapInvoiceNumberForTab, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod, splitDetails, splitTotal, displayGrandTotal, loyaltyEnabled: isLoyaltyModuleEnabled, pointsToRedeem, loyaltyCustomerData, loyaltyRedemptionRate, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem,
+    items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, scrapTotal, extraBonus, scrapPaymentStatus, customerName, customerPhone, tenantId, customerAddress, userId: userId as string, userName, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, uiConfig, setIsScrapMode, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveScrapInvoiceNumberForTab, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod, splitDetails, splitTotal, displayGrandTotal, loyaltyEnabled: isLoyaltyModuleEnabled, pointsRedeemedCalc, pointsRedeemedDiscountCalc, loyaltyCustomerData, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem,
   })(saveOnly);
 
   const { handleProcessReturnFromCart } = useReturnFromCart({
@@ -591,9 +591,9 @@ export function BillingPage() {
   });
   const deductions: DeductionState = {
     customerPointsBalance, effectiveDeductionMode, isLoyaltyModuleEnabled, isReturnModuleEnabled,
-    isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem,
+    savedRedemption, isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem: savedRedemption ? pointsRedeemedCalc : pointsToRedeem,
     returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery,
-    setDeductionTabMode, setHardwareError, setPointsToRedeem, setReturnDeductionDropdownStyle,
+    setDeductionTabMode, setHardwareError, setPointsToRedeem: setBillPointsToRedeem, setReturnDeductionDropdownStyle,
     setReturnDeductionResults, setReturnDeductionSearchMode, setReturnDeductionSearchQuery,
     setScrapDeductionDropdownStyle, setScrapDeductionResults, setScrapDeductionSearchQuery, tenantId,
   };

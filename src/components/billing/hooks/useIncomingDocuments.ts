@@ -378,6 +378,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
         updateActiveTab({
           customerId: invoice.customer_id || '',
           manualTotalOverride: null,
+          savedRedemption: { invoiceId: invoice.invoice_id, points: Number(invoice.points_redeemed) || 0, discount: Number(invoice.points_redeemed_discount) || 0 },
           editingInvoiceContribution,
           editingInvoicePartyKey: editPartyKey,
           customerName: invoice.customer_name || '',

@@ -17,6 +17,7 @@ export interface DeductionState {
   pointsDeductionInputRef: React.RefObject<HTMLInputElement | null>;
   pointsRedeemedCalc: number;
   pointsRedeemedDiscountCalc: number;
+  savedRedemption?: import('../../../store/tabStore').Tab['savedRedemption'];
   pointsToRedeem: number;
   returnDeductionInputRef: React.RefObject<HTMLInputElement | null>;
   returnDeductionSearchQuery: string;
@@ -41,7 +42,7 @@ export interface DeductionEditorProps {
 }
 
 export function DeductionEditor({ deductions }: DeductionEditorProps) {
-  const { customerPointsBalance, effectiveDeductionMode, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setDeductionTabMode, setHardwareError, setPointsToRedeem, setReturnDeductionDropdownStyle, setReturnDeductionResults, setReturnDeductionSearchMode, setReturnDeductionSearchQuery, setScrapDeductionDropdownStyle, setScrapDeductionResults, setScrapDeductionSearchQuery, tenantId } = deductions;
+  const { savedRedemption, customerPointsBalance, effectiveDeductionMode, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsDeductionInputRef, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setDeductionTabMode, setHardwareError, setPointsToRedeem, setReturnDeductionDropdownStyle, setReturnDeductionResults, setReturnDeductionSearchMode, setReturnDeductionSearchQuery, setScrapDeductionDropdownStyle, setScrapDeductionResults, setScrapDeductionSearchQuery, tenantId } = deductions;
   const clearReturnDeduction = useCartStore(s => s.clearReturnDeduction);
   const clearScrapDeduction = useCartStore(s => s.clearScrapDeduction);
   const isQuotationMode = useCartStore(s => s.isQuotationMode);
@@ -75,6 +76,7 @@ export function DeductionEditor({ deductions }: DeductionEditorProps) {
                   : "border-border/60 bg-muted/5"
         )}>
           {/* Deduction Tabs (Scrap / Return / Points) */}
+          {savedRedemption && !isLoyaltyModuleEnabled && <span>Saved points: {savedRedemption.points} · −{formatCurrency(savedRedemption.discount)}</span>}
           {(isScrapModuleEnabled || isReturnModuleEnabled || isLoyaltyModuleEnabled) && (
             <div>
               <div className="flex bg-muted/20 p-0.5 border-b border-border/40 gap-1">

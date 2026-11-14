@@ -56,9 +56,9 @@ export interface CheckoutContext {
   splitTotal: number;
   displayGrandTotal: number;
   loyaltyEnabled: boolean;
-  pointsToRedeem: number;
+  pointsRedeemedCalc: number;
+  pointsRedeemedDiscountCalc: number;
   loyaltyCustomerData: { customerId: string | null; pointsBalance: number; };
-  loyaltyRedemptionRate: number;
   receivedAmount: number;
   refundAmount: number;
   balanceAmount: number;

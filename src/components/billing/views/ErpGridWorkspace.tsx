@@ -74,7 +74,7 @@ export interface ErpGridWorkspaceProps {
 }
 
 export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, canOverrideTier, clearReturnDeduction, clearScrapDeduction, customerFields, customerGstin, customerName, customerPhone, customerState, deductions, discountRef, discountValue, displayGrandTotal, editingActive, editingInvoiceNumber, enableThreeInvoiceSeries, erpNarration, erpSalesRep, findMatchingParty, focusedRowProductId, handleCheckout, handlePricingTierChange, handleQtyKeyDown, invoiceType, isCheckingOut, isGrandTotalOverridden, items, lastAddedProductId, nextInvoiceNumber, paymentMethod, pricingTiers, qtyRefs, receivedAmount, receivedInputRef, removeItem, searchBarSection, selectedTierId, setDiscount, setErpNarration, setErpSalesRep, setFocusedRowProductId, setReturnDeduction, setScrapDeduction, shopDomain, startEditingTotal, storeReturnDeduction, storeScrapDeduction, updateActiveTab, updateQuantity }: ErpGridWorkspaceProps) {
-  const { customerPointsBalance, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setHardwareError, setPointsToRedeem, setReturnDeductionSearchQuery, setScrapDeductionSearchQuery, tenantId } = deductions;
+  const { savedRedemption, customerPointsBalance, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setHardwareError, setPointsToRedeem, setReturnDeductionSearchQuery, setScrapDeductionSearchQuery, tenantId } = deductions;
   const { setShowCustomerDropdown, customerNameInputRef, customerGstinInputRef } = customerFields;
   const selectedParty = findMatchingParty(customerName, customerPhone);
   const uiPartyKey = `${(customerName || '').trim().toLowerCase()}|${(customerPhone || '').trim()}`;
@@ -485,6 +485,7 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
                 )
               )}
 
+              {savedRedemption && !isLoyaltyModuleEnabled && <span>Saved points: {savedRedemption.points} · −{formatCurrency(savedRedemption.discount)}</span>}
               {isLoyaltyModuleEnabled && (
                 pointsRedeemedDiscountCalc > 0 ? (
                   <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold">

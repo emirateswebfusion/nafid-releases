@@ -82,7 +82,7 @@ export interface IElectronAPI {
   dbGetCustomerEinvoiceProfile: (payload: { tenant_id: string; customer_id: string }) => Promise<import('./data/einvoice').CustomerEinvoiceRow | null>;
   dbSaveCustomerEinvoiceProfile: (payload: { tenant_id: string; customer_id: string; profile: unknown }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<InvoiceItem[]>;
-  dbUpdateInvoice: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateInvoice: (payload: unknown) => Promise<{ success: boolean; error?: string; created_at?: string; editedLoyalty?: { earned?: number | null; previous?: number | null; remaining?: number | null } }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: unknown }) => Promise<{ success: boolean; error?: string }>;
   dbGetCustomers: (params: { tenant_id: string; active?: boolean; credit?: boolean; pricing_tier_id?: string; search?: string; overdue?: boolean }) => Promise<CustomerListItem[]>;
   dbCreateCustomer: (customer: unknown) => Promise<{ success: boolean; customer_id?: string; error?: string }>;

@@ -1,9 +1,12 @@
 import { totalReturnLines } from '../../../utils/pricing/returnPricing';
 import type { CartItem } from '../../../store/cartStore';
-import type { Tab } from '../../../store/tabStore';
+import type { Dispatch, SetStateAction } from 'react';
+import { useTabStore, type Tab } from '../../../store/tabStore';
 
 export interface UseBillingTotalsContext {
   activeTab: Tab | undefined;
+  editingInvoiceId?: string | null;
+  setPointsToRedeem: Dispatch<SetStateAction<number>>;
   extraBonus: number;
   grandTotal: number;
   isLoyaltyModuleEnabled: boolean;
@@ -42,13 +45,15 @@ export function useBillingTotals(ctx: UseBillingTotalsContext) {
       ? returned.total
       : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
 
-  const customerPointsBalance = Number(loyaltyCustomerData?.pointsBalance) || 0;
-
-  const pointsRedeemedCalc = (isLoyaltyModuleEnabled && pointsToRedeem > 0)
-    ? Math.min(pointsToRedeem, customerPointsBalance)
-    : 0;
-
-  const pointsRedeemedDiscountCalc = pointsRedeemedCalc * loyaltyRedemptionRate;
+  const saved = activeTab?.savedRedemption;
+  const savedRedemption = saved && saved.invoiceId === ctx.editingInvoiceId ? saved : undefined;
+  const customerPointsBalance = Math.max(0, (Number(loyaltyCustomerData?.pointsBalance) || 0) + (savedRedemption?.points || 0));
+  const requestedPoints = savedRedemption?.draftPoints ?? savedRedemption?.points ?? pointsToRedeem;
+  const unchanged = savedRedemption && (savedRedemption.draftPoints == null || savedRedemption.draftPoints === savedRedemption.points);
+  const pointsRedeemedCalc = unchanged ? savedRedemption.points : (isLoyaltyModuleEnabled
+    ? Math.min(Math.max(0, requestedPoints), customerPointsBalance)
+    : 0);
+  const pointsRedeemedDiscountCalc = unchanged ? savedRedemption.discount : pointsRedeemedCalc * loyaltyRedemptionRate;
 
   const isGrandTotalOverridden = !isScrapMode && !isReturnMode && activeTab?.manualTotalOverride != null && activeTab.manualTotalOverride > 0;
 
@@ -59,5 +64,13 @@ export function useBillingTotals(ctx: UseBillingTotalsContext) {
 
   const balanceAmount = receivedAmount - displayGrandTotal;
 
-  return { returnConsumed, refundAmount, returnTotal, originalReturnTotal, returnDiscountTotal, rawDisplayGrandTotal, customerPointsBalance, pointsRedeemedCalc, pointsRedeemedDiscountCalc, isGrandTotalOverridden, displayGrandTotal, balanceAmount };
+  const setBillPointsToRedeem: Dispatch<SetStateAction<number>> = value => {
+    if (savedRedemption) {
+      const draftPoints = typeof value === 'function' ? value(pointsRedeemedCalc) : value;
+      useTabStore.getState().updateActiveTab({ savedRedemption: { ...savedRedemption, draftPoints } });
+    } else {
+      ctx.setPointsToRedeem(value);
+    }
+  };
+  return { setBillPointsToRedeem, savedRedemption, returnConsumed, refundAmount, returnTotal, originalReturnTotal, returnDiscountTotal, rawDisplayGrandTotal, customerPointsBalance, pointsRedeemedCalc, pointsRedeemedDiscountCalc, isGrandTotalOverridden, displayGrandTotal, balanceAmount };
 }

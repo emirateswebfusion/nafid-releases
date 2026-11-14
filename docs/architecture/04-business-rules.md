@@ -362,6 +362,14 @@ Tests: `whatsappSharing`, `whatsappSendFlows`, `whatsappPurchaseRegression`, `wh
 
 ## Loyalty points
 
+Bill edit redemption (14 November 2026): the billing tab stores the original invoice id, redeemed points and
+historical discount, plus an optional explicit redemption draft. Totals and checkout consume the same resolved
+values. An unchanged redemption survives a zero current balance, a changed redemption rate, disabled loyalty
+and tab navigation. Explicit changes use the current rate and the balance including this bill's original redemption;
+main-process validation remains authoritative. The update response returns the persisted earned/opening/closing
+snapshots for immediate printing, preventing a second award from appearing on the edit receipt. Tests:
+`billingEditRedemption`, `loyaltyPersistence`, `loyaltyReceipt`.
+
 Loyalty earning basis: `electron/utils/loyalty.ts` is shared by checkout, edit/settlement and renderer receipt preparation. `loyalty_config.includeTax` defaults to true for compatibility; false subtracts tax from the eligible total before flooring points. The preference uses the main Settings Save Changes draft. Reconciliation refreshes invoice opening and closing point snapshots after an edit.
 
 Loyalty review (6 November 2026): payment/edit refresh respects `counts_in_revenue`, and disabled earning still reconciles historical contributions. Customer detail summaries refresh from the stored customer alongside invoice/activity reads; stale detail responses cannot replace another customer. Receipt point balances preserve zero and negative values. Regression coverage: `customerPointsRefresh.ui`, `loyaltyReceipt`, `loyaltyPersistence`.

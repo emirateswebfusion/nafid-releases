@@ -68,6 +68,7 @@ export interface Tab {
   splitDetails?: SplitDetails;
   receivedAmount: number;
   manualTotalOverride?: number | null;
+  savedRedemption?: { invoiceId: string; points: number; discount: number; draftPoints?: number };
   editingInvoiceContribution?: number;
   editingInvoicePartyKey?: string;
   /** Actual physical cash refunded to customer — may differ from computed refundAmount */
@@ -381,7 +382,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     const { tabs, activeTabId } = get();
     const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
       'title', 'customerId', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
-      'billDate', 'editingInvoiceContribution', 'editingInvoicePartyKey',
+      'savedRedemption', 'savedRedemption', 'billDate', 'editingInvoiceContribution', 'editingInvoicePartyKey',
       'description', 'transporterName', 'vehicleNumber', 'transporterDocNo', 'transporterDocDate',
       'ewayBillNo', 'ewayBillDate', 'shippingName', 'shippingAddress', 'shippingGstin',
       'paymentMethod', 'splitDetails', 'receivedAmount', 'manualTotalOverride', 'actualRefundPaid',

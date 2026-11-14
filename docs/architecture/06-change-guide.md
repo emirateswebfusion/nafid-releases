@@ -441,3 +441,16 @@ App and Electron typechecks, architecture guard and lint ratchet passed (zero er
 ### Desktop Mind assistant
 
 Conversation clarification belongs to `src/services/offlineAi/conversation.ts`; existing intent rules and handlers own reports. Persist `parsedIntent` with the current account-scoped chat message. Desktop queries go directly to local data with no cloud/LLM fallback. See [Mind ownership and acceptance](mind-assistant.md) and `tests/manual/mind/README.md`. Run the conversation, data-availability and 613-question characterization tests; review intentional snapshot changes.
+
+### Bill edit loyalty acceptance (14 November 2026)
+
+Load saved redemption from the invoice into the billing tab before displaying totals. Keep original points
+and original discount together, including when the current rate or enabled setting changes. Only an explicit
+redemption edit uses the current rate. Checkout must use the same resolved values shown in billing.
+After update, print the main process's persisted point snapshots. Keep saved redemption scoped to its invoice
+when changing tabs or starting another bill.
+
+Real desktop test used a network-isolated synthetic profile. QA-001 opened with a zero customer balance,
+20 redeemed points, a historical discount of 10 and total 90. Saving through the billing Save action retained
+total 90, earned 9, redeemed 20, discount 10 and customer balance 0. This evidence covers the development UI.
+Packaged installer acceptance is recorded separately by the Windows installer workflow.

@@ -343,7 +343,8 @@ export async function updateInvoice(payload: {
     import('../sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice update sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
-    const res = { success: true, created_at: effectiveInvDate };
+    const saved = invoicesSql.findInvoicesByInvoiceId2(db).get(payload.invoice_id) as InvoiceRow;
+    const res = { success: true, created_at: effectiveInvDate, editedLoyalty: { earned: saved.points_earned, previous: saved.previous_points_balance, remaining: saved.remaining_points_balance } };
     recentCheckoutsCache.set(updateCacheKey, { timestamp: now, result: res });
     if (recentCheckoutsCache.size > 100) {
       for (const [k, v] of recentCheckoutsCache.entries()) {

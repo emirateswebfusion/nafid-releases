@@ -39,6 +39,19 @@ function sale(points = 10, redeemed = 0) {
 }
 function balance() { return (raw.prepare("SELECT current_points_balance AS balance FROM customers WHERE customer_id = 'c'").get() as { balance: number }).balance; }
 function returnSale() { return createReturn({ return_id: 'r', invoice_id: 'i', tenant_id: 't', return_number: 'RET1', subtotal: 500, tax_total: 0, grand_total: 500, items: [{ return_item_id: 'ri', product_id: 'p', name: 'Item', quantity: 1, unit_price: 500, tax_amount: 0, total: 500 }] }); }
+it('returns persisted edit receipt balances and preserves historical redemption after other spending', async () => {
+  expect(checkout({ invoice_id: 'edited', user_id: 'u', tenant_id: 't', invoice_number: 'POS1-3', invoice_type: 'ESTIMATE', subtotal: 504, tax_total: 0, discount_total: 0, grand_total: 500, payment_method: 'CASH', customer_id: 'c', points_redeemed: 4, points_redeemed_discount: 4, items: [] }).success).toBe(true);
+  raw.prepare("UPDATE customers SET current_points_balance = 0 WHERE customer_id = 'c'").run();
+  raw.prepare("UPDATE settings SET value = ? WHERE tenant_id = 't' AND key = 'loyalty_config'").run(JSON.stringify({ enabled: true, earningRate: 100, redemptionRate: 2 }));
+  const payload = { invoice_id: 'edited', tenant_id: 't', role: 'ADMIN', subtotal: 504, tax_total: 0, discount_total: 0, discount_type: 'FIXED', discount_value: 0, grand_total: 500, payment_method: 'CASH', customer_id: 'c', points_redeemed: 4, points_redeemed_discount: 4, items: [] };
+  for (const notes of ['First edit', 'Second edit']) {
+    expect(await updateInvoice({ ...payload, notes })).toMatchObject({
+      success: true,
+      editedLoyalty: { earned: 5, previous: -1, remaining: 0 },
+    });
+    expect(balance()).toBe(0);
+  }
+});
 describe('loyalty persistence regressions', () => {
   it('characterizes enabled checkout earning without supplied points', () => {
     expect(checkout({ invoice_id: 'new', user_id: 'u', tenant_id: 't', invoice_number: 'POS1-2', invoice_type: 'ESTIMATE', subtotal: 500, tax_total: 0, discount_total: 0, grand_total: 500, payment_method: 'CASH', customer_id: 'c', items: [] }).success).toBe(true);
