@@ -30,7 +30,7 @@ export const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
           <AlertTriangle className="w-6 h-6 shrink-0" />
           <div>
             <p className="font-bold text-sm">Delete Product?</p>
-            <p className="text-xs text-muted-foreground mt-0.5">This action cannot be undone.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">The product will be moved to the Recycle Bin.</p>
           </div>
         </div>
         <p className="text-sm text-foreground">

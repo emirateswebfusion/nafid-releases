@@ -669,3 +669,13 @@ Payment Methods overview filters sources by `last_transaction_date`; this is lat
 - **Settings & Single Save**: `FinancialYearSettings.tsx` adheres to AGENTS.md Rule 18 via `useSettingsSectionSave`; toggle preferences stay in a draft until the header Save Changes action. The annual rollover wizard is an explicit operational action requiring confirmation via `ConfirmFinancialYearModal.tsx`.
 - **UI Integration**: Filter presets (`This FY`, `Prev FY`) are integrated into `DateRangeFilter.tsx` and `FinancialReport.tsx`. Active status and navigation are surfaced in `FinancialYearDropup.tsx` in the status bar.
 - Tests: `tests/unit/financialYear.test.ts`, `tests/unit/financialYearSettings.ui.test.tsx`.
+
+### Product lifecycle, soft-deletion, and unique constraint resolution
+
+`electron/services/productsService.ts` and `electron/services/recycleBinService.ts` manage product lifecycle, deduplication, and safe recycling:
+- **Soft-deletion**: In `InventoryManager`, deleting a product marks it `is_deleted = 1` and moves it to the Recycle Bin (`useInventoryListActions` → `deleteProduct` → `productsSql.updateProductIsDeletedAlt`). Historical invoices, returns, and purchase bills preserve foreign-key references to the original `product_id`.
+- **Re-activation on duplicate creation**: In `productsService.addProduct`, if a user adds a product whose `(tenant_id, name, brand_manufacturer)` or `(tenant_id, sku_barcode)` matches an active product (`is_deleted = 0`), it is rejected with a clear duplicate error. If the match belongs to a soft-deleted product (`is_deleted = 1`), `addProduct` seamlessly restores the record (`is_deleted = 0`, `deleted_at = NULL`, `sync_status = 'PENDING'`) and updates its price, stock, category, barcode, and tax attributes while preserving the canonical `product_id`. `useInventorySave` adopts the returned `product_id` for associated tier prices, variants, and auto-created GST purchase bill items.
+- **Permanent deletion & child cleanup**: In `recycleBinService.hardDeleteProduct` and `emptyRecycleBin`, permanent deletion runs in a single transaction that cleans up dependent rows in `product_pricing`, `combo_items`, and draft/auto-created `purchase_bill_items` before deleting from `products`.
+- **Sync resurrection protection**: In `catalogSync.pullProducts`, if a cloud payload contains an item with `is_deleted = 1` and that `product_id` does not exist in the local database (because it was permanently purged), the local SQLite database skips inserting it as a new row.
+- **Tests**: `tests/unit/productRestoreOnAdd.test.ts`, `tests/unit/bulkProducts.test.ts`.
+

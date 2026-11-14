@@ -83,6 +83,67 @@ export function addProduct(p: ProductInput) {
     const db = getDb();
     const cleanBarcode = (p.sku_barcode && String(p.sku_barcode).trim() !== '') ? String(p.sku_barcode).trim() : null;
     const cleanItemCode = (p.item_code && String(p.item_code).trim() !== '') ? String(p.item_code).trim() : null;
+    const cleanName = (p.name && String(p.name).trim()) ? String(p.name).trim() : '';
+    const cleanBrand = (p.brand_manufacturer && String(p.brand_manufacturer).trim()) ? String(p.brand_manufacturer).trim() : '';
+    const billingType = (['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((p.uom || '').toLowerCase()) ? 'WEIGHT' : (p.billing_type || 'PIECE'));
+    const gstApplicable = resolveGstApplicability(p.is_gst_applicable, p.hsn_sac_code);
+    const domainAttrs = typeof p.domain_attributes === 'string' ? p.domain_attributes : JSON.stringify(p.domain_attributes ?? {});
+
+    // Check if a product with the same Name and Brand already exists for this tenant
+    const existingByName = cleanName
+      ? (productsSql.findProductCandidateForAdd(db).get(p.tenant_id, cleanName, cleanBrand) as { product_id: string; is_deleted: number; sku_barcode: string | null } | undefined)
+      : undefined;
+
+    if (existingByName && existingByName.is_deleted === 0) {
+      return { success: false, error: 'A product with this exact Name and Brand already exists.' };
+    }
+
+    // Check if a product with the same Barcode already exists for this tenant
+    if (cleanBarcode) {
+      const existingByBarcode = productsSql.findProductCandidateByBarcode(db).get(p.tenant_id, cleanBarcode) as { product_id: string; is_deleted: number; name: string } | undefined;
+      if (existingByBarcode && existingByBarcode.is_deleted === 0 && existingByBarcode.product_id !== existingByName?.product_id) {
+        return { success: false, error: 'A product with this barcode already exists.' };
+      }
+      // If a different soft-deleted product holds this barcode, release it so the new/restored product can use it
+      if (existingByBarcode && existingByBarcode.is_deleted === 1 && existingByBarcode.product_id !== existingByName?.product_id) {
+        productsSql.clearDeletedProductBarcode(db).run(existingByBarcode.product_id);
+      }
+    }
+
+    // If a soft-deleted product with the same Name and Brand exists, restore and update it seamlessly
+    if (existingByName && existingByName.is_deleted === 1) {
+      const targetId = existingByName.product_id;
+      const now = localTimestamp(new Date());
+      productsSql.restoreAndUpdateProduct(db).run(
+        p.name,
+        cleanBarcode,
+        cleanItemCode,
+        p.category || null,
+        p.hsn_sac_code || null,
+        p.purchase_price || 0,
+        p.base_price || 0,
+        gstApplicable,
+        p.tax_rate_percent || 0,
+        p.uom || 'Pcs',
+        p.brand_manufacturer || null,
+        p.current_stock || 0,
+        p.reorder_level || 0,
+        domainAttrs,
+        p.discount_percent ?? null,
+        p.discount_flat ?? null,
+        p.offer_price ?? null,
+        billingType,
+        p.grade_id || null,
+        p.pricing_mode || 'FIXED_PRICE',
+        p.average_weight_per_piece ?? null,
+        p.weight_override_allowed ?? 0,
+        p.is_service_item ?? 0,
+        now,
+        targetId
+      );
+      return { success: true, product_id: targetId, reactivated: true };
+    }
+
     const stmt = productsSql.insertProduct(db);
     stmt.run(
       p.product_id,
@@ -90,29 +151,29 @@ export function addProduct(p: ProductInput) {
       p.name,
       cleanBarcode,
       cleanItemCode,
-      p.category,
-      p.hsn_sac_code,
-      p.purchase_price,
-      p.base_price,
-      resolveGstApplicability(p.is_gst_applicable, p.hsn_sac_code),
-      p.tax_rate_percent,
+      p.category || null,
+      p.hsn_sac_code || null,
+      p.purchase_price || 0,
+      p.base_price || 0,
+      gstApplicable,
+      p.tax_rate_percent || 0,
       p.uom || 'Pcs',
-      p.brand_manufacturer,
-      p.current_stock,
-      p.reorder_level,
-       typeof p.domain_attributes === 'string' ? p.domain_attributes : JSON.stringify(p.domain_attributes ?? {}),
-       p.discount_percent ?? null,
-       p.discount_flat ?? null,
-       p.offer_price ?? null,
-       p.is_deleted ?? 0,
-       (['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((p.uom || '').toLowerCase()) ? 'WEIGHT' : (p.billing_type || 'PIECE')),
-       p.grade_id || null,
-       p.pricing_mode || 'FIXED_PRICE',
-       p.average_weight_per_piece ?? null,
-       p.weight_override_allowed ?? 0,
-       p.is_service_item ?? 0
+      p.brand_manufacturer || null,
+      p.current_stock || 0,
+      p.reorder_level || 0,
+      domainAttrs,
+      p.discount_percent ?? null,
+      p.discount_flat ?? null,
+      p.offer_price ?? null,
+      p.is_deleted ?? 0,
+      billingType,
+      p.grade_id || null,
+      p.pricing_mode || 'FIXED_PRICE',
+      p.average_weight_per_piece ?? null,
+      p.weight_override_allowed ?? 0,
+      p.is_service_item ?? 0
     );
-    return { success: true };
+    return { success: true, product_id: p.product_id };
   } catch (error) {
     const msg = (error as Error)?.message || 'Operation failed';
     console.error('[db:addProduct]', msg);

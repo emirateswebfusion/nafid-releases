@@ -95,6 +95,7 @@ export async function setProductPricing(params: {
 
 export interface CreateProductResult extends WriteResult {
   product_id?: string;
+  reactivated?: boolean;
 }
 
 /** What the product form sends to `db:addProduct` / `db:updateProduct`: product columns (form strings included) plus

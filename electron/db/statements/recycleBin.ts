@@ -63,6 +63,30 @@ export const deleteInvoiceByInvoiceId = (db: Db) => db.prepare('DELETE FROM invo
 
 export const deleteProductByProductId = (db: Db) => db.prepare('DELETE FROM products WHERE product_id = ? AND is_deleted = 1');
 
+export const deleteProductPricingByProductId = (db: Db) => db.prepare('DELETE FROM product_pricing WHERE product_id = ?');
+
+export const deleteComboItemsByProductId = (db: Db) => db.prepare('DELETE FROM combo_items WHERE product_id = ?');
+
+export const deletePurchaseBillItemsByProductId = (db: Db) => db.prepare('DELETE FROM purchase_bill_items WHERE product_id = ?');
+
+export const deleteProductPricingForDeletedProducts = (db: Db) => db.prepare(`
+  DELETE FROM product_pricing WHERE product_id IN (
+    SELECT product_id FROM products WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+  )
+`);
+
+export const deleteComboItemsForDeletedProducts = (db: Db) => db.prepare(`
+  DELETE FROM combo_items WHERE product_id IN (
+    SELECT product_id FROM products WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+  )
+`);
+
+export const deletePurchaseBillItemsForDeletedProducts = (db: Db) => db.prepare(`
+  DELETE FROM purchase_bill_items WHERE product_id IN (
+    SELECT product_id FROM products WHERE (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1
+  )
+`);
+
 export const deleteCustomerByCustomerId = (db: Db) => db.prepare("DELETE FROM customers WHERE customer_id = ? AND (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1");
 
 export const deletePartyByPartyId = (db: Db) => db.prepare("DELETE FROM parties WHERE party_id = ? AND (tenant_id = ? OR tenant_id = 'global') AND is_deleted = 1");

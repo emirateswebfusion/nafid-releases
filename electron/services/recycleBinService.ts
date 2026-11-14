@@ -224,7 +224,12 @@ export function hardDeleteInvoice(invoice_id: string) {
 export function hardDeleteProduct(product_id: string) {
   try {
     const db = getDb();
-    recycleBinSql.deleteProductByProductId(db).run(product_id);
+    db.transaction(() => {
+      try { recycleBinSql.deleteProductPricingByProductId(db).run(product_id); } catch { /* ignore */ }
+      try { recycleBinSql.deleteComboItemsByProductId(db).run(product_id); } catch { /* ignore */ }
+      try { recycleBinSql.deletePurchaseBillItemsByProductId(db).run(product_id); } catch { /* ignore */ }
+      recycleBinSql.deleteProductByProductId(db).run(product_id);
+    })();
     return { success: true };
   } catch (error) {
     console.error('[db:hardDeleteProduct]', error);
@@ -306,6 +311,9 @@ export function emptyRecycleBin(payload: { category: string; tenant_id: string }
       }
 
       if (cat === 'PRODUCTS' || cat === 'ALL') {
+        try { recycleBinSql.deleteProductPricingForDeletedProducts(db).run(tid); } catch { /* ignore */ }
+        try { recycleBinSql.deleteComboItemsForDeletedProducts(db).run(tid); } catch { /* ignore */ }
+        try { recycleBinSql.deletePurchaseBillItemsForDeletedProducts(db).run(tid); } catch { /* ignore */ }
         recycleBinSql.deleteProduct(db).run(tid);
       }
 

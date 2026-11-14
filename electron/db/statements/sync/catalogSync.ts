@@ -99,6 +99,8 @@ export const updateProductPricing5 = (db: Db) => db.prepare(`
           AND (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
           AND (updated_at <= ? OR updated_at IS NULL)
       `);
+export const selectProductExists = (db: Db) => db.prepare('SELECT 1 FROM products WHERE product_id = ? LIMIT 1');
+
 export const insertProducts = (db: Db) => db.prepare(`
     INSERT INTO products (
       product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,

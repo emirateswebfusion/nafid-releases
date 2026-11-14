@@ -469,3 +469,61 @@ export function getProductsCountStatement(db: Db, tenantId: string, arg: Product
 
     return { statement: db.prepare(query), params };
 }
+
+export const findProductCandidateForAdd = (db: Db) => db.prepare(`
+  SELECT product_id, is_deleted, sku_barcode
+  FROM products
+  WHERE tenant_id = ?
+    AND LOWER(TRIM(name)) = LOWER(TRIM(?))
+    AND COALESCE(LOWER(TRIM(brand_manufacturer)), '') = COALESCE(LOWER(TRIM(?)), '')
+  ORDER BY is_deleted ASC, updated_at DESC
+  LIMIT 1
+`);
+
+export const findProductCandidateByBarcode = (db: Db) => db.prepare(`
+  SELECT product_id, is_deleted, name, brand_manufacturer
+  FROM products
+  WHERE tenant_id = ? AND sku_barcode = ?
+  ORDER BY is_deleted ASC, updated_at DESC
+  LIMIT 1
+`);
+
+export const clearDeletedProductBarcode = (db: Db) => db.prepare(`
+  UPDATE products SET sku_barcode = NULL, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+  WHERE product_id = ? AND is_deleted = 1
+`);
+
+export const restoreAndUpdateProduct = (db: Db) => db.prepare(`
+  UPDATE products SET
+    name = ?,
+    sku_barcode = ?,
+    item_code = ?,
+    category = ?,
+    hsn_sac_code = ?,
+    purchase_price = ?,
+    base_price = ?,
+    is_gst_applicable = ?,
+    tax_rate_percent = ?,
+    uom = ?,
+    brand_manufacturer = ?,
+    current_stock = ?,
+    reorder_level = ?,
+    domain_attributes = ?,
+    discount_percent = ?,
+    discount_flat = ?,
+    offer_price = ?,
+    is_deleted = 0,
+    deleted_at = NULL,
+    billing_type = ?,
+    grade_id = ?,
+    pricing_mode = ?,
+    average_weight_per_piece = ?,
+    weight_override_allowed = ?,
+    is_service_item = ?,
+    sync_status = 'PENDING',
+    updated_at = ?
+  WHERE product_id = ?
+`);
+
+export const findProductExists = (db: Db) => db.prepare('SELECT 1 FROM products WHERE product_id = ? LIMIT 1');
+

@@ -143,6 +143,10 @@ export function useInventorySave(ctx: UseInventorySaveContext) {
         : await createProduct(payload);
 
       if (res.success) {
+        if ('product_id' in res && typeof res.product_id === 'string' && res.product_id) {
+          payload.product_id = res.product_id;
+        }
+
         // If GST Purchase details provided, create a purchase bill entry
         if (view === 'add' && formData.show_gst_purchase && formData.gst_purchase_price !== '' && Number(formData.gst_purchase_price) > 0) {
           const purchaseBillId = uuidv4();
@@ -230,6 +234,10 @@ export function useInventorySave(ctx: UseInventorySaveContext) {
 
         setView('list');
         loadProducts(true);
+        if ('reactivated' in res && res.reactivated) {
+          setStatusMessage({ text: 'Product restored from Recycle Bin and updated.', type: 'success' });
+          setTimeout(() => setStatusMessage(null), 3000);
+        }
       } else if (!formData.sku_barcode && res.error?.includes('sku_barcode') && retries > 0) {
         setLoading(false);
         setFormData(prev => ({ ...prev, sku_barcode: '' }));

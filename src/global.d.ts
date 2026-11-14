@@ -54,7 +54,7 @@ export interface IElectronAPI {
   dbGetProductsByIds: (params: { tenant_id: string; product_ids: string[] }) => Promise<Product[]>;
   dbGetProductSuppliers?: (tenant_id: string) => Promise<Record<string, string[]>>;
   dbEnsureServiceItem: (params: { tenant_id: string }) => Promise<{ success: boolean; product_id?: string; error?: string }>;
-  dbAddProduct: (product: unknown) => Promise<{ success: boolean; product_id?: string; error?: string }>;
+  dbAddProduct: (product: unknown) => Promise<{ success: boolean; product_id?: string; reactivated?: boolean; error?: string }>;
   dbUpdateProduct: (product: unknown) => Promise<{ success: boolean; error?: string }>;
   dbUpdateProductName: (params: { tenant_id: string; product_id: string; name: string }) => Promise<{ success: boolean; error?: string }>;
   dbDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;

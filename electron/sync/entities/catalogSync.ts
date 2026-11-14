@@ -381,8 +381,14 @@ export async function pullProducts(token: string, tenantId: string): Promise<boo
     onProgress: (fetched) => notifyPullProgress('products', fetched),
     processPage: (rows) => {
       const tx = db.transaction((products: Record<string, unknown>[]) => {
+        const checkExists = catalogSyncSql.selectProductExists(db);
         for (const p of products) {
           const currentP = { ...p };
+          const isDeletedRow = parseIsDeleted(currentP.is_deleted) === 1;
+          if (isDeletedRow && !checkExists.get(currentP.product_id)) {
+            // Do not insert ghost soft-deleted products that don't exist locally
+            continue;
+          }
           let retryCount = 0;
           let success = false;
           while (retryCount < 2 && !success) {
