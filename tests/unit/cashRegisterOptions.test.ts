@@ -18,7 +18,7 @@ function fixture() {
     ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1;
     CREATE TABLE cash_transactions (tenant_id TEXT, drawer_id TEXT, type TEXT, amount REAL, category TEXT, transaction_date TEXT, transaction_id TEXT PRIMARY KEY, notes TEXT, entered_by TEXT, entered_by_name TEXT, sync_status TEXT);
     CREATE TABLE parties (party_id TEXT, tenant_id TEXT, name TEXT);
-    CREATE TABLE party_ledger (ledger_id TEXT, party_id TEXT, transaction_date TEXT, credit_amount REAL, debit_amount REAL, payment_method TEXT, is_deleted INTEGER, tenant_id TEXT DEFAULT 't', description TEXT, created_by TEXT, created_by_name TEXT);
+    CREATE TABLE party_ledger (ledger_id TEXT, party_id TEXT, transaction_date TEXT, credit_amount REAL, debit_amount REAL, payment_method TEXT, is_deleted INTEGER, tenant_id TEXT DEFAULT 't', description TEXT, created_by TEXT, created_by_name TEXT, reference_number TEXT);
     CREATE TABLE returns (tenant_id TEXT, grand_total REAL, refund_method TEXT, created_at TEXT, return_id TEXT DEFAULT 'r', return_number TEXT DEFAULT 'RET-1', user_id TEXT);
     INSERT INTO invoices (tenant_id, converted_from_invoice_id, payment_method, grand_total, received_amount, split_details, invoice_type, is_held, is_deleted, settled_at, created_at) VALUES ('t', NULL, 'CASH', 100, 100, NULL, 'GST', 0, 0, NULL, '2026-10-27T05:00:00Z');
     INSERT INTO cash_transactions (tenant_id, drawer_id, type, amount, category, transaction_date) VALUES ('t', 'd', 'CASH_IN', 30, 'SCRAP_SALE', '2026-10-27T05:00:00Z');
@@ -110,6 +110,14 @@ describe('shared cash register totals', () => {
     expect(sql.prepare("SELECT COUNT(*) AS n FROM cash_transactions WHERE category = 'PARTY_LEDGER:empty'").get()?.n).toBe(0);
     sql.close();
   });
+  it('does not create cash entries when ledger mode is off', () => {
+    const { sql, db } = fixture();
+    sql.prepare("INSERT INTO settings (tenant_id, key, value) VALUES ('t', 'cash_register_ledger_mode', 'off')").run();
+    sql.exec("INSERT INTO party_ledger (ledger_id, credit_amount, debit_amount, payment_method, is_deleted) VALUES ('l-off', 0, 500, 'CASH', 0)");
+    recordLedgerCashEntry(db, 't', 'l-off');
+    expect(sql.prepare("SELECT COUNT(*) AS n FROM cash_transactions WHERE category = 'PARTY_LEDGER:l-off'").get()?.n).toBe(0);
+    sql.close();
+  });
   it('records a direct ledger cash entry once even without an open drawer', () => {
     const { sql, db, drawer } = fixture();
     sql.exec("INSERT INTO party_ledger (ledger_id, transaction_date, credit_amount, debit_amount, payment_method, is_deleted) VALUES ('new', '2026-10-27', 0, 40, 'CASH', 0)");
@@ -123,6 +131,20 @@ describe('shared cash register totals', () => {
     expect(computeDrawerTotals(db, 't', drawer).cash_in).toBe(30);
     sql.close();
   });
+  it.each(['CASH_OUT', 'CASH_IN'])('preserves register direction %s for a linked party settlement', (type) => {
+    const { sql, db, drawer, setting } = fixture();
+    setting('cash_register_ledger_mode', 'off');
+    sql.exec(`INSERT INTO party_ledger (ledger_id, transaction_date, credit_amount, debit_amount, payment_method, is_deleted, reference_number)
+      VALUES ('register', '2026-10-27T05:00:00Z', 0, 3000, 'CASH', 0, 'Cash Register');`);
+    sql.prepare(`INSERT INTO cash_transactions (tenant_id, drawer_id, type, amount, category, transaction_date, transaction_id)
+      VALUES ('t', 'd', ?, 3000, 'PARTY_LEDGER:register', '2026-10-27T05:00:00Z', 'payment')`).run(type);
+    const outgoing = type === 'CASH_OUT';
+    expect(getRegisterCashEntries(db, 't', drawer).find(row => row.transaction_id === 'payment'))
+      .toMatchObject({ type, amount: 3000, category: outgoing ? 'Party Payment' : 'Party Receipt' });
+    expect(computeDrawerTotals(db, 't', drawer).expected).toBe(160 + (outgoing ? -3000 : 3000));
+    sql.close();
+  });
+
   it('uses edited ledger amounts and omits soft-deleted linked entries in both totals and feed', () => {
     const { sql, db, drawer } = fixture();
     sql.exec(`INSERT INTO party_ledger (ledger_id, transaction_date, credit_amount, debit_amount, payment_method, is_deleted) VALUES ('l', '2026-10-27T05:00:00Z', 60, 0, 'CASH', 0);

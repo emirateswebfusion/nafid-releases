@@ -385,6 +385,7 @@ export interface CashTransactionRow {
   category?: string | null;
   notes?: string | null;
   party_name?: string | null;
+  transaction_date?: string | null;
 }
 
 export interface CashCategoryRow {

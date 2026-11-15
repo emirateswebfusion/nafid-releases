@@ -471,3 +471,18 @@ Packaged installer acceptance is recorded separately by the Windows installer wo
 - **Linked Ledger Deletion Reconcile**: When deleting a `PARTY_LEDGER:<id>` cash transaction from the register, `deleteTransaction` in `cashierService.ts` soft-deletes the linked party ledger row, synchronizes `syncLedgerPaymentAccount`, and calls `recalcPartyBalances`.
 - **Verification**: `pnpm run verify` passed (app typecheck, electron typecheck, architecture guard 0 debt, 256 test suites / 2,577 tests), and `pnpm run lint:ratchet` passed with 0 errors and 0 warnings.
 
+
+### Cash register and party ledger direction (15 November 2026)
+
+Cash Register CASH_OUT creates a CREDIT party-ledger movement and CASH_IN creates DEBIT.
+For example, paying 3,000 against a payable opening balance of -94,861 leaves -91,861.
+Register-origin entries retain their explicit cash direction through the existing Cash Register reference.
+Ledger updates reuse the linked cash transaction instead of creating a second register movement.
+
+Cash-register preferences belong to the active tenant, with global fallback only. Never borrow another
+tenant's preference. Direct ledger mode off prevents direct ledger cash writes and hides existing direct
+ledger cash entries from register feeds and totals. Register-origin cash movements remain visible.
+
+Ledger balances show positive receivables as You'll Get in green and negative payables as You'll Give in red.
+Opening balance entry, party list, ledger cards and running totals follow the same convention.
+Regression coverage lives in cashRegisterOptions, cashierPartyTransactions and ledgerBalanceDirection.

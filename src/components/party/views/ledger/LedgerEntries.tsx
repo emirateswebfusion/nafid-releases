@@ -1,3 +1,4 @@
+import { formatSignedLedgerBalance } from '../../partyFormat';
 import { localizeTaxText, getCurrencyDecimals } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import { Skeleton } from '../../../ui/Skeleton';
@@ -86,10 +87,10 @@ export function LedgerEntries({
               <th className="py-3 px-4">Particulars / Description</th>
               <th className="py-3 px-4">Mode</th>
               <th className="py-3 px-4 text-right text-rose-600 dark:text-rose-400 font-extrabold bg-rose-500/5 border-l border-r border-border/40">
-                {tLabels.paid || 'Gave Cash'} (Gave / Sale {getCurrencyPrefix()})
+                {tLabels.credit || 'Shop paid / Other additions'} ({getCurrencyPrefix()})
               </th>
               <th className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-extrabold bg-emerald-500/5 border-r border-border/40">
-                {tLabels.received || 'Got Cash'} (Got / Payment {getCurrencyPrefix()})
+                {tLabels.debit || 'Shop received / Other deductions'} ({getCurrencyPrefix()})
               </th>
               <th className="py-3 px-4 text-right font-extrabold">Running Bal ({getCurrencyPrefix()})</th>
               <th className="py-3 px-4 text-center">Actions</th>
@@ -122,11 +123,11 @@ export function LedgerEntries({
                 <td className="py-2.5 px-4 text-right">
                   <span className={clsx(
                     "font-mono font-black text-sm block",
-                    statementData.openingBalance > 0 ? "text-rose-600 dark:text-rose-400" :
-                    statementData.openingBalance < 0 ? "text-emerald-600 dark:text-emerald-400" :
+                    statementData.openingBalance > 0 ? "text-emerald-600 dark:text-emerald-400" :
+                    statementData.openingBalance < 0 ? "text-rose-600 dark:text-rose-400" :
                     "text-muted-foreground"
                   )}>
-                    {getCurrencyPrefix()}{Math.abs(statementData.openingBalance).toFixed(getCurrencyDecimals())}
+                    {formatSignedLedgerBalance(statementData.openingBalance)}
                   </span>
                   <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
                     {statementData.openingBalance > 0 ? tLabels.receivable : statementData.openingBalance < 0 ? tLabels.payable : 'Settled'}
@@ -183,22 +184,28 @@ export function LedgerEntries({
 
                   {/* Payment Method */}
                   <td className="py-3 px-4 font-medium text-muted-foreground text-[11px] whitespace-nowrap">
-                    {entry.payment_method ? (
-                      <span className="inline-flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded text-[11px] border border-border/40">
-                        <PaymentMethodIcon method={entry.payment_method} />
-                        {entry.payment_method === 'CASH' ? 'Cash' : entry.payment_method === 'BANK_TRANSFER' ? 'Bank' : entry.payment_method === 'UPI' ? 'UPI' : entry.payment_method === 'CARD' ? 'Card' : entry.payment_method === 'CHEQUE' ? 'Cheque' : 'Other'}
-                      </span>
-                    ) : (
-                      <span>—</span>
-                    )}
+                    {(() => {
+                      // Entries created from the cash register may have payment_method null in older records.
+                      // Infer Cash when the description follows the cash-register pattern.
+                      const method = entry.payment_method ||
+                        (/^Cash (paid|received)/i.test(entry.description || '') ? 'CASH' : null);
+                      return method ? (
+                        <span className="inline-flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded text-[11px] border border-border/40">
+                          <PaymentMethodIcon method={method} />
+                          {method === 'CASH' ? 'Cash' : method === 'BANK_TRANSFER' ? 'Bank' : method === 'UPI' ? 'UPI' : method === 'CARD' ? 'Card' : method === 'CHEQUE' ? 'Cheque' : method === 'PURCHASE' ? 'Purchase' : 'Other'}
+                        </span>
+                      ) : (
+                        <span>—</span>
+                      );
+                    })()}
                   </td>
 
-                  {/* Gave / Sale Amount (Red) */}
+                  {/* Balance increase */}
                   <td className="py-3 px-4 text-right font-mono font-black text-sm text-rose-600 dark:text-rose-400 bg-rose-500/5 border-l border-r border-border/40">
                     {entry.credit_amount > 0 ? `${getCurrencyPrefix()}${entry.credit_amount.toFixed(getCurrencyDecimals())}` : <span className="text-muted-foreground/30 font-normal">—</span>}
                   </td>
 
-                  {/* Got / Payment Amount (Green) */}
+                  {/* Balance decrease */}
                   <td className="py-3 px-4 text-right font-mono font-black text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border-r border-border/40">
                     {entry.debit_amount > 0 ? `${getCurrencyPrefix()}${entry.debit_amount.toFixed(getCurrencyDecimals())}` : <span className="text-muted-foreground/30 font-normal">—</span>}
                   </td>
@@ -211,11 +218,11 @@ export function LedgerEntries({
                         <>
                           <span className={clsx(
                             "font-mono font-black text-sm block",
-                            runBal > 0 ? "text-rose-600 dark:text-rose-400" :
-                            runBal < 0 ? "text-emerald-600 dark:text-emerald-400" :
+                            runBal > 0 ? "text-emerald-600 dark:text-emerald-400" :
+                            runBal < 0 ? "text-rose-600 dark:text-rose-400" :
                             "text-muted-foreground"
                           )}>
-                            {getCurrencyPrefix()}{Math.abs(runBal).toFixed(getCurrencyDecimals())}
+                            {formatSignedLedgerBalance(runBal)}
                           </span>
                           <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
                             {runBal > 0 ? tLabels.receivable : runBal < 0 ? tLabels.payable : 'Settled'}
@@ -304,11 +311,11 @@ export function LedgerEntries({
                   <td className="py-3.5 px-4 text-right">
                     <span className={clsx(
                       "font-mono font-black text-sm block",
-                      closingBal > 0 ? "text-rose-600 dark:text-rose-400" :
-                      closingBal < 0 ? "text-emerald-600 dark:text-emerald-400" :
+                      closingBal > 0 ? "text-emerald-600 dark:text-emerald-400" :
+                      closingBal < 0 ? "text-rose-600 dark:text-rose-400" :
                       "text-foreground"
                     )}>
-                      {getCurrencyPrefix()}{Math.abs(closingBal).toFixed(getCurrencyDecimals())}
+                      {formatSignedLedgerBalance(closingBal)}
                     </span>
                     <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
                       {closingBal > 0 ? tLabels.receivable : closingBal < 0 ? tLabels.payable : 'Settled'}
@@ -381,7 +388,7 @@ export function LedgerEntries({
                   {isCreditSale ? '+' : '−'}{getCurrencyPrefix()}{amount.toFixed(getCurrencyDecimals())}
                 </p>
                 <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                  Bal: {getCurrencyPrefix()}{Math.abs((entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance !== undefined ? (entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance : entry.running_balance).toFixed(getCurrencyDecimals())}
+                  Bal: {formatSignedLedgerBalance((entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance !== undefined ? (entry as typeof entry & { contextRunningBalance: number }).contextRunningBalance : entry.running_balance)}
                 </p>
               </div>
             </div>

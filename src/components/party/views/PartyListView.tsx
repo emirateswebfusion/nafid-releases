@@ -136,8 +136,8 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
             <div className="grid grid-cols-3 gap-4">
 
               {/* Receivable */}
-              <div className="bg-card dark:bg-card border border-border p-4.5 rounded-[24px] flex items-center gap-4 hover:border-rose-500/25 hover:shadow-md hover:bg-card transition-all duration-300 group select-none">
-                <div className="p-3.5 bg-gradient-to-br from-rose-500/10 to-rose-500/5 text-rose-600 dark:text-rose-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+              <div className="bg-card dark:bg-card border border-border p-4.5 rounded-[24px] flex items-center gap-4 hover:border-emerald-500/25 hover:shadow-md hover:bg-card transition-all duration-300 group select-none">
+                <div className="p-3.5 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
@@ -148,8 +148,8 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
               </div>
 
               {/* Payable */}
-              <div className="bg-card dark:bg-card border border-border p-4.5 rounded-[24px] flex items-center gap-4 hover:border-emerald-500/25 hover:shadow-md hover:bg-card transition-all duration-300 group select-none">
-                <div className="p-3.5 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+              <div className="bg-card dark:bg-card border border-border p-4.5 rounded-[24px] flex items-center gap-4 hover:border-rose-500/25 hover:shadow-md hover:bg-card transition-all duration-300 group select-none">
+                <div className="p-3.5 bg-gradient-to-br from-rose-500/10 to-rose-500/5 text-rose-600 dark:text-rose-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
                   <TrendingDown className="w-5 h-5" />
                 </div>
                 <div>
@@ -432,8 +432,8 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                           <td className="py-3 px-4 text-right">
                             <span className={clsx(
                               "font-mono font-black text-sm block",
-                              isReceivable ? "text-rose-600 dark:text-rose-400" :
-                              isPayable ? "text-emerald-600 dark:text-emerald-400" :
+                              isReceivable ? "text-emerald-600 dark:text-emerald-400" :
+                              isPayable ? "text-rose-600 dark:text-rose-400" :
                               "text-muted-foreground"
                             )}>
                               {getCurrencyPrefix()}{Math.abs(balance).toFixed(getCurrencyDecimals())}
@@ -457,8 +457,8 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                             )}
                             <span className={clsx(
                               "inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border mt-0.5",
-                              isReceivable ? "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400" :
-                              isPayable ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" :
+                              isReceivable ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" :
+                              isPayable ? "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400" :
                               "bg-muted border-border text-muted-foreground"
                             )}>
                               {isReceivable ? tLabels.receivable : isPayable ? tLabels.payable : 'Settled'}
@@ -635,8 +635,8 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                       <div className="text-right shrink-0">
                         <p className={clsx(
                           'text-base font-black leading-none',
-                          isReceivable ? 'text-red-500 dark:text-red-400' :
-                          isPayable ? 'text-emerald-600 dark:text-emerald-400' :
+                          isReceivable ? 'text-emerald-500 dark:text-emerald-400' :
+                          isPayable ? 'text-rose-600 dark:text-rose-400' :
                           'text-muted-foreground'
                         )}>
                           {getCurrencyPrefix()}{Math.abs(balance).toFixed(getCurrencyDecimals())}
@@ -660,8 +660,8 @@ export const PartyListView: React.FC<PartyListViewProps> = ({
                         )}
                         <span className={clsx(
                           'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border',
-                          isReceivable ? 'bg-red-500/10 dark:bg-red-500/20 border-red-500/20 text-red-500 dark:text-red-400' :
-                          isPayable ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
+                          isReceivable ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-500 dark:text-emerald-400' :
+                          isPayable ? 'bg-rose-500/10 dark:bg-rose-500/20 border-rose-500/20 text-rose-600 dark:text-rose-400' :
                           'bg-muted border-border text-muted-foreground'
                         )}>
                           {isReceivable ? tLabels.receivable : isPayable ? tLabels.payable : 'Settled'}

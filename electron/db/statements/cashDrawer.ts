@@ -164,7 +164,7 @@ export const updatePaymentSourceCurrentBalance = (db: Db) => db.prepare(`UPDATE 
 
 /** Cash entries with current ledger values; ledger ids are stored in the existing category field. */
 export const listRegisterCashTransactions = (db: Db) => db.prepare(`
-  SELECT t.*, l.ledger_id, l.transaction_date AS ledger_date,
+  SELECT t.*, l.ledger_id, l.reference_number AS ledger_reference, l.transaction_date AS ledger_date,
     l.credit_amount, l.debit_amount, l.payment_method AS ledger_method, l.is_deleted AS ledger_deleted,
     p.name AS party_name
   FROM cash_transactions t
@@ -215,5 +215,6 @@ export const insertLinkedLedgerCashEntry = (db: Db) => db.prepare(`
     l.created_by, l.created_by_name, COALESCE(l.transaction_date, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), 'PENDING'
   FROM party_ledger l WHERE l.tenant_id = ? AND l.ledger_id = ? AND UPPER(l.payment_method) = 'CASH'
     AND COALESCE(l.is_deleted, 0) = 0 AND ABS(l.credit_amount - l.debit_amount) > 0
+    AND NOT EXISTS (SELECT 1 FROM cash_transactions t WHERE t.tenant_id = l.tenant_id AND t.category = 'PARTY_LEDGER:' || l.ledger_id)
   ON CONFLICT(transaction_id) DO NOTHING
 `);

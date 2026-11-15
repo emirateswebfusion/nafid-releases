@@ -9,10 +9,10 @@ import type { TerminologyLabels } from '../../store/terminologyStore';
 const DEFAULT_TERMINOLOGY_LABELS: TerminologyLabels = {
   receivable: "You'll Get",
   payable: "You'll Give",
-  received: "Got Cash",
-  paid: "Gave Cash",
-  credit: "Credit (+)",
-  debit: "Debit (-)",
+  received: "Shop received from party",
+  paid: "Shop paid party",
+  credit: "Shop paid / Other additions",
+  debit: "Shop received / Other deductions",
   receivableSub: "Amount owed to you",
   payableSub: "Amount you owe",
 };
@@ -345,8 +345,8 @@ export function generatePartyLedgerHtml(options: PartyLedgerPdfOptions): string 
   });
 
   // Determine dynamic column headers based on terminology
-  const creditColHeader = terminology.credit || terminology.paid || 'Credit (+) / Sale';
-  const debitColHeader = terminology.debit || terminology.received || 'Debit (-) / Payment';
+  const creditColHeader = terminology.credit || 'Shop paid / Other additions';
+  const debitColHeader = terminology.debit || 'Shop received / Other deductions';
 
   // Format party type subtitle
   const pType = (party.party_type || 'CUSTOMER').toUpperCase();

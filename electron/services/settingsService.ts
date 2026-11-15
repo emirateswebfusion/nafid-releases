@@ -102,12 +102,12 @@ export function get({ tenant_id, key, tenant_only }: { tenant_id: string; key: s
         row = settingsSql.findOneSettingByKey(db).get(key) as SettingRow | null | undefined;
       }
     } else {
-      const tid = tenant_id || 'global';
+      const tid = (key.startsWith('cash_register_') && tenant_id === 'unset' ? 'global' : tenant_id) || 'global';
       row = settingsSql.findSettingsByKeyValue(db).get(tid, key) as SettingRow | null | undefined;
       if (!row && tid !== 'global') {
         row = settingsSql.findSettingsByKey(db).get(key) as SettingRow | null | undefined;
       }
-      if (!row) {
+      if (!row && !key.startsWith('cash_register_')) {
         row = settingsSql.findOneSettingByKey(db).get(key) as SettingRow | null | undefined;
       }
     }
@@ -141,7 +141,7 @@ export async function set({ tenant_id, key, value }: { tenant_id: string; key: s
     const db = getDb();
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
     const syncStatus = isLocalDeviceKey ? 'LOCAL' : 'PENDING';
-    const tid = tenant_id || 'global';
+    const tid = (key.startsWith('cash_register_') && tenant_id === 'unset' ? 'global' : tenant_id) || 'global';
     if (key === 'store_country') return saveStoreCountry(db, tid, value);
     if (key === 'vat_price_inclusive') return saveVatPriceBasis(db, tid, value);
     if (key === 'network_sync_config' && value && typeof value === 'object') value = withPreservedLanKey(value as Record<string, unknown>);

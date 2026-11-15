@@ -1,6 +1,6 @@
+import { formatSignedLedgerBalance } from '../../partyFormat';
 import { roundMoney } from '../../../../utils/pricing/moneyRounding';
-import { localizeTaxText, getCurrencyDecimals } from '../../../../utils/localization/storeProfile';
-import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
+import { localizeTaxText } from '../../../../utils/localization/storeProfile';
 import clsx from 'clsx';
 import { FileText, TrendingUp, Wallet } from 'lucide-react';
 import type { PartyLedgerViewProps } from '../PartyLedgerView';
@@ -57,13 +57,13 @@ export function PartyBalanceCards({
                   </span>
                   <span className={clsx(
                     "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
-                    activeGstBal > 0 ? "bg-rose-500/10 text-rose-500" : activeGstBal < 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"
+                    activeGstBal > 0 ? "bg-emerald-500/10 text-emerald-500" : activeGstBal < 0 ? "bg-rose-500/10 text-rose-500" : "bg-muted text-muted-foreground"
                   )}>
                     {activeGstBal > 0 ? tLabels.receivable : activeGstBal < 0 ? tLabels.payable : 'Settled'}
                   </span>
                 </div>
                 <p className="text-sm font-black font-mono tracking-tight text-foreground">
-                  {getCurrencyPrefix()}{Math.abs(activeGstBal).toFixed(getCurrencyDecimals())}
+                  {formatSignedLedgerBalance(activeGstBal)}
                 </p>
               </button>
 
@@ -85,13 +85,13 @@ export function PartyBalanceCards({
                   </span>
                   <span className={clsx(
                     "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
-                    activeEstimateBal > 0 ? "bg-rose-500/10 text-rose-500" : activeEstimateBal < 0 ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"
+                    activeEstimateBal > 0 ? "bg-emerald-500/10 text-emerald-500" : activeEstimateBal < 0 ? "bg-rose-500/10 text-rose-500" : "bg-muted text-muted-foreground"
                   )}>
                     {activeEstimateBal > 0 ? tLabels.receivable : activeEstimateBal < 0 ? tLabels.payable : 'Settled'}
                   </span>
                 </div>
                 <p className="text-sm font-black font-mono tracking-tight text-foreground">
-                  {getCurrencyPrefix()}{Math.abs(activeEstimateBal).toFixed(getCurrencyDecimals())}
+                  {formatSignedLedgerBalance(activeEstimateBal)}
                 </p>
               </button>
 
@@ -103,9 +103,9 @@ export function PartyBalanceCards({
                   'flex flex-col justify-center px-4 py-2 rounded-xl border transition-all cursor-pointer text-left select-none min-w-[145px]',
                   ledgerBalanceFilter === 'ALL' ? 'ring-1 ring-border shadow-xs' : '',
                   activeBal > 0
-                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
-                    : activeBal < 0
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                    : activeBal < 0
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
                     : 'bg-muted/50 border-border text-muted-foreground'
                 )}
                 title="Click to show All Transactions"
@@ -116,13 +116,13 @@ export function PartyBalanceCards({
                   </span>
                   <span className={clsx(
                     "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
-                    activeBal > 0 ? "bg-rose-500/20 text-rose-600 dark:text-rose-300" : activeBal < 0 ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+                    activeBal > 0 ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300" : activeBal < 0 ? "bg-rose-500/20 text-rose-600 dark:text-rose-300" : "bg-muted text-muted-foreground"
                   )}>
                     {activeBal > 0 ? tLabels.receivable : activeBal < 0 ? tLabels.payable : 'Settled'}
                   </span>
                 </div>
                 <p className="text-base font-black font-mono tracking-tight">
-                  {getCurrencyPrefix()}{Math.abs(activeBal).toFixed(getCurrencyDecimals())}
+                  {formatSignedLedgerBalance(activeBal)}
                 </p>
               </button>
             </div>
@@ -139,9 +139,9 @@ export function PartyBalanceCards({
             <div className={clsx(
               'flex flex-col justify-center px-4 py-2 rounded-xl border select-none min-w-[150px]',
               singleBal > 0
-                ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
-                : singleBal < 0
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                : singleBal < 0
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
                 : 'bg-muted/50 border-border text-muted-foreground'
             )}>
               <div className="flex items-center justify-between gap-2 mb-1">
@@ -150,13 +150,13 @@ export function PartyBalanceCards({
                 </span>
                 <span className={clsx(
                   "text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded font-mono",
-                  singleBal > 0 ? "bg-rose-500/20 text-rose-600 dark:text-rose-300" : singleBal < 0 ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+                  singleBal > 0 ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300" : singleBal < 0 ? "bg-rose-500/20 text-rose-600 dark:text-rose-300" : "bg-muted text-muted-foreground"
                 )}>
                   {singleBal > 0 ? tLabels.receivable : singleBal < 0 ? tLabels.payable : 'Settled'}
                 </span>
               </div>
               <p className="text-base font-black font-mono tracking-tight">
-                {getCurrencyPrefix()}{Math.abs(singleBal).toFixed(getCurrencyDecimals())}
+                {formatSignedLedgerBalance(singleBal)}
               </p>
             </div>
           </div>

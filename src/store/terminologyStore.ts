@@ -41,10 +41,10 @@ export const TERMINOLOGY_PRESETS: Record<Exclude<TerminologyPreset, 'CUSTOM'>, P
     labels: {
       receivable: "You'll Get",
       payable: "You'll Give",
-      received: "Got Cash",
-      paid: "Gave Cash",
-      credit: "Credit (+)",
-      debit: "Debit (-)",
+      received: "Shop received from party",
+      paid: "Shop paid party",
+      credit: "Shop paid / Other additions",
+      debit: "Shop received / Other deductions",
       receivableSub: "Amount owed to you",
       payableSub: "Amount you owe",
     },
@@ -57,8 +57,8 @@ export const TERMINOLOGY_PRESETS: Record<Exclude<TerminologyPreset, 'CUSTOM'>, P
     labels: {
       receivable: 'Receivable',
       payable: 'Payable',
-      received: 'Received',
-      paid: 'Paid',
+      received: 'Shop received from party',
+      paid: 'Shop paid party',
       credit: 'Credit',
       debit: 'Debit',
       receivableSub: 'Amount owed to you',
@@ -75,8 +75,8 @@ export const TERMINOLOGY_PRESETS: Record<Exclude<TerminologyPreset, 'CUSTOM'>, P
       payable: 'Pending Cash Out',
       received: 'Cash In',
       paid: 'Cash Out',
-      credit: 'Cash In (+)',
-      debit: 'Cash Out (-)',
+      credit: 'Shop paid / Other additions',
+      debit: 'Shop received / Other deductions',
       receivableSub: 'Upcoming cash inflows',
       payableSub: 'Upcoming cash outflows',
     },
@@ -86,10 +86,10 @@ export const TERMINOLOGY_PRESETS: Record<Exclude<TerminologyPreset, 'CUSTOM'>, P
 export const DEFAULT_CUSTOM_LABELS: TerminologyCustomLabels = {
   receivable: "You'll Get",
   payable: "You'll Give",
-  received: "Got Cash",
-  paid: "Gave Cash",
-  credit: "Credit (+)",
-  debit: "Debit (-)",
+  received: "Shop received from party",
+  paid: "Shop paid party",
+  credit: "Shop paid / Other additions",
+  debit: "Shop received / Other deductions",
 };
 
 const STORAGE_KEY_PRESET = 'nafid_terminology_preset';

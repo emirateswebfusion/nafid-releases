@@ -1,3 +1,4 @@
+import { get as getSetting, set as setSetting } from '../../electron/services/settingsService';
 import { DatabaseSync } from 'node:sqlite';
 import type Database from 'better-sqlite3';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,7 +16,7 @@ vi.mock('../../electron/sync/syncWorker', () => ({
   triggerUrgentCashSync: async () => {},
 }));
 
-import { addParty, addPartyLedgerEntry } from '../../electron/services/partiesService';
+import { addParty, addPartyLedgerEntry, updatePartyLedgerEntry } from '../../electron/services/partiesService';
 import { getDayTransactions, deleteTransaction } from '../../electron/services/cashierService';
 
 let raw: DatabaseSync;
@@ -53,6 +54,16 @@ beforeEach(() => {
 afterEach(() => raw.close());
 
 describe('cashier party transactions and ledger integration', () => {
+  it('reads cash register preferences from the active shop and global defaults only', async () => {
+    const key = 'cash_register_ledger_mode';
+    expect(await setSetting({ tenant_id: 'another-shop', key, value: 'off' })).toMatchObject({ success: true });
+    expect(getSetting({ tenant_id: SHOP, key })).toBeNull();
+    expect(await setSetting({ tenant_id: 'global', key, value: 'all' })).toMatchObject({ success: true });
+    expect(getSetting({ tenant_id: SHOP, key })).toBe('all');
+    expect(await setSetting({ tenant_id: SHOP, key, value: 'off' })).toMatchObject({ success: true });
+    expect(getSetting({ tenant_id: SHOP, key })).toBe('off');
+  });
+
   it('getDayTransactions resolves PARTY_LEDGER:<id> to party name and humanized category', () => {
     // 1. Create a party
     const partyRes = addParty({
@@ -91,6 +102,13 @@ describe('cashier party transactions and ledger integration', () => {
     expect(txs[0].category).toBe('Party: Aman Shop Butterfly');
     expect(txs[0].notes).toContain('Aman Shop Butterfly');
     expect(txs[0].notes).toContain('Cash paid to supplier');
+    raw.prepare("INSERT INTO settings (tenant_id, key, value) VALUES (?, 'cash_register_ledger_mode', 'off')").run(SHOP);
+    expect(getDayTransactions({ tenant_id: SHOP, business_date: '2026-11-14' })).toEqual([]);
+    expect(addPartyLedgerEntry({
+      ledger_id: 'off-new', party_id: 'p_aman', tenant_id: SHOP, transaction_type: 'CREDIT',
+      amount: 500, payment_method: 'CASH', description: 'Paid with ledger integration off',
+    }).success).toBe(true);
+    expect(raw.prepare("SELECT COUNT(*) AS n FROM cash_transactions WHERE category = 'PARTY_LEDGER:off-new'").get()).toMatchObject({ n: 0 });
   });
 
   it('addPartyLedgerEntry with skip_cash_drawer preserves Cash mode without duplicate register row', () => {
@@ -99,10 +117,10 @@ describe('cashier party transactions and ledger integration', () => {
       party_id: 'p_stove',
       tenant_id: SHOP,
       name: 'Stove Centre',
-      party_type: 'SUPPLIER',
+      party_type: 'SUPPLIER', balance: 94861, balance_type: 'PAYABLE',
     });
 
-    // Count existing cash transactions
+
     const countBefore = (raw.prepare('SELECT COUNT(*) as c FROM cash_transactions').get() as { c: number }).c;
 
     // Add entry with skip_cash_drawer: true (e.g. from cash register flow)
@@ -111,8 +129,8 @@ describe('cashier party transactions and ledger integration', () => {
       ledger_id: ledgerId,
       party_id: 'p_stove',
       tenant_id: SHOP,
-      transaction_type: 'CREDIT',
-      amount: 1500,
+      transaction_type: 'DEBIT',
+      amount: 3000,
       payment_method: 'CASH',
       reference_number: 'Cash Register',
       description: 'Cash paid (Other): test note',
@@ -133,6 +151,10 @@ describe('cashier party transactions and ledger integration', () => {
     // Verify NO duplicate cash_transactions row was created
     const countAfter = (raw.prepare('SELECT COUNT(*) as c FROM cash_transactions').get() as { c: number }).c;
     expect(countAfter).toBe(countBefore);
+    raw.prepare("INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category) VALUES ('register', ?, 'd_1', 'CASH_OUT', 3000, ?)").run(SHOP, `PARTY_LEDGER:${ledgerId}`);
+    expect(updatePartyLedgerEntry({ ledger_id: ledgerId, party_id: 'p_stove', transaction_type: 'CREDIT' }).success).toBe(true);
+    expect(raw.prepare('SELECT type, amount FROM cash_transactions').all()).toEqual([{ type: 'CASH_OUT', amount: 3000 }]);
+    expect(raw.prepare("SELECT balance FROM parties WHERE party_id = 'p_stove'").get()).toMatchObject({ balance: -91861 });
   });
 
   it('deleteTransaction soft-deletes linked party_ledger entry and recalculates balance', () => {

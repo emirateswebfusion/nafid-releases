@@ -66,18 +66,18 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
               {/* Type selector */}
               <div className="mb-5">
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Transaction Type</label>
-                <div className="grid grid-cols-2 gap-3 max-w-sm">
+                <div className="grid grid-cols-2 gap-3 max-w-lg">
                   <button
                     type="button"
                     onClick={() => setTxForm(f => ({ ...f, transaction_type: 'CREDIT' }))}
                     className={clsx(
                       'py-3.5 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
                       txForm.transaction_type === 'CREDIT'
-                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 shadow-sm'
                         : 'border-border bg-background text-muted-foreground hover:bg-muted'
                     )}
                   >
-                    <PlusCircle className="w-4 h-4" /> Paid
+                    <MinusCircle className="w-4 h-4 shrink-0" /> Shop paid party
                   </button>
                   <button
                     type="button"
@@ -85,11 +85,11 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
                     className={clsx(
                       'py-3.5 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
                       txForm.transaction_type === 'DEBIT'
-                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 shadow-sm'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 shadow-sm'
                         : 'border-border bg-background text-muted-foreground hover:bg-muted'
                     )}
                   >
-                    <MinusCircle className="w-4 h-4" /> Received
+                    <PlusCircle className="w-4 h-4 shrink-0" /> Shop received from party
                   </button>
                 </div>
               </div>
@@ -326,8 +326,8 @@ export const PartyTransactionForm: React.FC<PartyTransactionFormProps> = ({
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground font-medium">
                 {txForm.amount && parseFloat(txForm.amount) > 0 && (
-                  <span className={clsx('font-bold', txForm.transaction_type === 'CREDIT' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
-                    {txForm.transaction_type === 'CREDIT' ? '+' : '-'}{getCurrencyPrefix()}{parseFloat(txForm.amount).toFixed(getCurrencyDecimals())}
+                  <span className={clsx('font-bold', txForm.transaction_type === 'DEBIT' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
+                    {txForm.transaction_type === 'CREDIT' ? '−' : '+'}{getCurrencyPrefix()}{parseFloat(txForm.amount).toFixed(getCurrencyDecimals())}
                   </span>
                 )}
               </div>

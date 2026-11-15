@@ -148,6 +148,12 @@ See [data access](03-data-access.md#saved-invoice-line-order). Tests: `invoiceIt
   timezone) to its own close; an open drawer's session has no end. Cash sales and cash in / out are summed over the
   session (`computeDrawerTotals`, the only implementation; `reconcileCashDrawer` and the sync pull both use it), so bills
   made after midnight stay with the drawer that is still open, and every bill belongs to exactly one drawer.
+- Cash-register options read the active tenant first, then global defaults. Settings must never display another
+  tenant's fallback preference. Ledger mode off prevents direct ledger cash writes and excludes existing direct
+  ledger entries from live totals and history. Cash Register-originated entries remain register movements.
+- For linked party entries marked with the existing Cash Register reference, the cash transaction supplies the
+  direction and the ledger supplies the current amount. For entries created in the party ledger, the ledger
+  supplies both. The register feed and drawer totals use the same direction.
 - Drawers closed before sessions were installed on a terminal (`cash_drawer_session_since`, a `LOCAL` setting written
   on first use) are history: never recomputed. On installation, drawers still open from an earlier day are closed at
   the end of their own business day (what the previous version did on its next start).

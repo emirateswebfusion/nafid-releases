@@ -588,19 +588,19 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                             'py-3 px-3 rounded-xl border-2 text-xs font-black transition-all duration-200 active:scale-95 cursor-pointer text-center',
                             partyForm.balance_type === t
                               ? t === 'RECEIVABLE'
-                                ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                                : 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
+                                : 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
                               : 'border-border bg-background text-muted-foreground hover:bg-muted'
                           )}
                         >
-                          {t === 'RECEIVABLE' ? '↑ Receivable' : '↓ Payable'}
+                          {t === 'RECEIVABLE' ? "You'll Get (+)" : "You'll Give (−)"}
                         </button>
                       ))}
                     </div>
                     <p className="text-[11px] text-muted-foreground font-medium mt-2 leading-snug">
                       {partyForm.balance_type === 'RECEIVABLE'
-                        ? '🔴 Party owes you this amount'
-                        : '🟢 You owe the party this amount'}
+                        ? 'The party owes your shop this amount.'
+                        : 'Your shop owes the party this amount.'}
                     </p>
                   </div>
                   <div>
@@ -620,8 +620,8 @@ export const PartyFormView: React.FC<PartyFormViewProps> = ({
                     </div>
                     <p className="text-[11px] text-muted-foreground font-medium mt-2">
                       {partyForm.balance_type === 'RECEIVABLE'
-                        ? 'Will add to the balance (+)'
-                        : 'Will subtract from the balance (-)'}
+                        ? 'Recorded as a positive opening balance.'
+                        : 'Recorded as a negative opening balance.'}
                     </p>
                   </div>
                 </div>

@@ -551,6 +551,7 @@ export function deletePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: str
     return db.transaction(() => {
     
     partiesSql.updatePartyLedgerIsDeletedIsDeleted2(db).run(ledger_id, party_id);
+    partiesSql.deleteCashTransactionByPartyLedgerId(db).run(ledger_id);
     syncLedgerPaymentAccount(db, ledger_id, party_id);
 
     // Recalculate running balance

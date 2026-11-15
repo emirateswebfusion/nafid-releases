@@ -411,12 +411,26 @@ export function deleteTransaction({ tenant_id, transaction_id, user_id, user_nam
       cashierSql.deleteCashTransactionByTransactionId(db).run(transaction_id, tenant_id);
 
       // If this cash transaction was linked to a party ledger entry, soft-delete it and reconcile balances
+      let linkedLedgerId: string | null = null;
       if (transaction.category?.startsWith('PARTY_LEDGER:')) {
-        const ledgerId = transaction.category.slice('PARTY_LEDGER:'.length);
-        const partyRow = partiesSql.findPartyLedgerPartyIdByLedgerId(db).get(ledgerId) as { party_id: string } | undefined;
+        linkedLedgerId = transaction.category.slice('PARTY_LEDGER:'.length);
+      } else {
+        const match = cashierSql.findLinkedPartyLedgerForCashTransaction(db).get(
+          tenant_id,
+          transaction.amount,
+          transaction.amount,
+          transaction.transaction_date || ''
+        ) as { ledger_id: string; party_id: string } | undefined;
+        if (match) {
+          linkedLedgerId = match.ledger_id;
+        }
+      }
+
+      if (linkedLedgerId) {
+        const partyRow = partiesSql.findPartyLedgerPartyIdByLedgerId(db).get(linkedLedgerId) as { party_id: string } | undefined;
         if (partyRow?.party_id) {
-          partiesSql.updatePartyLedgerIsDeleted(db).run(ledgerId);
-          syncLedgerPaymentAccount(db, ledgerId, partyRow.party_id);
+          partiesSql.updatePartyLedgerIsDeleted(db).run(linkedLedgerId);
+          syncLedgerPaymentAccount(db, linkedLedgerId, partyRow.party_id);
           recalcPartyBalances(db, partyRow.party_id);
         }
       }
@@ -523,11 +537,14 @@ export function getDayTransactions({ tenant_id, business_date, from_date, to_dat
         rows = cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, startUtc, endUtc) as CashTransactionRow[];
       }
     }
+    const tid = tenant_id && tenant_id !== 'unset' ? tenant_id : 'global';
+    const prefs = getCashRegisterPreferences(db, tid);
     const partyNameStmt = cashierSql.findPartyNameByLedgerId(db);
-    return rows.filter(row => !isDuplicateScrapCash(row)).map(row => {
+    return rows.filter(row => !isDuplicateScrapCash(row)).flatMap(row => {
       if (row.category?.startsWith('PARTY_LEDGER:')) {
         const ledgerId = row.category.slice('PARTY_LEDGER:'.length);
-        const partyRow = partyNameStmt.get(ledgerId) as { party_name: string } | undefined;
+        const partyRow = partyNameStmt.get(ledgerId) as { party_name: string | null; reference_number: string | null } | undefined;
+        if (prefs.ledgerMode === 'off' && partyRow?.reference_number !== 'Cash Register') return [];
         const partyName = partyRow?.party_name?.trim() || row.party_name?.trim();
         const isPartyIn = row.type === 'CASH_IN';
         const partyCat = isPartyIn ? 'Party Receipt' : 'Party Payment';
@@ -542,7 +559,7 @@ export function getDayTransactions({ tenant_id, business_date, from_date, to_dat
           notes: displayNotes || null,
         };
       }
-      return row;
+      return prefs.ledgerMode === 'off' && (row.category === 'Party Payment' || row.category === 'Party Receipt') ? [] : [row];
     });
   } catch (error) {
     console.error('[db:cashier:getDayTransactions]', error);

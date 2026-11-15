@@ -1,11 +1,17 @@
 import type { Db } from '../db/statements/types.js';
 import { findDrawerSetting } from '../db/statements/cashDrawer.js';
 
-export function getCashRegisterPreferences(db: Db, tenantId: string) {
+export function getCashRegisterPreferences(db: Db, tenantId?: string | null) {
+  const tid = tenantId && tenantId !== 'unset' ? tenantId : 'global';
   const read = (key: string): unknown => {
-    const row = findDrawerSetting(db).get(tenantId, key, tenantId) as { value?: unknown } | undefined;
+    const row = findDrawerSetting(db).get(tid, key, tid) as { value?: unknown } | undefined;
     if (typeof row?.value !== 'string') return row?.value;
-    try { return JSON.parse(row.value); } catch { return row.value; }
+    try {
+      const parsed = JSON.parse(row.value);
+      return typeof parsed === 'string' ? parsed.trim().replace(/^["']|["']$/g, '') : parsed;
+    } catch {
+      return row.value.trim().replace(/^["']|["']$/g, '');
+    }
   };
   const ledger = read('cash_register_ledger_mode');
   const methods = read('cash_register_payment_methods');

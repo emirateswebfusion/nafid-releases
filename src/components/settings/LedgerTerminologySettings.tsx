@@ -170,7 +170,7 @@ export const LedgerTerminologySettings: React.FC = () => {
               <Input
                 value={customLabels.received}
                 onChange={(e) => setCustomLabels({ received: e.target.value })}
-                placeholder="e.g. Got Cash"
+                placeholder="e.g. Shop received from party"
               />
             </div>
             <div>
@@ -180,27 +180,27 @@ export const LedgerTerminologySettings: React.FC = () => {
               <Input
                 value={customLabels.paid}
                 onChange={(e) => setCustomLabels({ paid: e.target.value })}
-                placeholder="e.g. Gave Cash"
+                placeholder="e.g. Shop paid party"
               />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1">
-                Credit Entry Tag
+                Net Balance Addition Column
               </label>
               <Input
                 value={customLabels.credit}
                 onChange={(e) => setCustomLabels({ credit: e.target.value })}
-                placeholder="e.g. Credit (+)"
+                placeholder="e.g. Shop paid / Other additions"
               />
             </div>
             <div>
               <label className="block text-[11px] font-bold text-muted-foreground uppercase mb-1">
-                Debit Entry Tag
+                Net Balance Deduction Column
               </label>
               <Input
                 value={customLabels.debit}
                 onChange={(e) => setCustomLabels({ debit: e.target.value })}
-                placeholder="e.g. Debit (-)"
+                placeholder="e.g. Shop received / Other deductions"
               />
             </div>
           </div>
@@ -257,7 +257,7 @@ export const LedgerTerminologySettings: React.FC = () => {
           <div className="bg-muted/60 px-4 py-2 font-bold text-muted-foreground grid grid-cols-12 gap-2 text-[11px] uppercase tracking-wider">
             <div className="col-span-3">Date</div>
             <div className="col-span-4">Particulars</div>
-            <div className="col-span-2 text-right">{currentLabels.credit}</div>
+            <div className="col-span-2 text-right">Amount</div>
             <div className="col-span-3 text-right">Status / Entry</div>
           </div>
           <div className="divide-y divide-border/40 bg-card">

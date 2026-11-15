@@ -161,7 +161,7 @@ interface CashRegisterEntry extends CashTransactionRow {
 }
 
 interface RegisterCashEntry extends CashRegisterEntry {
-  ledger_id?: string; ledger_date?: string; credit_amount?: number; debit_amount?: number;
+  ledger_id?: string; ledger_reference?: string | null; ledger_date?: string; credit_amount?: number; debit_amount?: number;
   ledger_method?: string; ledger_deleted?: number;
   party_name?: string;
 }
@@ -188,14 +188,15 @@ export function getRegisterCashEntries(db: Db, tenantId: string, drawer: DrawerR
     const ledgerEntry = linkedLedger || row.category === 'Party Payment' || row.category === 'Party Receipt';
     let amount = Number(row.amount) || 0;
     let type = row.type;
+    const fromRegister = row.ledger_reference === 'Cash Register';
     if (ledgerEntry) {
-      if (prefs.ledgerMode === 'off') continue;
+      if (!fromRegister && prefs.ledgerMode === 'off') continue;
       if (linkedLedger) {
         if (!row.ledger_id || row.ledger_deleted || row.ledger_method?.toUpperCase() !== 'CASH') continue;
         amount = Math.abs(Number(row.credit_amount) - Number(row.debit_amount));
-        type = Number(row.credit_amount) > Number(row.debit_amount) ? 'CASH_OUT' : 'CASH_IN';
+        if (!fromRegister) type = Number(row.credit_amount) > Number(row.debit_amount) ? 'CASH_OUT' : 'CASH_IN';
       }
-      if (prefs.ledgerMode === 'today') {
+      if (!fromRegister && prefs.ledgerMode === 'today') {
         const timestamp = toEpochMs(row.ledger_date || row.transaction_date);
         if (timestamp === null || new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(timestamp)) !== businessDate) continue;
       }

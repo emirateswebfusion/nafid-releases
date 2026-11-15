@@ -221,6 +221,8 @@ export const listPartyLedger = (db: Db, includeDeleted: boolean) => db.prepare(i
       ? `SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC, rowid ASC`
       : `SELECT * FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC, rowid ASC`);
 
+export const deleteCashTransactionByPartyLedgerId = (db: Db) => db.prepare("DELETE FROM cash_transactions WHERE category = 'PARTY_LEDGER:' || ?");
+
 /** Columns `updatePartyProfile` may set besides name / phone / address / gstin / notes. */
 export type PartyProfileColumn = 'pricing_tier_id' | 'credit_limit' | 'credit_period_enabled' | 'credit_period_days' | 'credit_period_basis'
   | 'restrict_on_credit_expiry' | 'party_type' | 'custom_category' | 'whatsapp_alerts_enabled';

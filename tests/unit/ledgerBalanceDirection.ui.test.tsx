@@ -21,7 +21,7 @@ describe('ledger balance direction', () => {
     render(<PartyBalanceCards {...props} />);
     expect(screen.getByText("You'll Give")).toBeTruthy();
     expect(screen.queryByText("You'll Get")).toBeNull();
-    expect(screen.getByText(/500\.00/)).toBeTruthy();
+    expect(screen.getByText(/−[^\d]*500\.00/)).toBeTruthy();
   });
   it('includes opening balances when no period transactions exist and ignores deleted rows', () => {
     const entries = [entry('advance', '2026-11-03T06:00:00Z', 0, 500), { ...entry('deleted', '2026-11-04T06:00:00Z', 1000, 0), is_deleted: true }];

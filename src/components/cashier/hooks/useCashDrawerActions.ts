@@ -136,17 +136,22 @@ export function useCashDrawerActions(ctx: UseCashDrawerActionsContext) {
       return;
     }
     setTxnSubmitting(true);
+    const ledgerId = crypto.randomUUID();
     const finalNotes = txnPartyName
       ? (txnNote ? `Party: ${txnPartyName} | ${txnNote}` : `Party: ${txnPartyName}`)
       : (txnNote || undefined);
 
     const r = await cashierApi.addTransaction({
-      tenant_id: tenantId, type: txnType, amount: txnAmt,
-      category: txnCat || undefined, notes: finalNotes,
-      user_id: userId, user_name: userName || undefined,
+      tenant_id: tenantId,
+      type: txnType,
+      amount: txnAmt,
+      category: txnPartyId ? `PARTY_LEDGER:${ledgerId}` : (txnCat || undefined),
+      notes: finalNotes,
+      user_id: userId,
+      user_name: userName || undefined,
     });
     if (r.success && txnPartyId) {
-      const partyTxnType = txnType === 'CASH_IN' ? 'DEBIT' : 'CREDIT';
+      const partyTxnType = txnType === 'CASH_OUT' ? 'CREDIT' : 'DEBIT';
       const cleanCat = txnCat && txnCat !== 'Other' ? txnCat : '';
       const ledgerDesc = `${txnType === 'CASH_IN' ? 'Cash received' : 'Cash paid'}${cleanCat ? ` (${cleanCat})` : ''}${txnNote ? ': ' + txnNote : ''}`;
       await partiesApi.addPartyLedgerEntry({
@@ -159,7 +164,7 @@ export function useCashDrawerActions(ctx: UseCashDrawerActionsContext) {
         description: ledgerDesc,
         created_by: userId,
         created_by_name: userName || undefined,
-        ledger_id: crypto.randomUUID(),
+        ledger_id: ledgerId,
         skip_cash_drawer: true,
       });
     }

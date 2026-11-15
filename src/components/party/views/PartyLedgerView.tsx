@@ -182,15 +182,15 @@ export const PartyLedgerView: React.FC<PartyLedgerViewProps> = ({
               <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
                 <button
                   onClick={() => openTxForm('CREDIT')}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
-                  <PlusCircle className="w-4 h-4" /> + {tLabels.paid || 'Paid'} (Credit)
+                  <MinusCircle className="w-4 h-4 shrink-0" /> Shop paid party
                 </button>
                 <button
                   onClick={() => openTxForm('DEBIT')}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 cursor-pointer"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
-                  <MinusCircle className="w-4 h-4" /> − {tLabels.received || 'Received'} (Debit)
+                  <PlusCircle className="w-4 h-4 shrink-0" /> Shop received from party
                 </button>
               </div>
             </div>
