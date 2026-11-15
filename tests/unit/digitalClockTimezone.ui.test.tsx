@@ -17,3 +17,14 @@ it('picks up a shop timezone that loads after the clock mounted', () => {
   expect(screen.getByText('GST')).toBeTruthy();
   expect(screen.queryByText('IST')).toBeNull();
 });
+
+it.each(['Asia/Calcutta', 'Asia/Kolkata'])('shows IST for %s across shared clock labels without changing the stored timezone', (timezone) => {
+  setStoreTimezone(timezone);
+  for (const variant of ['header', 'pill', 'card'] as const) {
+    const { unmount, container } = render(<DigitalClock variant={variant} />);
+    expect(screen.getByText('IST')).toBeTruthy();
+    expect(container.textContent).not.toContain('Asia/Calcutta');
+    expect(localStorage.getItem('app_store_timezone')).toBe(timezone);
+    unmount();
+  }
+});

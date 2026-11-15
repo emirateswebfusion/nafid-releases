@@ -48,8 +48,9 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
   }, [refreshSettings]);
 
   // Find timezone display label
-  const tzMatch = SUPPORTED_TIMEZONES.find((t) => t.value === storeTz);
-  const tzShortLabel = tzMatch
+  const displayTimezone = storeTz === 'Asia/Calcutta' ? 'Asia/Kolkata' : storeTz;
+  const tzMatch = SUPPORTED_TIMEZONES.find((t) => t.value === displayTimezone);
+  const tzShortLabel = displayTimezone === 'Asia/Kolkata' ? 'IST' : tzMatch
     ? tzMatch.label.split('(')[1]?.replace(')', '') || storeTz
     : storeTz;
 
