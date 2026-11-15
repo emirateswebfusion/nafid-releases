@@ -210,7 +210,7 @@ export async function installUpdate() {  if (updaterState !== 'downloaded') {
       installInProgress = false;
       log.error('[Updater] Installer launch failed:', result.error);
       setUpdaterState(result.installerReady ? 'downloaded' : 'error');
-      return result;
+      return result.installerReady ? { ...result, error: 'Your computer couldn’t start the update installer right now. You can keep using Nafid. The update is already downloaded, so try installing it again in a few minutes.' } : result;
     }
     log.info('[Updater] Windows accepted the installer; quitting for update.');
     // Guard duplicate clicks until the process exits.

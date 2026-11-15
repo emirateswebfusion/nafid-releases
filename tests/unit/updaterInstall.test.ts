@@ -53,7 +53,7 @@ it('waits for Windows to accept the installer before quitting', async () => {
 it('keeps POS open after delayed spawn failure and retries the same verified download', async () => {
   downloaded();
   fixture.launch.mockImplementation(async () => { await Promise.resolve(); return { success: false, error: 'spawn UNKNOWN', installerReady: true }; });
-  expect(await install()).toMatchObject({ success: false, installerReady: true });
+  expect(await install()).toMatchObject({ success: false, installerReady: true, error: 'Your computer couldn’t start the update installer right now. You can keep using Nafid. The update is already downloaded, so try installing it again in a few minutes.' });
   await vi.advanceTimersByTimeAsync(0); expect(fixture.appQuit).not.toHaveBeenCalled();
   expect(await install()).toMatchObject({ success: false, installerReady: true });
   expect(fixture.launch).toHaveBeenCalledTimes(2);

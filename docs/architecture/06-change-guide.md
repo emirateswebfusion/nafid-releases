@@ -486,3 +486,15 @@ ledger cash entries from register feeds and totals. Register-origin cash movemen
 Ledger balances show positive receivables as You'll Get in green and negative payables as You'll Give in red.
 Opening balance entry, party list, ledger cards and running totals follow the same convention.
 Regression coverage lives in cashRegisterOptions, cashierPartyTransactions and ledgerBalanceDirection.
+
+### Register deletion access and updater retry message (15 November 2026)
+
+CashRegisterPanel exposes an accessible Delete transaction action on each eligible row, including linked
+party payments and rows with notes. Existing owner/admin checks and the confirmation dialog remain required.
+Synthetic return rows have no register deletion action. Linked-ledger confirmations explain that deletion
+also removes the party ledger entry and recalculates drawer totals. Fixed column widths reserve space for
+amounts and actions. Regression coverage lives in cashRegisterDelete.ui and cashierPartyTransactions.
+
+When a verified downloaded Windows installer cannot launch, updaterService retains the downloaded state
+and explains that the user can continue using Nafid and retry the same installer. Failed verification still
+requires a fresh download through the existing error path. Regression coverage lives in updaterInstall.

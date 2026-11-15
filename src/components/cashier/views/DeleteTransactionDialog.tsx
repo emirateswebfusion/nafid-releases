@@ -33,7 +33,7 @@ export function DeleteTransactionDialog({
           <div>
             <h3 className="text-base font-black text-foreground tracking-tight">Delete Register Transaction</h3>
             <p className="text-xs text-muted-foreground font-medium mt-0.5">
-              Owner action • Reconciles drawer cash balance
+              Reconciles drawer cash balance
             </p>
           </div>
         </div>
@@ -85,7 +85,7 @@ export function DeleteTransactionDialog({
         {/* Warning Banner */}
         <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-semibold leading-relaxed">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
-          <span>Are you sure you want to delete this cash transaction? Current drawer totals will be recalculated immediately. This action cannot be undone.</span>
+          <span>Are you sure you want to delete this cash transaction? Current drawer totals will be recalculated immediately. {deleteConfirmTx?.source === 'ledger' && 'The linked party ledger entry will also be removed. '}This action cannot be undone.</span>
         </div>
 
         {/* Action Buttons */}

@@ -40,7 +40,7 @@ export function CashRegisterPanel({
   setTxnCat, setTxnNote, setTxnPartyId, setTxnPartyName, showSettlement, tenantId, totalIn, totalOut, transactions,
 }: CashRegisterPanelProps) {
   return (
-    <div className={clsx('shrink-0 flex flex-col bg-card z-10', showSettlement ? 'w-[400px] border-l border-border' : 'flex-1')}>
+    <div className={clsx('shrink-0 flex flex-col bg-card z-10', showSettlement ? 'w-[440px] border-l border-border' : 'flex-1')}>
 
       {/* Panel header */}
       <div className="relative shrink-0">
@@ -147,12 +147,12 @@ export function CashRegisterPanel({
         </div>
       )}
       {/* Column headers */}
-      <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
+      <div className="grid grid-cols-[4rem_2.5rem_minmax(0,1fr)_7rem_5.5rem] gap-2 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0 border-l-2 border-l-transparent">
         <span>Time</span>
         <span>Type</span>
         <span>Category</span>
         <span className="text-right">Amount</span>
-        <span className="text-right">By</span>
+        <span>By</span>
       </div>
 
       {/* Transaction feed */}
@@ -183,18 +183,18 @@ export function CashRegisterPanel({
           <div className="divide-y divide-border/30">
             {/* Prepend Opening Balance Row */}
             {drawer && drawer.opening_balance != null && drawer.opening_balance >= 0 && (
-              <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/20 transition-colors items-center border-l-2 border-l-primary/50">
-                <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5">
+              <div className="grid grid-cols-[4rem_2.5rem_minmax(0,1fr)_7rem_5.5rem] gap-2 px-4 py-2.5 bg-card hover:bg-muted/20 transition-colors items-center border-l-2 border-l-primary/50">
+                <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5 whitespace-nowrap">
                   <Clock className="w-2.5 h-2.5 shrink-0" /> {drawer.opened_at ? formatTime(drawer.opened_at) : '—'}
                 </span>
                 <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-center w-fit text-primary bg-primary/10">
                   OPEN
                 </span>
                 <span className="text-xs text-foreground truncate font-bold">Opening Balance</span>
-                <span className="text-xs font-black text-right tabular-nums text-foreground">
+                <span className="text-xs font-black text-right tabular-nums whitespace-nowrap text-foreground">
                   {formatCurrency(drawer.opening_balance)}
                 </span>
-                <span className="text-[10px] text-muted-foreground truncate text-right">—</span>
+                <span className="text-[10px] text-muted-foreground truncate">—</span>
               </div>
             )}
             {transactions.map((tx) => {
@@ -214,14 +214,14 @@ export function CashRegisterPanel({
                   <div
                     onClick={() => hasNotes && setExpandedTxId(isExpanded ? null : tx.transaction_id)}
                     className={clsx(
-                      'grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/30 transition-colors items-center border-l-2 select-none',
+                      'grid grid-cols-[4rem_2.5rem_minmax(0,1fr)_7rem_5.5rem] gap-2 px-4 py-2.5 bg-card hover:bg-muted/30 transition-colors items-center border-l-2 select-none',
                       hasNotes ? 'cursor-pointer' : 'cursor-default',
                       isIn ? 'border-l-emerald-500/50' : 'border-l-rose-500/50',
                       isExpanded && 'bg-muted/20'
                     )}
                     title={hasNotes ? "Click to view full notes & details" : undefined}
                   >
-                    <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5">
+                    <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5 whitespace-nowrap">
                       <Clock className="w-2.5 h-2.5 shrink-0" /> {formatTime(tx.transaction_date)}
                     </span>
                     <span className={clsx(
@@ -232,42 +232,41 @@ export function CashRegisterPanel({
                     </span>
                     
                     <div className="flex flex-col min-w-0">
-                      <span className="text-xs text-foreground truncate font-semibold flex items-center gap-1">
+                      <span className="text-xs text-foreground font-semibold flex items-center gap-1">
                         {hasNotes && !hasCustomCat && <FileText className="w-3 h-3 text-primary shrink-0" />}
-                        {primaryText}
+                        <span className="truncate">{primaryText}</span>
                       </span>
                       {secondaryText && (
-                        <span className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                           <FileText className="w-2.5 h-2.5 text-primary/70 shrink-0" />
-                          {secondaryText}
+                          <span className="truncate">{secondaryText}</span>
                         </span>
                       )}
                     </div>
 
-                    <span className={clsx('text-xs font-black text-right tabular-nums', isIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
+                    <span className={clsx('text-xs font-black text-right tabular-nums whitespace-nowrap', isIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
                       {isIn ? '+' : '−'}{formatCurrency(tx.amount)}
                     </span>
 
-                    <div className="flex items-center justify-end gap-1 text-muted-foreground">
-                      <span className="text-[10px] truncate max-w-[65px]">{tx.entered_by_name || '—'}</span>
+                    <div className="flex min-w-0 items-center gap-1 text-muted-foreground">
+                      <span className="text-[10px] min-w-0 flex-1 truncate">{tx.entered_by_name || '—'}</span>
                       {hasNotes ? (
-                        <span className={clsx('p-0.5 rounded transition-transform', isExpanded && 'rotate-180')}>
+                        <span className={clsx('shrink-0 p-0.5 rounded transition-transform', isExpanded && 'rotate-180')}>
                           <ChevronDown className="w-3 h-3 text-muted-foreground/70" />
                         </span>
-
-                      ) : isOwner && !tx.source ? (
+                      ) : null}
+                      {isOwner && tx.source !== 'return' && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             initiateDeleteTransaction(tx);
                           }}
-                          className="p-1 text-muted-foreground/60 hover:text-rose-500 rounded-md hover:bg-rose-500/10 transition-colors cursor-pointer"
-                          title="Delete Transaction (Owner Only)"
+                          className="shrink-0 p-1 text-muted-foreground/60 hover:text-rose-500 rounded-md hover:bg-rose-500/10 transition-colors cursor-pointer"
+                          aria-label="Delete transaction" title="Delete Transaction"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-
-                      ) : null}
+                      )}
                     </div>
                   </div>
 
@@ -280,15 +279,6 @@ export function CashRegisterPanel({
                         </span>
                         <div className="flex items-center gap-2">
                           {tx.entered_by_name && <span>Entered by: {tx.entered_by_name}</span>}
-                          {isOwner && !tx.source && (
-                            <button
-                              onClick={() => initiateDeleteTransaction(tx)}
-                              className="flex items-center gap-1 px-2 py-0.5 text-rose-500 hover:text-white bg-rose-500/10 hover:bg-rose-600 rounded-md text-[10px] font-bold transition-colors cursor-pointer"
-                              title="Delete Transaction (Owner Only)"
-                            >
-                              <Trash2 className="w-3 h-3" /> Delete
-                            </button>
-                          )}
                         </div>
                       </div>
 

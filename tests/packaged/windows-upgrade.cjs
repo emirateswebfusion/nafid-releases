@@ -200,7 +200,7 @@ let diagnosticCdp;
   await until(async () => /Update Ready/i.test(await cdp.renderer('document.body.innerText')), 'failure fixture ready');
   await cdp.renderer("[...document.querySelectorAll('button')].find(x=>/Update →/.test(x.textContent)).click(); true");
   await until(async () => /Retry installation/i.test(await cdp.renderer('document.body.innerText')), 'failed launch preserves retry');
-  assert.match(await cdp.renderer("document.querySelector('[role=alert]').textContent"), /download is saved/i);
+  assert.match(await cdp.renderer("document.querySelector('[role=alert]').textContent"), /update is already downloaded/i);
   assert.equal(await cdp.evaluate("process.mainModule.require('electron').BrowserWindow.getAllWindows()[0].isVisible()"), true);
   const measured = await cdp.renderer('window.verificationSamples');
   assert.ok(measured.length > 0 && measured.includes(100));
