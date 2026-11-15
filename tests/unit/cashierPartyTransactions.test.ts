@@ -18,6 +18,7 @@ vi.mock('../../electron/sync/syncWorker', () => ({
 
 import { addParty, addPartyLedgerEntry, updatePartyLedgerEntry } from '../../electron/services/partiesService';
 import { getDayTransactions, deleteTransaction } from '../../electron/services/cashierService';
+import { getRegisterCashEntries, computeDrawerTotals } from '../../electron/services/cashDrawerSession';
 
 let raw: DatabaseSync;
 const SHOP = 'shop_1';
@@ -184,6 +185,7 @@ describe('cashier party transactions and ledger integration', () => {
     const cashTx = raw.prepare("SELECT transaction_id FROM cash_transactions WHERE category = ?").get(`PARTY_LEDGER:${ledgerId}`) as { transaction_id: string };
     expect(cashTx).toBeDefined();
 
+    const deletedCashRow = raw.prepare('SELECT * FROM cash_transactions WHERE transaction_id = ?').get(cashTx.transaction_id) as Record<string, string | number | null>;
     // Delete the cash transaction via cashier service
     const delRes = deleteTransaction({
       tenant_id: SHOP,
@@ -199,5 +201,15 @@ describe('cashier party transactions and ledger integration', () => {
     // Verify party balance is updated back to 0
     const partyAfter = raw.prepare('SELECT balance FROM parties WHERE party_id = ?').get('p_del') as { balance: number };
     expect(partyAfter.balance).toBe(0);
+    // A stale cloud row can arrive again after the physical cash row was removed.
+    const columns = Object.keys(deletedCashRow);
+    raw.prepare(`INSERT INTO cash_transactions (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`).run(...Object.values(deletedCashRow));
+    expect(getDayTransactions({ tenant_id: SHOP, business_date: '2026-11-14' })).toEqual([]);
+    const day = String(deletedCashRow.transaction_date).slice(0, 10);
+    expect(getDayTransactions({ tenant_id: SHOP, from_date: day, to_date: day })).toEqual([]);
+    const drawer = { drawer_id: 'd_1', business_date: '2026-11-14', status: 'OPEN', opening_balance: 1000 };
+    // Re-entering the register also reloads entries and recomputes drawer totals.
+    expect(getRegisterCashEntries(state.db, SHOP, drawer)).toEqual([]);
+    expect(computeDrawerTotals(state.db, SHOP, drawer)).toMatchObject({ cash_in: 0, cash_out: 0, expected: 1000 });
   });
 });

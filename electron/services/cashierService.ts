@@ -543,7 +543,8 @@ export function getDayTransactions({ tenant_id, business_date, from_date, to_dat
     return rows.filter(row => !isDuplicateScrapCash(row)).flatMap(row => {
       if (row.category?.startsWith('PARTY_LEDGER:')) {
         const ledgerId = row.category.slice('PARTY_LEDGER:'.length);
-        const partyRow = partyNameStmt.get(ledgerId) as { party_name: string | null; reference_number: string | null } | undefined;
+        const partyRow = partyNameStmt.get(ledgerId) as { party_name: string | null; reference_number: string | null; is_deleted: number | null; payment_method: string | null } | undefined;
+        if (!partyRow || partyRow.is_deleted || partyRow.payment_method?.toUpperCase() !== 'CASH') return [];
         if (prefs.ledgerMode === 'off' && partyRow?.reference_number !== 'Cash Register') return [];
         const partyName = partyRow?.party_name?.trim() || row.party_name?.trim();
         const isPartyIn = row.type === 'CASH_IN';

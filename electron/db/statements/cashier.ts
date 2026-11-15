@@ -202,7 +202,7 @@ export const findCashCategoriesByCategoryId = (db: Db) => db.prepare(`SELECT * F
 
 export const deleteCashCategoryByCategoryId = (db: Db) => db.prepare(`DELETE FROM cash_categories WHERE category_id = ? AND tenant_id = ?`);
 
-export const findPartyNameByLedgerId = (db: Db) => db.prepare(`SELECT p.name AS party_name, l.reference_number FROM party_ledger l LEFT JOIN parties p ON l.party_id = p.party_id WHERE l.ledger_id = ?`);
+export const findPartyNameByLedgerId = (db: Db) => db.prepare(`SELECT p.name AS party_name, l.reference_number, l.is_deleted, l.payment_method FROM party_ledger l LEFT JOIN parties p ON l.party_id = p.party_id WHERE l.ledger_id = ?`);
 
 export const findLinkedPartyLedgerForCashTransaction = (db: Db) => db.prepare(`
   SELECT ledger_id, party_id FROM party_ledger

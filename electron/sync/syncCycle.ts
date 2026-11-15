@@ -288,7 +288,6 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       if (!getMeta(partyHealingKey)) {
         try {
           syncCycleSql.deleteSyncMeta2(db).run(`pull_cursor:${tenant_id}:parties`);
-          syncCycleSql.updateParties(db).run(tenant_id);
           setMeta(partyHealingKey, 'true');
           console.log('[SyncWorker] One-time reset of parties cursor applied to re-sync all latest party types.');
         } catch (e) {

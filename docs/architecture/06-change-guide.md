@@ -498,3 +498,8 @@ amounts and actions. Regression coverage lives in cashRegisterDelete.ui and cash
 When a verified downloaded Windows installer cannot launch, updaterService retains the downloaded state
 and explains that the user can continue using Nafid and retry the same installer. Failed verification still
 requires a fresh download through the existing error path. Regression coverage lives in updaterInstall.
+
+Party-linked cash history reads validate the current ledger row before displaying cash movements.
+Missing, soft-deleted or non-cash ledger rows are excluded in both day and date-range history, matching
+the active register feed. A stale cash row restored by sync must not reappear after linked ledger deletion.
+Regression coverage in cashierPartyTransactions replays the deleted cash row and checks both history paths.

@@ -17,4 +17,3 @@ export const insertInvoices = (db: Db) => db.prepare(`
     `);
 export const deleteSyncMeta = (db: Db) => db.prepare(`DELETE FROM sync_meta WHERE key LIKE ?`);
 export const deleteSyncMeta2 = (db: Db) => db.prepare(`DELETE FROM sync_meta WHERE key = ?`);
-export const updateParties = (db: Db) => db.prepare(`UPDATE parties SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND tenant_id = ?`);

@@ -100,7 +100,12 @@ export async function syncParties(token: string, tenantId: string) {
       `Parties batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => {
+        for (const id of ids) {
+          const sent = batch.find(p => p.party_id === id);
+          if (sent) updateStmt.run(id, tenantId, sent.updated_at, sent.party_type, sent.custom_category);
+        }
+      });
       tx(synced);
     }
   }
@@ -244,8 +249,15 @@ export async function syncPartyLedger(token: string, tenantId: string) {
       `Party Ledger batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
-      tx(synced);
+      const acknowledged = new Set(synced);
+      const tx = db.transaction(() => {
+        for (const row of batch) {
+          if (acknowledged.has(row.ledger_id as string)) {
+            updateStmt.run(row.ledger_id, tenantId, row.row_version, row.updated_at);
+          }
+        }
+      });
+      tx();
     }
   }
 }
@@ -292,6 +304,8 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
   const db = getDb();
 
   const upsert = partiesSyncSql.insertPartyLedger(db);
+  const existingParty = partiesSyncSql.selectLedgerParty(db);
+  const recalculate = partiesSyncSql.updateParties3(db);
 
   const result = await pullPaginated({
     token,
@@ -302,40 +316,37 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
     onProgress: (fetched) => notifyPullProgress('ledger entries', fetched),
     processPage: (rows) => {
       const tx = db.transaction((entries: Record<string, unknown>[]) => {
+        const affected = new Set<string>();
         for (const e of entries) {
-          try {
-            upsert.run({
-              ledger_id: e.ledger_id,
-              party_id: e.party_id,
-              tenant_id: tenantId,
-              transaction_date: toSqliteDate((e.transaction_date as string | number | Date | null | undefined)),
-              description: e.description,
-              credit_amount: e.credit_amount ?? 0,
-              debit_amount: e.debit_amount ?? 0,
-              running_balance: e.running_balance ?? 0,
-              balance_type: e.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST',
-              payment_method: e.payment_method || null,
-              reference_number: e.reference_number || null,
-              created_by: e.created_by || null,
-              created_by_name: e.created_by_name || null,
-              is_deleted: e.is_deleted ? 1 : 0,
-              created_at: toSqliteDate((e.created_at as string | number | Date | null | undefined)),
-              updated_at: toSqliteDate((e.updated_at as string | number | Date | null | undefined)),
-            });
-          } catch (err) {
-            console.error('[SyncWorker] Error pulling ledger entry:', (err as Error).message);
+          const previous = existingParty.get(e.ledger_id, tenantId) as { party_id: string } | undefined;
+          const applied = upsert.run({
+            ledger_id: e.ledger_id,
+            party_id: e.party_id,
+            tenant_id: tenantId,
+            transaction_date: toSqliteDate((e.transaction_date as string | number | Date | null | undefined)),
+            description: e.description,
+            credit_amount: e.credit_amount ?? 0,
+            debit_amount: e.debit_amount ?? 0,
+            running_balance: e.running_balance ?? 0,
+            balance_type: e.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST',
+            payment_method: e.payment_method || null,
+            reference_number: e.reference_number || null,
+            created_by: e.created_by || null,
+            created_by_name: e.created_by_name || null,
+            is_deleted: parseIsDeleted(e.is_deleted),
+            created_at: toSqliteDate((e.created_at as string | number | Date | null | undefined)),
+            updated_at: toSqliteDate((e.updated_at as string | number | Date | null | undefined)),
+          });
+          if (applied.changes > 0) {
+            if (previous) affected.add(previous.party_id);
+            affected.add(e.party_id as string);
           }
         }
+        for (const partyId of affected) recalculate.run(tenantId, partyId);
       });
       tx(rows);
-      if (rows && rows.length > 0) {
-        try {
-          partiesSyncSql.updateParties3(db).run(tenantId, tenantId);
-        } catch (recalcErr) {
-          console.error('[SyncWorker] Recalc after pullPartyLedger error:', (recalcErr as Error).message);
-        }
-      }
-      return reconcilePending(db, 'party_ledger', 'ledger_id', rows);
+      // Only an upload acknowledgement may clear a pending local ledger edit.
+      return 0;
     },
   });
 

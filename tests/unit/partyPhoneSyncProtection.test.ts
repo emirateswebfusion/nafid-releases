@@ -23,7 +23,8 @@ vi.mock('../../electron/sync/syncTransport', () => ({
 }));
 
 import { updateParty } from '../../electron/services/partiesService';
-import { pullParties } from '../../electron/sync/entities/partiesSync';
+import { pushBatch } from '../../electron/sync/syncTransport';
+import { pullParties, syncParties } from '../../electron/sync/entities/partiesSync';
 
 let raw: DatabaseSync;
 
@@ -156,4 +157,39 @@ it('refuses an update without a name instead of erasing the party name', () => {
   expect(updateParty({ party_id: 'party-3', tenant_id: 'tenant-1', name: '   ' })).toMatchObject({ success: false });
   const row = raw.prepare("SELECT name, sync_status FROM parties WHERE party_id = 'party-3'").get() as { name: string; sync_status: string };
   expect(row).toEqual({ name: 'Anu Stores', sync_status: 'SYNCED' });
+});
+
+it.each(['SUPPLIER', 'CUSTOMER', 'SUPPLIER,CUSTOMER', 'STAFF', 'CUSTOM'])('transfers %s and its category from A to B', async (role) => {
+  raw.prepare("INSERT INTO parties (party_id, tenant_id, name, party_type, custom_category, sync_status) VALUES (?, ?, ?, ?, ?, 'PENDING')")
+    .run('shared-party', 'tenant-1', 'Shared Party', role, role === 'CUSTOM' ? 'Transport' : null);
+  vi.mocked(pushBatch).mockImplementationOnce(async (_path, _token, rows) => {
+    state.remote = structuredClone(rows) as Record<string, unknown>[];
+    return ['shared-party'];
+  });
+  await syncParties('token', 'tenant-1');
+  expect(raw.prepare('SELECT sync_status FROM parties').get()).toEqual({ sync_status: 'SYNCED' });
+  // A fresh receiving terminal has no local copy.
+  raw.exec('DELETE FROM parties');
+  await pullParties('token', 'tenant-1');
+  expect(raw.prepare('SELECT party_type, custom_category FROM parties').get()).toEqual({
+    party_type: role, custom_category: role === 'CUSTOM' ? 'Transport' : null,
+  });
+});
+
+it.each([['SUPPLIER', null], ['CUSTOM', 'Transport']])('keeps an in-flight change to %s pending until its own upload', async (role, category) => {
+  raw.exec("INSERT INTO parties (party_id, tenant_id, name, party_type, sync_status) VALUES ('shared-party', 'tenant-1', 'Shared Party', 'CUSTOMER', 'PENDING')");
+  vi.mocked(pushBatch).mockImplementationOnce(async (_path, _token, rows) => {
+    state.remote = structuredClone(rows) as Record<string, unknown>[];
+    // Same-second edits can have the same updated_at; the role/category must also match the acknowledged row.
+    raw.prepare('UPDATE parties SET party_type = ?, custom_category = ?').run(role, category);
+    return ['shared-party'];
+  });
+  await syncParties('token', 'tenant-1');
+  await pullParties('token', 'tenant-1');
+  expect(raw.prepare('SELECT party_type, custom_category, sync_status FROM parties').get()).toEqual({
+    party_type: role, custom_category: category, sync_status: 'PENDING',
+  });
+  vi.mocked(pushBatch).mockResolvedValueOnce(['shared-party']);
+  await syncParties('token', 'tenant-1');
+  expect(raw.prepare('SELECT sync_status FROM parties').get()).toEqual({ sync_status: 'SYNCED' });
 });

@@ -15,7 +15,7 @@ export const insertUsers = (db: Db) => db.prepare(`
         login_enabled = excluded.login_enabled
     `);
 export const selectParties = (db: Db) => db.prepare(`SELECT * FROM parties WHERE sync_status = 'PENDING' AND tenant_id = ?`);
-export const updateParties = (db: Db) => db.prepare(`UPDATE parties SET sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ?`);
+export const updateParties = (db: Db) => db.prepare(`UPDATE parties SET sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ? AND updated_at IS ? AND party_type IS ? AND custom_category IS ?`);
 export const insertParties = (db: Db) => db.prepare(`
     INSERT INTO parties (
       party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, last_transaction_date, pricing_tier_id, credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry, whatsapp_alerts_enabled, is_deleted,
@@ -76,10 +76,11 @@ export const updateParties2 = (db: Db) => db.prepare(`
     UPDATE parties SET is_deleted = 1, sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ?
   `);
 export const selectPartyLedger = (db: Db) => db.prepare(`SELECT * FROM party_ledger WHERE sync_status = 'PENDING' AND tenant_id = ?`);
-export const updatePartyLedger2 = (db: Db) => db.prepare(`UPDATE party_ledger SET sync_status = 'SYNCED' WHERE ledger_id = ? AND tenant_id = ?`);
+export const updatePartyLedger2 = (db: Db) => db.prepare(`UPDATE party_ledger SET sync_status = 'SYNCED' WHERE ledger_id = ? AND tenant_id = ? AND row_version IS ? AND updated_at IS ?`);
 export const selectLoyaltyTransactions = (db: Db) => db.prepare(`SELECT * FROM loyalty_transactions WHERE tenant_id = ? AND sync_status IN ('PENDING', 'FAILED')`);
 export const updateLoyaltyTransactions = (db: Db) => db.prepare("UPDATE loyalty_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ?");
 export const updateLoyaltyTransactions2 = (db: Db) => db.prepare("UPDATE loyalty_transactions SET sync_status = 'FAILED' WHERE transaction_id = ?");
+export const selectLedgerParty = (db: Db) => db.prepare('SELECT party_id FROM party_ledger WHERE ledger_id = ? AND tenant_id = ?');
 export const insertPartyLedger = (db: Db) => db.prepare(`
     INSERT INTO party_ledger (
       ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount,
@@ -89,6 +90,7 @@ export const insertPartyLedger = (db: Db) => db.prepare(`
       @running_balance, @balance_type, @payment_method, @reference_number, @created_by, @created_by_name, @is_deleted, 'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(ledger_id) DO UPDATE SET
+      party_id = excluded.party_id,
       transaction_date = excluded.transaction_date,
       description = excluded.description,
       credit_amount = excluded.credit_amount,
@@ -102,41 +104,37 @@ export const insertPartyLedger = (db: Db) => db.prepare(`
       is_deleted = excluded.is_deleted,
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE party_ledger.sync_status != 'PENDING'
+    WHERE party_ledger.sync_status != 'PENDING' AND party_ledger.tenant_id = excluded.tenant_id
   `);
 export const updateParties3 = (db: Db) => db.prepare(`
             UPDATE parties
             SET balance = COALESCE(
                   (SELECT ROUND(SUM(credit_amount) - SUM(debit_amount), ${moneyDecimalsSql('parties.tenant_id')})
                    FROM party_ledger pl
-                   WHERE pl.party_id = parties.party_id
+                   WHERE pl.party_id = parties.party_id AND pl.tenant_id = parties.tenant_id
                      AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
-                  parties.balance, 0
+                  0
                 ),
                 gst_balance = COALESCE(
                   (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'GST' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('parties.tenant_id')})
                    FROM party_ledger pl
-                   WHERE pl.party_id = parties.party_id
+                   WHERE pl.party_id = parties.party_id AND pl.tenant_id = parties.tenant_id
                      AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
-                  parties.gst_balance, parties.balance, 0
+                  0
                 ),
                 estimate_balance = COALESCE(
                   (SELECT ROUND(SUM(CASE WHEN pl.balance_type = 'ESTIMATE' THEN pl.credit_amount - pl.debit_amount ELSE 0 END), ${moneyDecimalsSql('parties.tenant_id')})
                    FROM party_ledger pl
-                   WHERE pl.party_id = parties.party_id
+                   WHERE pl.party_id = parties.party_id AND pl.tenant_id = parties.tenant_id
                      AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
-                  parties.estimate_balance, 0
+                  0
                 ),
-                last_transaction_date = COALESCE(
+                last_transaction_date =
                   (SELECT MAX(pl.transaction_date)
                    FROM party_ledger pl
-                   WHERE pl.party_id = parties.party_id
-                     AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)),
-                  parties.last_transaction_date
-                )
-            WHERE tenant_id = ? AND parties.party_id IN (
-              SELECT DISTINCT pl.party_id FROM party_ledger pl WHERE pl.tenant_id = ? AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
-            )
+                   WHERE pl.party_id = parties.party_id AND pl.tenant_id = parties.tenant_id
+                     AND (pl.is_deleted IS NULL OR pl.is_deleted = 0))
+            WHERE tenant_id = ? AND party_id = ?
           `);
 export const insertCustomers = (db: Db) => db.prepare(`
     INSERT INTO customers (

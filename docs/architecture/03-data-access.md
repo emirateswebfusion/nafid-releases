@@ -304,3 +304,21 @@ logs out the local user or clears open bills. No cloud/LAN payload changes.
 ### Saved invoice line order
 
 `db:getInvoiceItems` reads SQLite insertion order (`ii.rowid ASC`), matching checkout/edit writes and receipt arrays. Invoice push reads the same order. Legacy cloud responses carry no explicit line position: invoice pull preserves surviving local item-id order before replacing rows, removes absent lines, and appends new lines in incoming order. First-time imports retain incoming order; an original order already lost before this change cannot be reconstructed. No wire fields change. Regression coverage: `invoiceItemOrder.test.ts`, `preserveInvoiceItemOrder.test.ts`, `stockSnapshotSync.test.ts`.
+
+### Party type and category synchronization (15 November 2026)
+
+Party `party_type` (including comma-separated roles) and `custom_category` travel unchanged through
+cloud and LAN party payloads. Cursor repair must never mark pending party rows as synced: only a
+successful upload acknowledgement may do that. Desktop acknowledgements match the uploaded timestamp,
+role and category so a same-second edit during an upload remains pending for the next upload and
+cannot be replaced by the older cloud copy. No wire or server schema change is required.
+Regression coverage: POS `partyPhoneSyncProtection.test.ts` exercises all roles, custom categories,
+and edits made while an upload is in flight. Previously lost edits cannot be inferred from balances;
+re-save the correct type on the authoritative terminal and sync, without bulk reclassifying parties.
+
+
+## Party ledger synchronization
+
+Legacy cloud and LAN delta checks use `party_ledger.updated_at`, so edits and tombstones of older entries trigger a ledger download. Payloads and schemas are unchanged. A ledger page applies entries and recalculates both previous and incoming party balances in one transaction. An empty ledger after deletion or reassignment produces zero GST/estimate/total balances and a null last-transaction date; unrelated opening-only accounts are untouched. Pending local entries retain their contents and status on pull. Upload acknowledgements match the captured local `row_version` and `updated_at`, preserving edits made during the request. Failed page writes or balance recalculations roll back and cannot advance the pull cursor.
+
+Regression coverage: `tests/unit/partyLedgerSync.test.ts`; cloud login/no-login and LAN characterization. Server upload ownership/retry/delta coverage lives in `nafid-server/tests/partyLedgerSync.test.ts`.
