@@ -1,7 +1,7 @@
 import { storeDate, storeTime } from '../../utils/time/dateDisplay';
 import { useState, useEffect, useCallback } from 'react';
 import { Clock, Globe, Lock } from 'lucide-react';
-import { getStoreTimezone, SUPPORTED_TIMEZONES } from '../../utils/time/timezoneHelper';
+import { getStoreTimezone, SUPPORTED_TIMEZONES, getTimezoneAbbreviation } from '../../utils/time/timezoneHelper';
 import { getAppTimeFormat } from '../../utils/print/receiptGenerator';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
@@ -48,11 +48,10 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
   }, [refreshSettings]);
 
   // Find timezone display label
+  const tzAbbr = getTimezoneAbbreviation(storeTz, now);
   const displayTimezone = storeTz === 'Asia/Calcutta' ? 'Asia/Kolkata' : storeTz;
-  const tzMatch = SUPPORTED_TIMEZONES.find((t) => t.value === displayTimezone);
-  const tzShortLabel = displayTimezone === 'Asia/Kolkata' ? 'IST' : tzMatch
-    ? tzMatch.label.split('(')[1]?.replace(')', '') || storeTz
-    : storeTz;
+  const tzMatch = SUPPORTED_TIMEZONES.find((t) => t.value === storeTz || t.value === displayTimezone);
+  const tzShortLabel = tzAbbr;
 
   const is12h = timeFmt !== '24h';
 
@@ -171,8 +170,6 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
       );
     }
 
-    const tzCode = tzShortLabel.split(' ')[0] || 'IST';
-
     return (
       <div className={clsx('flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium leading-none', className)}>
         {showDate && headerDateStr && (
@@ -182,7 +179,7 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
           </>
         )}
         <span className="font-mono font-semibold text-foreground/90">{timeFormatted}</span>
-        <span className="px-1.5 py-0.2 rounded bg-muted text-[9px] font-bold text-muted-foreground uppercase tracking-wider">{tzCode}</span>
+        <span className="px-1.5 py-0.2 rounded bg-muted text-[9px] font-bold text-muted-foreground uppercase tracking-wider">{tzAbbr}</span>
       </div>
     );
   }
@@ -218,7 +215,7 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
         'flex items-center gap-2.5 px-3 py-1.5 bg-card dark:bg-card/90 border border-border/80 rounded-xl shadow-sm text-foreground select-none',
         className
       )}
-      title={`Store Timezone: ${tzMatch?.label || storeTz} (${is12h ? '12h format' : '24h format'})`}
+      title={`Store Timezone: ${tzMatch?.label || `${storeTz} (${tzAbbr})`} (${is12h ? '12h format' : '24h format'})`}
     >
       <div className="relative flex items-center justify-center shrink-0">
         <Clock className="w-4 h-4 text-primary" />
@@ -241,7 +238,7 @@ export function DigitalClock({ className, variant = 'pill', showSeconds, showDat
       <div className="hidden xl:flex items-center gap-1.5 text-[10px] text-muted-foreground font-semibold">
         <span className="truncate max-w-[100px]">{dateStr}</span>
         <span className="px-1.5 py-0.2 rounded bg-muted text-[9px] font-bold text-muted-foreground/80 uppercase">
-          {tzShortLabel.split(' ')[0]}
+          {tzAbbr}
         </span>
       </div>
     </div>

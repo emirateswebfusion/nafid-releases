@@ -6,6 +6,7 @@ import { TRIAL_COUNTRIES, validateTrialDetails } from './trialShopDetails';
 import { useTrialSignup } from './useTrialSignup';
 import { TrialCreateAccount } from './TrialCreateAccount';
 import type { TrialShopDetails } from './trialShopDetails';
+import { getTimezoneAbbreviation } from '../../utils/time/timezoneHelper';
 
 export function TrialRegistration({ onSignIn }: { onSignIn: () => void }) {
   const signup = useTrialSignup();
@@ -28,7 +29,7 @@ export function TrialRegistration({ onSignIn }: { onSignIn: () => void }) {
             {[
               ['Shop', details.shopName.trim()], ['Owner', details.ownerName.trim()], ['Email', details.email.trim()],
               ['Phone', details.phone.trim()], ['Location', `${details.city.trim()}, ${country.name}`],
-              ['Suggested currency', country.currency], ['Suggested time zone', country.timeZone],
+              ['Suggested currency', country.currency], ['Suggested time zone', getTimezoneAbbreviation(country.timeZone)],
             ].map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-medium">{value}</dd></div>)}
           </dl>
           <Button variant="outline" className="w-full" onClick={() => setReviewing(false)}>Edit details</Button>

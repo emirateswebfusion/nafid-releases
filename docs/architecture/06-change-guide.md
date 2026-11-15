@@ -503,3 +503,10 @@ Party-linked cash history reads validate the current ledger row before displayin
 Missing, soft-deleted or non-cash ledger rows are excluded in both day and date-range history, matching
 the active register feed. A stale cash row restored by sync must not reappear after linked ledger deletion.
 Regression coverage in cashierPartyTransactions replays the deleted cash row and checks both history paths.
+
+### Global timezone abbreviation display and DST resolution (15 November 2026)
+
+- **Centralized Abbreviation Formatter (`timezoneFormatter.ts`)**: Replaced raw IANA timezone identifier display with standard international timezone abbreviations (`IST`, `GST`, `JST`, `SGT`, `EST`/`EDT`, `GMT`/`BST`, `AEST`/`AEDT`). Formatter dynamically detects Daylight Saving Time (DST) using seasonal offsets (January vs July) across hemispheres and falls back to clean UTC offset strings (`UTC+XX:XX`) for unmapped regions.
+- **Header & Screen Standardization**: `DigitalClock.tsx` (`variant="header"`, `card`, `pill`) resolves the dynamic abbreviation using the store timezone and instant. Tooltips and dropdown options show clear human-readable descriptions (`formatTimezoneOptionLabel`). Trial registration and store settings reflect standard abbreviations.
+- **Contract & Database Integrity**: Stored timezone settings, database timestamps, UTC queries, and IPC channels remain strictly keyed to canonical IANA strings (`Asia/Calcutta`, `Asia/Dubai`, etc.).
+- **Verification**: `tests/unit/timezoneAbbreviation.test.ts` (12 tests) and `tests/unit/digitalClockTimezone.ui.test.tsx` (9 tests); `tsc`, `typecheck:electron`, `check:arch` (0 debt), and `lint:ratchet` (0 errors / 0 warnings) pass.

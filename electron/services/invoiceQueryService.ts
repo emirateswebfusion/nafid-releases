@@ -68,13 +68,15 @@ export function getInvoicesSummary(filters?: { user_id?: string; tenant_id?: str
     const totalInvoices = row ? Number(row.totalInvoices) || 0 : 0;
     const totalTax = row ? Number(row.totalTax) || 0 : 0;
     const totalDiscount = row ? Number(row.totalDiscount ?? row.discount_total) || 0 : 0;
+    const totalScrap = row ? Number(row.totalScrap) || 0 : 0;
+    const totalReturn = row ? Number(row.totalReturn) || 0 : 0;
     const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
     const listedInvoices = Number((listedStatement.get(...params) as Record<string, number> | undefined)?.totalInvoices) || 0;
 
-    return { totalSales, totalSalesBeforeDeductions, totalInvoices, listedInvoices, totalTax, totalDiscount, avgOrder };
+    return { totalSales, totalSalesBeforeDeductions, totalInvoices, listedInvoices, totalTax, totalDiscount, totalScrap, totalReturn, avgOrder };
   } catch (error) {
     console.error('[db:getInvoicesSummary] Error:', error);
-    return { totalSales: 0, totalSalesBeforeDeductions: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, avgOrder: 0 };
+    return { totalSales: 0, totalSalesBeforeDeductions: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, totalScrap: 0, totalReturn: 0, avgOrder: 0 };
   }
 }
 

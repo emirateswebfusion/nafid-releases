@@ -1,7 +1,7 @@
 import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { SalesTaxSummary } from './SalesTaxSummary';
 import { StatCard } from './StatCard';
-import { Layers, TrendingUp, Tag } from 'lucide-react';
+import { Layers, TrendingUp, Tag, Receipt, ArrowDownRight } from 'lucide-react';
 import { getCurrencyIcon } from '../../ui/currencyIconType';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { ResponsiveContainer, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Area } from 'recharts';
@@ -12,12 +12,13 @@ export interface SalesAnalyticsViewProps {
   maskedAvgOrder: { displayAmount: number; isHidden: boolean; isMasked: boolean; };
   maskedRevenue: { displayAmount: number; isMasked: boolean; isHidden: boolean; };
   maskedTotalSales: { displayAmount: number; isMasked: boolean; isHidden: boolean; };
-  summary: { totalSales: number; totalSalesBeforeDeductions: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number; };
+  summary: { totalSales: number; totalSalesBeforeDeductions: number; totalInvoices: number; totalTax: number; totalDiscount: number; totalScrap?: number; totalReturn?: number; avgOrder: number; };
+  accountingView?: 'REAL_SALES' | 'TAX_FILING' | 'ALL';
 }
 
 /** Analytics tab of Sales History: summary stat cards and the daily sales trend chart. */
 export function SalesAnalyticsView({
-  dailySales, maskedAvgOrder, maskedRevenue, maskedTotalSales, summary, summaryLoading,
+  dailySales, maskedAvgOrder, maskedRevenue, maskedTotalSales, summary, summaryLoading, accountingView = 'REAL_SALES',
 }: SalesAnalyticsViewProps) {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full">
@@ -25,14 +26,39 @@ export function SalesAnalyticsView({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <StatCard 
           icon={getCurrencyIcon()} 
-          label="Total Revenue" 
+          label={accountingView === 'TAX_FILING' ? 'GST Turnover' : accountingView === 'REAL_SALES' ? 'BOS Turnover' : 'Total Revenue'} 
           value={maskedRevenue.isHidden ? '••••••••' : formatCurrency(maskedRevenue.displayAmount)} 
           colorClass="text-emerald-500" 
           bgClass="bg-emerald-500/10" 
           sub={maskedRevenue.isHidden ? 'Protected' : `${summary.totalInvoices} settled invoices`} 
         />
-        <SalesTaxSummary totalIncludingGst={maskedTotalSales.displayAmount} gstAmount={summary.totalTax}
-          isHidden={maskedTotalSales.isHidden} isMasked={maskedTotalSales.isMasked} loading={summaryLoading} />
+        {(accountingView === 'TAX_FILING' || summary.totalTax > 0) ? (
+          <SalesTaxSummary totalIncludingGst={maskedTotalSales.displayAmount} gstAmount={summary.totalTax}
+            isHidden={maskedTotalSales.isHidden} isMasked={maskedTotalSales.isMasked} loading={summaryLoading} />
+        ) : (
+          <>
+            {(maskedTotalSales.displayAmount > maskedRevenue.displayAmount || (summary.totalScrap ?? 0) > 0) && (
+              <StatCard
+                icon={Receipt}
+                label="Gross Bill Value"
+                value={maskedTotalSales.isHidden ? '••••••••' : maskedTotalSales.isMasked ? 'Protected' : formatCurrency(maskedTotalSales.displayAmount)}
+                colorClass="text-teal-500"
+                bgClass="bg-teal-500/10"
+                sub="Before scrap deductions"
+              />
+            )}
+            {((summary.totalScrap ?? 0) > 0 || (maskedTotalSales.displayAmount > maskedRevenue.displayAmount && !maskedRevenue.isMasked)) && (
+              <StatCard
+                icon={ArrowDownRight}
+                label="Scrap Deductions"
+                value={maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalScrap || Math.max(0, maskedTotalSales.displayAmount - maskedRevenue.displayAmount))}
+                colorClass="text-amber-500"
+                bgClass="bg-amber-500/10"
+                sub="Trade-in exchange credit"
+              />
+            )}
+          </>
+        )}
         <StatCard 
           icon={TrendingUp} 
           label="Avg Order Value" 

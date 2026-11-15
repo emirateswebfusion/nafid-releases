@@ -18,6 +18,8 @@ export interface InvoiceSummary {
   listedInvoices?: number;
   totalTax: number;
   totalDiscount: number;
+  totalScrap?: number;
+  totalReturn?: number;
   avgOrder: number;
 }
 

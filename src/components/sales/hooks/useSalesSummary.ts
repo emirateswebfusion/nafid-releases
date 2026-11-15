@@ -30,11 +30,18 @@ export function useSalesSummary(ctx: SummaryContext) {
       totalInvoices: live.length,
       totalTax: live.reduce((sum, inv) => sum + (Number(inv.tax_total) || 0), 0),
       totalDiscount: live.reduce((sum, inv) => sum + (Number(inv.discount_total) || 0), 0),
+      totalScrap: live.reduce((sum, inv) => sum + (Number(inv.scrap_deduction) || 0), 0),
+      totalReturn: live.reduce((sum, inv) => sum + (Number(inv.return_deduction) || 0), 0),
       avgOrder: 0,
     };
     fallback.avgOrder = fallback.totalInvoices > 0 ? fallback.totalSales / fallback.totalInvoices : 0;
     return dbSummary
-      ? { ...dbSummary, totalSalesBeforeDeductions: dbSummary.totalSalesBeforeDeductions ?? fallback.totalSalesBeforeDeductions }
+      ? {
+          ...dbSummary,
+          totalSalesBeforeDeductions: dbSummary.totalSalesBeforeDeductions ?? fallback.totalSalesBeforeDeductions,
+          totalScrap: dbSummary.totalScrap ?? fallback.totalScrap,
+          totalReturn: dbSummary.totalReturn ?? fallback.totalReturn,
+        }
       : fallback;
   }, [invoices, accountingView, paymentFilter, dbSummary]);
 
@@ -44,6 +51,8 @@ export function useSalesSummary(ctx: SummaryContext) {
     totalInvoices: taxProductTotals?.invoiceCount ?? 0,
     totalTax: taxProductTotals?.totalTax ?? 0,
     totalDiscount: taxProductTotals?.totalDiscount ?? 0,
+    totalScrap: 0,
+    totalReturn: 0,
     avgOrder: taxProductTotals && taxProductTotals.invoiceCount > 0
       ? taxProductTotals.netRevenue / taxProductTotals.invoiceCount : 0,
   } : baseSummary;

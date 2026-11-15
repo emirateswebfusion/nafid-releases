@@ -1,4 +1,12 @@
 import { parseUTCDate, utcForWallClock } from './utc';
+export {
+  getTimezoneAbbreviation,
+  formatTimezoneOptionLabel,
+  getTimezoneOffsetMinutes,
+  isDaylightSavingTime,
+  formatUtcOffset,
+  KNOWN_TIMEZONE_ABBREVIATIONS,
+} from './timezoneFormatter';
 /**
  * Timezone & UTC Helper Utility
  * Standardizes UTC storage in Database and localized presentation in Store Timezone.
@@ -11,12 +19,16 @@ const DEFAULT_STORE_TIMEZONE = 'Asia/Kolkata';
 
 export const SUPPORTED_TIMEZONES = [
   { value: 'Asia/Kolkata', label: 'India (IST - UTC+05:30)' },
+  { value: 'Asia/Calcutta', label: 'India (IST - UTC+05:30)' },
   { value: 'Asia/Dubai', label: 'UAE / Dubai (GST - UTC+04:00)' },
   { value: 'Asia/Riyadh', label: 'Saudi Arabia (AST - UTC+03:00)' },
   { value: 'Asia/Muscat', label: 'Oman (GST - UTC+04:00)' },
   { value: 'Asia/Qatar', label: 'Qatar (AST - UTC+03:00)' },
   { value: 'Asia/Kuwait', label: 'Kuwait (AST - UTC+03:00)' },
   { value: 'Asia/Bahrain', label: 'Bahrain (AST - UTC+03:00)' },
+  { value: 'Asia/Tokyo', label: 'Japan (JST - UTC+09:00)' },
+  { value: 'Asia/Singapore', label: 'Singapore (SGT - UTC+08:00)' },
+  { value: 'Australia/Sydney', label: 'Australia Eastern (AEST/AEDT - UTC+10:00)' },
   { value: 'Europe/London', label: 'UK (GMT/BST - UTC+00:00)' },
   { value: 'America/New_York', label: 'US Eastern (EST/EDT - UTC-05:00)' },
 ];

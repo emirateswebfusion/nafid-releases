@@ -58,7 +58,7 @@ export interface SalesBillsViewProps {
   setShowGraphBanner: React.Dispatch<React.SetStateAction<boolean>>;
   setTaxPercentageFilter: React.Dispatch<React.SetStateAction<string>>;
   showGraphBanner: boolean;
-  summary: { totalSales: number; totalSalesBeforeDeductions: number; totalInvoices: number; listedInvoices?: number; totalTax: number; totalDiscount: number; avgOrder: number; };
+  summary: { totalSales: number; totalSalesBeforeDeductions: number; totalInvoices: number; listedInvoices?: number; totalTax: number; totalDiscount: number; totalScrap?: number; totalReturn?: number; avgOrder: number; };
   summaryLoading: boolean;
   taxFilterActive: boolean;
   taxPercentageFilter: string;
@@ -109,8 +109,71 @@ export function SalesBillsView({
               </div>
             </div>
 
-            <SalesTaxSummary totalIncludingGst={maskedTotalSales.displayAmount} gstAmount={summary.totalTax}
-              isHidden={maskedTotalSales.isHidden} isMasked={maskedTotalSales.isMasked} loading={summaryLoading} />
+            {/* GST Tax Breakdown — only when filing GST or when tax is collected */}
+            {(accountingView === 'TAX_FILING' || summary.totalTax > 0) ? (
+              <SalesTaxSummary totalIncludingGst={maskedTotalSales.displayAmount} gstAmount={summary.totalTax}
+                isHidden={maskedTotalSales.isHidden} isMasked={maskedTotalSales.isMasked} loading={summaryLoading} />
+            ) : (
+              /* BOS / Non-Tax Mode: Show transparent sales & deduction breakdown instead of irrelevant GST cards */
+              <>
+                {(maskedTotalSales.displayAmount > maskedRevenue.displayAmount || (summary.totalScrap ?? 0) > 0) && (
+                  <div
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[155px]"
+                    title="Total bill value before trade-in & scrap deductions"
+                  >
+                    <div className="p-1.5 rounded-lg shrink-0 bg-teal-500/10 text-teal-500">
+                      <Receipt className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
+                        Gross Bill Value
+                      </span>
+                      <span className="text-xs font-black font-mono tabular-nums text-teal-600 dark:text-teal-400 block mt-0.5">
+                        {summaryLoading ? '…' : maskedTotalSales.isHidden ? '••••••••' : maskedTotalSales.isMasked ? 'Protected' : formatCurrency(maskedTotalSales.displayAmount)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {((summary.totalScrap ?? 0) > 0 || (maskedTotalSales.displayAmount > maskedRevenue.displayAmount && !maskedRevenue.isMasked)) && (
+                  <div
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[155px]"
+                    title="Old battery / scrap trade-in exchange credit deducted from customer bills"
+                  >
+                    <div className="p-1.5 rounded-lg shrink-0 bg-amber-500/10 text-amber-500">
+                      <ArrowDownRight className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
+                        Scrap Deductions
+                      </span>
+                      <span className="text-xs font-black font-mono tabular-nums text-amber-600 dark:text-amber-400 block mt-0.5">
+                        {summaryLoading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalScrap || Math.max(0, maskedTotalSales.displayAmount - maskedRevenue.displayAmount))}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {summary.totalDiscount > 0 && (
+                  <div
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[150px]"
+                    title="Customer discounts applied"
+                  >
+                    <div className="p-1.5 rounded-lg shrink-0 bg-rose-500/10 text-rose-500">
+                      <Percent className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">
+                        Discounts Given
+                      </span>
+                      <span className="text-xs font-black font-mono tabular-nums text-rose-600 dark:text-rose-400 block mt-0.5">
+                        {summaryLoading ? '…' : maskedRevenue.isHidden ? '••••••••' : formatCurrency(summary.totalDiscount)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* KPI 2: Avg Order Value */}
             <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[160px]">

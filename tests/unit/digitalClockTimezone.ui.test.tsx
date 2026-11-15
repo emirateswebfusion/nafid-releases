@@ -28,3 +28,66 @@ it.each(['Asia/Calcutta', 'Asia/Kolkata'])('shows IST for %s across shared clock
     unmount();
   }
 });
+
+it.each([
+  { tz: 'Asia/Dubai', expected: 'GST' },
+  { tz: 'Asia/Tokyo', expected: 'JST' },
+  { tz: 'Asia/Singapore', expected: 'SGT' },
+])('shows standard abbreviation $expected for $tz across clock variants', ({ tz, expected }) => {
+  setStoreTimezone(tz);
+  for (const variant of ['header', 'pill', 'card'] as const) {
+    const { unmount, container } = render(<DigitalClock variant={variant} />);
+    expect(screen.getByText(expected)).toBeTruthy();
+    expect(container.textContent).not.toContain(tz);
+    expect(localStorage.getItem('app_store_timezone')).toBe(tz);
+    unmount();
+  }
+});
+
+it('switches America/New_York between EST and EDT depending on date', () => {
+  setStoreTimezone('America/New_York');
+
+  // Winter (January) -> EST
+  vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+  const winter = render(<DigitalClock variant="header" />);
+  expect(screen.getByText('EST')).toBeTruthy();
+  winter.unmount();
+
+  // Summer (July) -> EDT
+  vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+  const summer = render(<DigitalClock variant="header" />);
+  expect(screen.getByText('EDT')).toBeTruthy();
+  summer.unmount();
+});
+
+it('switches Europe/London between GMT and BST depending on date', () => {
+  setStoreTimezone('Europe/London');
+
+  // Winter (January) -> GMT
+  vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+  const winter = render(<DigitalClock variant="header" />);
+  expect(screen.getByText('GMT')).toBeTruthy();
+  winter.unmount();
+
+  // Summer (July) -> BST
+  vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+  const summer = render(<DigitalClock variant="header" />);
+  expect(screen.getByText('BST')).toBeTruthy();
+  summer.unmount();
+});
+
+it('switches Australia/Sydney between AEST and AEDT depending on date', () => {
+  setStoreTimezone('Australia/Sydney');
+
+  // Australian Summer (January) -> AEDT (Daylight Saving)
+  vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+  const summer = render(<DigitalClock variant="header" />);
+  expect(screen.getByText('AEDT')).toBeTruthy();
+  summer.unmount();
+
+  // Australian Winter (July) -> AEST (Standard Time)
+  vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+  const winter = render(<DigitalClock variant="header" />);
+  expect(screen.getByText('AEST')).toBeTruthy();
+  winter.unmount();
+});

@@ -3,7 +3,7 @@ import { getStoreProfile, type StoreCountry } from '../../../utils/localization/
 import { QrCode, Building, Check, Copy } from 'lucide-react';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
-import { SUPPORTED_TIMEZONES } from '../../../utils/time/timezoneHelper';
+import { SUPPORTED_TIMEZONES, formatTimezoneOptionLabel } from '../../../utils/time/timezoneHelper';
 
 export interface StoreSettingsTabProps {
   connectCode: string;
@@ -117,7 +117,11 @@ export const StoreSettingsTab: React.FC<StoreSettingsTabProps> = ({
                     onChange={(val) => {
                       setStoreTimezoneState(val);
                     }}
-                    options={SUPPORTED_TIMEZONES}
+                    options={
+                      SUPPORTED_TIMEZONES.some((tz) => tz.value === storeTimezone)
+                        ? SUPPORTED_TIMEZONES
+                        : [...SUPPORTED_TIMEZONES, { value: storeTimezone, label: formatTimezoneOptionLabel(storeTimezone) }]
+                    }
                   />
                   <p className="text-[10px] text-muted-foreground/75 mt-1">
                     Store business dates, cashier settlement, receipts, and daily sales reports are formatted based on this store timezone. Remote owners viewing from other countries will see reports calculated for this store timezone.

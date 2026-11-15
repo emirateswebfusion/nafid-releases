@@ -595,7 +595,9 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         COALESCE(SUM(MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))), 0) as totalSalesBeforeDeductions,
         COUNT(1) as totalInvoices,
         COALESCE(SUM(i.tax_total), 0) as totalTax,
-        COALESCE(SUM(i.discount_total), 0) as totalDiscount
+        COALESCE(SUM(i.discount_total), 0) as totalDiscount,
+        COALESCE(SUM(i.scrap_deduction), 0) as totalScrap,
+        COALESCE(SUM(i.return_deduction), 0) as totalReturn
       FROM invoices i 
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
@@ -613,7 +615,9 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         COALESCE(SUM(MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))), 0) as totalSalesBeforeDeductions,
         COUNT(1) as totalInvoices,
         COALESCE(SUM(i.tax_total), 0) as totalTax,
-        COALESCE(SUM(i.discount_total), 0) as totalDiscount
+        COALESCE(SUM(i.discount_total), 0) as totalDiscount,
+        COALESCE(SUM(i.scrap_deduction), 0) as totalScrap,
+        COALESCE(SUM(i.return_deduction), 0) as totalReturn
       FROM invoices i 
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
@@ -633,7 +637,9 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         ELSE 0 END), 0) as totalSalesBeforeDeductions,
         COUNT(CASE WHEN ${counterSalePredicate('i')} THEN 1 END) as totalInvoices,
         COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.tax_total ELSE 0 END), 0) as totalTax,
-        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.discount_total ELSE 0 END), 0) as totalDiscount
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.discount_total ELSE 0 END), 0) as totalDiscount,
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.scrap_deduction ELSE 0 END), 0) as totalScrap,
+        COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.return_deduction ELSE 0 END), 0) as totalReturn
       FROM invoices i 
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)

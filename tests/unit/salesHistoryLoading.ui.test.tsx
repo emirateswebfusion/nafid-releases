@@ -137,4 +137,25 @@ describe('Sales History loading', () => {
     fireEvent.click(typeSelectTrigger);
     expect(screen.getByText('Filing-only')).toBeDefined();
   });
+
+  it('hides GST breakdown cards and displays Gross Bill Value, Scrap Deductions, and Discounts for BOS sales with 0 tax', async () => {
+    answers.dbGetInvoicesSummary = () => ({
+      totalSales: 35570,
+      totalSalesBeforeDeductions: 44407.6,
+      totalInvoices: 47,
+      totalTax: 0,
+      totalDiscount: 2802,
+      totalScrap: 8839.3,
+      avgOrder: 756.81,
+    });
+    render(<SalesHistory onClose={() => {}} />);
+    await screen.findByText('BOS-0');
+    expect(screen.queryByText('Sales excluding GST')).toBeNull();
+    expect(screen.queryByText('GST Amount')).toBeNull();
+    expect(screen.queryByText('Grand Total including GST')).toBeNull();
+    expect(screen.getByText('BOS Turnover')).toBeDefined();
+    expect(screen.getByText('Gross Bill Value')).toBeDefined();
+    expect(screen.getByText('Scrap Deductions')).toBeDefined();
+    expect(screen.getByText('Discounts Given')).toBeDefined();
+  });
 });

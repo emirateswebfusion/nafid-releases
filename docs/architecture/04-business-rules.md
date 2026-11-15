@@ -172,6 +172,16 @@ See [data access](03-data-access.md#saved-invoice-line-order). Tests: `invoiceIt
 - getSalesTaxBreakdown in salesHistoryAmount.ts separates the stored GST from the tax-inclusive sales total.
   Sales excluding GST + GST Amount = Grand Total including GST. These sales values are after invoice / points
   discounts and before scrap / return credits; revenue is the payable amount after those credits.
+- Non-tax / Bill of Supply (BOS) sales display transparent operational sales metrics rather than redundant GST cards:
+  when `accountingView === 'REAL_SALES'` or when total tax is zero, Sales History hides GST breakdown cards
+  (`Sales excluding GST`, `GST Amount`, `Grand Total including GST`). Instead, it displays the real sales components:
+  Net Revenue / `BOS Turnover` (actual collected revenue), `Gross Bill Value` (total bill value before scrap / trade-in
+  deductions), `Scrap Deductions` (old battery / trade-in exchange deductions), and `Discounts Given`.
+  Reconciliation: `Gross Bill Value - Scrap Deductions = Net Revenue`.
+- When viewing official GST filings (`TAX_FILING`) or when GST sales are present, the statutory GST breakdown cards
+  (`Sales excluding GST`, `GST Amount`, `Grand Total including GST`) are shown.
+- `getInvoicesSummaryStatement` (`electron/db/statements/invoices.ts`) and `db:getInvoicesSummary` return `totalScrap`
+  and `totalReturn` alongside `totalSales` and `totalSalesBeforeDeductions` for full reconciliation.
 - REAL_SALES remains BOS only; TAX_FILING is official GST; ALL includes both document types in the list but totals
   count each real sale once, excluding synthetic GST conversion copies. Cash drawer session cash sales also exclude
   those copies. Direct GST bills still count. A payment-method filter shows that payment portion as revenue;
@@ -416,6 +426,8 @@ backfill or sync contract/schema change is made. Tests: `loyaltyPersistence.test
 ### UTC storage and shop timezones
 
 `created_at` and other instants are UTC (ISO with Z or legacy SQLite UTC text); `electron/utils/timestamps.ts` parses timezone-free database text as UTC. Business dates are date-only labels, calculated with the tenant timezone by `electron/services/storeTime.ts`, never the viewer PC timezone. The shop timezone setting is saved per tenant, supports plain strings and legacy JSON, and takes priority over the global fallback. Missing/invalid renderer settings reset to India rather than retaining another shop timezone. Store-day UTC bounds include the final millisecond. New held-bill expiry values carry an explicit UTC Z; legacy PC-local expiry text is interpreted using its original local-time convention without rewriting rows. Tests: `utcStorage`, `cashierTimezone`, `storeTime`, `timezoneHelper`, `timezoneSettingsSave.ui`.
+
+- **Timezone Display and Abbreviation Resolution**: Raw IANA timezone strings (`Asia/Calcutta`, `Asia/Dubai`, `America/New_York`, etc.) are never rendered directly to users. The centralized formatter `src/utils/time/timezoneFormatter.ts` (re-exported via `src/utils/time/timezoneHelper.ts:getTimezoneAbbreviation`) resolves standard, internationally recognized abbreviations (`IST`, `GST`, `JST`, `SGT`, `EST`/`EDT`, `GMT`/`BST`, `AEST`/`AEDT`) according to the active timezone and actual date, handling daylight saving time (DST) transitions cleanly. Environments returning generic GMT offsets fall back to standard UTC offset formatting (`UTC+05:30`) without inventing non-standard abbreviations. Settings and clock tooltips display descriptive labels via `formatTimezoneOptionLabel`. Database storage, IPC channels, and date calculations remain strictly keyed to canonical IANA timezone strings. Tests: `timezoneAbbreviation.test.ts`, `digitalClockTimezone.ui.test.tsx`.
 
 ### Thermal receipt printing and item quantity formatting
 

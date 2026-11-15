@@ -562,6 +562,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         <SalesAnalyticsView
           dailySales={dailySales} maskedAvgOrder={maskedAvgOrder} maskedRevenue={maskedRevenue}
           maskedTotalSales={maskedTotalSales} summary={summary} summaryLoading={summaryLoading}
+          accountingView={accountingView}
         />
       )}
       </div>
