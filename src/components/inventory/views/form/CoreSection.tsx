@@ -159,7 +159,7 @@ export function CoreSection({
               <input type="text" value={formData.brand_manufacturer} onChange={e => handleInputChange('brand_manufacturer', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
             </div>
           </div>
-          {formData.category.trim() && (
+          {(formData.category || '').trim() && (
             <div className="mt-4">
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider">Grade</label>
