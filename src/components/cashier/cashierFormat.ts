@@ -71,3 +71,34 @@ export function formatDate(dateStr: string | null | undefined) {
     time: storeTime(d, getStoreLocale(), { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
   };
 }
+
+/**
+ * Format a transaction category for cashier screens, converting internal codes
+ * like `CREDIT_REFUND` or `PARTY_LEDGER:<id>` into clean user-facing labels.
+ */
+export function formatCashierCategory(category?: string | null, partyName?: string | null, type?: string): string {
+  if (!category) return 'Other';
+  if (category.startsWith('PARTY_LEDGER:')) {
+    if (partyName) return `Party: ${partyName}`;
+    return type === 'CASH_IN' ? 'Party Receipt' : 'Party Payment';
+  }
+  if (category === 'CREDIT_REFUND') return 'Credit Refund';
+  if (category === 'RETURN_REFUND') return 'Return Refund';
+  if (category === 'SCRAP_SALE') return 'Scrap Sale';
+  return category.replace(/_/g, ' ');
+}
+
+/**
+ * Format transaction reference notes for cashier screens, ensuring party context is included
+ * without duplicate text.
+ */
+export function formatCashierNotes(notes?: string | null, partyName?: string | null, category?: string | null): string | null {
+  const cleanNotes = notes?.trim() || '';
+  const cleanParty = partyName?.trim() || '';
+  if (category?.startsWith('PARTY_LEDGER:') && cleanParty) {
+    if (!cleanNotes) return `Party: ${cleanParty}`;
+    if (cleanNotes.toLowerCase().includes(cleanParty.toLowerCase())) return cleanNotes;
+    return `${cleanParty} — ${cleanNotes}`;
+  }
+  return cleanNotes || null;
+}

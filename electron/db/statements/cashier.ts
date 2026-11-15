@@ -202,6 +202,8 @@ export const findCashCategoriesByCategoryId = (db: Db) => db.prepare(`SELECT * F
 
 export const deleteCashCategoryByCategoryId = (db: Db) => db.prepare(`DELETE FROM cash_categories WHERE category_id = ? AND tenant_id = ?`);
 
+export const findPartyNameByLedgerId = (db: Db) => db.prepare(`SELECT p.name AS party_name FROM party_ledger l JOIN parties p ON l.party_id = p.party_id WHERE l.ledger_id = ?`);
+
 /** Dynamic SQL: `placeholders` must be built from trusted values (placeholders/column lists), never user input. */
 export const listCashTransactionsForDrawersOrDate = (db: Db, placeholders: string | number) => db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (drawer_id IN (${placeholders}) OR julianday(transaction_date) BETWEEN julianday(?) AND julianday(?)) ORDER BY transaction_date DESC`);
 

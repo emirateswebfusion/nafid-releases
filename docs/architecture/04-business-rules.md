@@ -189,6 +189,10 @@ See [data access](03-data-access.md#saved-invoice-line-order). Tests: `invoiceIt
 - New manual CASH ledger creations (and entries edited to CASH) atomically write one idempotent cash transaction with category
   `PARTY_LEDGER:<ledger_id>`. The cash feed resolves the current ledger amount, direction, payment method, party name (attached to notes as
   `<party_name> — <description>` or `<party_name>`) and exact ledger timestamp (`ledger_date`) to prevent naive timezone drift.
+  Register-initiated party expenses and cash-in entries record `payment_method: 'CASH'`, `reference_number: 'Cash Register'`, and use `skip_cash_drawer: true` when creating the ledger entry so the Party Ledger displays payment mode and reference number without duplicating cash drawer rows.
+  Transaction feeds (`getDayTransactions` in `cashierService.ts`) resolve `PARTY_LEDGER:<ledger_id>` rows with the linked party name from `party_ledger` and format the category as `Party: <Name>` (or `Party Payment` / `Party Receipt`), avoiding raw UUID display in Settlement History and Register logs.
+  UI badges and categories humanize raw enum identifiers (e.g. `CREDIT_REFUND` -> `Credit Refund`, `RETURN_REFUND` -> `Return Refund`) via `cashierFormat.ts`.
+  Deleting a `PARTY_LEDGER:<id>` cash transaction soft-deletes the linked party ledger record, reconciles `syncLedgerPaymentAccount`, and recalculates party balances.
   These derived entries are edited in the Ledger, and return refunds in Return History, not deleted in Cash Register.
 - Legacy `Party Payment` / `Party Receipt` cash transactions have no ledger id. Their original ledger date and later
   edits cannot be recovered reliably; today-only uses the cash-entry date. Migrating/relinking historical entries

@@ -12,9 +12,11 @@ import { getStoreTimezoneSetting, parseCleanDate, localDate, localTimestamp, get
 import crypto from 'node:crypto';
 import { BrowserWindow } from 'electron';
 import { calculateCashierSettlement } from '../utils/cashierSettlement.js';
-import { normalizePaymentSplit, syncInvoiceCreditLedger } from './partyLedgerService.js';
+import { normalizePaymentSplit, syncInvoiceCreditLedger, recalcPartyBalances } from './partyLedgerService.js';
+import { syncLedgerPaymentAccount } from './ledgerPaymentAccounts.js';
 import { sendShopClosingReport } from '../whatsapp/shopClosingReportService.js';
 import * as cashierSql from '../db/statements/cashier.js';
+import * as partiesSql from '../db/statements/parties.js';
 import * as scrapSql from '../db/statements/scrap.js';
 /** cashier use-cases for the main process (called by electron/ipc handlers). */
 
@@ -408,6 +410,17 @@ export function deleteTransaction({ tenant_id, transaction_id, user_id, user_nam
 
       cashierSql.deleteCashTransactionByTransactionId(db).run(transaction_id, tenant_id);
 
+      // If this cash transaction was linked to a party ledger entry, soft-delete it and reconcile balances
+      if (transaction.category?.startsWith('PARTY_LEDGER:')) {
+        const ledgerId = transaction.category.slice('PARTY_LEDGER:'.length);
+        const partyRow = partiesSql.findPartyLedgerPartyIdByLedgerId(db).get(ledgerId) as { party_id: string } | undefined;
+        if (partyRow?.party_id) {
+          partiesSql.updatePartyLedgerIsDeleted(db).run(ledgerId);
+          syncLedgerPaymentAccount(db, ledgerId, partyRow.party_id);
+          recalcPartyBalances(db, partyRow.party_id);
+        }
+      }
+
       if (targetDrawerId) {
         const drawer = cashierSql.findCashDrawerByDrawerId2(db).get(targetDrawerId) as CashDrawerRow | undefined;
         if (drawer) {
@@ -491,22 +504,46 @@ export function getDaySettlements({ tenant_id, business_date }: { tenant_id: str
 export function getDayTransactions({ tenant_id, business_date, from_date, to_date }: { tenant_id: string; business_date?: string; from_date?: string; to_date?: string }) {
   try {
     const db = getDb();
+    let rows: CashTransactionRow[];
     if (from_date && to_date) {
       const cleanFrom = from_date.split('T')[0].split(' ')[0];
       const cleanTo = to_date.split('T')[0].split(' ')[0];
       const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanFrom, cleanTo, tenant_id);
-      return (cashierSql.findCashTransactions2(db).all(tenant_id, startUtc, endUtc) as CashTransactionRow[]).filter(row => !isDuplicateScrapCash(row));
+      rows = cashierSql.findCashTransactions2(db).all(tenant_id, startUtc, endUtc) as CashTransactionRow[];
+    } else {
+      const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
+      const dateLike = `${cleanDate}%`;
+      const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanDate, cleanDate, tenant_id);
+      const drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as CashDrawerRow[];
+      const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
+      if (drawerIds.length === 0) {
+        rows = cashierSql.findCashTransactions(db).all(tenant_id, startUtc, endUtc) as CashTransactionRow[];
+      } else {
+        const placeholders = drawerIds.map(() => '?').join(',');
+        rows = cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, startUtc, endUtc) as CashTransactionRow[];
+      }
     }
-    const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
-    const dateLike = `${cleanDate}%`;
-    const { startUtc, endUtc } = getUtcRangeForStoreDateRange(cleanDate, cleanDate, tenant_id);
-    const drawers = cashierSql.findCashDrawerByBusinessDate(db).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as CashDrawerRow[];
-    const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
-    if (drawerIds.length === 0) {
-      return (cashierSql.findCashTransactions(db).all(tenant_id, startUtc, endUtc) as CashTransactionRow[]).filter(row => !isDuplicateScrapCash(row));
-    }
-    const placeholders = drawerIds.map(() => '?').join(',');
-    return (cashierSql.listCashTransactionsForDrawersOrDate(db, placeholders).all(tenant_id, ...drawerIds, startUtc, endUtc) as CashTransactionRow[]).filter(row => !isDuplicateScrapCash(row));
+    const partyNameStmt = cashierSql.findPartyNameByLedgerId(db);
+    return rows.filter(row => !isDuplicateScrapCash(row)).map(row => {
+      if (row.category?.startsWith('PARTY_LEDGER:')) {
+        const ledgerId = row.category.slice('PARTY_LEDGER:'.length);
+        const partyRow = partyNameStmt.get(ledgerId) as { party_name: string } | undefined;
+        const partyName = partyRow?.party_name?.trim() || row.party_name?.trim();
+        const isPartyIn = row.type === 'CASH_IN';
+        const partyCat = isPartyIn ? 'Party Receipt' : 'Party Payment';
+        const existingNotes = row.notes?.trim();
+        const displayNotes = partyName
+          ? (existingNotes && !existingNotes.toLowerCase().includes(partyName.toLowerCase()) ? `${partyName} — ${existingNotes}` : (existingNotes || `Party: ${partyName}`))
+          : existingNotes;
+        return {
+          ...row,
+          party_name: partyName || null,
+          category: partyName ? `Party: ${partyName}` : partyCat,
+          notes: displayNotes || null,
+        };
+      }
+      return row;
+    });
   } catch (error) {
     console.error('[db:cashier:getDayTransactions]', error);
     return { error: 'Operation failed' };

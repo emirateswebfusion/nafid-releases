@@ -190,6 +190,7 @@ export interface PartyLedgerEntryInput {
   reference_number?: string | null;
   created_by?: string | null;
   created_by_name?: string | null;
+  skip_cash_drawer?: boolean;
 }
 
 export interface PartyLedgerBalanceRow {
@@ -383,6 +384,7 @@ export interface CashTransactionRow {
   amount?: number | string | null;
   category?: string | null;
   notes?: string | null;
+  party_name?: string | null;
 }
 
 export interface CashCategoryRow {

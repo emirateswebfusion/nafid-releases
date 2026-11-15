@@ -2,7 +2,7 @@ import { addCalendarDays, getStoreBusinessDate } from '../../../utils/time/timez
 import React from 'react';
 import { History, Search, X, TrendingUp, DollarSign, TrendingDown, CheckCircle2, ChevronDown, ChevronRight, Receipt, User, Banknote, RotateCcw, Clock, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
-import { todayStr, formatTime } from '../cashierFormat';
+import { todayStr, formatTime, formatCashierCategory, formatCashierNotes } from '../cashierFormat';
 import { formatCurrency } from '../../../utils/pricing/money';
 import type { CashDrawerRow, CashTransactionRow, CashierInvoiceRow, DaySettlementRow } from '../cashierTypes';
 
@@ -554,6 +554,9 @@ export function SettlementHistoryView({
                                         {/* Cash Transactions Feed */}
                                         {dayCashTransactions.map((tx) => {
                                           const isIn = tx.type === 'CASH_IN';
+                                          const partyName = (tx as CashTransactionRow & { party_name?: string | null }).party_name;
+                                          const displayCat = formatCashierCategory(tx.category, partyName, tx.type);
+                                          const displayNotes = formatCashierNotes(tx.notes, partyName, tx.category);
                                           return (
                                             <div key={tx.transaction_id} className={clsx(
                                               'grid grid-cols-[0.8fr_0.6fr_2fr_1fr_0.8fr] gap-x-3 px-4 py-3 items-center hover:bg-muted/20 border-l-3 transition-colors',
@@ -571,8 +574,8 @@ export function SettlementHistoryView({
                                                 </span>
                                               </div>
                                               <div className="min-w-0">
-                                                <span className="text-xs font-bold text-foreground truncate block">{tx.category || 'Other'}</span>
-                                                {tx.notes && <span className="text-[10px] text-muted-foreground font-medium truncate block mt-0.5">{tx.notes}</span>}
+                                                <span className="text-xs font-bold text-foreground truncate block">{displayCat}</span>
+                                                {displayNotes && <span className="text-[10px] text-muted-foreground font-medium truncate block mt-0.5">{displayNotes}</span>}
                                               </div>
                                               <span className={clsx(
                                                 'text-xs text-right tabular-nums font-black',

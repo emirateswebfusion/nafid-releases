@@ -145,6 +145,8 @@ export const insertPartyLedger3 = (db: Db) => db.prepare(`
 
 export const findPartyLedgerByLedgerIdAndPartyId = (db: Db) => db.prepare('SELECT * FROM party_ledger WHERE ledger_id = ? AND party_id = ?');
 
+export const findPartyLedgerPartyIdByLedgerId = (db: Db) => db.prepare('SELECT party_id FROM party_ledger WHERE ledger_id = ?');
+
 export const updatePartyLedgerByLedgerIdAndPartyId = (db: Db) => db.prepare(`
       UPDATE party_ledger SET 
         transaction_date = ?, description = ?, credit_amount = ?, debit_amount = ?,

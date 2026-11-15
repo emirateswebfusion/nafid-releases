@@ -4,7 +4,7 @@ import { Receipt, Plus, AlertTriangle, RotateCcw, TrendingUp, TrendingDown, Chec
 import { partiesApi } from '../../../data/parties';
 import { cashierApi } from '../../../data/cashier';
 import { formatCurrency } from '../../../utils/pricing/money';
-import { formatTime } from '../cashierFormat';
+import { formatTime, formatCashierCategory, formatCashierNotes } from '../cashierFormat';
 import type { CashCategoryRow, CashDrawerRow, CashPartyRow, CashTransactionRow } from '../cashierTypes';
 
 export interface CashRegisterPanelProps {
@@ -199,13 +199,15 @@ export function CashRegisterPanel({
             )}
             {transactions.map((tx) => {
               const isIn = tx.type === 'CASH_IN';
-              const hasCustomCat = tx.category && tx.category !== 'Other';
-              const hasNotes = tx.notes && tx.notes.trim() !== '';
+              const cleanCat = formatCashierCategory(tx.category, tx.party_name, tx.type);
+              const cleanNotes = formatCashierNotes(tx.notes, tx.party_name, tx.category);
+              const hasCustomCat = cleanCat && cleanCat !== 'Other';
+              const hasNotes = Boolean(cleanNotes && cleanNotes.trim() !== '');
               const isExpanded = expandedTxId === tx.transaction_id;
 
               // If category is not selected or 'Other', but notes exist -> display notes directly!
-              const primaryText = hasCustomCat ? tx.category : (hasNotes ? tx.notes : (tx.category || 'Other'));
-              const secondaryText = (hasCustomCat && hasNotes) ? tx.notes : null;
+              const primaryText = hasCustomCat ? cleanCat : (hasNotes ? cleanNotes! : 'Other');
+              const secondaryText = (hasCustomCat && hasNotes && cleanNotes !== cleanCat) ? cleanNotes : null;
 
               return (
                 <div key={tx.transaction_id} className="border-b border-border/30 last:border-0">
@@ -300,7 +302,7 @@ export function CashRegisterPanel({
                       )}
 
                       <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground font-medium pt-0.5">
-                        <span>Category: <strong className="text-foreground">{tx.category || 'Other'}</strong></span>
+                        <span>Category: <strong className="text-foreground">{cleanCat || 'Other'}</strong></span>
                         <span>Type: <strong className={isIn ? 'text-emerald-600' : 'text-rose-500'}>{isIn ? 'Cash In' : 'Expense'}</strong></span>
                         <span>Amount: <strong className="text-foreground">{formatCurrency(tx.amount)}</strong></span>
                         <span>Time: <strong className="text-foreground">{formatTime(tx.transaction_date)}</strong></span>

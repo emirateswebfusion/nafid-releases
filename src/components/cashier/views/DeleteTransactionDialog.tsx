@@ -3,6 +3,7 @@ import { Modal } from '../../ui/Modal';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import { formatCurrency } from '../../../utils/pricing/money';
+import { formatCashierCategory, formatCashierNotes } from '../cashierFormat';
 import type { CashTransactionRow } from '../cashierTypes';
 
 export interface DeleteTransactionDialogProps {
@@ -49,15 +50,15 @@ export function DeleteTransactionDialog({
                 )}>
                   {deleteConfirmTx.type === 'CASH_IN' ? 'CASH IN' : 'EXPENSE'}
                 </span>
-                {deleteConfirmTx.category || 'Other'}
+                {formatCashierCategory(deleteConfirmTx.category, deleteConfirmTx.party_name, deleteConfirmTx.type)}
               </span>
             </div>
 
-            {deleteConfirmTx.notes && deleteConfirmTx.notes.trim() !== '' && (
+            {formatCashierNotes(deleteConfirmTx.notes, deleteConfirmTx.party_name, deleteConfirmTx.category) && (
               <div className="flex flex-col gap-1 text-xs">
                 <span className="text-muted-foreground font-semibold text-[10px] uppercase tracking-wider">Notes</span>
                 <span className="font-medium text-foreground bg-card/80 p-2.5 rounded-xl border border-border/60 whitespace-pre-wrap leading-relaxed shadow-inner">
-                  {deleteConfirmTx.notes}
+                  {formatCashierNotes(deleteConfirmTx.notes, deleteConfirmTx.party_name, deleteConfirmTx.category)}
                 </span>
               </div>
             )}

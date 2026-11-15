@@ -147,16 +147,20 @@ export function useCashDrawerActions(ctx: UseCashDrawerActionsContext) {
     });
     if (r.success && txnPartyId) {
       const partyTxnType = txnType === 'CASH_IN' ? 'DEBIT' : 'CREDIT';
+      const cleanCat = txnCat && txnCat !== 'Other' ? txnCat : '';
+      const ledgerDesc = `${txnType === 'CASH_IN' ? 'Cash received' : 'Cash paid'}${cleanCat ? ` (${cleanCat})` : ''}${txnNote ? ': ' + txnNote : ''}`;
       await partiesApi.addPartyLedgerEntry({
         party_id: txnPartyId,
         tenant_id: tenantId,
         transaction_type: partyTxnType,
         amount: txnAmt,
-        description: `${txnType === 'CASH_IN' ? 'Cash received' : 'Cash paid'} - ${txnCat || 'Manual'}${txnNote ? ': ' + txnNote : ''}`,
-        reference_number: null,
+        payment_method: 'CASH',
+        reference_number: 'Cash Register',
+        description: ledgerDesc,
         created_by: userId,
         created_by_name: userName || undefined,
         ledger_id: crypto.randomUUID(),
+        skip_cash_drawer: true,
       });
     }
     setTxnSubmitting(false);

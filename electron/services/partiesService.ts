@@ -481,7 +481,9 @@ export function addPartyLedgerEntry(entry: PartyLedgerEntryInput) {
         entry.created_by_name || null
       );
 
-      recordLedgerCashEntry(db, entry.tenant_id || 'global', entry.ledger_id);
+      if (!entry.skip_cash_drawer) {
+        recordLedgerCashEntry(db, entry.tenant_id || 'global', entry.ledger_id);
+      }
       syncLedgerPaymentAccount(db, entry.ledger_id, entry.party_id);
       recalcPartyBalances(db, entry.party_id);
 
