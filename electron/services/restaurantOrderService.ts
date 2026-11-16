@@ -525,7 +525,11 @@ export async function generateTableQr(payload: unknown): Promise<Result<{ token:
     const tableLabel = text(input, 'table_label');
     const orderType = text(input, 'order_type') || 'DINE_IN';
 
-    const baseUrl = process.env.WEB_PORTAL_URL || process.env.VENDORA_CLOUD_API || 'https://nafid.emirateswebfusion.com';
+    const primaryFrontend = (process.env.FRONTEND_URL || process.env.WEB_PORTAL_URL || '')
+      .split(',')
+      .map(u => u.trim().replace(/\/+$/, ''))
+      .filter(Boolean)[0];
+    const baseUrl = primaryFrontend || 'https://nafid.emirateswebfusion.com';
     const sessionId = randomUUID();
     const tokenPayload = Buffer.from(JSON.stringify({
       tenant_id: tenantId,

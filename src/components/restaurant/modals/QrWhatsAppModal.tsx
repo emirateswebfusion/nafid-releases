@@ -3,6 +3,7 @@ import { Check, Copy, ExternalLink, QrCode, Send } from 'lucide-react';
 import { Modal } from '../../ui/Modal';
 import { Button } from '../../ui/Button';
 import { restaurantApi, type QrResult } from '../../../data/restaurant';
+import { getSetting } from '../../../data/settings';
 
 interface QrWhatsAppModalProps {
   tenantId: string;
@@ -28,12 +29,25 @@ export function QrWhatsAppModal({
   const [qrData, setQrData] = useState<QrResult | null>(null);
   const [copied, setCopied] = useState(false);
   const [phone, setPhone] = useState('');
+  const [shopNameInput, setShopNameInput] = useState(shopName);
   const [sending, setSending] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const isDelivery = selectedMode === 'DELIVERY';
   const effectiveTableId = isDelivery ? null : tableId;
   const effectiveTableLabel = isDelivery ? null : tableLabel;
+
+  useEffect(() => {
+    let active = true;
+    void getSetting<string>({ tenant_id: tenantId || 'global', key: 'shop_name' }).then(val => {
+      if (active && typeof val === 'string' && val.trim()) {
+        setShopNameInput(val.trim());
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [tenantId]);
 
   useEffect(() => {
     let active = true;
@@ -81,7 +95,7 @@ export function QrWhatsAppModal({
       const res = await restaurantApi.sendTableWhatsApp({
         phone: phone.trim(),
         url: qrData.url,
-        shop_name: shopName,
+        shop_name: shopNameInput.trim() || 'Restaurant',
         table_label: effectiveTableLabel || null,
         order_type: selectedMode,
       });
@@ -166,6 +180,16 @@ export function QrWhatsAppModal({
               <span className="block text-xs font-bold text-foreground">
                 {isDelivery ? 'Send Delivery Menu via WhatsApp' : 'Send Menu Link via WhatsApp'}
               </span>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-muted-foreground">Shop / Restaurant Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Al Safadi Restaurant"
+                  value={shopNameInput}
+                  onChange={e => setShopNameInput(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-1.5 text-xs outline-none focus:border-primary"
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   type="tel"
