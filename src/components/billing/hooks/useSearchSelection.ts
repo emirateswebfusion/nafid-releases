@@ -1,4 +1,5 @@
 import { priceReturnSource } from '../../../utils/pricing/returnPricing';
+import { calculateComboTaxBreakdown, type ComboConstituent } from '../../../utils/pricing/comboTax';
 import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
@@ -58,12 +59,18 @@ export function useSearchSelection(ctx: UseSearchSelectionContext) {
 
   const handleSelectProduct = (product: B.BillingProduct) => {
     if (product?.isCombo) {
+      const constituents = (product.combo_items || []) as ComboConstituent[];
+      const breakdown = calculateComboTaxBreakdown({
+        comboPrice: Number(product.combo_price) || 0,
+        quantity: 1,
+        constituents,
+      });
       addItem({
         product_id: product.product_id,
         name: product.name,
         base_price: product.combo_price as number,
         purchase_price: 0,
-        tax_rate_percent: 0,
+        tax_rate_percent: breakdown.effectiveTaxRate,
         uom: 'Combo',
         billing_type: 'PIECE',
         sku_barcode: product.sku_barcode || null,

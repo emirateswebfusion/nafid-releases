@@ -50,7 +50,10 @@ export function getComboOffersStatement(db: Db, args: { tenant_id: string; only_
           'product_price', p.base_price,
           'product_stock', p.current_stock,
           'sku_barcode', p.sku_barcode,
-          'uom', p.uom
+          'uom', p.uom,
+          'tax_rate_percent', p.tax_rate_percent,
+          'is_gst_applicable', p.is_gst_applicable,
+          'hsn_sac_code', p.hsn_sac_code
         ))
         FROM combo_items ci
         JOIN products p ON ci.product_id = p.product_id

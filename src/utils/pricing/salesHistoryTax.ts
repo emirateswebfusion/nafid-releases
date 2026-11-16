@@ -1,9 +1,10 @@
 import { moneyScale } from './moneyRounding';
 import { isVatStore } from '../localization/storeProfile';
 import { splitTaxAmount } from './checkoutLines';
+import { calculateComboTaxBreakdown, type ComboConstituent } from './comboTax';
 
 type TaxInvoice = { cgst_total?: number | null; sgst_total?: number | null; igst_total?: number | null; customer_name?: string | null; invoice_id: string; invoice_number?: string | null; created_at?: string | null; supply_type?: string | null; converted_from_invoice_id?: string | null; discount_total?: number | string | null; points_redeemed_discount?: number | string | null; tax_total?: number | string | null; subtotal?: number | string | null; grand_total?: number | string | null };
-type TaxItem = { product_id: string; item_id?: string | null; cgst_rate?: number | string | null; sgst_rate?: number | string | null; igst_rate?: number | string | null; tax_rate?: number | string | null; quantity?: number | string | null; unit_price?: number | string | null; total?: number | string | null; tax_amount?: number | string | null; name?: string | null; hsn_sac_code?: string | null; hsn_code?: string | null; hsn?: string | null; uom?: string | null; unit?: string | null };
+type TaxItem = { product_id: string; item_id?: string | null; cgst_rate?: number | string | null; sgst_rate?: number | string | null; igst_rate?: number | string | null; tax_rate?: number | string | null; quantity?: number | string | null; unit_price?: number | string | null; total?: number | string | null; tax_amount?: number | string | null; name?: string | null; hsn_sac_code?: string | null; hsn_code?: string | null; hsn?: string | null; uom?: string | null; unit?: string | null; combo_id?: string | null; combo_details?: string | null; combo_items?: unknown; isCombo?: boolean };
 export interface InvoiceProductRow {
   invoice: TaxInvoice;
   item: TaxItem;
@@ -88,11 +89,68 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     Math.abs(storedItemTotalSum - (invoiceSubtotalRaw + invoiceTax)) <
     Math.abs(storedItemTotalSum - invoiceSubtotalRaw);
 
-  const normalized = items.map((item: TaxItem) => {
+  const normalized: Array<{
+    item: TaxItem;
+    quantity: number;
+    unitPrice: number;
+    taxable: number;
+    tax: number;
+    gstRate: number;
+  }> = [];
+
+  for (const item of items) {
     const quantity = positive(item?.quantity);
     const unitPrice = positive(item?.unit_price);
     const storedTotal = positive(item?.total);
     const storedTax = positive(item?.tax_amount);
+
+    const isCombo = Boolean(item?.combo_id || item?.isCombo || (item?.combo_details && item.combo_details !== 'null'));
+    let constituents: ComboConstituent[] = [];
+    if (isCombo) {
+      if (item?.combo_details) {
+        try {
+          const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
+          if (Array.isArray(parsed) && parsed.length > 0) constituents = parsed as ComboConstituent[];
+        } catch { /* ignore */ }
+      }
+      if (constituents.length === 0 && item?.combo_items) {
+        try {
+          const parsed = typeof item.combo_items === 'string' ? JSON.parse(item.combo_items) : item.combo_items;
+          if (Array.isArray(parsed) && parsed.length > 0) constituents = parsed as ComboConstituent[];
+        } catch { /* ignore */ }
+      }
+    }
+
+    if (isCombo && constituents.length > 0) {
+      const breakdown = calculateComboTaxBreakdown({
+        comboPrice: unitPrice,
+        quantity,
+        constituents,
+        supplyType: interState ? 'INTER' : 'INTRA',
+      });
+      for (const child of breakdown.constituents) {
+        normalized.push({
+          item: {
+            ...item,
+            product_id: child.product_id,
+            name: `${item.name || 'Combo'} (${child.product_name})`,
+            hsn_sac_code: child.hsn_sac_code,
+            uom: child.uom,
+            tax_rate: child.tax_rate_percent,
+            cgst_rate: child.cgst_rate,
+            sgst_rate: child.sgst_rate,
+            igst_rate: child.igst_rate,
+          },
+          quantity: child.total_quantity ?? (child.quantity * quantity),
+          unitPrice: (child.total_quantity ?? (child.quantity * quantity)) > 0 ? round2(child.allocated_taxable / (child.total_quantity ?? (child.quantity * quantity))) : child.standalone_price,
+          taxable: child.allocated_taxable,
+          tax: child.tax_amount,
+          gstRate: child.tax_rate_percent,
+        });
+      }
+      continue;
+    }
+
     let taxable = taxesEmbedded ? storedTotal - storedTax : unitPrice * quantity;
 
     if (taxable <= 0) {
@@ -103,15 +161,15 @@ export function buildInvoiceProductRows(inv: TaxInvoice, invoiceItems: TaxItem[]
     const tax = round2(storedTax);
     const gstRate = getItemRate(item, taxable, tax);
 
-    return {
+    normalized.push({
       item,
       quantity,
       unitPrice: quantity > 0 ? round2(taxable / quantity) : round2(unitPrice),
       taxable,
       tax,
       gstRate,
-    };
-  });
+    });
+  }
 
   const itemSubtotal = round2(normalized.reduce((sum, row) => sum + row.taxable, 0));
   const invoiceSubtotal = invoiceSubtotalRaw || itemSubtotal;

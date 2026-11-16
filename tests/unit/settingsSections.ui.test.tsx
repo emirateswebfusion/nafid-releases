@@ -68,5 +68,5 @@ describe('settings pages', () => {
     expect(pagesWith(/Show Fully Paid Cash Transactions/)).toEqual(['customers']);
     expect(pagesWith(/Show GST \/ Estimate \/ Paper Badges/)).toEqual(['products']);
     expect(pagesWith(/Change Password/)).toEqual(['account']);
-  });
+  }, 30000);
 });

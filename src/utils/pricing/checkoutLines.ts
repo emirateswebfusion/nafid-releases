@@ -6,6 +6,7 @@ import { calculateVat } from './vat';
 import { v4 as uuidv4 } from 'uuid';
 import type { CartItem } from '../../store/cartStore';
 import { listRate, resolveLinePrice } from './linePricing';
+import { calculateComboTaxBreakdown, type ComboConstituent, type ComboTaxBreakdown } from './comboTax';
 
 /**
  * Pure builders for the checkout payload and the printed receipt lines.
@@ -62,7 +63,27 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
     const vat = calculateVat(rawTotal, item.tax_rate_percent, getStoreVatInclusive());
     const total = isVatStore() && invoiceType === 'GST' ? vat.taxable : rawTotal;
     const unitPrice = qty > 0 ? total / qty : effectiveRate;
-    const itemTax = invoiceType === 'GST' ? (isVatStore() ? vat.tax : total * (item.tax_rate_percent / 100))
+
+    const isCombo = Boolean(item.isCombo || item.combo_id || (item.combo_items && (Array.isArray(item.combo_items) ? item.combo_items.length > 0 : true)));
+    let comboBreakdown: ComboTaxBreakdown | undefined;
+
+    if (isCombo) {
+      let rawConstituents: unknown = item.combo_items;
+      if (typeof rawConstituents === 'string') {
+        try { rawConstituents = JSON.parse(rawConstituents); } catch { /* ignore */ }
+      }
+      if (Array.isArray(rawConstituents) && rawConstituents.length > 0) {
+        comboBreakdown = calculateComboTaxBreakdown({
+          comboPrice: effectiveRate,
+          quantity: qty,
+          constituents: rawConstituents as ComboConstituent[],
+          supplyType,
+          isTaxInclusive: isVatStore() && getStoreVatInclusive(),
+        });
+      }
+    }
+
+    let itemTax = invoiceType === 'GST' ? (isVatStore() ? vat.tax : total * (item.tax_rate_percent / 100))
       : (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0
         ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
         : 0);
@@ -74,7 +95,20 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
     const halfRate = taxRatePercent / 2;
     let cgst_rate = 0, sgst_rate = 0, igst_rate = 0;
     let cgst_amount = 0, sgst_amount = 0, igst_amount = 0;
-    if (itemTax > 0 && !isVatStore()) {
+    if (comboBreakdown && invoiceType === 'GST') {
+      itemTax = comboBreakdown.totalTax;
+      cgst_amount = comboBreakdown.totalCgst;
+      sgst_amount = comboBreakdown.totalSgst;
+      igst_amount = comboBreakdown.totalIgst;
+      if (total > 0) {
+        if (supplyType === 'INTER') {
+          igst_rate = Math.round((igst_amount / total) * 100 * 10) / 10;
+        } else {
+          cgst_rate = Math.round((cgst_amount / total) * 100 * 10) / 10;
+          sgst_rate = Math.round((sgst_amount / total) * 100 * 10) / 10;
+        }
+      }
+    } else if (itemTax > 0 && !isVatStore()) {
       if (supplyType === 'INTER') {
         igst_rate = taxRatePercent;
         igst_amount = round2(itemTax);
@@ -100,9 +134,10 @@ export function buildCheckoutLines(items: CartItem[], ctx: CheckoutLineContext) 
       ...(item.isServiceItem ? { isServiceItem: true } : {}),
       billing_type: item.billing_type,
       uom: item.uom || item.unit,
-      ...(item.isCombo ? { isCombo: true } : {}),
+      ...(isCombo ? { isCombo: true } : {}),
       ...(item.combo_id ? { combo_id: item.combo_id } : {}),
       ...(item.combo_items ? { combo_items: item.combo_items } : {}),
+      ...(comboBreakdown ? { combo_details: JSON.stringify(comboBreakdown.constituents) } : {}),
       // GST split
       cgst_rate, sgst_rate, igst_rate,
       cgst_amount, sgst_amount, igst_amount,

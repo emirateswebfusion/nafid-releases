@@ -544,9 +544,18 @@ export function getInvoicesStatement(db: Db, args: InvoiceListQuery) {
             AND (
               ROUND(COALESCE(ii.cgst_rate, 0) + COALESCE(ii.sgst_rate, 0) + COALESCE(ii.igst_rate, 0)) = ?
               OR (ii.total > 0 AND ROUND((ii.tax_amount / ii.total) * 100.0) = ?)
+              OR (
+                (ii.combo_id IS NOT NULL OR ii.combo_details IS NOT NULL)
+                AND EXISTS (
+                  SELECT 1 FROM combo_items ci
+                  JOIN products cp ON ci.product_id = cp.product_id
+                  WHERE (ci.combo_id = ii.combo_id OR ci.combo_id = ii.product_id)
+                    AND ROUND(COALESCE(cp.tax_rate_percent, 0)) = ?
+                )
+              )
             )
         )`;
-        params.push(targetRate, targetRate);
+        params.push(targetRate, targetRate, targetRate);
       }
     }
 
@@ -696,9 +705,18 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
             AND (
               ROUND(COALESCE(ii.cgst_rate, 0) + COALESCE(ii.sgst_rate, 0) + COALESCE(ii.igst_rate, 0)) = ?
               OR (ii.total > 0 AND ROUND((ii.tax_amount / ii.total) * 100.0) = ?)
+              OR (
+                (ii.combo_id IS NOT NULL OR ii.combo_details IS NOT NULL)
+                AND EXISTS (
+                  SELECT 1 FROM combo_items ci
+                  JOIN products cp ON ci.product_id = cp.product_id
+                  WHERE (ci.combo_id = ii.combo_id OR ci.combo_id = ii.product_id)
+                    AND ROUND(COALESCE(cp.tax_rate_percent, 0)) = ?
+                )
+              )
             )
         )`;
-        params.push(targetRate, targetRate);
+        params.push(targetRate, targetRate, targetRate);
       }
     }
 

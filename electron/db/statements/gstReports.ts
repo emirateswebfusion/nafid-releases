@@ -48,6 +48,8 @@ export const findInvoiceItemsForGstReport = (db: Db) => db.prepare(`
     ii.igst_amount,
     ii.hsn_sac_code,
     ii.uom,
+    ii.combo_id,
+    ii.combo_details,
     p.name as product_name,
     p.hsn_sac_code as product_hsn
   FROM invoice_items ii

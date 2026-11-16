@@ -17,8 +17,10 @@ import { getUtcRangeForStoreDateRange, getStoreTimezoneSetting, parseCleanDate }
 
 import crypto from 'node:crypto';
 import { getDb } from '../db/localDb.js';
+import type { Db } from '../db/statements/types.js';
 import * as gstSql from '../db/statements/gstReports.js';
 import { validateGSTIN } from '../utils/gstinValidator.js';
+import { expandItemWithConstituents, type GstRateBreakdownRow } from '../utils/comboTaxHelper.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared types
@@ -69,6 +71,8 @@ export interface InvoiceItemRow {
   hsn_sac_code: string | null;
   uom: string | null;
   product_hsn: string | null;
+  combo_id?: string | null;
+  combo_details?: string | null;
 }
 
 export interface ReturnRow {
@@ -225,6 +229,8 @@ function buildB2CS(
   invoices: InvoiceRow[],
   returns: ReturnRow[],
   shopStateCode: string,
+  itemsByInvoice?: Map<string, InvoiceItemRow[]>,
+  db?: Db,
 ): B2CSEntry[] {
   type Key = string;
   const map = new Map<Key, { supplyType: 'INTRA' | 'INTER'; pos: string; rate: number; taxable: number; igst: number; cgst: number; sgst: number }>();
@@ -247,15 +253,25 @@ function buildB2CS(
     if (isB2B(inv) || inv.is_deleted) continue;
     const supplyType = (inv.supply_type || 'INTRA') as 'INTRA' | 'INTER';
     if (supplyType === 'INTER' && round2(inv.grand_total) > B2CL_THRESHOLD) continue;
-
-    const taxableValue = round2(inv.grand_total - (inv.tax_total || 0));
-    const igst = round2(inv.igst_total || 0);
-    const cgst = round2(inv.cgst_total || 0);
-    const sgst = round2(inv.sgst_total || 0);
-    const totalTax = round2(inv.tax_total || 0);
-    const rate = taxableValue > 0 ? round2((totalTax / taxableValue) * 100) : 0;
     const pos = supplyType === 'INTER' ? ((inv.customer_state || '').trim() || '00') : shopStateCode;
-    addToMap(supplyType, pos, rate, taxableValue, igst, cgst, sgst);
+
+    const invItems = itemsByInvoice?.get(inv.invoice_id);
+    if (invItems && invItems.length > 0) {
+      for (const item of invItems) {
+        const expanded = expandItemWithConstituents(item, db, supplyType);
+        for (const exp of expanded) {
+          addToMap(supplyType, pos, exp.rate, exp.taxable, exp.igst_amount, exp.cgst_amount, exp.sgst_amount);
+        }
+      }
+    } else {
+      const taxableValue = round2(inv.grand_total - (inv.tax_total || 0));
+      const igst = round2(inv.igst_total || 0);
+      const cgst = round2(inv.cgst_total || 0);
+      const sgst = round2(inv.sgst_total || 0);
+      const totalTax = round2(inv.tax_total || 0);
+      const rate = taxableValue > 0 ? round2((totalTax / taxableValue) * 100) : 0;
+      addToMap(supplyType, pos, rate, taxableValue, igst, cgst, sgst);
+    }
   }
 
   // Subtract B2CS returns (credit notes for unregistered customers)
@@ -384,7 +400,7 @@ export interface HSNEntry {
   sgst: number;
 }
 
-function buildHSN(items: InvoiceItemRow[], returnItems: ReturnItemRow[]): HSNEntry[] {
+function buildHSN(items: InvoiceItemRow[], returnItems: ReturnItemRow[], db?: Db): HSNEntry[] {
   const map = new Map<string, { description: string; uqc: string; qty: number; value: number; taxable: number; igst: number; cgst: number; sgst: number }>();
 
   const addItem = (hsn: string, desc: string, uqc: string, qty: number, value: number, taxable: number, igst: number, cgst: number, sgst: number) => {
@@ -403,10 +419,12 @@ function buildHSN(items: InvoiceItemRow[], returnItems: ReturnItemRow[]): HSNEnt
   };
 
   for (const item of items) {
-    const hsn = effectiveHsn(item);
-    const taxable = round2(item.total - item.tax_amount);
-    addItem(hsn, item.name, item.uom || 'NOS', item.quantity, round2(item.total), taxable,
-      round2(item.igst_amount || 0), round2(item.cgst_amount || 0), round2(item.sgst_amount || 0));
+    const expanded = expandItemWithConstituents(item, db);
+    for (const exp of expanded) {
+      const hsn = exp.hsn_sac_code || effectiveHsn(item);
+      addItem(hsn, exp.name || item.name, exp.uom || item.uom || 'NOS', exp.quantity, round2(exp.total), exp.taxable,
+        round2(exp.igst_amount || 0), round2(exp.cgst_amount || 0), round2(exp.sgst_amount || 0));
+    }
   }
 
   // Subtract return items from HSN summary
@@ -523,6 +541,7 @@ export interface Gstr1Report {
   hsn: HSNEntry[];
   doc_issue: DocIssueSummary[];
   validation_issues: ValidationIssue[];
+  rate_breakdown?: GstRateBreakdownRow[];
 }
 
 /** IPC: db:getGstReport */
@@ -537,6 +556,13 @@ export function getGstReport(payload: GstPeriodFilter & { shop_state_code?: stri
     const returns = gstSql.findReturnsForGstReport(db).all(tenant_id, startUtc, endUtc) as ReturnRow[];
     const returnItems = gstSql.findReturnItemsForGstReport(db).all(tenant_id, startUtc, endUtc) as ReturnItemRow[];
 
+    const itemsByInvoice = new Map<string, InvoiceItemRow[]>();
+    for (const item of items) {
+      const list = itemsByInvoice.get(item.invoice_id) || [];
+      list.push(item);
+      itemsByInvoice.set(item.invoice_id, list);
+    }
+
     const invDocStats = gstSql.findInvoiceDocStats(db).get(tenant_id, startUtc, endUtc) as { from_doc: string | null; to_doc: string | null; total_docs: number; cancelled_docs: number } | undefined;
     const cnDocStats = gstSql.findCreditNoteDocStats(db).get(tenant_id, startUtc, endUtc) as { from_doc: string | null; to_doc: string | null; total_docs: number; cancelled_docs: number } | undefined;
 
@@ -545,11 +571,35 @@ export function getGstReport(payload: GstPeriodFilter & { shop_state_code?: stri
 
     const b2b = buildB2B(activeInvoices, timezone);
     const b2cl = buildB2CL(activeInvoices, timezone);
-    const b2cs = buildB2CS(activeInvoices, returns, shop_state_code);
+    const b2cs = buildB2CS(activeInvoices, returns, shop_state_code, itemsByInvoice, db);
     const cdnr = buildCDNR(returns, timezone);
     const cdnur = buildCDNUR(returns, timezone);
-    const hsn = buildHSN(items, returnItems);
+    const hsn = buildHSN(items, returnItems, db);
     const validationIssues = validate(activeInvoices, returns);
+
+    // Rate-wise summary across all active invoices (B2B, B2C, B2CL)
+    const rateMap = new Map<number, { taxable: number; igst: number; cgst: number; sgst: number }>();
+    for (const item of items) {
+      const inv = invoices.find(i => i.invoice_id === item.invoice_id);
+      if (!inv || inv.is_deleted) continue;
+      const supplyType = (inv.supply_type || 'INTRA') as 'INTRA' | 'INTER';
+      const expanded = expandItemWithConstituents(item, db, supplyType);
+      for (const exp of expanded) {
+        const cur = rateMap.get(exp.rate) || { taxable: 0, igst: 0, cgst: 0, sgst: 0 };
+        cur.taxable = round2(cur.taxable + exp.taxable);
+        cur.igst = round2(cur.igst + exp.igst_amount);
+        cur.cgst = round2(cur.cgst + exp.cgst_amount);
+        cur.sgst = round2(cur.sgst + exp.sgst_amount);
+        rateMap.set(exp.rate, cur);
+      }
+    }
+    const rate_breakdown: GstRateBreakdownRow[] = Array.from(rateMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([rate, vals]) => ({
+        rate,
+        ...vals,
+        totalTax: round2(vals.igst + vals.cgst + vals.sgst),
+      }));
 
     const doc_issue: DocIssueSummary[] = [];
     if (invDocStats) {
@@ -608,6 +658,7 @@ export function getGstReport(payload: GstPeriodFilter & { shop_state_code?: stri
       hsn,
       doc_issue,
       validation_issues: validationIssues,
+      rate_breakdown,
     };
   } catch (err) {
     console.error('[db:getGstReport]', err);

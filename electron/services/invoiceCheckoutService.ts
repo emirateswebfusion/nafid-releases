@@ -13,6 +13,8 @@ import { localTimestamp, localDate } from './storeTime.js';
 import { calculateLoyaltyPoints } from '../utils/loyalty.js';
 import crypto from 'node:crypto';
 import * as invoicesSql from '../db/statements/invoices.js';
+import { calculateComboTaxBreakdown, resolveItemConstituents, type ComboConstituent } from '../utils/comboTaxHelper.js';
+import { round1 } from '../utils/gstEngine.js';
 import { RestaurantSettleError, settleInTransaction } from './restaurantOrderService.js';
 import { applyReturnCredit, ReturnCreditError } from './returnsService.js';
 /** Checkout use-case: creates an invoice with items, stock, payments, cash drawer and credit ledger in one transaction. Called by electron/ipc handlers via invoicesService. */
@@ -298,6 +300,40 @@ export function checkout(payload: CheckoutPayload) {
       if (typeof recipe === 'string') {
         try { recipe = JSON.parse(recipe); } catch { recipe = undefined; }
       }
+      if (isCombo && (!Array.isArray(recipe) || recipe.length === 0 || !(recipe[0] as ComboConstituent)?.tax_rate_percent)) {
+        const resolved = resolveItemConstituents(db, { combo_id: comboId, product_id: item.product_id });
+        if (resolved.length > 0) {
+          recipe = resolved;
+        }
+      }
+
+      let itemTaxAmount = Number(item.tax_amount) || 0;
+      let itemCgstRate = Number(item.cgst_rate) || 0;
+      let itemSgstRate = Number(item.sgst_rate) || 0;
+      let itemIgstRate = Number(item.igst_rate) || 0;
+      let itemCgstAmount = Number(item.cgst_amount) || 0;
+      let itemSgstAmount = Number(item.sgst_amount) || 0;
+      let itemIgstAmount = Number(item.igst_amount) || 0;
+
+      if (isCombo && Array.isArray(recipe) && recipe.length > 0 && invoice.invoice_type === 'GST') {
+        const linePrice = Number(item.unit_price) || (Number(item.quantity) > 0 ? Number(item.total) / Number(item.quantity) : 0);
+        const bd = calculateComboTaxBreakdown({
+          comboPrice: linePrice,
+          quantity: Number(item.quantity) || 1,
+          constituents: recipe as ComboConstituent[],
+          supplyType: (item.supply_type as 'INTRA' | 'INTER') || (invoice.supply_type as 'INTRA' | 'INTER') || 'INTRA',
+        });
+        if (itemTaxAmount === 0 && bd.totalTax > 0) {
+          itemTaxAmount = bd.totalTax;
+          itemCgstRate = round1(bd.effectiveTaxRate / 2);
+          itemSgstRate = round1(bd.effectiveTaxRate / 2);
+          itemIgstRate = (item.supply_type === 'INTER' || invoice.supply_type === 'INTER') ? bd.effectiveTaxRate : 0;
+          itemCgstAmount = bd.totalCgst;
+          itemSgstAmount = bd.totalSgst;
+          itemIgstAmount = bd.totalIgst;
+        }
+        recipe = bd.constituents;
+      }
       const comboDetailsJson = recipe ? JSON.stringify(recipe) : null;
 
       itemStmt.run(
@@ -308,7 +344,7 @@ export function checkout(payload: CheckoutPayload) {
         item.name,
         item.quantity,
         item.unit_price,
-        item.tax_amount,
+        itemTaxAmount,
         item.total,
         item.pieces_sold ?? item.pieces_override ?? null,
         item.isServiceItem ? 1 : 0,
@@ -317,12 +353,12 @@ export function checkout(payload: CheckoutPayload) {
         item.billing_type || null,
         item.uom || item.unit || null,
         // GST split per line item (Indian GST Act compliance)
-        item.cgst_rate ?? 0,
-        item.sgst_rate ?? 0,
-        item.igst_rate ?? 0,
-        item.cgst_amount ?? 0,
-        item.sgst_amount ?? 0,
-        item.igst_amount ?? 0,
+        itemCgstRate,
+        itemSgstRate,
+        itemIgstRate,
+        itemCgstAmount,
+        itemSgstAmount,
+        itemIgstAmount,
         item.hsn_sac_code || null,
         item.supply_type || 'INTRA',
       );

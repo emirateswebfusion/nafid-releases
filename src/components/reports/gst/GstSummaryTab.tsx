@@ -26,42 +26,46 @@ export function GstSummaryTab({
   const blockingCount = report.validation_issues.filter(i => i.severity === 'BLOCKING').length;
   const warningCount = report.validation_issues.filter(i => i.severity === 'WARNING').length;
 
-  // Rate-wise aggregation from B2CS, B2B, B2CL
-  const rateBreakdownMap = new Map<number, { taxable: number; igst: number; cgst: number; sgst: number }>();
-  const addRateRow = (rate: number, taxable: number, igst: number, cgst: number, sgst: number) => {
-    const existing = rateBreakdownMap.get(rate);
-    if (existing) {
-      existing.taxable += taxable;
-      existing.igst += igst;
-      existing.cgst += cgst;
-      existing.sgst += sgst;
-    } else {
-      rateBreakdownMap.set(rate, { taxable, igst, cgst, sgst });
-    }
-  };
+  // Rate-wise aggregation (prefer exact rate_breakdown if computed by reporting engine)
+  const rateRows = report.rate_breakdown && report.rate_breakdown.length > 0
+    ? report.rate_breakdown
+    : (() => {
+        const rateBreakdownMap = new Map<number, { taxable: number; igst: number; cgst: number; sgst: number }>();
+        const addRateRow = (rate: number, taxable: number, igst: number, cgst: number, sgst: number) => {
+          const existing = rateBreakdownMap.get(rate);
+          if (existing) {
+            existing.taxable += taxable;
+            existing.igst += igst;
+            existing.cgst += cgst;
+            existing.sgst += sgst;
+          } else {
+            rateBreakdownMap.set(rate, { taxable, igst, cgst, sgst });
+          }
+        };
 
-  // From B2CS
-  for (const row of report.b2cs) {
-    addRateRow(row.applicable_tax_rate, row.taxable_value, row.igst, row.cgst, row.sgst);
-  }
-  // From B2B
-  for (const inv of report.b2b) {
-    const totalTax = inv.igst + inv.cgst + inv.sgst;
-    const rate = inv.taxable_value > 0 ? Math.round((totalTax / inv.taxable_value) * 100) : 0;
-    addRateRow(rate, inv.taxable_value, inv.igst, inv.cgst, inv.sgst);
-  }
-  // From B2CL
-  for (const inv of report.b2cl) {
-    addRateRow(inv.applicable_tax_rate, inv.taxable_value, inv.igst, 0, 0);
-  }
+        // From B2CS
+        for (const row of report.b2cs) {
+          addRateRow(row.applicable_tax_rate, row.taxable_value, row.igst, row.cgst, row.sgst);
+        }
+        // From B2B
+        for (const inv of report.b2b) {
+          const totalTax = inv.igst + inv.cgst + inv.sgst;
+          const rate = inv.taxable_value > 0 ? Math.round((totalTax / inv.taxable_value) * 100) : 0;
+          addRateRow(rate, inv.taxable_value, inv.igst, inv.cgst, inv.sgst);
+        }
+        // From B2CL
+        for (const inv of report.b2cl) {
+          addRateRow(inv.applicable_tax_rate, inv.taxable_value, inv.igst, 0, 0);
+        }
 
-  const rateRows = Array.from(rateBreakdownMap.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([rate, vals]) => ({
-      rate,
-      ...vals,
-      totalTax: vals.igst + vals.cgst + vals.sgst,
-    }));
+        return Array.from(rateBreakdownMap.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([rate, vals]) => ({
+            rate,
+            ...vals,
+            totalTax: vals.igst + vals.cgst + vals.sgst,
+          }));
+      })();
 
   return (
     <div className="space-y-6">

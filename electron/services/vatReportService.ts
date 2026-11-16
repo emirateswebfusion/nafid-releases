@@ -198,6 +198,8 @@ interface RawInvoiceItemRow {
   total: number;
   is_service_item?: number;
   product_name?: string;
+  combo_id?: string | null;
+  combo_details?: string | null;
 }
 
 interface RawReturnRow {
@@ -378,7 +380,15 @@ export function getVatReport(payload: VatPeriodFilter): Vat201Report | { error: 
         vatRate: invTax > 0 ? 5 : 0,
         vatAmount: invTax,
         grandTotal: invGrand,
-        taxCategory: invTax > 0 ? 'STANDARD' : 'ZERO_RATED',
+        taxCategory: (invTax > 0 || items.some(item => {
+          if (item.combo_details) {
+            try {
+              const parsed = JSON.parse(item.combo_details);
+              if (Array.isArray(parsed) && parsed.some(c => (Number(c.tax_rate_percent) || 0) > 0)) return true;
+            } catch { /* ignore */ }
+          }
+          return false;
+        })) ? 'STANDARD' : 'ZERO_RATED',
         emirate: invEmirate,
         itemCount: items.length,
       });

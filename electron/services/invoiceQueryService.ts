@@ -2,6 +2,7 @@ import { getDb } from '../db/localDb.js';
 import { getGuaranteedNextInvoiceNumber, peekGuaranteedNextInvoiceNumber, requestServerInvoiceNumber } from './invoiceNumberService.js';
 import { localDate, parseCleanDate, getUtcRangeForStoreDateRange } from './storeTime.js';
 import * as invoicesSql from '../db/statements/invoices.js';
+import { resolveItemConstituents } from '../utils/comboTaxHelper.js';
 /** Invoice read models: lists, summaries, dashboard stats, items, numbering previews. Called by electron/ipc handlers via invoicesService. */
 
 function readFilingVisibility(db: Parameters<typeof invoicesSql.findSettingsByKey>[0], tenantId: string): { showB2b: boolean; showB2c: boolean } {
@@ -103,7 +104,20 @@ export function getDashboardStats(tenantId: string) {
 export function getInvoiceItems(invoice_id: string) {
   try {
     const db = getDb();
-    return invoicesSql.findInvoiceItemsByInvoiceId2(db).all(invoice_id);
+    const rows = invoicesSql.findInvoiceItemsByInvoiceId2(db).all(invoice_id) as Array<Record<string, unknown>>;
+    return rows.map(row => {
+      const isCombo = Boolean(row.combo_id || (row.combo_details && row.combo_details !== 'null'));
+      if (isCombo) {
+        const constituents = resolveItemConstituents(db, row as { combo_id?: string | null; combo_details?: string | null; product_id: string });
+        if (constituents.length > 0) {
+          return {
+            ...row,
+            combo_details: JSON.stringify(constituents),
+          };
+        }
+      }
+      return row;
+    });
   } catch (error) {
     console.error('[db:getInvoiceItems]', error);
     return { error: 'Operation failed' };

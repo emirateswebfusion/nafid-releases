@@ -16,6 +16,9 @@ export interface ComboOfferListItem {
   product_stock: number | null;
   sku_barcode: string | null;
   uom: string | null;
+  tax_rate_percent?: number | null;
+  is_gst_applicable?: number | null;
+  hsn_sac_code?: string | null;
 }
 
 /** Joined item row returned by `combosService.getComboOfferDetails` / `findComboItemsByComboId`. */

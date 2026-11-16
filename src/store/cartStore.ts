@@ -5,6 +5,7 @@ import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { listRate, resolveLinePrice } from '../utils/pricing/linePricing';
 import { splitTaxAmount, resolveSupplyType } from '../utils/pricing/checkoutLines';
+import { calculateComboTaxBreakdown, type ComboConstituent } from '../utils/pricing/comboTax';
 
 export interface CartItem {
   item_id?: string;
@@ -384,11 +385,36 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
     subtotal += itemTotal;
 
     if (invoiceType === 'GST') {
-      if (isVatStore()) {
+      if (item.isCombo && item.combo_items) {
+        let constituents: unknown = item.combo_items;
+        if (typeof constituents === 'string') {
+          try { constituents = JSON.parse(constituents); } catch { /* ignore */ }
+        }
+        if (Array.isArray(constituents) && constituents.length > 0) {
+          const bd = calculateComboTaxBreakdown({
+            comboPrice: effectiveRate,
+            quantity: qty,
+            constituents: constituents as ComboConstituent[],
+            isTaxInclusive: isVatStore() && getStoreVatInclusive(),
+          });
+          totalTax += bd.totalTax;
+          if (isVatStore() && getStoreVatInclusive()) {
+            subtotal += bd.totalTaxable - itemTotal;
+          }
+        } else if (isVatStore()) {
+          const vat = calculateVat(itemTotal, item.tax_rate_percent, getStoreVatInclusive());
+          totalTax += vat.tax;
+          subtotal += vat.taxable - itemTotal;
+        } else {
+          totalTax += itemTotal * (item.tax_rate_percent / 100);
+        }
+      } else if (isVatStore()) {
         const vat = calculateVat(itemTotal, item.tax_rate_percent, getStoreVatInclusive());
         totalTax += vat.tax;
         subtotal += vat.taxable - itemTotal;
-      } else totalTax += itemTotal * (item.tax_rate_percent / 100);
+      } else {
+        totalTax += itemTotal * (item.tax_rate_percent / 100);
+      }
     } else if (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0) {
       if (bosTaxInclusive) {
         const rate = bosTaxRatePercent / 100;

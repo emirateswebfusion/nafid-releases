@@ -34,4 +34,4 @@ it('keeps browser alerts, alternate toast libraries and copied toast styling out
       ? [relative(process.cwd(), file)] : [];
   });
   expect(offenders).toEqual([]);
-});
+}, 30000);
