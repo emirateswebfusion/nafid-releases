@@ -15,6 +15,8 @@ import { OrderPanel } from './views/OrderPanel';
 import { useRestaurantDraftStore } from '../../store/restaurantDraftStore';
 import { KitchenDisplay } from './views/KitchenDisplay';
 import { OrderDetailsDialog } from './modals/OrderDetailsDialog';
+import { QrWhatsAppModal } from './modals/QrWhatsAppModal';
+import { OnlineOrdersView } from './views/OnlineOrdersView';
 
 interface RestaurantPageProps {
   onClose: () => void;
@@ -22,7 +24,7 @@ interface RestaurantPageProps {
 }
 
 const TITLES: Record<RestaurantView, string> = {
-  floor: 'Tables', tokens: 'Takeaway & Delivery', kitchen: 'Kitchen display',
+  floor: 'Tables', tokens: 'Takeaway & Delivery', kitchen: 'Kitchen display', online: 'Online Orders',
 };
 
 /**
@@ -37,9 +39,12 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
   const data = useRestaurantData(tenant);
   const actions = useOrderActions({ tenantId: tenant, userId, shopName: shopName || '', data, onClose });
   const { setMessage } = actions;
+  const [currentView, setCurrentView] = useState<RestaurantView>(view);
   const [managing, setManaging] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [opening, setOpening] = useState<{ type: OrderType; table?: DiningTable } | null>(null);
+  const [showingQrTable, setShowingQrTable] = useState<DiningTable | null>(null);
+  const [showingDeliveryQr, setShowingDeliveryQr] = useState(false);
   // Unsent items per order live in an app-level store, so leaving an order or this screen does not drop them.
   const drafts = useRestaurantDraftStore(s => s.drafts);
   const billedOrderIds = useRestaurantDraftStore(s => s.billedOrderIds);
@@ -63,12 +68,25 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground">
       <div className="flex min-w-0 flex-1 flex-col">
-        <RestaurantTopBar title={view === 'floor' ? 'Tables & Orders' : TITLES[view]} view={view} onClose={onClose} stats={stats} subtitle={shopName || undefined} onManage={!selected && view === 'kitchen' && can('restaurant.manage') ? () => setManaging(true) : undefined}
-          onNewTakeaway={!selected && takeawayEnabled && (view === 'floor' || view === 'tokens') ? () => startOrder('TAKEAWAY') : undefined}
-          onNewDelivery={!selected && takeawayEnabled && (view === 'floor' || view === 'tokens') ? () => startOrder('DELIVERY') : undefined} />
-        {view === 'floor' && !selected && <nav aria-label="Tables navigation" className="flex gap-2 border-b border-border bg-card px-6 py-3"><button type="button" aria-current={!managing ? 'page' : undefined} className={`rounded-lg px-4 py-2 text-sm font-semibold ${!managing ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} onClick={() => setManaging(false)}>Orders & seating</button>{can('restaurant.manage') && <button type="button" aria-current={managing ? 'page' : undefined} className={`rounded-lg px-4 py-2 text-sm font-semibold ${managing ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} onClick={() => setManaging(true)}>Tables</button>}</nav>}
+        <RestaurantTopBar
+          title={currentView === 'floor' ? 'Tables & Orders' : TITLES[currentView]}
+          view={currentView}
+          onClose={onClose}
+          stats={stats}
+          subtitle={shopName || undefined}
+          onViewOnline={() => setCurrentView(v => v === 'online' ? 'floor' : 'online')}
+          onManage={!selected && currentView === 'kitchen' && can('restaurant.manage') ? () => setManaging(true) : undefined}
+          onNewTakeaway={!selected && takeawayEnabled && (currentView === 'floor' || currentView === 'tokens') ? () => startOrder('TAKEAWAY') : undefined}
+          onNewDelivery={!selected && takeawayEnabled && (currentView === 'floor' || currentView === 'tokens') ? () => startOrder('DELIVERY') : undefined}
+        />
+        {currentView === 'floor' && !selected && (
+          <nav aria-label="Tables navigation" className="flex gap-2 border-b border-border bg-card px-6 py-3">
+            <button type="button" aria-current={!managing ? 'page' : undefined} className={`rounded-lg px-4 py-2 text-sm font-semibold ${!managing ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} onClick={() => setManaging(false)}>Orders & seating</button>
+            {can('restaurant.manage') && <button type="button" aria-current={managing ? 'page' : undefined} className={`rounded-lg px-4 py-2 text-sm font-semibold ${managing ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`} onClick={() => setManaging(true)}>Tables</button>}
+          </nav>
+        )}
         <main className="min-h-0 flex-1 overflow-y-auto bg-muted/[0.02]">
-          {managing && view === 'floor' ? <TablesManager tenantId={tenant} tables={data.setup.tables} onChanged={data.refreshSetup} /> : managing ? <RestaurantManageView tenantId={tenant} data={data} kitchen={view === 'kitchen'} onClose={() => setManaging(false)} /> : data.loading ? (
+          {managing && currentView === 'floor' ? <TablesManager tenantId={tenant} tables={data.setup.tables} onChanged={data.refreshSetup} /> : managing ? <RestaurantManageView tenantId={tenant} data={data} kitchen={currentView === 'kitchen'} onClose={() => setManaging(false)} /> : data.loading ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 p-5">
               {Array.from({ length: 12 }, (_, i) => <div key={i} className="h-[132px] animate-pulse rounded-2xl bg-muted" />)}
             </div>
@@ -79,11 +97,21 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
               isBilled={Boolean(billedOrderIds[selected.order_id])}
               onMarkBilled={markBilled}
               onClearBilled={clearBilled} />
-          ) : view === 'floor' ? (
+          ) : currentView === 'online' ? (
+            <OnlineOrdersView
+              tenantId={tenant}
+              userId={userId}
+              onOrderAccepted={async orderId => {
+                await data.refreshOrders();
+                setSelectedId(orderId);
+                setCurrentView('floor');
+              }}
+            />
+          ) : currentView === 'floor' ? (
             <FloorView tables={data.setup.tables} active={data.active} unsentOrderIds={Object.keys(drafts)} billedOrderIds={billedOrderIds} onOpenOrder={o => setSelectedId(o.order_id)}
-              onFreeTable={table => startOrder('DINE_IN', table)} onSetup={() => { if (can('restaurant.manage')) setManaging(true); }} />
-          ) : view === 'tokens' ? (
-            <TokenOrdersView active={data.active} billedOrderIds={billedOrderIds} onOpenOrder={o => setSelectedId(o.order_id)} onNew={type => startOrder(type)} />
+              onFreeTable={table => startOrder('DINE_IN', table)} onShowQr={table => setShowingQrTable(table)} onSetup={() => { if (can('restaurant.manage')) setManaging(true); }} />
+          ) : currentView === 'tokens' ? (
+            <TokenOrdersView active={data.active} billedOrderIds={billedOrderIds} onOpenOrder={o => setSelectedId(o.order_id)} onNew={type => startOrder(type)} onShowDeliveryQr={() => setShowingDeliveryQr(true)} />
           ) : (
             <KitchenDisplay tenantId={tenant} stations={data.setup.stations} />
           )}
@@ -91,6 +119,26 @@ export function RestaurantPage({ onClose, view }: RestaurantPageProps) {
       </div>
 
       <RestaurantToast message={actions.message} onClose={clearMessage} />
+
+      {showingQrTable && (
+        <QrWhatsAppModal
+          tenantId={tenant}
+          tableId={showingQrTable.table_id}
+          tableLabel={showingQrTable.label}
+          orderType="DINE_IN"
+          shopName={shopName || undefined}
+          onClose={() => setShowingQrTable(null)}
+        />
+      )}
+
+      {showingDeliveryQr && (
+        <QrWhatsAppModal
+          tenantId={tenant}
+          orderType="DELIVERY"
+          shopName={shopName || undefined}
+          onClose={() => setShowingDeliveryQr(false)}
+        />
+      )}
 
       {opening && (
         <OrderDetailsDialog

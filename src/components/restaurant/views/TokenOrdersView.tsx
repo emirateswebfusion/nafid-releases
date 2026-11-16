@@ -1,4 +1,4 @@
-import { Bike, ChefHat, CircleCheck, Clock, MapPin, Phone, Plus, ScrollText, ShoppingBag } from 'lucide-react';
+import { Bike, ChefHat, CircleCheck, Clock, MapPin, Phone, Plus, QrCode, ScrollText, ShoppingBag } from 'lucide-react';
 import type { ActiveOrders, OrderType, RestaurantOrder } from '../../../data/restaurant';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { minutesSince, orderValue } from '../restaurantRules';
@@ -9,6 +9,7 @@ interface TokenOrdersViewProps {
   billedOrderIds?: string[] | Record<string, boolean>;
   onNew: (type: OrderType) => void;
   onOpenOrder: (order: RestaurantOrder) => void;
+  onShowDeliveryQr?: () => void;
 }
 
 /** Kitchen progress of an order from its tickets: nothing sent, cooking, or all ready. */
@@ -65,14 +66,27 @@ function OrderCard({ order, active, billedOrderIds, onOpenOrder }: { order: Rest
 }
 
 /** Board of takeaway and delivery orders, one column each, oldest first. */
-export function TokenOrdersView({ active, billedOrderIds, onNew, onOpenOrder }: TokenOrdersViewProps) {
+export function TokenOrdersView({ active, billedOrderIds, onNew, onOpenOrder, onShowDeliveryQr }: TokenOrdersViewProps) {
   const column = (type: OrderType, title: string, Icon: typeof Bike) => {
     const orders = active.orders.filter(o => o.order_type === type);
     return (
       <section className="flex min-h-0 flex-col rounded-[20px] border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between px-1">
           <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider"><Icon className="h-4 w-4 text-primary" />{title}<span className="rounded-full bg-primary/10 px-2 text-primary">{orders.length}</span></h2>
-          <button type="button" onClick={() => onNew(type)} className="flex items-center gap-1 rounded-xl bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground active:scale-95"><Plus className="h-3.5 w-3.5" />New</button>
+          <div className="flex items-center gap-1.5">
+            {type === 'DELIVERY' && onShowDeliveryQr && (
+              <button
+                type="button"
+                onClick={onShowDeliveryQr}
+                className="flex items-center gap-1 rounded-xl border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 active:scale-95"
+                title="Share Home Delivery QR & WhatsApp Menu"
+              >
+                <QrCode className="h-3.5 w-3.5" />
+                Delivery QR
+              </button>
+            )}
+            <button type="button" onClick={() => onNew(type)} className="flex items-center gap-1 rounded-xl bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground active:scale-95"><Plus className="h-3.5 w-3.5" />New</button>
+          </div>
         </div>
         <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3 overflow-y-auto">
           {orders.map(o => <OrderCard key={o.order_id} order={o} active={active} billedOrderIds={billedOrderIds} onOpenOrder={onOpenOrder} />)}

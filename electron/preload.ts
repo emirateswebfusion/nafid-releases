@@ -428,6 +428,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   restaurantListKds: (payload: unknown) => ipcRenderer.invoke('restaurant:listKds', payload),
   restaurantSetKdsStatus: (payload: unknown) => ipcRenderer.invoke('restaurant:setKdsStatus', payload),
   restaurantReport: (payload: unknown) => ipcRenderer.invoke('restaurant:report', payload),
+  restaurantListPendingOnlineOrders: (payload: unknown) => ipcRenderer.invoke('restaurant:listPendingOnlineOrders', payload),
+  restaurantAcceptOnlineOrder: (payload: unknown) => ipcRenderer.invoke('restaurant:acceptOnlineOrder', payload),
+  restaurantRejectOnlineOrder: (payload: unknown) => ipcRenderer.invoke('restaurant:rejectOnlineOrder', payload),
+  restaurantGenerateTableQr: (payload: unknown) => ipcRenderer.invoke('restaurant:generateTableQr', payload),
+  restaurantSendTableWhatsApp: (payload: unknown) => ipcRenderer.invoke('restaurant:sendTableWhatsApp', payload),
 
   // E-Commerce / FusionCart Integration
   ecommerceGetSettings: (payload: { tenant_id: string }) => ipcRenderer.invoke('ecommerce:getSettings', payload),

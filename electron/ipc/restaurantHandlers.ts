@@ -35,4 +35,10 @@ export function registerRestaurantHandlers(): void {
   handle('restaurant:listKds', kitchen.listKds);
   handle('restaurant:setKdsStatus', kitchen.setKdsStatus);
   handle('restaurant:report', kitchen.report);
+
+  handle('restaurant:listPendingOnlineOrders', orders.listPendingOnlineOrders);
+  handle('restaurant:acceptOnlineOrder', orders.acceptOnlineOrder);
+  handle('restaurant:rejectOnlineOrder', orders.rejectOnlineOrder);
+  handle('restaurant:generateTableQr', orders.generateTableQr);
+  handle('restaurant:sendTableWhatsApp', orders.sendTableWhatsApp);
 }

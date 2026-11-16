@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BellRing, Clock, Plus, Receipt, ScrollText, Users } from 'lucide-react';
+import { BellRing, Clock, Plus, QrCode, Receipt, ScrollText, Users } from 'lucide-react';
 import type { ActiveOrders, DiningTable, RestaurantOrder } from '../../../data/restaurant';
 import { formatCurrency } from '../../../utils/pricing/money';
 import { minutesSince, orderValue, tableState, type TableState } from '../restaurantRules';
@@ -15,9 +15,10 @@ interface FloorViewProps {
   onFreeTable: (table: DiningTable) => void;
   onOpenOrder: (order: RestaurantOrder) => void;
   onSetup: () => void;
+  onShowQr?: (table: DiningTable) => void;
 }
 
-function TableTile({ table, active, unsentOrderIds, billedOrderIds, onFreeTable, onOpenOrder }: { table: DiningTable } & Omit<FloorViewProps, 'tables' | 'onSetup'>) {
+function TableTile({ table, active, unsentOrderIds, billedOrderIds, onFreeTable, onOpenOrder, onShowQr }: { table: DiningTable } & Omit<FloorViewProps, 'tables' | 'onSetup'>) {
   const { state, orders } = tableState(table.table_id, active, billedOrderIds);
   const style = TABLE_STYLE[state];
   const first = orders[0];
@@ -27,7 +28,20 @@ function TableTile({ table, active, unsentOrderIds, billedOrderIds, onFreeTable,
         className={`group relative flex min-h-[132px] flex-col overflow-hidden rounded-2xl border p-4 text-left transition-all active:scale-[0.97] ${style.tile}`}>
         <div className="flex items-start justify-between">
           <span className="text-3xl font-black tracking-tight text-foreground/80">{table.label}</span>
-          <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground"><Users className="h-3 w-3" />{table.seats}</span>
+          <div className="flex items-center gap-1.5">
+            {onShowQr && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={e => { e.stopPropagation(); onShowQr(table); }}
+                title="Generate QR / Send WhatsApp Menu"
+                className="rounded-lg p-1 text-muted-foreground hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer"
+              >
+                <QrCode className="h-4 w-4" />
+              </span>
+            )}
+            <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground"><Users className="h-3 w-3" />{table.seats}</span>
+          </div>
         </div>
         <span className="mt-auto flex items-center gap-1 text-xs font-bold text-muted-foreground group-hover:text-primary"><Plus className="h-3.5 w-3.5" />Seat guests</span>
       </button>
@@ -42,7 +56,20 @@ function TableTile({ table, active, unsentOrderIds, billedOrderIds, onFreeTable,
       <span className={`absolute inset-x-0 top-0 h-1.5 ${style.stripe}`} />
       <div className="flex items-start justify-between gap-2">
         <span className="text-3xl font-black tracking-tight">{table.label}</span>
-        <span className="flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-bold"><Users className="h-3 w-3" />{covers || '–'}</span>
+        <div className="flex items-center gap-1.5">
+          {onShowQr && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={e => { e.stopPropagation(); onShowQr(table); }}
+              title="Generate QR / Send WhatsApp Menu"
+              className="rounded-lg p-1 text-muted-foreground hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer"
+            >
+              <QrCode className="h-4 w-4" />
+            </span>
+          )}
+          <span className="flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-bold"><Users className="h-3 w-3" />{covers || '–'}</span>
+        </div>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="whitespace-nowrap text-lg font-black tabular-nums">{formatCurrency(orderValue(lines))}</span>
@@ -60,7 +87,7 @@ function TableTile({ table, active, unsentOrderIds, billedOrderIds, onFreeTable,
 }
 
 /** Floor plan: area tabs, a legend with counts, and one tile per table (tap a free table to seat guests). */
-export function FloorView({ tables, active, unsentOrderIds, billedOrderIds, onFreeTable, onOpenOrder, onSetup }: FloorViewProps) {
+export function FloorView({ tables, active, unsentOrderIds, billedOrderIds, onFreeTable, onOpenOrder, onSetup, onShowQr }: FloorViewProps) {
   const visible = tables.filter(t => t.is_active);
   const areas = [...new Set(visible.map(t => t.area || 'Main'))];
   const [area, setArea] = useState<string>('');
@@ -99,7 +126,7 @@ export function FloorView({ tables, active, unsentOrderIds, billedOrderIds, onFr
           {groups.length > 1 && <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">{g}</h3>}
           <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
             {shown.filter(t => (t.area || 'Main') === g).map(table => (
-              <TableTile key={table.table_id} table={table} active={active} unsentOrderIds={unsentOrderIds} billedOrderIds={billedOrderIds} onFreeTable={onFreeTable} onOpenOrder={onOpenOrder} />
+              <TableTile key={table.table_id} table={table} active={active} unsentOrderIds={unsentOrderIds} billedOrderIds={billedOrderIds} onFreeTable={onFreeTable} onOpenOrder={onOpenOrder} onShowQr={onShowQr} />
             ))}
           </div>
         </section>

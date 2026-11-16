@@ -3,7 +3,7 @@ import { bindBridge } from './client';
 /** Restaurant mode: tables, kitchen stations, modifiers, orders, KOT, kitchen display (electron/services/restaurant*). */
 
 export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
-export type OrderStatus = 'OPEN' | 'BILLING' | 'SETTLED' | 'CANCELLED';
+export type OrderStatus = 'OPEN' | 'BILLING' | 'SETTLED' | 'CANCELLED' | 'PENDING_APPROVAL' | 'ACCEPTED';
 export type KdsStatus = 'NEW' | 'PREPARING' | 'READY' | 'SERVED';
 
 export interface DiningTable {
@@ -75,6 +75,23 @@ export interface NewOrderLine {
 /** An item on the order screen that is not sent to the kitchen yet (`key` identifies it on screen). */
 export interface DraftLine extends NewOrderLine { key: string }
 
+export interface QrResult {
+  token: string;
+  url: string;
+  qr_code: string;
+  table_id?: string | null;
+  table_label?: string | null;
+}
+export interface SendWhatsAppQrResult {
+  success: boolean;
+  formattedPhone?: string;
+  wa_url?: string;
+  error?: string;
+}
+export interface PendingOnlineOrder extends RestaurantOrder {
+  lines: OrderLine[];
+}
+
 export const restaurantApi = bindBridge({
   getSetup: 'restaurantGetSetup',
   saveTable: 'restaurantSaveTable',
@@ -103,6 +120,11 @@ export const restaurantApi = bindBridge({
   listKds: 'restaurantListKds',
   setKdsStatus: 'restaurantSetKdsStatus',
   report: 'restaurantReport',
+  listPendingOnlineOrders: 'restaurantListPendingOnlineOrders',
+  acceptOnlineOrder: 'restaurantAcceptOnlineOrder',
+  rejectOnlineOrder: 'restaurantRejectOnlineOrder',
+  generateTableQr: 'restaurantGenerateTableQr',
+  sendTableWhatsApp: 'restaurantSendTableWhatsApp',
 });
 
 /** Parses a JSON text list column (`categories`, `product_ids`); bad values read as empty. */

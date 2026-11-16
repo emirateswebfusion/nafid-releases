@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRightLeft, Ban, Bike, ChefHat, Pencil, Receipt, ScrollText, Scissors, ShoppingBag, Undo2, UserRound, Users, UtensilsCrossed, X } from 'lucide-react';
+import { ArrowRightLeft, Ban, Bike, ChefHat, Pencil, QrCode, Receipt, ScrollText, Scissors, ShoppingBag, Undo2, UserRound, Users, UtensilsCrossed, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '../../ui/Button';
 import type { Product } from '../../../data/products';
@@ -16,6 +16,7 @@ import { ModifierPicker } from '../modals/ModifierPicker';
 import { LinePickDialog } from '../modals/LinePickDialog';
 import { TransferDialog } from '../modals/TransferDialog';
 import { OrderDetailsDialog } from '../modals/OrderDetailsDialog';
+import { QrWhatsAppModal } from '../modals/QrWhatsAppModal';
 
 interface OrderPanelProps {
   order: RestaurantOrder;
@@ -32,7 +33,7 @@ interface OrderPanelProps {
   onClearBilled?: (orderId: string) => void;
 }
 
-type Dialog = null | 'void' | 'split' | 'cancel' | 'transfer' | 'details';
+type Dialog = null | 'void' | 'split' | 'cancel' | 'transfer' | 'details' | 'qr';
 
 /** One open order: menu (category rail + tiles) on the left, the order ticket with totals and actions on the right. */
 export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, drafts, setDrafts, isBilled = false, onMarkBilled, onClearBilled }: OrderPanelProps) {
@@ -124,8 +125,14 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
               <div className="text-xl font-black leading-tight">{title}</div>
               <div className="text-xs font-semibold text-muted-foreground">Order {order.order_no} · {formatElapsed(minutesSince(order.opened_at))}</div>
             </div>
-            <button type="button" onClick={() => setDialog('details')} disabled={locked || !can('restaurant.orders')} title={locked ? 'Reopen this order before editing details' : 'Edit order details'}
-              className="rounded-xl border border-border bg-card p-2 text-muted-foreground hover:text-foreground disabled:opacity-40"><Pencil className="h-4 w-4" /></button>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => setDialog('qr')} title="Generate QR Code / Send WhatsApp Menu"
+                className="rounded-xl border border-border bg-card p-2 text-muted-foreground hover:text-foreground">
+                <QrCode className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => setDialog('details')} disabled={locked || !can('restaurant.orders')} title={locked ? 'Reopen this order before editing details' : 'Edit order details'}
+                className="rounded-xl border border-border bg-card p-2 text-muted-foreground hover:text-foreground disabled:opacity-40"><Pencil className="h-4 w-4" /></button>
+            </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-bold">
             {order.covers > 0 && <span className="flex items-center gap-1 rounded-full bg-background px-2 py-0.5"><Users className="h-3 w-3" />{order.covers} guests</span>}
@@ -228,6 +235,15 @@ export function OrderPanel({ order, data, actions, can, onBack, onSelectOrder, d
       {dialog === 'details' && (
         <OrderDetailsDialog title={`Order ${order.order_no}`} orderType={order.order_type} order={order} staff={data.staff}
           onCancel={() => setDialog(null)} onSave={async fields => { const saved = await actions.updateOrder(order, fields); if (saved) { await data.refreshOrders(); setDialog(null); } return !!saved; }} />
+      )}
+      {dialog === 'qr' && (
+        <QrWhatsAppModal
+          tenantId={order.tenant_id}
+          tableId={order.table_id}
+          tableLabel={table?.label || null}
+          orderType={order.order_type}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   );

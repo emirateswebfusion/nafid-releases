@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import QRCode from 'qrcode';
 import { getDb } from '../db/localDb.js';
 import type { Db } from '../db/statements/types.js';
 import * as sql from '../db/statements/restaurant.js';
@@ -437,4 +438,144 @@ export function settleInTransaction(db: Db, orderId: string, invoiceId: string, 
       : 'The restaurant order no longer exists');
   }
 }
+
+/** IPC `restaurant:listPendingOnlineOrders` — returns orders with status PENDING_APPROVAL. */
+export function listPendingOnlineOrders(payload: unknown): Result<{ orders: unknown[] }> {
+  try {
+    const input = asInput(payload);
+    const tenantId = requiredText(input, 'tenant_id');
+    const db = getDb();
+    const rows = sql.listPendingOnlineOrders(db).all(tenantId) as RestaurantOrderRow[];
+    const orders = rows.map(order => {
+      const lines = sql.listLinesOfOrder(db).all(order.order_id) as OrderLineRow[];
+      return {
+        ...order,
+        lines: lines.filter(l => l.status === 'ACTIVE'),
+      };
+    });
+    return { success: true, orders };
+  } catch (error) {
+    return failure('listPendingOnlineOrders', error);
+  }
+}
+
+/** IPC `restaurant:acceptOnlineOrder` — accepts a pending online order and generates KOT tickets. */
+export function acceptOnlineOrder(payload: unknown): Result<{ order_id: string; kot_ids: string[] }> {
+  try {
+    const input = asInput(payload);
+    const orderId = requiredText(input, 'order_id');
+    const userId = text(input, 'user_id');
+    const db = getDb();
+    const kotIds: string[] = [];
+
+    db.transaction(() => {
+      const order = requireOrder(db, orderId, ['PENDING_APPROVAL']);
+      if (sql.acceptPendingOnlineOrder(db).run(userId, orderId).changes !== 1) {
+        throw new RestaurantInputError('Order is no longer pending approval');
+      }
+
+      const active = (sql.listLinesOfOrder(db).all(order.order_id) as OrderLineRow[]).filter(l => l.status === 'ACTIVE' && !l.kot_id);
+      if (active.length > 0) {
+        const businessDate = localDate(new Date(), order.tenant_id);
+        const batches = routeToStations(active, stationsOf(db, order.tenant_id));
+
+        for (const batch of batches) {
+          const kotId = insertKot(db, order, 'NEW', batch.station, userId, businessDate);
+          for (const line of batch.items) {
+            sql.assignLineToKot(db).run(kotId, batch.station?.station_id ?? null, line.line_id);
+          }
+          kotIds.push(kotId);
+        }
+      }
+    })();
+
+    triggerSync();
+    return { success: true, order_id: orderId, kot_ids: kotIds };
+  } catch (error) {
+    return failure('acceptOnlineOrder', error);
+  }
+}
+
+/** IPC `restaurant:rejectOnlineOrder` — rejects a pending online order. */
+export function rejectOnlineOrder(payload: unknown): Result {
+  try {
+    const input = asInput(payload);
+    const orderId = requiredText(input, 'order_id');
+    const reason = text(input, 'reason') || 'Rejected by staff';
+    const db = getDb();
+
+    db.transaction(() => {
+      const order = requireOrder(db, orderId, ['PENDING_APPROVAL']);
+      sql.cancelOrder(db).run(reason, null, order.order_id);
+    })();
+
+    triggerSync();
+    return { success: true };
+  } catch (error) {
+    return failure('rejectOnlineOrder', error);
+  }
+}
+
+/** IPC `restaurant:generateTableQr` — generates a QR code Data URL and URL for a table or takeaway. */
+export async function generateTableQr(payload: unknown): Promise<Result<{ token: string; url: string; qr_code: string }>> {
+  try {
+    const input = asInput(payload);
+    const tenantId = requiredText(input, 'tenant_id');
+    const tableId = text(input, 'table_id');
+    const tableLabel = text(input, 'table_label');
+    const orderType = text(input, 'order_type') || 'DINE_IN';
+
+    const baseUrl = process.env.WEB_PORTAL_URL || process.env.VENDORA_CLOUD_API || 'https://nafid.emirateswebfusion.com';
+    const sessionId = randomUUID();
+    const tokenPayload = Buffer.from(JSON.stringify({
+      tenant_id: tenantId,
+      table_id: tableId,
+      table_label: tableLabel,
+      order_type: orderType,
+      session_id: sessionId,
+      iat: Date.now(),
+      exp: Date.now() + 24 * 60 * 60 * 1000,
+    })).toString('base64url');
+
+    const token = `${tokenPayload}.${randomUUID().replace(/-/g, '')}`;
+    const url = `${baseUrl.replace(/\/+$/, '')}/order/${token}`;
+    const qrCode = await QRCode.toDataURL(url, { width: 300, margin: 2 });
+
+    return { success: true, token, url, qr_code: qrCode };
+  } catch (error) {
+    return failure('generateTableQr', error);
+  }
+}
+
+/** IPC `restaurant:sendTableWhatsApp` — constructs a WhatsApp Web / mobile dispatch URL. */
+export function sendTableWhatsApp(payload: unknown): Result<{ formattedPhone: string; wa_url: string }> {
+  try {
+    const input = asInput(payload);
+    const phone = requiredText(input, 'phone');
+    const url = requiredText(input, 'url');
+    const shopName = text(input, 'shop_name') || 'Restaurant';
+    const tableLabel = text(input, 'table_label');
+    const orderType = text(input, 'order_type') || 'DINE_IN';
+    const isDelivery = orderType === 'DELIVERY';
+
+    let clean = phone.replace(/[^0-9]/g, '');
+    if (clean.startsWith('0') && clean.length === 10) clean = '971' + clean.slice(1);
+    else if (clean.length === 9 && clean.startsWith('5')) clean = '971' + clean;
+    else if (clean.length === 10 && /^[6-9]/.test(clean)) clean = '91' + clean;
+
+    const tableText = tableLabel && !isDelivery ? ` for *Table ${tableLabel}*` : '';
+    const header = isDelivery ? `🛵 *Home Delivery Menu - ${shopName}*` : `🍽️ *Digital Food Menu - ${shopName}*`;
+    const intro = isDelivery
+      ? 'Hello! Scan or tap below to browse our menu and order food directly to your doorstep:'
+      : `Hello! Scan or tap below to view our live digital menu${tableText} and place your order directly:`;
+
+    const message = `${header}\n\n${intro}\n\n👉 ${url}\n\n_Your order will be sent directly to our kitchen._`;
+    const waUrl = `https://wa.me/${clean}?text=${encodeURIComponent(message)}`;
+
+    return { success: true, formattedPhone: clean, wa_url: waUrl };
+  } catch (error) {
+    return failure('sendTableWhatsApp', error);
+  }
+}
+
 

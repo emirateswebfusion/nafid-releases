@@ -1,12 +1,12 @@
 import { FloatToast } from '../../ui/FloatToast';
 import { storeTime } from '../../../utils/time/dateDisplay';
-import { Clock, ShoppingBag, Bike, LayoutGrid, ChefHat } from 'lucide-react';
+import { Clock, ShoppingBag, Bike, LayoutGrid, ChefHat, Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '../../ui/Button';
 import { RedCrossButton } from '../../ui/RedCrossButton';
 import { formatCurrency } from '../../../utils/pricing/money';
 
-export type RestaurantView = 'floor' | 'tokens' | 'kitchen';
+export type RestaurantView = 'floor' | 'tokens' | 'kitchen' | 'online';
 
 interface TopBarProps {
   title: string;
@@ -17,6 +17,8 @@ interface TopBarProps {
   onManage?: () => void;
   onNewTakeaway?: () => void;
   onNewDelivery?: () => void;
+  onViewOnline?: () => void;
+  onlineCount?: number;
 }
 
 function useClock() {
@@ -29,9 +31,9 @@ function useClock() {
 }
 
 /** Standard two-row application header: page actions above a compact operational summary. */
-export function RestaurantTopBar({ title, view, onClose, subtitle, stats, onNewTakeaway, onNewDelivery, onManage }: TopBarProps) {
+export function RestaurantTopBar({ title, view, onClose, subtitle, stats, onNewTakeaway, onNewDelivery, onManage, onViewOnline, onlineCount = 0 }: TopBarProps) {
   const now = useClock();
-  const Icon = view === 'floor' ? LayoutGrid : view === 'tokens' ? ShoppingBag : ChefHat;
+  const Icon = view === 'floor' ? LayoutGrid : view === 'tokens' ? ShoppingBag : view === 'kitchen' ? ChefHat : Smartphone;
   const stat = (label: string, value: string) => (
     <div className="flex items-center gap-2 whitespace-nowrap text-xs">
       <span className="font-medium text-muted-foreground">{label}</span>
@@ -49,6 +51,17 @@ export function RestaurantTopBar({ title, view, onClose, subtitle, stats, onNewT
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {onViewOnline && (
+            <Button variant={view === 'online' ? 'default' : 'outline'} onClick={onViewOnline} className="relative">
+              <Smartphone className="mr-1.5 h-3.5 w-3.5" />
+              Online Orders
+              {onlineCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.2 text-[10px] font-extrabold text-white animate-pulse">
+                  {onlineCount}
+                </span>
+              )}
+            </Button>
+          )}
           {onManage && <Button variant="outline" onClick={onManage}>{view === 'floor' ? 'Add / Edit Tables' : 'Manage Stations'}</Button>}
           {onNewTakeaway && <Button onClick={onNewTakeaway}><ShoppingBag className="mr-1.5 h-3.5 w-3.5" />Takeaway</Button>}
           {onNewDelivery && <Button variant="outline" onClick={onNewDelivery}><Bike className="mr-1.5 h-3.5 w-3.5" />Delivery</Button>}

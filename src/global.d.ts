@@ -377,6 +377,11 @@ export interface IElectronAPI {
   restaurantListKds: (payload: { tenant_id: string }) => Promise<R.KdsData>;
   restaurantSetKdsStatus: (payload: { kot_id: string; status: R.KdsStatus }) => Promise<R.WriteResult>;
   restaurantReport: (payload: { tenant_id: string; from?: string; to?: string }) => Promise<R.RestaurantReport>;
+  restaurantListPendingOnlineOrders: (payload: { tenant_id: string }) => Promise<R.WriteResult<{ orders: R.PendingOnlineOrder[] }>>;
+  restaurantAcceptOnlineOrder: (payload: { order_id: string; user_id?: string | null }) => Promise<R.WriteResult<{ order_id: string; kot_ids: string[] }>>;
+  restaurantRejectOnlineOrder: (payload: { order_id: string; reason?: string }) => Promise<R.WriteResult>;
+  restaurantGenerateTableQr: (payload: { tenant_id: string; table_id?: string | null; table_label?: string | null; order_type?: string }) => Promise<R.WriteResult<R.QrResult>>;
+  restaurantSendTableWhatsApp: (payload: { phone: string; url: string; shop_name?: string; table_label?: string | null; order_type?: string }) => Promise<R.WriteResult<R.SendWhatsAppQrResult>>;
   dbHoldBill: (payload: unknown) => Promise<{ success: boolean; error?: string }>;
   dbGetHeldBills: (payload: { tenant_id: string }) => Promise<Invoice[]>;
   dbRecallHeldBill: (payload: { invoice_id: string }) => Promise<{ success: boolean; invoice?: Invoice; items?: InvoiceItemWithProduct[]; error?: string }>;

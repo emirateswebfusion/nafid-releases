@@ -50,6 +50,18 @@ if (testProfile) {
   dotenv.config(); // Fallback to root .env
 }
 
+// Remote debugging port configuration (for CDP / Antigravity browser tools / Chrome DevTools)
+const envDebugPort = process.env.ELECTRON_REMOTE_DEBUGGING_PORT;
+if (envDebugPort && !app.commandLine.hasSwitch('remote-debugging-port')) {
+  app.commandLine.appendSwitch('remote-debugging-port', envDebugPort);
+}
+if (app.commandLine.hasSwitch('remote-debugging-port')) {
+  if (!app.commandLine.hasSwitch('remote-allow-origins')) {
+    app.commandLine.appendSwitch('remote-allow-origins', '*');
+  }
+  log.info(`[Main] Remote debugging enabled on port ${app.commandLine.getSwitchValue('remote-debugging-port')}`);
+}
+
 
 let mainWindow: BrowserWindow | null = null;
 const PROTOCOL = 'nafid';

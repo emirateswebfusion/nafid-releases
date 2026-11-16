@@ -132,7 +132,7 @@ export const settleOrder = (db: Db) => db.prepare(`
 export const cancelOrder = (db: Db) => db.prepare(`
   UPDATE restaurant_orders SET status = 'CANCELLED', cancel_reason = ?, merged_into_order_id = ?, closed_at = ${NOW},
     updated_at = ${NOW}, sync_status = 'PENDING'
-  WHERE order_id = ? AND status IN ('OPEN', 'BILLING')`);
+  WHERE order_id = ? AND status IN ('OPEN', 'BILLING', 'PENDING_APPROVAL')`);
 
 // ── Lines ──────────────────────────────────────────────────────────────────────
 
@@ -244,3 +244,21 @@ export const listActiveLinesOfKot = (db: Db) => db.prepare(`
 
 export const listVoidedLinesOfKot = (db: Db) => db.prepare(`
   SELECT * FROM restaurant_order_lines WHERE void_kot_id = ? AND is_deleted = 0 ORDER BY created_at, line_id`);
+
+// ── Online Orders ────────────────────────────────────────────────────────────
+
+export const listPendingOnlineOrders = (db: Db) => db.prepare(`
+  SELECT * FROM restaurant_orders
+  WHERE tenant_id = ? AND status = 'PENDING_APPROVAL' AND is_deleted = 0
+  ORDER BY created_at DESC`);
+
+export const acceptPendingOnlineOrder = (db: Db) => db.prepare(`
+  UPDATE restaurant_orders
+  SET status = 'OPEN', opened_by = COALESCE(?, opened_by), updated_at = ${NOW}, sync_status = 'PENDING'
+  WHERE order_id = ? AND status = 'PENDING_APPROVAL'`);
+
+export const assignLineToKot = (db: Db) => db.prepare(`
+  UPDATE restaurant_order_lines SET kot_id = ?, station_id = ?, updated_at = ${NOW}, sync_status = 'PENDING'
+  WHERE line_id = ?`);
+
+
