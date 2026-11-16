@@ -530,19 +530,15 @@ export async function generateTableQr(payload: unknown): Promise<Result<{ token:
       .map(u => u.trim().replace(/\/+$/, ''))
       .filter(Boolean)[0];
     const baseUrl = primaryFrontend || 'https://nafid.emirateswebfusion.com';
-    const sessionId = randomUUID();
-    const tokenPayload = Buffer.from(JSON.stringify({
-      tenant_id: tenantId,
-      table_id: tableId,
-      table_label: tableLabel,
-      order_type: orderType,
-      session_id: sessionId,
-      iat: Date.now(),
-      exp: Date.now() + 24 * 60 * 60 * 1000,
-    })).toString('base64url');
 
-    const token = `${tokenPayload}.${randomUUID().replace(/-/g, '')}`;
-    const url = `${baseUrl.replace(/\/+$/, '')}/order/${token}`;
+    const params = new URLSearchParams();
+    params.set('tenant_id', tenantId);
+    if (tableId && orderType !== 'DELIVERY') params.set('table_id', tableId);
+    if (tableLabel && orderType !== 'DELIVERY') params.set('table_label', tableLabel);
+    params.set('order_type', orderType);
+
+    const token = params.toString();
+    const url = `${baseUrl.replace(/\/+$/, '')}/order?${params.toString()}`;
     const qrCode = await QRCode.toDataURL(url, { width: 300, margin: 2 });
 
     return { success: true, token, url, qr_code: qrCode };

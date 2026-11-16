@@ -98,7 +98,10 @@ describe('online orders & WhatsApp QR integration in POS', () => {
     });
 
     const res = ok(qrResult);
-    expect(res.url).toContain('/order/');
+    expect(res.url).toContain('/order?');
+    expect(res.url).toContain('tenant_id=shop');
+    expect(res.url).toContain('table_id=');
+    expect(res.url).toContain('order_type=DINE_IN');
     expect(res.qr_code).toMatch(/^data:image\/png;base64,/);
   });
 
@@ -248,11 +251,10 @@ describe('online orders & WhatsApp QR integration in POS', () => {
       order_type: 'DELIVERY',
     });
     const res = ok(qrResult);
-    expect(res.url).toContain('/order/');
-    const tokenPart = res.url.split('/order/')[1].split('.')[0];
-    const payload = JSON.parse(Buffer.from(tokenPart, 'base64url').toString('utf8'));
-    expect(payload.order_type).toBe('DELIVERY');
-    expect(payload.table_id).toBeNull();
+    expect(res.url).toContain('/order?');
+    expect(res.url).toContain('order_type=DELIVERY');
+    expect(res.url).toContain('tenant_id=shop');
+    expect(res.url).not.toContain('table_id=');
 
     // 2. Format WhatsApp for Delivery
     const waResult = ok(orders.sendTableWhatsApp({
