@@ -278,4 +278,94 @@ describe('Combo Tax Splitting in Billing & Reports', () => {
     expect(rows[1].taxable).toBe(262.5);
     expect(rows[1].tax).toBe(47.25);
   });
+
+  it('correctly reports standard POS checkout invoice where total is taxable base (e.g. 100@5% + 150@18% combo at 200)', () => {
+    const tenantId = 'tenant_user_case';
+
+    state.db.prepare(`
+      INSERT INTO products (product_id, tenant_id, name, base_price, tax_rate_percent, is_gst_applicable, hsn_sac_code)
+      VALUES 
+        ('prod-a', '${tenantId}', 'Product A', 100.0, 5.0, 1, '1111'),
+        ('prod-b', '${tenantId}', 'Product B', 150.0, 18.0, 1, '2222'),
+        ('combo-ab', '${tenantId}', 'Product AB Combo', 200.0, 0, 0, '')
+    `).run();
+
+    state.db.prepare(`
+      INSERT INTO combo_offers (combo_id, tenant_id, name, combo_price, is_active, is_deleted)
+      VALUES ('combo-ab', '${tenantId}', 'Product AB Combo', 200.0, 1, 0)
+    `).run();
+
+    state.db.prepare(`
+      INSERT INTO combo_items (combo_item_id, combo_id, tenant_id, product_id, quantity)
+      VALUES 
+        ('ci-ab1', 'combo-ab', '${tenantId}', 'prod-a', 1),
+        ('ci-ab2', 'combo-ab', '${tenantId}', 'prod-b', 1)
+    `).run();
+
+    // In Nafid POS checkout:
+    // unit_price = 200.0, total = 200.0 (taxable turnover), tax_amount = 25.60
+    // grand_total = 225.60
+    state.db.prepare(`
+      INSERT INTO invoices (
+        invoice_id, tenant_id, invoice_number, invoice_type, created_at,
+        subtotal, tax_total, grand_total, customer_name, customer_gstin,
+        customer_state, supply_type, cgst_total, sgst_total, igst_total, is_deleted
+      ) VALUES (
+        'inv-ab-1', '${tenantId}', 'INV-USER', 'GST', '2026-10-15 10:00:00',
+        200.0, 25.60, 225.60, 'Walk-in Customer', NULL,
+        '32', 'INTRA', 12.80, 12.80, 0.0, 0
+      )
+    `).run();
+
+    state.db.prepare(`
+      INSERT INTO invoice_items (
+        item_id, invoice_id, tenant_id, product_id, name,
+        quantity, unit_price, tax_amount, total,
+        cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount,
+        hsn_sac_code, uom, combo_id, combo_details
+      ) VALUES (
+        'item-ab-1', 'inv-ab-1', '${tenantId}', 'combo-ab', 'Product AB Combo',
+        1, 200.0, 25.60, 200.0,
+        6.4, 6.4, 0.0, 12.80, 12.80, 0.0,
+        '', 'SET', 'combo-ab', NULL
+      )
+    `).run();
+
+    const report = getGstReport({
+      tenant_id: tenantId,
+      from_date: '2026-10-01',
+      to_date: '2026-10-31',
+      shop_state_code: '32',
+    });
+
+    expect('error' in report).toBe(false);
+    if ('error' in report) return;
+
+    // Table 7 (B2CS) must show:
+    // 5% slab: Taxable 80.00, CGST 2.00, SGST 2.00, Total Tax 4.00
+    // 18% slab: Taxable 120.00, CGST 10.80, SGST 10.80, Total Tax 21.60
+    const b2cs5 = report.b2cs.find(r => r.applicable_tax_rate === 5);
+    const b2cs18 = report.b2cs.find(r => r.applicable_tax_rate === 18);
+
+    expect(b2cs5).toBeDefined();
+    expect(b2cs5!.taxable_value).toBe(80);
+    expect(b2cs5!.cgst).toBe(2);
+    expect(b2cs5!.sgst).toBe(2);
+
+    expect(b2cs18).toBeDefined();
+    expect(b2cs18!.taxable_value).toBe(120);
+    expect(b2cs18!.cgst).toBe(10.8);
+    expect(b2cs18!.sgst).toBe(10.8);
+
+    // Rate breakdown must also reconcile:
+    // 5% row + 18% row = 200.00 taxable, 25.60 tax
+    const r5 = report.rate_breakdown?.find(r => r.rate === 5);
+    const r18 = report.rate_breakdown?.find(r => r.rate === 18);
+
+    expect(r5?.taxable).toBe(80);
+    expect(r5?.totalTax).toBe(4);
+
+    expect(r18?.taxable).toBe(120);
+    expect(r18?.totalTax).toBe(21.6);
+  });
 });

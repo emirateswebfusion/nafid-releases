@@ -262,6 +262,30 @@ export interface GstRateBreakdownRow {
   totalTax: number;
 }
 
+/**
+ * Resolves the true taxable base of an invoice item line.
+ * In Nafid POS, `item.total` is standardly the taxable base (quantity * unit_price).
+ * If taxes were embedded in `item.total` (e.g. total ≈ base + tax), it safely extracts the taxable base.
+ */
+export function resolveItemTaxable(item: { total?: number | null; tax_amount?: number | null; unit_price?: number | null; quantity?: number | null }): number {
+  const tot = Number(item.total) || 0;
+  const tax = Number(item.tax_amount) || 0;
+  const qty = Number(item.quantity) || 1;
+  const up = Number(item.unit_price) || 0;
+  const basePriceTotal = round2(up * qty);
+
+  if (basePriceTotal > 0 && Math.abs(tot - (basePriceTotal + tax)) < 0.05 && tax > 0) {
+    return round2(tot - tax);
+  }
+  if (basePriceTotal > 0 && Math.abs(tot - basePriceTotal) < 0.05) {
+    return tot;
+  }
+  if (tot > tax + 0.005 && basePriceTotal === 0) {
+    return round2(tot - tax);
+  }
+  return tot;
+}
+
 export function expandItemWithConstituents<T extends {
   product_id: string;
   total: number;
@@ -312,18 +336,21 @@ export function expandItemWithConstituents<T extends {
     }
   }
 
+  const taxableTotal = resolveItemTaxable(item);
+  const qty = Number(item.quantity) || 1;
+
   if (isCombo && constituents.length > 0) {
-    const unitPrice = item.quantity > 0 ? (item.total - item.tax_amount) / item.quantity : item.total;
+    const unitPrice = qty > 0 ? taxableTotal / qty : taxableTotal;
     const bd = calculateComboTaxBreakdown({
       comboPrice: unitPrice,
-      quantity: item.quantity,
+      quantity: qty,
       constituents,
       supplyType,
     });
     return bd.constituents.map(c => ({
       product_id: c.product_id,
       name: c.product_name,
-      quantity: c.total_quantity ?? (c.quantity * (Number(item.quantity) || 1)),
+      quantity: c.total_quantity ?? (c.quantity * qty),
       rate: c.tax_rate_percent,
       taxable: c.allocated_taxable,
       tax_amount: c.tax_amount,
@@ -339,7 +366,7 @@ export function expandItemWithConstituents<T extends {
     }));
   }
 
-  const taxable = round2(item.total - item.tax_amount);
+  const taxable = round2(taxableTotal);
   const rate = (Number(item.cgst_rate || 0) + Number(item.sgst_rate || 0) + Number(item.igst_rate || 0))
     || (taxable > 0 ? round2(((item.tax_amount || 0) / taxable) * 100) : 0);
 
