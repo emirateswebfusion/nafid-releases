@@ -19,4 +19,8 @@ describe('trial shop details', () => {
     expect(validateTrialDetails(details)).toEqual({});
     expect(details.email).toBe(' owner@example.com ');
   });
+  it('validates business category when supplied', () => {
+    expect(validateTrialDetails({ ...shop, businessCategory: 'restaurant' })).toEqual({});
+    expect(validateTrialDetails({ ...shop, businessCategory: 'invalid_category' }).businessCategory).toBeDefined();
+  });
 });
