@@ -124,8 +124,23 @@ export async function handleCashierIntent(parsed: ParsedOfflineIntent, ctx: AiQu
         const b = inv.biller_name || 'Counter Staff';
         if (!billerMap[b]) billerMap[b] = { name: b, count: 0, total: 0, cash: 0 };
         billerMap[b].count++;
-        billerMap[b].total += Number(inv.grand_total) || 0;
-        if ((inv.payment_method || '').includes('CASH')) billerMap[b].cash += Number(inv.grand_total) || 0;
+        const grandTotal = Number(inv.grand_total) || 0;
+        billerMap[b].total += grandTotal;
+        let cashAmt = 0;
+        if (inv.split_details) {
+          let sd = inv.split_details;
+          while (typeof sd === 'string') {
+            try { sd = JSON.parse(sd); } catch { break; }
+          }
+          if (sd && typeof sd === 'object') {
+            cashAmt = Number((sd as Record<string, unknown>).cash) || 0;
+          }
+        } else if ((inv.payment_method || '').toUpperCase() === 'CASH') {
+          cashAmt = grandTotal;
+        } else if ((inv.payment_method || '').toUpperCase() === 'CREDIT' && Number(inv.received_amount) > 0) {
+          cashAmt = Math.min(grandTotal, Number(inv.received_amount) || 0);
+        }
+        billerMap[b].cash += cashAmt;
       });
       const list = Object.values(billerMap);
       let md = isMal

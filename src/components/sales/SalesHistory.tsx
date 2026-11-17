@@ -393,7 +393,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     return getStaffSalesDateScope(maskingConfig, isStaff);
   }, [maskingConfig, isStaff]);
 
-  const dailySales = useMemo(() => groupByDay(invoices), [invoices]);
+  const dailySales = useMemo(() => groupByDay(invoices, paymentFilter), [invoices, paymentFilter]);
 
   const groupedInvoices = useMemo(() => {
     const groups: { date: string; items: SalesInvoiceRow[] }[] = [];

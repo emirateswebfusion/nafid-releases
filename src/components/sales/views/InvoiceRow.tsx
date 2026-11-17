@@ -3,7 +3,7 @@ import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import type { DisplayInvoice } from '../invoiceDisplayTypes';
 import type { UpiSourceOption } from '../salesTypes';
 /** Sales History list row (`InvoiceRow`) and its payment / invoice-type badges. */
-import { PAYMENT_COLORS, PAYMENT_LABELS, getInvoiceTypeInfo, formatDate, parseSplitDetails, getUpiDetailsFromInvoice } from '../salesHistoryFormat';
+import { PAYMENT_COLORS, PAYMENT_LABELS, getInvoiceTypeInfo, formatDate, parseSplitDetails, getUpiDetailsFromInvoice, getInvoiceRevenueForFilter } from '../salesHistoryFormat';
 import clsx from 'clsx';
 import { Receipt, FileText, Clock, User, ChevronRight } from 'lucide-react';
 import { formatCurrency } from '../../../utils/pricing/money';
@@ -36,7 +36,7 @@ export function InvoiceTypeBadge({ inv }: { inv: DisplayInvoice }) {
 }
 
 /* ─── Invoice Row ─── */
-export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload: _onDownload, onPrint: _onPrint, showEinvoice = false, einvoice }: { inv: DisplayInvoice; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: UpiSourceOption[]; onDownload?: (inv: SalesInvoiceRow) => void; onPrint?: (inv: SalesInvoiceRow) => void; showEinvoice?: boolean; einvoice?: EinvoiceStatusRow }) {
+export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMode, isChecked, onCheck, convertible, upiSources = [], onDownload: _onDownload, onPrint: _onPrint, showEinvoice = false, einvoice, paymentFilter }: { inv: DisplayInvoice; isSelected: boolean; onClick: () => void; onMouseEnter?: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: UpiSourceOption[]; onDownload?: (inv: SalesInvoiceRow) => void; onPrint?: (inv: SalesInvoiceRow) => void; showEinvoice?: boolean; einvoice?: EinvoiceStatusRow; paymentFilter?: string }) {
   const { date, time } = formatDate(inv.created_at || '');
   const isCredit = inv.payment_method === 'CREDIT';
   const isConvertedBos = !!inv.converted_to_invoice_id;
@@ -188,16 +188,25 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
       <td className="px-4 py-3.5 text-right whitespace-nowrap">
         {(() => {
           const summary = getSalesHistoryAmount(inv);
+          const filterAmount = paymentFilter ? getInvoiceRevenueForFilter(inv as unknown as import('../../../data/invoices').Invoice, paymentFilter) : summary.amount;
+          const displayAmount = paymentFilter && (inv.payment_method === 'SPLIT' || (inv.payment_method === 'CREDIT' && inv.split_details))
+            ? filterAmount
+            : summary.amount;
 
           if (summary.refund) {
             return (
               <>
                 <div className="text-sm font-black text-rose-600 dark:text-rose-400">
-                  -{formatCurrency(summary.amount)}
+                  -{formatCurrency(displayAmount)}
                 </div>
                 <div className="text-[10px] text-rose-500 font-semibold mt-0.5">
                   Refund
                 </div>
+                {paymentFilter && displayAmount !== summary.amount && (
+                  <div className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                    of {formatCurrency(summary.amount)}
+                  </div>
+                )}
                 {Math.abs(summary.refundDifference) > 0.005 && (
                   <div
                     className={clsx('text-[10px] font-semibold mt-0.5', summary.refundDifference > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-sky-600 dark:text-sky-400')}
@@ -213,8 +222,13 @@ export function InvoiceRow({ inv, isSelected, onClick, onMouseEnter, selectionMo
           return (
             <>
               <div className={clsx('text-sm font-black', isSelected ? 'text-primary' : 'text-foreground')}>
-                {formatCurrency(summary.amount)}
+                {formatCurrency(displayAmount)}
               </div>
+              {paymentFilter && displayAmount !== summary.amount && (
+                <div className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                  of {formatCurrency(summary.amount)}
+                </div>
+              )}
               {summary.discount > 0 && (
                 <div className="text-[10px] text-red-500 font-semibold mt-0.5">
                   -{formatCurrency(summary.discount)} off

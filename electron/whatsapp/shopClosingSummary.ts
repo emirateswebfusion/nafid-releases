@@ -177,7 +177,7 @@ export function buildShopClosingSummaryData(
         const pm = ((inv.payment_method as string) || ('CASH' as string)).toUpperCase();
         let invCashPortion = 0;
 
-        if (pm === 'SPLIT' && inv.split_details) {
+        if ((pm === 'SPLIT' || pm === 'CREDIT') && inv.split_details) {
           let sd: Record<string, unknown> = (inv.split_details as Record<string, unknown>);
           while (typeof sd === 'string') {
             try { sd = JSON.parse(sd); } catch { break; }
@@ -198,6 +198,21 @@ export function buildShopClosingSummaryData(
             paymentBreakdown.credit += crAmt;
             creditSalesAmount += crAmt;
             invCashPortion = cAmt;
+          } else if (pm === 'CREDIT') {
+            const recAmt = Math.max(0, Number(inv.received_amount) || 0);
+            if (recAmt > 0 && recAmt < gTotal) {
+              paymentBreakdown.cash += recAmt;
+              invCashPortion = recAmt;
+              paymentBreakdown.credit += (gTotal - recAmt);
+              creditSalesAmount += (gTotal - recAmt);
+            } else if (recAmt >= gTotal && gTotal > 0) {
+              const cashTaken = getCashAmountFromInvoice({ ...inv, payment_method: 'CREDIT', grand_total: gTotal, return_deduction: 0, scrap_deduction: 0 }) || gTotal;
+              paymentBreakdown.cash += cashTaken;
+              invCashPortion = cashTaken;
+            } else {
+              paymentBreakdown.credit += gTotal;
+              creditSalesAmount += gTotal;
+            }
           } else {
             paymentBreakdown.cash += gTotal;
             invCashPortion = gTotal;

@@ -6,7 +6,7 @@ import { isDesktopRuntime } from '../../../data/client';
 import { useAuthStore } from '../../../store/authStore';
 import { listInvoices, getInvoiceItems } from '../../../data/invoices';
 import { sortInvoicesByInvoiceNumber, buildInvoiceProductRows } from '../../../utils/pricing/salesHistoryTax';
-import { formatDate, PAYMENT_LABELS } from '../salesHistoryFormat';
+import { formatDate, PAYMENT_LABELS, getInvoiceRevenueForFilter } from '../salesHistoryFormat';
 import { getProductsByIds } from '../../../data/products';
 import { getInvoiceNetTotal } from '../../../utils/pricing/salesHistoryAmount';
 import { isLegacyBillerRole } from '../../../utils/security/permissions';
@@ -163,15 +163,16 @@ export function useSalesCsvExport(ctx: UseSalesCsvExportContext) {
 
         if (rowsToExport.length === 0) continue;
 
+        const effectiveInvoiceAmount = paymentFilter ? getInvoiceRevenueForFilter(inv as unknown as import('../../../data/invoices').Invoice, paymentFilter) : getInvoiceNetTotal(inv);
         if (targetTaxRate === null) {
-          totalInvoiceGrandSum += getInvoiceNetTotal(inv);
+          totalInvoiceGrandSum += effectiveInvoiceAmount;
         }
 
         for (const row of rowsToExport) {
           const item = row.item || {};
           const hsn = row.hsn || fallbackProductMap[item.product_id]?.hsn_sac_code || '';
           const uom = item.uom || item.unit || fallbackProductMap[item.product_id]?.uom || row.uom || 'PCS';
-          const invoiceTotal = targetTaxRate === null ? getInvoiceNetTotal(inv) : row.total;
+          const invoiceTotal = targetTaxRate === null ? effectiveInvoiceAmount : row.total;
 
           totalQtySum += row.quantity;
           totalTaxableSum += row.taxable;
