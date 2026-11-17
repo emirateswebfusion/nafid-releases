@@ -75,33 +75,48 @@ export function getInvoiceRevenueForFilter(inv: Invoice, paymentFilter: string):
   if (!inv) return 0;
   const pmFilter = paymentFilter?.toUpperCase();
   const invPm = inv.payment_method?.toUpperCase() || 'PENDING';
-  const singleMethods = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'];
+  const singleMethods = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'BANK', 'CHEQUE', 'CREDIT'];
 
   // If no filter, return net total for all invoices
   if (!pmFilter) return getInvoiceNetTotal(inv);
 
-  // If invoice is SPLIT and we're filtering by a single method, return that method's portion
-  if ((invPm === 'SPLIT' || invPm === 'CREDIT') && inv.split_details && singleMethods.includes(pmFilter)) {
+  // If invoice is SPLIT or has split details and we're filtering by a single method, return that method's portion
+  if (inv.split_details && singleMethods.includes(pmFilter)) {
     try {
       const sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
-      const jsonKey = pmFilter === 'BANK_TRANSFER' ? 'bank_transfer' : pmFilter.toLowerCase();
-      return Number(sd[jsonKey]) || 0;
+      if (sd && typeof sd === 'object') {
+        if (pmFilter === 'BANK_TRANSFER' || pmFilter === 'BANK') {
+          return Number(sd.bank_transfer ?? sd.bank) || 0;
+        }
+        const jsonKey = pmFilter.toLowerCase();
+        return Number(sd[jsonKey]) || 0;
+      }
     } catch { return 0; }
   }
 
+  // Handle CREDIT invoice without split_details but with received_amount
+  if (invPm === 'CREDIT') {
+    const received = Math.max(0, Number(inv.received_amount) || 0);
+    const netTotal = getInvoiceNetTotal(inv);
+    if (pmFilter === 'CASH') return Math.min(netTotal, received);
+    if (pmFilter === 'CREDIT') return Math.max(0, netTotal - received);
+  }
+
   // If invoice payment method matches the filter exactly, return net total
-  if (invPm === pmFilter) return getInvoiceNetTotal(inv);
+  if (invPm === pmFilter || ((pmFilter === 'BANK_TRANSFER' || pmFilter === 'BANK') && (invPm === 'BANK_TRANSFER' || invPm === 'BANK'))) {
+    return getInvoiceNetTotal(inv);
+  }
 
   // Otherwise, this invoice doesn't match the filter - return 0
   return 0;
 }
 
-export function groupByDay(invoices: Invoice[]) {
+export function groupByDay(invoices: Invoice[], paymentFilter = '') {
   const tz = getStoreTimezone();
   const map = new Map<string, number>();
   for (const inv of invoices) {
     const day = storeDate(inv.created_at, getStoreLocale(), { timeZone: tz, day: '2-digit', month: 'short' });
-    map.set(day, (map.get(day) || 0) + getInvoiceNetTotal(inv));
+    map.set(day, (map.get(day) || 0) + getInvoiceRevenueForFilter(inv, paymentFilter));
   }
   return Array.from(map, ([date, sales]) => ({ date, sales }));
 }

@@ -170,22 +170,22 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
 
           // Payment method breakdown
           const method = (inv.payment_method || 'CASH').toUpperCase();
-          if (method === 'SPLIT' && inv.split_details) {
-            let sd: unknown = inv.split_details;
-            while (typeof sd === 'string') {
-              try { sd = JSON.parse(sd); } catch { break; }
-            }
-            if (sd && typeof sd === 'object') {
-              const split = sd as Record<string, unknown>;
-              pm.cash += Number(split.cash) || 0;
-              pm.card += Number(split.card) || 0;
-              pm.upi += Number(split.upi) || 0;
-              pm.bank += Number(split.bank_transfer || split.bank) || 0;
-              pm.cheque += Number(split.cheque) || 0;
-              pm.credit += Number(split.credit) || 0;
-            } else {
-              pm.cash += grandTotal;
-            }
+          let sd: unknown = inv.split_details;
+          while (typeof sd === 'string') {
+            try { sd = JSON.parse(sd); } catch { break; }
+          }
+          if ((method === 'SPLIT' || method === 'CREDIT' || sd) && sd && typeof sd === 'object') {
+            const split = sd as Record<string, unknown>;
+            pm.cash += Number(split.cash) || 0;
+            pm.card += Number(split.card) || 0;
+            pm.upi += Number(split.upi) || 0;
+            pm.bank += Number(split.bank_transfer || split.bank) || 0;
+            pm.cheque += Number(split.cheque) || 0;
+            pm.credit += Number(split.credit) || 0;
+          } else if (method === 'CREDIT') {
+            const rec = Math.max(0, Number(inv.received_amount) || 0);
+            pm.cash += Math.min(grandTotal, rec);
+            pm.credit += Math.max(0, grandTotal - rec);
           } else if (method.includes('CASH')) pm.cash += grandTotal;
           else if (method.includes('CARD')) pm.card += grandTotal;
           else if (method.includes('UPI')) pm.upi += grandTotal;

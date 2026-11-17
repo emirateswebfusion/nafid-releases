@@ -330,11 +330,28 @@ export async function handleSalesDetailIntent(parsed: ParsedOfflineIntent, ctx: 
         counterMap[cName].count += 1;
         counterMap[cName].total += amt;
         const method = String(inv.payment_method || '').toUpperCase();
-        if (method === 'CASH') {
-          counterMap[cName].cash += amt;
-        } else {
-          counterMap[cName].digital += amt;
+        let cashAmt = 0;
+        let digitalAmt = 0;
+        if (inv.split_details) {
+          let sd = inv.split_details;
+          while (typeof sd === 'string') {
+            try { sd = JSON.parse(sd); } catch { break; }
+          }
+          if (sd && typeof sd === 'object') {
+            const split = sd as Record<string, unknown>;
+            cashAmt = Number(split.cash) || 0;
+            digitalAmt = (Number(split.card) || 0) + (Number(split.upi) || 0) + (Number(split.bank_transfer || split.bank) || 0) + (Number(split.cheque) || 0);
+          }
         }
+        if (cashAmt === 0 && digitalAmt === 0) {
+          if (method === 'CASH') {
+            cashAmt = amt;
+          } else {
+            digitalAmt = amt;
+          }
+        }
+        counterMap[cName].cash += cashAmt;
+        counterMap[cName].digital += digitalAmt;
       });
 
       const counters = Object.entries(counterMap);

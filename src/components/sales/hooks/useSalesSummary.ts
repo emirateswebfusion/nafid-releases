@@ -26,7 +26,7 @@ export function useSalesSummary(ctx: SummaryContext) {
       : accountingView === 'REAL_SALES' ? i.invoice_type === 'BILL_OF_SUPPLY' : !i.converted_from_invoice_id);
     const fallback = {
       totalSales: live.reduce((sum, inv) => sum + getInvoiceRevenueForFilter(inv, paymentFilter), 0),
-      totalSalesBeforeDeductions: live.reduce((sum, inv) => sum + getInvoicePreDeductionTotal(inv), 0),
+      totalSalesBeforeDeductions: live.reduce((sum, inv) => sum + (paymentFilter ? getInvoiceRevenueForFilter(inv, paymentFilter) : getInvoicePreDeductionTotal(inv)), 0),
       totalInvoices: live.length,
       totalTax: live.reduce((sum, inv) => sum + (Number(inv.tax_total) || 0), 0),
       totalDiscount: live.reduce((sum, inv) => sum + (Number(inv.discount_total) || 0), 0),

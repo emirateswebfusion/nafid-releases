@@ -508,10 +508,14 @@ export function getInvoicesStatement(db: Db, args: InvoiceListQuery) {
 
     if (payment_method) {
       const pmUpper = payment_method.toUpperCase();
-      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'].includes(pmUpper)) {
-        const jsonKey = pmUpper === 'BANK_TRANSFER' ? 'bank_transfer' : pmUpper.toLowerCase();
-        query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
-        params.push(pmUpper);
+      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'BANK', 'CHEQUE', 'CREDIT'].includes(pmUpper)) {
+        const jsonKey = (pmUpper === 'BANK_TRANSFER' || pmUpper === 'BANK') ? 'bank_transfer' : pmUpper.toLowerCase();
+        if (jsonKey === 'bank_transfer') {
+          query += ` AND (UPPER(i.payment_method) IN ('BANK_TRANSFER', 'BANK') OR (UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND (CAST(json_extract(i.split_details, '$.bank_transfer') AS REAL) > 0 OR CAST(json_extract(i.split_details, '$.bank') AS REAL) > 0)))`;
+        } else {
+          query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
+          params.push(pmUpper);
+        }
       } else {
         query += ' AND UPPER(i.payment_method) = ?';
         params.push(pmUpper);
@@ -585,9 +589,13 @@ export function getInvoicesStatement(db: Db, args: InvoiceListQuery) {
 export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
     const { activeTenantId, onlyUserInvoices, user_id, search, payment_method, invoice_type, tax_rate_percent, accounting_view, dateRange } = args;
     // Determine the split_details JSON key for the active payment method filter
-    const splitJsonKey = payment_method && ['CASH','UPI','CARD','BANK_TRANSFER','CHEQUE','CREDIT'].includes(payment_method.toUpperCase())
-      ? (payment_method.toUpperCase() === 'BANK_TRANSFER' ? 'bank_transfer' : payment_method.toLowerCase())
+    const pmUpper = payment_method?.toUpperCase();
+    const splitJsonKey = pmUpper && ['CASH','UPI','CARD','BANK_TRANSFER','BANK','CHEQUE','CREDIT'].includes(pmUpper)
+      ? ((pmUpper === 'BANK_TRANSFER' || pmUpper === 'BANK') ? 'bank_transfer' : pmUpper.toLowerCase())
       : null;
+    const splitKeyExpr = splitJsonKey === 'bank_transfer'
+      ? `COALESCE(CAST(json_extract(i.split_details, '$.bank_transfer') AS REAL), CAST(json_extract(i.split_details, '$.bank') AS REAL), 0)`
+      : `COALESCE(CAST(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}') AS REAL), 0)`;
 
     const isTaxFiling = accounting_view === 'TAX_FILING' || invoice_type === 'CONVERTED_GST';
     const isBosOnly = accounting_view === 'REAL_SALES';
@@ -597,11 +605,17 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         COALESCE(SUM(
           CASE
             WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
-              THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
+              THEN ${splitKeyExpr}
             ELSE MAX(0, COALESCE(i.grand_total, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
         ), 0) as totalSales,
-        COALESCE(SUM(MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))), 0) as totalSalesBeforeDeductions,
+        COALESCE(SUM(
+          CASE
+            WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
+              THEN ${splitKeyExpr}
+            ELSE MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))
+          END
+        ), 0) as totalSalesBeforeDeductions,
         COUNT(1) as totalInvoices,
         COALESCE(SUM(i.tax_total), 0) as totalTax,
         COALESCE(SUM(i.discount_total), 0) as totalDiscount,
@@ -617,11 +631,17 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         COALESCE(SUM(
           CASE
             WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
-              THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
+              THEN ${splitKeyExpr}
             ELSE MAX(0, COALESCE(i.grand_total, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
         ), 0) as totalSales,
-        COALESCE(SUM(MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))), 0) as totalSalesBeforeDeductions,
+        COALESCE(SUM(
+          CASE
+            WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
+              THEN ${splitKeyExpr}
+            ELSE MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))
+          END
+        ), 0) as totalSalesBeforeDeductions,
         COUNT(1) as totalInvoices,
         COALESCE(SUM(i.tax_total), 0) as totalTax,
         COALESCE(SUM(i.discount_total), 0) as totalDiscount,
@@ -637,12 +657,16 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
         COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN
           CASE
             WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
-              THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
+              THEN ${splitKeyExpr}
             ELSE MAX(0, COALESCE(i.grand_total, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
           END
         ELSE 0 END), 0) as totalSales,
         COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN
-          MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))
+          CASE
+            WHEN UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
+              THEN ${splitKeyExpr}
+            ELSE MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0))
+          END
         ELSE 0 END), 0) as totalSalesBeforeDeductions,
         COUNT(CASE WHEN ${counterSalePredicate('i')} THEN 1 END) as totalInvoices,
         COALESCE(SUM(CASE WHEN ${counterSalePredicate('i')} THEN i.tax_total ELSE 0 END), 0) as totalTax,
@@ -669,10 +693,14 @@ export function getInvoicesSummaryStatement(db: Db, args: InvoiceListQuery) {
 
     if (payment_method) {
       const pmUpper = payment_method.toUpperCase();
-      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CHEQUE', 'CREDIT'].includes(pmUpper)) {
-        const jsonKey = pmUpper === 'BANK_TRANSFER' ? 'bank_transfer' : pmUpper.toLowerCase();
-        query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
-        params.push(pmUpper);
+      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'BANK', 'CHEQUE', 'CREDIT'].includes(pmUpper)) {
+        const jsonKey = (pmUpper === 'BANK_TRANSFER' || pmUpper === 'BANK') ? 'bank_transfer' : pmUpper.toLowerCase();
+        if (jsonKey === 'bank_transfer') {
+          query += ` AND (UPPER(i.payment_method) IN ('BANK_TRANSFER', 'BANK') OR (UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND (CAST(json_extract(i.split_details, '$.bank_transfer') AS REAL) > 0 OR CAST(json_extract(i.split_details, '$.bank') AS REAL) > 0)))`;
+        } else {
+          query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) IN ('SPLIT', 'CREDIT') AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
+          params.push(pmUpper);
+        }
       } else {
         query += ' AND UPPER(i.payment_method) = ?';
         params.push(pmUpper);

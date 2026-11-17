@@ -749,6 +749,7 @@ export function SalesBillsView({
                     upiSources={upiSources}
                     showEinvoice={showEinvoice}
                     einvoice={einvoiceStatuses[inv.invoice_id]}
+                    paymentFilter={paymentFilter}
                   />
                 ))}
               </Fragment>
