@@ -12,6 +12,8 @@ import { useBillingUIStore, DEFAULT_BILLING_UI_CONFIG } from '../../src/store/bi
 import { DEFAULT_FEATURE_FLAGS, useFeatureFlagsStore } from '../../src/config/featureFlags';
 import { useDesignDraft } from '../../src/components/design-settings/useDesignDraft';
 import { useThemeStore } from '../../src/store/themeStore';
+import { useWhatsAppConnection } from '../../src/components/whatsapp/hooks/useWhatsAppConnection';
+import { useWhatsAppSettingsState } from '../../src/components/whatsapp/hooks/useWhatsAppSettingsState';
 afterEach(() => { cleanup(); writes.mockClear(); });
 it('billing rule switches change parent drafts without changing runtime permissions or layout', () => {
   const beforeFlags = useFeatureFlagsStore.getState().flags;
@@ -55,8 +57,6 @@ it('theme choices leave runtime and cache unchanged until the main save complete
 });
 
 it('reverting WhatsApp switches clears pending changes and saving waits for durable settings', async () => {
-  const { useWhatsAppConnection } = await import('../../src/components/whatsapp/hooks/useWhatsAppConnection');
-  const { useWhatsAppSettingsState } = await import('../../src/components/whatsapp/hooks/useWhatsAppSettingsState');
   const session = new SettingsSaveSession();
   const context = { session, changed: () => {} };
   const wrapper = ({ children }: { children: ReactNode }) => <SettingsSaveContext.Provider value={context}>{children}</SettingsSaveContext.Provider>;

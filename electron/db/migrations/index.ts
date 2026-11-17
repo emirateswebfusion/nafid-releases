@@ -24,6 +24,7 @@ import { m017HistoricalCreditNotes } from './017-historical-credit-notes.js';
 import { m015DedupeScrapCashTransactions } from './015-dedupe-scrap-cash-transactions.js';
 import { m016PurgeDuplicateScrapCashTransactions } from './016-purge-duplicate-scrap-cash-transactions.js';
 import { m023ReconcileCustomerLoyaltyPoints } from './023-reconcile-customer-loyalty-points.js';
+import { m024PurchaseInterstate } from './024-purchase-interstate.js';
 
 /**
  * Every versioned migration, in order. To change the schema or fix data: add `NNN-short-name.ts` exporting a
@@ -54,6 +55,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 21, name: 'historical-credit-notes-compatibility', up: m017HistoricalCreditNotes.up },
   { version: 22, name: 'uae-einvoicing-compatibility', up: m017UaeEinvoicing.up },
   m023ReconcileCustomerLoyaltyPoints,
+  m024PurchaseInterstate,
 ];
 
 /** Startup step after the baseline schema: apply pending migrations, then remove a sync apply guard row left by a

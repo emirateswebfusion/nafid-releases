@@ -35,8 +35,8 @@ export const findPurchaseBillItems = (db: Db) => db.prepare(`
     `);
 
 export const insertPurchaseBill = (db: Db) => db.prepare(`
-          INSERT INTO purchase_bills (purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, invoice_number, notes, total_amount, bill_type, payment_type, sync_status, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO purchase_bills (purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, invoice_number, notes, total_amount, bill_type, payment_type, is_interstate, sync_status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `);
 
 export const insertPurchaseBillItem = (db: Db) => db.prepare(`
@@ -78,7 +78,7 @@ export const findPurchaseBillsByPurchaseBillId = (db: Db) => db.prepare('SELECT 
 export const findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity = (db: Db) => db.prepare('SELECT product_id, quantity, skip_stock_update FROM purchase_bill_items WHERE purchase_bill_id = ?');
 
 export const updatePurchaseBillByPurchaseBillId = (db: Db) => db.prepare(`
-        UPDATE purchase_bills SET supplier_id = ?, supplier_name = ?, bill_date = ?, invoice_number = ?, notes = ?, total_amount = ?, bill_type = ?, payment_type = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        UPDATE purchase_bills SET supplier_id = ?, supplier_name = ?, bill_date = ?, invoice_number = ?, notes = ?, total_amount = ?, bill_type = ?, payment_type = ?, is_interstate = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE purchase_bill_id = ?
       `);
 

@@ -22,6 +22,7 @@ export interface PurchaseBillViewDialogProps {
 export function PurchaseBillViewDialog({
   handleDelete, handleEditBill, handlePrintBill, loadingViewingItems, setViewingBill, viewingBill, viewingBillItems,
 }: PurchaseBillViewDialogProps) {
+  const isInterstate = !isVatStore() && !!viewingBill.is_interstate;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
@@ -171,8 +172,8 @@ export function PurchaseBillViewDialog({
                 <div>Product</div>
                 <div className="text-right">Qty</div>
                 <div className="text-right">Rate</div>
-                {viewingBill.bill_type === 'GST' && <div className="text-right">CGST</div>}
-                {viewingBill.bill_type === 'GST' && <div className="text-right">SGST</div>}
+                {viewingBill.bill_type === 'GST' && <div className={isInterstate ? "col-span-2 text-right" : "text-right"}>{isInterstate ? 'IGST' : 'CGST'}</div>}
+                {viewingBill.bill_type === 'GST' && !isInterstate && <div className="text-right">SGST</div>}
                 <div className="text-right">Total</div>
               </div>
 
@@ -242,18 +243,18 @@ export function PurchaseBillViewDialog({
                         </div>
 
                         {viewingBill.bill_type === 'GST' && (
-                          <div className="text-right">
+                          <div className={isInterstate ? "col-span-2 text-right" : "text-right"}>
                             {hasGst ? (
                               <div className="leading-tight">
-                                <p className="font-bold text-foreground">{getCurrencyPrefix()}{(gstAmt / 2).toFixed(getCurrencyDecimals())}</p>
-                                <p className="text-[9px] text-muted-foreground font-semibold">{(taxRate / 2).toFixed(1)}%</p>
+                                <p className="font-bold text-foreground">{getCurrencyPrefix()}{(isInterstate ? gstAmt : gstAmt / 2).toFixed(getCurrencyDecimals())}</p>
+                                <p className="text-[9px] text-muted-foreground font-semibold">{(isInterstate ? taxRate : taxRate / 2).toFixed(1)}%</p>
                               </div>
                             ) : (
                               <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}0.00</span>
                             )}
                           </div>
                         )}
-                        {viewingBill.bill_type === 'GST' && (
+                        {viewingBill.bill_type === 'GST' && !isInterstate && (
                           <div className="text-right">
                             {hasGst ? (
                               <div className="leading-tight">
@@ -326,10 +327,10 @@ export function PurchaseBillViewDialog({
                       <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2.5 space-y-1.5 mt-0.5">
                         <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-1.5">{localizeTaxText("GST")} Breakdown</p>
                         <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground font-semibold">{isVatStore() ? 'VAT' : 'CGST'}</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{(isVatStore() ? totalGst : halfGst).toFixed(getCurrencyDecimals())}</span>
+                          <span className="text-muted-foreground font-semibold">{isVatStore() ? 'VAT' : isInterstate ? 'IGST' : 'CGST'}</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{(isVatStore() || isInterstate ? totalGst : halfGst).toFixed(getCurrencyDecimals())}</span>
                         </div>
-                        {!isVatStore() && <div className="flex justify-between text-xs">
+                        {!isVatStore() && !isInterstate && <div className="flex justify-between text-xs">
                           <span className="text-muted-foreground font-semibold">SGST</span>
                           <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{(isVatStore() ? totalGst : halfGst).toFixed(getCurrencyDecimals())}</span>
                         </div>}

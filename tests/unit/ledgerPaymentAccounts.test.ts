@@ -5,6 +5,7 @@ import { createCoreTables } from '../../electron/db/schemaCoreTables';
 import { createExtendedTables } from '../../electron/db/schemaExtendedTables';
 import { ensureSchemaColumns } from '../../electron/db/schemaColumns';
 import { runColumnMigrations } from '../../electron/db/migrationsColumns';
+import { m024PurchaseInterstate } from '../../electron/db/migrations/024-purchase-interstate';
 const state = vi.hoisted(() => ({ db: null as unknown as Database.Database }));
 vi.mock('../../electron/db/localDb', () => ({ getDb: () => state.db }));
 vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] } }));
@@ -26,6 +27,7 @@ beforeEach(() => {
     catch (error) { raw.exec('ROLLBACK TO ledger_test; RELEASE ledger_test'); throw error; }
   } }) as unknown as Database.Database;
   createCoreTables(state.db); createExtendedTables(state.db); ensureSchemaColumns(state.db); runColumnMigrations(state.db);
+  m024PurchaseInterstate.up(state.db);
   raw.exec("INSERT INTO parties (party_id,tenant_id,name) VALUES ('p','t','Wholesale customer')");
   for (const type of ['UPI', 'CARD', 'BANK']) raw.prepare(`INSERT INTO payment_sources
     (source_id,tenant_id,name,type,current_balance,is_default,is_enabled) VALUES (?,'t',?,?,0,1,1)`).run(type,type,type);

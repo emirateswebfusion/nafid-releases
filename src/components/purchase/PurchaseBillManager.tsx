@@ -72,6 +72,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     totalQty: number;
     cgst: number;
     sgst: number;
+    igst: number;
     taxableAmount: number;
     itemsCount: number;
     hasPaper?: boolean;
@@ -144,10 +145,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           invoice_number: editingBill?.invoice_number,
           payment_type: editingBillPaymentType || 'CASH',
           total_amount: editingBillTotalAmount,
+          is_interstate: editingBill.is_interstate,
         }
       : undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- editingBill object and editingBillTotalAmount excluded: the original memo tracks only the listed bill fields, so unrelated record or total changes must not refresh the child editor.
-    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, editingBillPaymentType]
+    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, editingBill?.is_interstate, editingBillPaymentType]
   );
   const estEditingData = useMemo(() =>
     editingBill?.bill_type === 'ESTIMATE'

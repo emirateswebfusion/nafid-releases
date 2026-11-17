@@ -243,6 +243,7 @@ export async function pullPurchaseBills(token: string, tenantId: string): Promis
               total_amount: bill.total_amount ?? 0,
               bill_type: bill.bill_type || 'GST',
               payment_type: bill.payment_type || 'CASH',
+              is_interstate: bill.is_interstate === true || Number(bill.is_interstate) === 1 ? 1 : 0,
               created_at: toSqliteDate((bill.created_at as string | number | Date | null | undefined)),
               updated_at: toSqliteDate((bill.updated_at as string | number | Date | null | undefined)),
             });

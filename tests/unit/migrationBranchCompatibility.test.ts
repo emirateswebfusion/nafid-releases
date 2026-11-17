@@ -39,7 +39,7 @@ describe('migration histories from release and feature branches', () => {
         runMigrations(db, MIGRATIONS);
         const records = db.prepare('SELECT version, name FROM schema_migrations ORDER BY version').all();
         expect(records.slice(0, before.length)).toEqual(before);
-        expect(records).toHaveLength(23);
+        expect(records).toHaveLength(24);
         const returnColumns = db.prepare('PRAGMA table_info(returns)').all() as { name: string; notnull: number }[];
         expect(returnColumns.find(column => column.name === 'invoice_id')?.notnull).toBe(0);
         for (const table of ['card_terminal_transactions', 'restaurant_orders', 'kot_tickets', 'einvoice_documents']) {

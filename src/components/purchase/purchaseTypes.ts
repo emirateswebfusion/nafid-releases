@@ -34,7 +34,7 @@ export interface PurchaseFormItem {
   tax_rate_percent?: number | null;
   hsn_sac_code?: string | null;
   skip_stock_update?: number | null;
-  is_interstate?: boolean;
+  is_interstate?: boolean | number | null;
   is_new_product_clone?: boolean;
   clone_metadata?: {
     barcode: string;
@@ -56,6 +56,7 @@ export interface PurchaseBillEditingData {
   invoice_number?: string | null;
   payment_type: string;
   total_amount?: number;
+  is_interstate?: boolean | number | null;
 }
 
 /** A product added to a purchase bill section (from search, a clone, or the other section). */
@@ -72,5 +73,5 @@ export interface PurchaseAddItem {
   sku_barcode?: string | null;
   item_code?: string | null;
   skip_stock_update?: number | null;
-  is_interstate?: boolean;
+  is_interstate?: boolean | number | null;
 }

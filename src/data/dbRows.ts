@@ -584,6 +584,7 @@ export interface PurchaseBillsRow {
   row_version: number;
   origin: string | null;
   stock_revision: number;
+  is_interstate: number | null;
 }
 
 /** Row of `quotation_items`. */

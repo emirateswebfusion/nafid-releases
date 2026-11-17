@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { createCoreTables } from '../../electron/db/schemaCoreTables';
 import { createExtendedTables } from '../../electron/db/schemaExtendedTables';
+import { m024PurchaseInterstate } from '../../electron/db/migrations/024-purchase-interstate';
 const state = vi.hoisted(() => ({ db: null as unknown }));
 vi.mock('../../electron/db/localDb', () => ({ getDb: () => state.db }));
 vi.mock('../../electron/services/cashDrawerService', () => ({ getOpenCashDrawer: () => null }));
@@ -15,6 +16,7 @@ beforeEach(() => {
   sql = new DatabaseSync(':memory:');
   createCoreTables(sql as unknown as Parameters<typeof createCoreTables>[0]);
   createExtendedTables(sql as unknown as Parameters<typeof createExtendedTables>[0]);
+  m024PurchaseInterstate.up(sql as unknown as Parameters<typeof m024PurchaseInterstate.up>[0]);
   state.db = { prepare: (s: string) => sql.prepare(s), transaction: (fn: () => unknown) => () => {
     sql.exec('BEGIN'); try { const result = fn(); sql.exec('COMMIT'); return result; } catch (e) { sql.exec('ROLLBACK'); throw e; }
   }};
@@ -26,6 +28,14 @@ function bill(id: string, type = 'GST', quantity = 3, skip = 0) {
     items: [{ item_id: id + '-item', product_id: 'p', name: 'Product', quantity, purchase_price: 5, total_amount: quantity * 5, skip_stock_update: skip }] };
 }
 const stock = () => sql.prepare('SELECT current_stock FROM products WHERE product_id=?').get('p')?.current_stock;
+it('persists interstate purchases through create, edit and read without changing stock rules', () => {
+  expect(addPurchaseBill({ ...bill('interstate'), is_interstate: true }).success).toBe(true);
+  expect(sql.prepare('SELECT is_interstate FROM purchase_bills').get()?.is_interstate).toBe(1);
+  expect(stock()).toBe(23);
+  expect(updatePurchaseBill({ ...bill('interstate'), is_interstate: false }).success).toBe(true);
+  expect(sql.prepare('SELECT is_interstate FROM purchase_bills').get()?.is_interstate).toBe(0);
+  expect(stock()).toBe(23);
+});
 it.each(['GST','ESTIMATE'])('%s create/edit/repeated edit/delete posts only the bill quantity', type => {
   expect(addPurchaseBill(bill('one',type))).toEqual({ success: true }); expect(stock()).toBe(23);
   expect(updatePurchaseBill(bill('one',type,5))).toEqual({ success: true }); expect(stock()).toBe(25);

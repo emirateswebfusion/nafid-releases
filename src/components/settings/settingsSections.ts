@@ -55,6 +55,9 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     category: 'Billing & Sales',
     icon: ShoppingCart,
     items: [
+      { id: 'scan_go', label: 'Scan & Go', icon: ShoppingCart, ownerOnly: true,
+        description: 'Enable customer self-scan carts and show the shop QR code.',
+        keywords: 'scan go customer carts qr self scan mobile counter' },
       { id: 'billing', label: 'Billing Rules', icon: Receipt, ownerOnly: true,
         description: 'Price override display, purchase cost visibility, biller PIN, sales staff tracking and Convert to GST.',
         keywords: 'mrp override purchase cost pin biller sales staff commission convert gst staff credit' },

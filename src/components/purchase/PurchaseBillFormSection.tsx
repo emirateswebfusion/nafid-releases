@@ -1,5 +1,5 @@
 import { roundMoney } from '../../utils/pricing/moneyRounding';
-import { localizeTaxText, getCurrencyDecimals } from '../../utils/localization/storeProfile';
+import { isVatStore, localizeTaxText, getCurrencyDecimals } from '../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { forwardRef, useState, useRef, useEffect, useMemo, useImperativeHandle } from 'react';
 import { type PurchaseBillFormHandle, type Product, type PurchaseFormItem, type PurchaseAddItem } from './purchaseTypes';
@@ -106,7 +106,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
   usePurchaseBillEditLoad({
     editingData, onItemsLoaded, setBillItems, setBillNumber, setInvoiceNumber, setManualRoundOff,
-    setPaymentType, setPeekedBillNumber, setPriceCoding, tenantId, type,
+    setPaymentType, setPeekedBillNumber, setPriceCoding, setIsInterstate, tenantId, type,
   });
 
   useEffect(() => {
@@ -451,7 +451,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             className="w-36 bg-background/50 border border-border rounded-xl px-2.5 py-2 text-xs font-mono tracking-wider text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background focus:outline-none transition-all"
           />
         </div>
-        <div className="flex items-center gap-2 pt-4">
+        {type === 'GST' && !isVatStore() && <div className="flex items-center gap-2 pt-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -461,7 +461,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             />
             <span className="text-xs font-semibold text-muted-foreground">Interstate / IGST</span>
           </label>
-        </div>
+        </div>}
         <div>
           <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 block mb-1">Payment</label>
           <Select
@@ -578,10 +578,12 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         </div>
                       </>
                     )}
-                    <div className="flex justify-between text-xs border-t border-border/40 pt-1">
-                      <span className="text-muted-foreground font-bold">Total {localizeTaxText(isInterstate ? "IGST" : "GST")}</span>
-                      <span className="font-black text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{totalGst.toFixed(getCurrencyDecimals())}</span>
-                    </div>
+                    {!isInterstate && (
+                      <div className="flex justify-between text-xs border-t border-border/40 pt-1">
+                        <span className="text-muted-foreground font-bold">Total {localizeTaxText("GST")}</span>
+                        <span className="font-black text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{totalGst.toFixed(getCurrencyDecimals())}</span>
+                      </div>
+                    )}
                   </>
                 )}
                 <div className="flex justify-between items-center text-xs border-t border-border/40 pt-1">

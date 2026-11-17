@@ -15,6 +15,7 @@ export interface UsePurchaseBillEditLoadContext {
   setPaymentType: React.Dispatch<React.SetStateAction<"CASH" | "CREDIT" | "UPI" | "BANK_TRANSFER">>;
   setPeekedBillNumber: React.Dispatch<React.SetStateAction<string>>;
   setPriceCoding: React.Dispatch<React.SetStateAction<Record<string, string> | null>>;
+  setIsInterstate: React.Dispatch<React.SetStateAction<boolean>>;
   tenantId: string;
   type: "GST" | "ESTIMATE";
 }
@@ -23,12 +24,13 @@ export interface UsePurchaseBillEditLoadContext {
  * When editing a saved bill, loads its items into the form and restores its round-off.
  */
 export function usePurchaseBillEditLoad(ctx: UsePurchaseBillEditLoadContext) {
-  const { editingData, onItemsLoaded, setBillItems, setBillNumber, setInvoiceNumber, setManualRoundOff, setPaymentType, setPeekedBillNumber, setPriceCoding, tenantId, type } = ctx;
+  const { editingData, onItemsLoaded, setBillItems, setBillNumber, setInvoiceNumber, setManualRoundOff, setPaymentType, setPeekedBillNumber, setPriceCoding, setIsInterstate, tenantId, type } = ctx;
   useEffect(() => {
     if (editingData) {
       setBillNumber(editingData.bill_number);
       setInvoiceNumber(editingData.invoice_number || '');
       setPaymentType((editingData.payment_type || 'CASH') as 'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER');
+      setIsInterstate(!!editingData.is_interstate);
       setBillItems([]);
       if (isDesktopRuntime() && tenantId) {
         purchasesApi.getPurchaseBillItems(editingData.purchase_bill_id)
@@ -77,6 +79,7 @@ export function usePurchaseBillEditLoad(ctx: UsePurchaseBillEditLoadContext) {
           .catch(console.error);
       }
     } else {
+      setIsInterstate(false);
       setBillItems([]);
       setManualRoundOff('');
       if (isDesktopRuntime() && tenantId) {
@@ -96,6 +99,6 @@ export function usePurchaseBillEditLoad(ctx: UsePurchaseBillEditLoadContext) {
         .then(res => { if (res) setPriceCoding(res); })
         .catch(console.error);
     }
-  }, [tenantId, editingData, type, onItemsLoaded, setBillItems, setBillNumber, setInvoiceNumber, setManualRoundOff, setPaymentType, setPeekedBillNumber, setPriceCoding]);
+  }, [tenantId, editingData, type, onItemsLoaded, setBillItems, setBillNumber, setInvoiceNumber, setManualRoundOff, setPaymentType, setPeekedBillNumber, setPriceCoding, setIsInterstate]);
 
 }

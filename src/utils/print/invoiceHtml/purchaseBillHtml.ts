@@ -18,6 +18,7 @@ export function generatePurchaseBillHtml(
     bill_date: string | null;
     invoice_number?: string | null;
     bill_type: string | null;
+    is_interstate?: boolean | number | null;
     payment_type?: string | null;
     notes?: string | null;
     total_amount: number | null;
@@ -313,13 +314,13 @@ export function generatePurchaseBillHtml(
       </div>
       ${isGst && totalTax > 0 ? `
         <div class="totals-row">
-          <span>CGST:</span>
-          <span>${getCurrencyPrefix()}${taxSplit.cgst.toFixed(getCurrencyDecimals())}</span>
+          <span>${bill.is_interstate ? 'IGST' : 'CGST'}:</span>
+          <span>${getCurrencyPrefix()}${(bill.is_interstate ? totalTax : taxSplit.cgst).toFixed(getCurrencyDecimals())}</span>
         </div>
-        <div class="totals-row">
+        ${bill.is_interstate ? '' : `<div class="totals-row">
           <span>SGST:</span>
           <span>${getCurrencyPrefix()}${taxSplit.sgst.toFixed(getCurrencyDecimals())}</span>
-        </div>
+        </div>`}
         <div class="totals-row" style="font-weight: 700;">
           <span>Total Tax:</span>
           <span>${getCurrencyPrefix()}${totalTax.toFixed(getCurrencyDecimals())}</span>

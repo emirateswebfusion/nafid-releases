@@ -322,3 +322,7 @@ re-save the correct type on the authoritative terminal and sync, without bulk re
 Legacy cloud and LAN delta checks use `party_ledger.updated_at`, so edits and tombstones of older entries trigger a ledger download. Payloads and schemas are unchanged. A ledger page applies entries and recalculates both previous and incoming party balances in one transaction. An empty ledger after deletion or reassignment produces zero GST/estimate/total balances and a null last-transaction date; unrelated opening-only accounts are untouched. Pending local entries retain their contents and status on pull. Upload acknowledgements match the captured local `row_version` and `updated_at`, preserving edits made during the request. Failed page writes or balance recalculations roll back and cannot advance the pull cursor.
 
 Regression coverage: `tests/unit/partyLedgerSync.test.ts`; cloud login/no-login and LAN characterization. Server upload ownership/retry/delta coverage lives in `nafid-server/tests/partyLedgerSync.test.ts`.
+
+## Interstate purchase tax classification (17 November 2026)
+
+POS migration 024 adds `purchase_bills.is_interstate` (SQLite 0/1); server tenant migration 106 adds its boolean counterpart. Create/edit, cloud pull and LAN rows retain this additive field. Missing legacy uploads preserve existing server classification; new legacy bills default to intrastate. Deploy the server first. Regression coverage: `purchaseStockService.test.ts`, `purchaseInterstateSync.test.ts`, migration compatibility and server sync golden/integration tests.

@@ -134,7 +134,7 @@ export function PurchaseBillItemsTable({
             <span className="text-right">MRP</span>
             <span className="text-right">Offer</span>
             <span className="text-right">Tax%</span>
-            {isInterstate ? <span className="text-right">IGST</span> : <>
+            {isInterstate ? <span className="col-span-2 text-right">IGST</span> : <>
               <span className="text-right">CGST</span>
               <span className="text-right">SGST</span>
             </>}
@@ -238,20 +238,32 @@ export function PurchaseBillItemsTable({
                   <option value={18}>18%</option>
                   <option value={28}>28%</option>
                 </select>
-                <div className="text-right text-xs">
-                  {hasGst ? (
-                    <span className="font-bold text-foreground">{getCurrencyPrefix()}{moneyFixed(gstAmt / 2)}</span>
-                  ) : (
-                    <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}{moneyFixed(0)}</span>
-                  )}
-                </div>
-                <div className="text-right text-xs">
-                  {hasGst ? (
-                    <span className="font-bold text-foreground">{getCurrencyPrefix()}{moneyFixed(gstAmt / 2)}</span>
-                  ) : (
-                    <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}{moneyFixed(0)}</span>
-                  )}
-                </div>
+                {isInterstate ? (
+                  <div className="col-span-2 text-right text-xs">
+                    {hasGst ? (
+                      <span className="font-bold text-foreground">{getCurrencyPrefix()}{moneyFixed(gstAmt)}</span>
+                    ) : (
+                      <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}{moneyFixed(0)}</span>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-right text-xs">
+                      {hasGst ? (
+                        <span className="font-bold text-foreground">{getCurrencyPrefix()}{moneyFixed(gstAmt / 2)}</span>
+                      ) : (
+                        <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}{moneyFixed(0)}</span>
+                      )}
+                    </div>
+                    <div className="text-right text-xs">
+                      {hasGst ? (
+                        <span className="font-bold text-foreground">{getCurrencyPrefix()}{moneyFixed(gstAmt / 2)}</span>
+                      ) : (
+                        <span className="text-muted-foreground/50 font-semibold">{getCurrencyPrefix()}{moneyFixed(0)}</span>
+                      )}
+                    </div>
+                  </>
+                )}
                 <div className="text-right font-bold text-foreground text-xs">
                   {getCurrencyPrefix()}{moneyFixed(itemTotal)}
                 </div>

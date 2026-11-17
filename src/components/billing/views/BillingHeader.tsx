@@ -1,4 +1,5 @@
 import { FilingOnlyButton } from './FilingOnlyButton';
+import { CustomerCartsButton } from '../../scanGo/CustomerCartsButton';
 import React from 'react';
 import { isAdminRole } from '../../../utils/security/permissions';
 import { Store, RotateCcw, TrendingUp, PauseCircle, Truck, Recycle, FileText, ArrowLeftRight, Banknote, BookOpen, Users, Package, User, Layers, Shield, Settings, UtensilsCrossed, X } from 'lucide-react';
@@ -382,6 +383,7 @@ export function BillingHeader({
             <span>Tables</span>
           </button>
         )}
+        {!isQuotationMode && !isReturnMode && <CustomerCartsButton />}
         {isHeaderButtonVisible(uiConfig, 'showRegister') && showCashRegister && (
           <button
             onClick={() => setCashRegisterOpen(true)}

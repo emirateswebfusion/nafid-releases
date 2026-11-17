@@ -22,6 +22,7 @@ import type { Tab } from '../../../store/tabStore';
 import type { InvoiceType, UserRole } from '../../../store/cartStore';
 import type { ProductSearchState } from './useProductSearchState';
 import { useRestaurantBillHandover } from '../../restaurant/restaurantBillHandover';
+import { useScanGoBillHandover } from '../../scanGo/scanGoBillHandover';
 
 export interface UseIncomingDocumentsContext {
   productSearch: ProductSearchState;
@@ -63,6 +64,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
   const { addItem, addTab, applyPartyTier, authRole, clearCart, isCashSettlementEnabled, nextTabNumber, quotationGstEnabledSetting, reserveQuotationNumberForTab, reserveReturnNumberForTab, searchRef, setCustomerState, setEditingQuotation, setHardwareError, setInvoiceType, setIsLoadingEditBill, setIsScrapMode, setLocalKgStr, setLocalPcsStr, setQuotationMode, setQuotationTerms, setReturnMode, setSelectedReturnInvoice, syncActiveSnapshot, tenantId, updateActiveTab } = ctx;
   const { setIsPastBillMode } = ctx.productSearch;
   useRestaurantBillHandover(ctx);
+  useScanGoBillHandover(ctx);
   // Listen for Edit Bill from Sales History — loads items directly into cart
   useEffect(() => {
     const handler = async () => {

@@ -34,6 +34,7 @@ import { cardAmountOf, runCardTerminalStep, settleCardTerminalStep } from '../..
 
 export type { CheckoutContext } from './checkoutTypes';
 import type { CheckoutContext } from './checkoutTypes';
+import { completeScanGoCart } from '../../scanGo/scanGoBillHandover';
 
 export function createCheckoutHandler(ctx: CheckoutContext) {
   const { items, setHardwareError, isCheckingOutRef, activeTabId, setIsCheckingOut, isScrapMode, customerName, customerPhone, tenantId, customerAddress, userId, shopNameState, shopName, shopGstin, shopAddress, shopPhone, authRole, discount, customerState, setCheckoutSuccess, closeTab, clearCart, updateActiveTab, isCashSettlementEnabled, reserveInvoiceNumberForTab, getActiveTab, syncActiveSnapshot, pendingCheckoutSaveOnlyRef, setIsBillerPinModalOpen, pcsRefs, qtyRefs, localPcsStr, invoiceType, isB2B, isQuotationMode, isReturnMode, customerGstin, paymentMethod: tabPaymentMethod, splitDetails: tabSplitDetails, splitTotal, displayGrandTotal, loyaltyEnabled, pointsRedeemedCalc: pointsRedeemed, pointsRedeemedDiscountCalc: pointsRedeemedDiscount, loyaltyCustomerData, receivedAmount, refundAmount, balanceAmount, enableThreeInvoiceSeries, terminalCodeState, bosTaxRatePercent, bosTaxInclusive, loyaltyAwardOnPending, loyaltyEarningRate, isGrandTotalOverridden, activeTab, storeScrapDeduction, storeReturnDeduction, grandTotal, findMatchingParty, shopEmail, shopWebsite, bankNameState, bankAccountState, bankIfscState, bankBranchState, upiId, showUpiQr, subtotal, totalTax, cgst, sgst, igst, storeScrapInvoiceNumber, storeReturnInvoiceNumber, currentSelectedUpi, actualRefundPaid, returnConsumed, editingQuotationId, setPartiesForTier, setInvoiceType, clearScrapDeduction, clearReturnDeduction, setLoyaltyCustomerData, setShowLoyaltyRedemption, setPointsToRedeem } = ctx;
@@ -532,6 +533,14 @@ export function createCheckoutHandler(ctx: CheckoutContext) {
       const confirmedInvoiceNumber = (result && result.invoice_number) ? result.invoice_number : invoice_number;
       invoice_number = confirmedInvoiceNumber;
       receiptData.invoiceNumber = confirmedInvoiceNumber;
+      // Scan & Go: the sale is saved; mark the customer's cloud cart billed (retried later if the cloud is unreachable).
+      if (activeTab?.scanGoCartId && tenantId && !isEditing) {
+        const scanGoCartId = activeTab.scanGoCartId;
+        useTabStore.getState().updateActiveTab({ scanGoCartId: undefined });
+        void completeScanGoCart(scanGoCartId, invoice_id, confirmedInvoiceNumber || null, tenantId).then(confirmed => {
+          if (!confirmed) setHardwareError('Sale saved. Customer cart confirmation is pending and will retry.');
+        });
+      }
       if (result.editedLoyalty && (loyaltyEnabled || pointsRedeemed > 0)) {
         receiptData.pointsEarned = result.editedLoyalty.earned ?? undefined;
         receiptData.previousPointsBalance = result.editedLoyalty.previous ?? undefined;

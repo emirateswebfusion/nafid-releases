@@ -167,6 +167,7 @@ export function addPurchaseBill(payload: {
   total_amount: number;
   bill_type?: string;
   payment_type?: string;
+  is_interstate?: boolean | number;
     items: Array<{
       item_id: string;
       product_id: string;
@@ -188,7 +189,7 @@ export function addPurchaseBill(payload: {
       const paymentType = payload.payment_type || 'CASH';
       const result = db.transaction(() => {
         const { items, ...bill } = payload;
-        purchasesSql.insertPurchaseBill(db).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType);
+        purchasesSql.insertPurchaseBill(db).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, billType === 'GST' && !!bill.is_interstate ? 1 : 0);
 
         const stmt = purchasesSql.insertPurchaseBillItem(db);
         // Two stock statements: ESTIMATE bills update stock+price; GST bills update price only (tax documents, not inventory)
@@ -315,6 +316,7 @@ export function updatePurchaseBill(payload: {
   total_amount: number;
   bill_type?: string;
   payment_type?: string;
+  is_interstate?: boolean | number;
   items: Array<{
     item_id: string;
     product_id: string;
@@ -342,7 +344,7 @@ export function updatePurchaseBill(payload: {
       const oldBillType = oldBill?.bill_type || 'GST';
       const oldItems = purchasesSql.findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity(db).all(bill.purchase_bill_id) as InvoiceItem[];
 
-      purchasesSql.updatePurchaseBillByPurchaseBillId(db).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, bill.purchase_bill_id);
+      purchasesSql.updatePurchaseBillByPurchaseBillId(db).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, billType === 'GST' && !!bill.is_interstate ? 1 : 0, bill.purchase_bill_id);
 
       const decreaseStock = purchasesSql.updateProductCurrentStock(db);
       for (const item of oldItems) {
