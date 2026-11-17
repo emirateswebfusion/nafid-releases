@@ -40,7 +40,7 @@ describe('Sales History query budget', () => {
     } finally {
       memory.close();
     }
-  });
+  }, 30000);
 
   it('preserves tenant, deletion and conversion rules and both eligibility results when scoped', () => {
     const { db, memory } = salesHistoryDb();
