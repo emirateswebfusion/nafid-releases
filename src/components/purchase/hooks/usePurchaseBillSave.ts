@@ -26,6 +26,7 @@ export interface UsePurchaseBillSaveContext {
   supplierName: string;
   tenantId: string;
   type: "GST" | "ESTIMATE";
+  isInterstate?: boolean;
 }
 
 /**
@@ -33,7 +34,7 @@ export interface UsePurchaseBillSaveContext {
  * reports back to the screen.
  */
 export function usePurchaseBillSave(ctx: UsePurchaseBillSaveContext) {
-  const { billDate, billItems, billNumber, editingData, getBillTotal, getOtherSectionItems, invoiceNumber, manualRoundOff, notes, onSaved, onStatusMessage, paymentType, peekedBillNumber, setBillNumber, setCreatedProductIds, setIsSaving, supplierId, supplierName, tenantId, type } = ctx;
+  const { billDate, billItems, billNumber, editingData, getBillTotal, getOtherSectionItems, invoiceNumber, manualRoundOff, notes, onSaved, onStatusMessage, paymentType, peekedBillNumber, setBillNumber, setCreatedProductIds, setIsSaving, supplierId, supplierName, tenantId, type, isInterstate } = ctx;
   const handleSave = async (): Promise<boolean> => {
     if (billItems.length === 0) return true;
     if (!supplierName.trim()) {
@@ -83,6 +84,7 @@ export function usePurchaseBillSave(ctx: UsePurchaseBillSaveContext) {
         total_amount: totalAmount,
         bill_type: type,
         payment_type: paymentType,
+        is_interstate: isInterstate ?? false,
         items: billItems.map(item => ({
           item_id: uuidv4(),
           product_id: item.product_id,
@@ -94,6 +96,7 @@ export function usePurchaseBillSave(ctx: UsePurchaseBillSaveContext) {
           offer_price: item.offer_price ? Number(item.offer_price) || null : null,
           is_gst_applicable: item.is_gst_applicable ?? (type === 'GST' ? 1 : 0),
           tax_rate_percent: type === 'GST' ? (item.tax_rate_percent ?? 0) : 0,
+          is_interstate: isInterstate ?? false,
           hsn_sac_code: type === 'GST' ? (item.hsn_sac_code || null) : null,
           skip_stock_update: type === 'GST' ? ((otherProductIds.has(item.product_id) || item.skip_stock_update === 1) ? 1 : 0) : 0,
         })),

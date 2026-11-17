@@ -20,12 +20,13 @@ export interface PurchaseBillItemsTableProps {
   toggleBillItemDummy: (item: PurchaseFormItem) => void;
   type: 'GST' | 'ESTIMATE';
   updateBillItem: (productId: string, field: "quantity" | "purchase_price" | "selling_price" | "offer_price" | "hsn_sac_code", value: string) => void;
+  isInterstate?: boolean;
 }
 
 /** Items of the bill being entered: per-line quantity, rate, tax, discount and totals (estimate and GST layouts), with edit / dummy / remove actions. */
 export function PurchaseBillItemsTable({
   billItems, enableRealPaperStock, getOtherSectionItems, hsnInputRefs, isEstimate, openProductEditor,
-  otherSectionAddItem, removeBillItem, setBillItems, toggleBillItemDummy, type, updateBillItem,
+  otherSectionAddItem, removeBillItem, setBillItems, toggleBillItemDummy, type, updateBillItem, isInterstate,
 }: PurchaseBillItemsTableProps) {
   return (
     <div className="overflow-x-auto pb-2 scrollbar-thin">
@@ -133,8 +134,10 @@ export function PurchaseBillItemsTable({
             <span className="text-right">MRP</span>
             <span className="text-right">Offer</span>
             <span className="text-right">Tax%</span>
-            <span className="text-right">CGST</span>
-            <span className="text-right">SGST</span>
+            {isInterstate ? <span className="text-right">IGST</span> : <>
+              <span className="text-right">CGST</span>
+              <span className="text-right">SGST</span>
+            </>}
             <span className="text-right">Total</span>
             <span></span>
             <span></span>

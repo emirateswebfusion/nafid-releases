@@ -44,6 +44,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   getOtherSectionItems?: () => PurchaseFormItem[];
 }>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData, getOtherSectionItems }, ref) => {
   const [billNumber, setBillNumber] = useState('');
+  const [isInterstate, setIsInterstate] = useState(false);
   const [peekedBillNumber, setPeekedBillNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [manualRoundOff, setManualRoundOff] = useState<string>('');
@@ -363,7 +364,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const { handleSave } = usePurchaseBillSave({
     billDate, billItems, billNumber, editingData, getBillTotal, getOtherSectionItems, invoiceNumber,
     manualRoundOff, notes, onSaved, onStatusMessage, paymentType, peekedBillNumber, setBillNumber,
-    setCreatedProductIds, setIsSaving, supplierId, supplierName, tenantId, type,
+    setCreatedProductIds, setIsSaving, supplierId, supplierName, tenantId, type, isInterstate,
   });
 
   const addItemToSection = async (item: PurchaseAddItem) => {
@@ -450,6 +451,17 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             className="w-36 bg-background/50 border border-border rounded-xl px-2.5 py-2 text-xs font-mono tracking-wider text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background focus:outline-none transition-all"
           />
         </div>
+        <div className="flex items-center gap-2 pt-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isInterstate}
+              onChange={e => setIsInterstate(e.target.checked)}
+              className="w-4 h-4 rounded border-border text-emerald-600 focus:ring-emerald-500"
+            />
+            <span className="text-xs font-semibold text-muted-foreground">Interstate / IGST</span>
+          </label>
+        </div>
         <div>
           <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 block mb-1">Payment</label>
           <Select
@@ -516,7 +528,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           </div>
         ) : (
           <PurchaseBillItemsTable
-            billItems={billItems} enableRealPaperStock={enableRealPaperStock}
+            billItems={billItems} enableRealPaperStock={enableRealPaperStock} isInterstate={isInterstate}
             getOtherSectionItems={getOtherSectionItems} hsnInputRefs={hsnInputRefs} isEstimate={isEstimate}
             openProductEditor={openProductEditor} otherSectionAddItem={otherSectionAddItem}
             removeBillItem={removeBillItem} setBillItems={setBillItems} toggleBillItemDummy={toggleBillItemDummy}
@@ -549,16 +561,25 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 </div>
                 {totalGst > 0 && (
                   <>
-                    <div className="flex justify-between text-xs pl-3">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">CGST</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{halfGst.toFixed(getCurrencyDecimals())}</span>
-                    </div>
-                    <div className="flex justify-between text-xs pl-3">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">SGST</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{halfGst.toFixed(getCurrencyDecimals())}</span>
-                    </div>
+                    {isInterstate ? (
+                      <div className="flex justify-between text-xs pl-3">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">IGST</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{totalGst.toFixed(getCurrencyDecimals())}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-xs pl-3">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">CGST</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{halfGst.toFixed(getCurrencyDecimals())}</span>
+                        </div>
+                        <div className="flex justify-between text-xs pl-3">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">SGST</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{halfGst.toFixed(getCurrencyDecimals())}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="flex justify-between text-xs border-t border-border/40 pt-1">
-                      <span className="text-muted-foreground font-bold">Total {localizeTaxText("GST")}</span>
+                      <span className="text-muted-foreground font-bold">Total {localizeTaxText(isInterstate ? "IGST" : "GST")}</span>
                       <span className="font-black text-emerald-600 dark:text-emerald-400">{getCurrencyPrefix()}{totalGst.toFixed(getCurrencyDecimals())}</span>
                     </div>
                   </>

@@ -143,4 +143,17 @@ describe('taxEngine - calculateInvoiceTax', () => {
     expect(split.sgst).toBe(2.37);
     expect(split.cgst + split.sgst).toBe(4.75);
   });
+
+  it('calculates inter-state IGST with specific sample data', () => {
+    // Total taxable value ₹33,632.08, IGST @ 5% = ₹1,681.60
+    const result = calculateInvoiceTax(
+      [{ name: 'Sample Item', quantity: 1, unitPrice: 33632.08, taxRatePercent: 5 }],
+      { isInterState: true },
+    );
+    expect(result.taxableAmount).toBe(33632.08);
+    expect(result.igstTotal).toBe(1681.60);
+    expect(result.cgstTotal).toBe(0);
+    expect(result.sgstTotal).toBe(0);
+    expect(result.grandTotal).toBe(35313.68); // 33632.08 + 1681.60
+  });
 });

@@ -34,6 +34,7 @@ export interface PurchaseFormItem {
   tax_rate_percent?: number | null;
   hsn_sac_code?: string | null;
   skip_stock_update?: number | null;
+  is_interstate?: boolean;
   is_new_product_clone?: boolean;
   clone_metadata?: {
     barcode: string;
@@ -71,4 +72,5 @@ export interface PurchaseAddItem {
   sku_barcode?: string | null;
   item_code?: string | null;
   skip_stock_update?: number | null;
+  is_interstate?: boolean;
 }
