@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { MRP_TIER_ID } from '../../../utils/pricing/pricingTierHelper';
 import { parseAmount, sanitizeAmountInput } from '../../../utils/pricing/money';
 import { createPortal } from 'react-dom';
+import { Lock } from 'lucide-react';
 
 interface ItemRateInputProps {
   productId: string;
@@ -19,6 +20,9 @@ interface ItemRateInputProps {
   unitClassName?: string;
   purchasePrice?: number;
   showPurchasePrice?: boolean;
+  /** Staff without `sales.edit_price`: typing is blocked; configured tiers can still be picked. */
+  priceLocked?: boolean;
+  lockHint?: string;
   tierPricesMap?: Record<string, number>;
   pricingTiers?: B.Tier[];
   basePrice?: number;
@@ -49,6 +53,8 @@ export function ItemRateInput({
   unitClassName,
   purchasePrice,
   showPurchasePrice,
+  priceLocked = false,
+  lockHint,
   tierPricesMap,
   pricingTiers,
   basePrice,
@@ -163,6 +169,7 @@ export function ItemRateInput({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (priceLocked) return;
     setIsNavigatingMenu(false);
     const raw = sanitizeAmountInput(e.target.value);
     setLocalVal(raw);
@@ -396,13 +403,16 @@ export function ItemRateInput({
           ref={inputRef}
           className={inputClassName || "w-14 text-center h-6 bg-transparent border-0 text-[11px] font-black text-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"}
           value={localVal}
+          readOnly={priceLocked}
+          aria-readonly={priceLocked}
           onFocus={handleFocus}
           onChange={handleChange}
           onBlur={handleBlur}
           onKeyDown={handleKeyDownInternal}
           placeholder={placeholder}
-          title={title}
+          title={priceLocked ? (lockHint || title) : title}
         />
+        {priceLocked && <Lock className="w-2.5 h-2.5 text-muted-foreground/70 shrink-0" aria-label={lockHint || 'Price locked'} />}
         <span className={unitClassName || "text-[9px] font-extrabold text-primary/70"}>{unitLabel}</span>
       </div>
     </div>

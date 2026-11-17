@@ -7,6 +7,7 @@ import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import type { SettingsGradesState } from '../hooks/useSettingsGradesState';
 import type { Grade } from '../settingsGradesTypes';
+import { useBillingPermissions } from '../../../hooks/useBillingPermissions';
 
 export interface CategoryGradesTableProps {
   filteredGrades: Grade[];
@@ -22,6 +23,8 @@ export interface CategoryGradesTableProps {
 export function CategoryGradesTable({
   filteredGrades, handleDelete, handleOpenAdd, handleUpdate, sg, startCategoryRename, startEdit,
 }: CategoryGradesTableProps) {
+  const { canViewCost } = useBillingPermissions();
+  const cost = (value: number) => (canViewCost ? `${getCurrencyPrefix()}${value.toFixed(getCurrencyDecimals())}` : '•••');
   const {
     editForm, editingId, operating, searchQuery, selectedCategory, setConfirmDeleteCategory, setEditForm,
     setSearchQuery, setSelectedCategory,
@@ -51,7 +54,7 @@ export function CategoryGradesTable({
                 {filteredGrades.length > 0 && (
                   <>
                     {' '}
-                    {getCurrencyPrefix()} Avg Purchase: <span className="font-mono font-bold text-foreground/80">{getCurrencyPrefix()}{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(getCurrencyDecimals())}</span>
+                    {getCurrencyPrefix()} Avg Purchase: <span className="font-mono font-bold text-foreground/80">{cost(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length)}</span>
                     {' '}
                     {getCurrencyPrefix()} Avg MRP: <span className="font-mono font-bold text-foreground/80">{getCurrencyPrefix()}{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(getCurrencyDecimals())}</span>
                   </>
@@ -181,6 +184,9 @@ export function CategoryGradesTable({
                         <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
                           Purchase Price ({getCurrencyPrefix()})
                         </label>
+                        {!canViewCost ? (
+                          <div className="w-full px-3.5 h-9.5 text-xs bg-muted/40 border border-border rounded-xl text-muted-foreground flex items-center" title="Hidden: the owner has not allowed you to see purchase cost">Hidden</div>
+                        ) : (
                         <div className="relative">
                           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">{getCurrencyPrefix()}</span>
                           <input
@@ -190,6 +196,7 @@ export function CategoryGradesTable({
                             className="w-full pl-7 pr-3 h-9.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all font-mono font-bold text-foreground"
                           />
                         </div>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -245,7 +252,7 @@ export function CategoryGradesTable({
                       <span className="text-xs font-bold text-foreground truncate">{grade.grade_name || '(General)'}</span>
                     </div>
                     <div className="col-span-2 font-mono font-bold text-foreground/80 text-xs">
-                      {getCurrencyPrefix()}{(grade.purchase_price || 0).toFixed(getCurrencyDecimals())}
+                      {cost(grade.purchase_price || 0)}
                     </div>
                     <div className="col-span-2 font-mono font-extrabold text-primary text-xs">
                       {getCurrencyPrefix()}{grade.rate.toFixed(getCurrencyDecimals())}

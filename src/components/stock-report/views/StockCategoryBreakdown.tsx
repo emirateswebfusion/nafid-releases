@@ -8,10 +8,12 @@ export interface StockCategoryBreakdownProps {
   sr: StockReportState;
   categoryStats: StockCategoryStat[];
   maxPct: number;
+  /** False hides per-category purchase totals (same rule as the table's purchase column). */
+  canViewCost: boolean;
 }
 
 /** Category breakdown of the stock report: per-category stock, purchase, MRP and selling totals. */
-export function StockCategoryBreakdown({ sr, categoryStats, maxPct }: StockCategoryBreakdownProps) {
+export function StockCategoryBreakdown({ sr, categoryStats, maxPct, canViewCost }: StockCategoryBreakdownProps) {
   const { loading } = sr;
   return (
     <div className="bg-card border border-border rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 flex flex-col justify-between group relative p-5 select-none">
@@ -48,7 +50,7 @@ export function StockCategoryBreakdown({ sr, categoryStats, maxPct }: StockCateg
                 </div>
               </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground mb-1.5">
-                <span>Purchase: <span className="font-bold text-foreground">{formatCurrency(cat.purchase)}</span></span>
+                <span>Purchase: <span className="font-bold text-foreground">{canViewCost ? formatCurrency(cat.purchase) : '•••'}</span></span>
                 <span>MRP: <span className="font-bold text-foreground">{formatCurrency(cat.mrp)}</span></span>
                 <span>Selling: <span className="font-bold text-emerald-500">{formatCurrency(cat.selling)}</span></span>
               </div>

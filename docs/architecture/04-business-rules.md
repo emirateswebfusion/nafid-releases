@@ -39,7 +39,7 @@ Tests: `tests/unit/productSearch.test.ts`. No IPC or sync contract changes.
 | Tab number previews (peek + skip numbers other tabs show; series; per-type retitle rules) | `src/components/billing/numberReservation.ts` | `tests/unit/numberReservation.test.ts` (characterization) |
 | Scrap/return credits that can be deducted from a bill | `src/components/billing/deductionLookup.ts` | `tests/unit/deductionLookup.test.ts` |
 | Sales-history amounts and tax breakdown | `src/utils/pricing/salesHistoryAmount.ts`, `src/utils/pricing/salesHistoryTax.ts` | `tests/unit/salesHistory*.test.ts` |
-| Permissions: keys, groups, legacy `restricted_page` conversion, `hasPermission`, `isAdminRole` | `src/utils/security/permissions.ts` | — (add tests when touched) |
+| Permissions: keys, groups, legacy `restricted_page` conversion, `hasPermission`, `isAdminRole`, `getBillingPermissions` | `src/utils/security/permissions.ts` | `tests/unit/permissions.test.ts`, `billingPermissions.ui.test.tsx` |
 | Pricing tiers applied to products | `src/utils/pricing/pricingTierHelper.ts` | — |
 | Store timezone and UTC parsing | `src/utils/time/timezoneHelper.ts` | — |
 | Financial Year: India (Apr-Mar) & UAE (Jan-Dec) fiscal cycles, year-end rollover and period locking | `src/utils/time/financialYear.ts` | `tests/unit/financialYear.test.ts`, `tests/unit/financialYearSettings.ui.test.tsx` |
@@ -701,3 +701,22 @@ Payment Methods overview filters sources by `last_transaction_date`; this is lat
 - **Sync resurrection protection**: In `catalogSync.pullProducts`, if a cloud payload contains an item with `is_deleted = 1` and that `product_id` does not exist in the local database (because it was permanently purged), the local SQLite database skips inserting it as a new row.
 - **Tests**: `tests/unit/productRestoreOnAdd.test.ts`, `tests/unit/bulkProducts.test.ts`.
 
+
+### Billing permission enforcement
+
+`getBillingPermissions` is the canonical renderer rule; `useBillingPermissions` reacts to the active user's role,
+permissions and legacy restrictions. ADMIN, OWNER, SUPER_ADMIN and ADMINISTRATOR retain full access.
+Staff require `sales.edit_price` to type a unit price or line total, `sales.discount` for item/bill discounts
+and grand-total overrides, and both rights to raise the grand total above the bill. Locked fields are read-only,
+ignore edits (including discount-clearing keys) and explain the owner's restriction through lock hints.
+Configured tier selection remains separate, governed by the existing Pricing Tiers / `canOverrideTier` control.
+
+`products.view_cost` hides inventory purchase/paper cost, existing-product pricing fields, the billing cost popup
+and stock-report costs (summary cards, table, category breakdown, CSV/print); the stock report also retains its
+existing staff masking policy. Categories & Grades masks grade purchase prices (averages, previews, table) and shows
+the grade edit row's purchase field as "Hidden". Hidden form values remain intact. Service prices, quick/new-product
+and new-grade cost entry, purchase entry, scrap rows/Extra Bonus and the `reports.financial` screen retain their
+existing rules. Tests: `tests/unit/stockCategoryBreakdownCost.ui.test.tsx`, `tests/unit/gradesCostVisibility.ui.test.tsx`.
+
+Owner action: existing staff without `sales.edit_price`, including legacy restricted-page staff, lose manual
+price editing until the owner grants that permission. No permission keys, IPC or sync contracts change.

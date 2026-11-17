@@ -2,9 +2,10 @@ import { useFeatureFlagsStore } from '../../../../config/featureFlags';
 import { localizeTaxText } from '../../../../utils/localization/storeProfile';
 import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, ChevronDown, Layers, Plus, Check, X, Loader2 } from 'lucide-react';
+import { Tag, ChevronDown, Layers, Plus, Check, X, Loader2, Lock } from 'lucide-react';
 import clsx from 'clsx';
 import type { InventoryFormViewProps } from '../InventoryFormView';
+import { useBillingPermissions } from '../../../../hooks/useBillingPermissions';
 
 export interface PricingSectionProps {
   title?: string;
@@ -24,6 +25,7 @@ export function PricingSection({
   tierPrices, onAddPricingTier, title = '2. Inventory & Pricing',
 }: PricingSectionProps) {
   const tiersEnabled = useFeatureFlagsStore(s => s.flags?.pricing_tiers === true);
+  const { canViewCost } = useBillingPermissions();
   const [isAddingTier, setIsAddingTier] = useState(false);
   const [newTierName, setNewTierName] = useState('');
   const [isSavingTier, setIsSavingTier] = useState(false);
@@ -88,6 +90,7 @@ export function PricingSection({
                 Purchase Price ({getCurrencyPrefix()})
                 {formData.grade_id && <span className="text-indigo-500 ml-1 font-normal normal-case">(grade)</span>}
               </label>
+              {canViewCost ? (
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">{getCurrencyPrefix()}</span>
                 <input
@@ -98,6 +101,7 @@ export function PricingSection({
                   className="w-full bg-background border border-border rounded-xl p-2.5 pl-7 text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
                 />
               </div>
+              ) : <div className="w-full bg-muted/40 border border-border rounded-xl p-2.5 text-muted-foreground text-sm flex items-center gap-1.5" title="Hidden: the owner has not allowed you to see purchase cost"><Lock className="w-3 h-3" />Hidden</div>}
             </div>
 
             <div>
@@ -200,6 +204,7 @@ export function PricingSection({
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
                   Paper Purchase ({getCurrencyPrefix()})
                 </label>
+                {canViewCost ? (
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-500 font-bold text-xs">{getCurrencyPrefix()}</span>
                   <input
@@ -210,6 +215,7 @@ export function PricingSection({
                     className="w-full bg-background border border-border rounded-xl p-2.5 pl-7 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
                   />
                 </div>
+                ) : <div className="w-full bg-muted/40 border border-border rounded-xl p-2.5 text-muted-foreground text-sm flex items-center gap-1.5" title="Hidden: the owner has not allowed you to see purchase cost"><Lock className="w-3 h-3" />Hidden</div>}
               </div>
 
               <div>

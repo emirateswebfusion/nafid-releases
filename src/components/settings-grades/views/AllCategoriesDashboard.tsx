@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { Button } from '../../ui/Button';
 import type { SettingsGradesState } from '../hooks/useSettingsGradesState';
 import { categoryColor, type Grade } from '../settingsGradesTypes';
+import { useBillingPermissions } from '../../../hooks/useBillingPermissions';
 
 export interface AllCategoriesDashboardProps {
   avgPurchasePrice: number;
@@ -24,6 +25,8 @@ export function AllCategoriesDashboard({
   avgPurchasePrice, avgRate, categories, groupedGrades, handleOpenAdd, handleRenameCategory, sg,
   startCategoryRename, totalGrades,
 }: AllCategoriesDashboardProps) {
+  const { canViewCost } = useBillingPermissions();
+  const cost = (value: number, digits: number) => (canViewCost ? `${getCurrencyPrefix()}${value.toFixed(digits)}` : '•••');
   const {
     categoryRenameValue, editingCategory, operating, searchQuery, setCategoryRenameValue, setConfirmDeleteCategory,
     setEditingCategory, setSearchQuery, setSelectedCategory,
@@ -55,7 +58,7 @@ export function AllCategoriesDashboard({
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-2xl font-black tracking-tight text-foreground font-mono">{getCurrencyPrefix()}{avgPurchasePrice.toFixed(getCurrencyDecimals())}</p>
+            <p className="text-2xl font-black tracking-tight text-foreground font-mono">{cost(avgPurchasePrice, getCurrencyDecimals())}</p>
             <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Purchase Price</p>
           </div>
         </div>
@@ -211,7 +214,7 @@ export function AllCategoriesDashboard({
                         <span className="truncate text-foreground/80">{g.grade_name || '(General)'}</span>
                       </div>
                       <span className="font-mono text-[10px] text-muted-foreground font-semibold">
-                        P: <span className="text-foreground/90 font-extrabold">{getCurrencyPrefix()}{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">{getCurrencyPrefix()}{g.rate.toFixed(1)}</span>
+                        P: <span className="text-foreground/90 font-extrabold">{cost(g.purchase_price || 0, 1)}</span> | M: <span className="text-primary font-extrabold">{getCurrencyPrefix()}{g.rate.toFixed(1)}</span>
                         {g.offer_price ? <> | O: <span className="text-emerald-500 font-extrabold">{getCurrencyPrefix()}{g.offer_price.toFixed(1)}</span></> : null}
                       </span>
                     </div>
@@ -228,7 +231,7 @@ export function AllCategoriesDashboard({
                   <div className="leading-tight text-left">
                     <span className="text-[9px] text-muted-foreground/75 font-bold uppercase tracking-wider block">Avg Price (P / M)</span>
                     <span className="text-xs font-extrabold text-foreground font-mono">
-                      {getCurrencyPrefix()}{avgCatPurchasePrice.toFixed(1)} / {getCurrencyPrefix()}{avgCatRate.toFixed(1)}
+                      {cost(avgCatPurchasePrice, 1)} / {getCurrencyPrefix()}{avgCatRate.toFixed(1)}
                     </span>
                   </div>
                   <button

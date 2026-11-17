@@ -3,7 +3,9 @@ import { getCurrencyPrefix } from '../../../../utils/localization/storeProfile';
 import React from 'react';
 import clsx from 'clsx';
 import { formatCurrency } from '../../BillingConstants';
-import { Percent } from 'lucide-react';
+import { Lock, Percent } from 'lucide-react';
+import { useBillingPermissions } from '../../../../hooks/useBillingPermissions';
+import { PERMISSION_LOCK_HINTS } from '../../../../utils/security/permissions';
 import type { CartItem } from '../../../../store/cartStore';
 import type { Tab } from '../../../../store/tabStore';
 import type { BillingTotalsPanelProps } from '../BillingTotalsPanel';
@@ -44,6 +46,8 @@ export function DiscountRow({
   paymentOptionRefs, qtyRefs, receivedInputRef, scrapTotal, searchRef, setActiveDiscField, setDiscount,
   setLocalDiscText, showDescriptionState, subtotal, updateActiveTab,
 }: DiscountRowProps) {
+  const { canDiscount } = useBillingPermissions();
+  const discountLocked = !isScrapMode && !canDiscount;
   return (
     <div className={clsx('overflow-hidden transition-all duration-300 ease-in-out', isReturnMode ? 'max-h-0 opacity-0' : 'max-h-[60px] opacity-100')}>
     <div className="flex items-center justify-between pt-1 border-t border-border/30">
@@ -62,6 +66,7 @@ export function DiscountRow({
         ) : (
           <>
             <span className="text-muted-foreground font-semibold text-sm">Discount</span>
+            {discountLocked && <span title={PERMISSION_LOCK_HINTS.discount}><Lock className="w-3 h-3 text-muted-foreground/70" aria-label={PERMISSION_LOCK_HINTS.discount} /></span>}
             <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 leading-none shadow-xs">F8</span>
             {discount > 0 && (
               <span className="text-xs font-black text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(discount)}</span>
@@ -102,7 +107,7 @@ export function DiscountRow({
         if (flatVal === '0' || flatVal === '0.00' || flatVal === '0.0') flatVal = '';
 
         const commonKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, isPct: boolean) => {
-          if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (!discountLocked && (e.key === 'Delete' || e.key === 'Backspace')) {
             const input = e.target as HTMLInputElement;
             if (input.selectionStart === 0 && input.selectionEnd === input.value.length) {
               setDiscount(0, discountType);
@@ -162,7 +167,10 @@ export function DiscountRow({
                 step="any"
                 inputMode="decimal"
                 value={pctVal}
+                readOnly={discountLocked}
+                title={discountLocked ? PERMISSION_LOCK_HINTS.discount : undefined}
                 onChange={e => {
+                  if (discountLocked) return;
                   const raw = e.target.value;
                   setActiveDiscField('PCT');
                   setLocalDiscText(raw);
@@ -205,7 +213,10 @@ export function DiscountRow({
                 step="any"
                 inputMode="decimal"
                 value={flatVal}
+                readOnly={discountLocked}
+                title={discountLocked ? PERMISSION_LOCK_HINTS.discount : undefined}
                 onChange={e => {
+                  if (discountLocked) return;
                   const raw = e.target.value;
                   setActiveDiscField('FLAT');
                   setLocalDiscText(raw);

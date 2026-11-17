@@ -9,6 +9,8 @@ import { type CartItem } from '../../../../store/cartStore';
 import { formatCurrency } from '../../BillingConstants';
 import { listRate, resolveLinePrice } from '../../../../utils/pricing/linePricing';
 import type { BillingCartViewProps } from '../BillingCartView';
+import { useBillingPermissions } from '../../../../hooks/useBillingPermissions';
+import { PERMISSION_LOCK_HINTS } from '../../../../utils/security/permissions';
 
 export interface CartItemRowProps {
   activeCartProductIdRef: BillingCartViewProps['activeCartProductIdRef'];
@@ -70,6 +72,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
   totalInputRefs: totalInputsRef, uiConfig, updateItemDiscount, updateItemOfferPrice, updateItemPricingTier,
   updatePiecesOverride, updateQuantity,
 }) => {
+  const { canEditPrice, canDiscount, canViewCost } = useBillingPermissions();
   const rate = listRate(item);
   const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
   const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
@@ -321,7 +324,9 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
               placeholder="Rate/Kg"
               title="Edit rate per Kg"
               purchasePrice={item.purchase_price}
-              showPurchasePrice={uiConfig?.showPurchasePriceInPOS ?? false}
+              showPurchasePrice={(uiConfig?.showPurchasePriceInPOS ?? false) && canViewCost}
+              priceLocked={!canEditPrice}
+              lockHint={PERMISSION_LOCK_HINTS.editPrice}
               tierPricesMap={productPricingMap[item.product_id]}
               pricingTiers={pricingTiers}
               basePrice={item.original_base_price ?? item.base_price}
@@ -360,7 +365,9 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
               placeholder="Rate/Pc"
               title="Edit rate per Piece"
               purchasePrice={item.purchase_price}
-              showPurchasePrice={uiConfig?.showPurchasePriceInPOS ?? false}
+              showPurchasePrice={(uiConfig?.showPurchasePriceInPOS ?? false) && canViewCost}
+              priceLocked={!canEditPrice}
+              lockHint={PERMISSION_LOCK_HINTS.editPrice}
               tierPricesMap={productPricingMap[item.product_id]}
               pricingTiers={pricingTiers}
               basePrice={item.original_base_price ?? item.base_price}
@@ -399,11 +406,14 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
               type="number" min="0" max="100" step="any" inputMode="decimal"
               ref={el => { discInputsRef.current[item.product_id] = el; }}
               className="w-10 h-7 text-center bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              readOnly={!canDiscount}
+              title={canDiscount ? undefined : PERMISSION_LOCK_HINTS.discount}
               value={localDiscPcts[item.product_id] !== undefined
                 ? (localDiscPcts[item.product_id] || '')
                 : (item.discount_percent ?? '')
               }
               onChange={e => {
+                if (!canDiscount) return;
                 const val = e.target.value;
                 const convCatalogPrice = resolveLinePrice(item, rate).catalogRate;
                 if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
@@ -434,11 +444,14 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
               type="number" min="0" step="any" inputMode="decimal"
               ref={el => { discFlatInputsRef.current[item.product_id] = el; }}
               className="w-10 h-7 text-center bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              readOnly={!canDiscount}
+              title={canDiscount ? undefined : PERMISSION_LOCK_HINTS.discount}
               value={localDiscFlats[item.product_id] !== undefined
                 ? (localDiscFlats[item.product_id] || '')
                 : (item.discount_flat ?? '')
               }
               onChange={e => {
+                if (!canDiscount) return;
                 const val = e.target.value;
                 const convCatalogPrice = resolveLinePrice(item, rate).catalogRate;
                 if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
@@ -464,7 +477,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
               }}
               placeholder={localizeCurrencyText("₹")}
             />
-            {hasAdHocDiscount && (
+            {hasAdHocDiscount && canDiscount && (
               <button
                 type="button"
                 onClick={() => {
@@ -489,6 +502,8 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
             rate={rate}
             qty={qty}
             hasDiscount={hasItemDiscount}
+            locked={!canEditPrice}
+            lockHint={PERMISSION_LOCK_HINTS.editPrice}
             inputRef={el => { totalInputsRef.current[item.product_id] = el; }}
             onUpdateOfferPrice={updateItemOfferPrice}
             onRemoveDiscount={removeItemDiscount}

@@ -18,6 +18,8 @@ import type { CartItem, InvoiceType, ShopDomain } from '../../../store/cartStore
 import type { MatchedParty } from '../customerDirectory';
 import type { PricingTier } from '../../../utils/pricing/pricingTierHelper';
 import type { CustomerFieldState } from '../hooks/useCustomerFieldState';
+import { useBillingPermissions } from '../../../hooks/useBillingPermissions';
+import { PERMISSION_LOCK_HINTS } from '../../../utils/security/permissions';
 
 export interface ErpGridWorkspaceProps {
   activeTab: Tab | undefined;
@@ -75,6 +77,7 @@ export interface ErpGridWorkspaceProps {
 
 export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, canOverrideTier, clearReturnDeduction, clearScrapDeduction, customerFields, customerGstin, customerName, customerPhone, customerState, deductions, discountRef, discountValue, displayGrandTotal, editingActive, editingInvoiceNumber, enableThreeInvoiceSeries, erpNarration, erpSalesRep, findMatchingParty, focusedRowProductId, handleCheckout, handlePricingTierChange, handleQtyKeyDown, invoiceType, isCheckingOut, isGrandTotalOverridden, items, lastAddedProductId, nextInvoiceNumber, paymentMethod, pricingTiers, qtyRefs, receivedAmount, receivedInputRef, removeItem, searchBarSection, selectedTierId, setDiscount, setErpNarration, setErpSalesRep, setFocusedRowProductId, setReturnDeduction, setScrapDeduction, shopDomain, startEditingTotal, storeReturnDeduction, storeScrapDeduction, updateActiveTab, updateQuantity }: ErpGridWorkspaceProps) {
   const { savedRedemption, customerPointsBalance, isLoyaltyModuleEnabled, isReturnModuleEnabled, isScrapModuleEnabled, pointsRedeemedCalc, pointsRedeemedDiscountCalc, pointsToRedeem, returnDeductionInputRef, returnDeductionSearchQuery, scrapDeductionInputRef, scrapDeductionSearchQuery, setHardwareError, setPointsToRedeem, setReturnDeductionSearchQuery, setScrapDeductionSearchQuery, tenantId } = deductions;
+  const { canDiscount } = useBillingPermissions();
   const { setShowCustomerDropdown, customerNameInputRef, customerGstinInputRef } = customerFields;
   const selectedParty = findMatchingParty(customerName, customerPhone);
   const uiPartyKey = `${(customerName || '').trim().toLowerCase()}|${(customerPhone || '').trim()}`;
@@ -550,7 +553,9 @@ export function ErpGridWorkspace({ activeTab, applyPartyTier, balanceAmount, can
                 type="number"
                 step="any"
                 value={discountValue || ''}
-                onChange={e => setDiscount(Number(e.target.value) || 0, 'PERCENTAGE')}
+                readOnly={!canDiscount}
+                title={canDiscount ? undefined : PERMISSION_LOCK_HINTS.discount}
+                onChange={e => { if (canDiscount) setDiscount(Number(e.target.value) || 0, 'PERCENTAGE'); }}
                 placeholder="0.00 %"
                 className="w-20 px-2 py-1 bg-background border border-border rounded font-mono font-bold text-xs focus:outline-none focus:ring-1 focus:ring-primary"
               />

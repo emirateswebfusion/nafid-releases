@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { Skeleton } from '../../ui/Skeleton';
 import { ScrollText } from '../../ui/ScrollText';
 import { type Product } from '../inventoryUtils';
+import { useBillingPermissions } from '../../../hooks/useBillingPermissions';
 
 export interface InventoryTableViewProps {
   view: 'list' | 'add' | 'edit';
@@ -86,6 +87,7 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
   stockFilter,
   setStockFilter,
 }) => {
+  const { canViewCost } = useBillingPermissions();
   const tiersEnabled = useFeatureFlagsStore(s => s.flags?.pricing_tiers === true);
   return (
       <div className={`flex-1 px-4 sm:px-6 pb-6 pt-3 bg-muted/[0.02] w-full select-none flex flex-col min-h-0 bg-background${view !== 'list' ? ' hidden' : ''}`}>
@@ -254,11 +256,11 @@ export const InventoryTableView: React.FC<InventoryTableViewProps> = ({
                         </div>
                       </div>
                       <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold flex flex-col items-end justify-center">
-                        <span>{getCurrencyPrefix()}{moneyFixed(displayPurchasePrice)}</span>
+                        <span title={canViewCost ? undefined : 'Hidden: the owner has not allowed you to see purchase cost'}>{canViewCost ? `${getCurrencyPrefix()}${moneyFixed(displayPurchasePrice)}` : '•••'}</span>
                         {appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined && (
                           <span className="text-[9px] text-indigo-500 font-semibold leading-tight mt-0.5">Grade Purchase</span>
                         )}
-                        {paperPurPrice > 0 && (
+                        {canViewCost && paperPurPrice > 0 && (
                           <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold leading-tight mt-0.5" title="Paper Purchase Price">
                             Paper: {getCurrencyPrefix()}{moneyFixed(paperPurPrice)}
                           </span>

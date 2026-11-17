@@ -9,6 +9,9 @@ export interface ItemTotalInputProps {
   qty: number;
   hasDiscount: boolean;
   isScrap?: boolean;
+  /** Staff without `sales.edit_price` cannot retype the line total (it changes the unit price). */
+  locked?: boolean;
+  lockHint?: string;
   onUpdateOfferPrice: (productId: string, unitPrice: number) => void;
   onRemoveDiscount: (productId: string) => void;
   onClearLocalDiscounts: (productId: string) => void;
@@ -27,6 +30,8 @@ export function ItemTotalInput({
   qty,
   hasDiscount,
   isScrap = false,
+  locked = false,
+  lockHint,
   onUpdateOfferPrice,
   onRemoveDiscount,
   onClearLocalDiscounts,
@@ -50,6 +55,7 @@ export function ItemTotalInput({
   }, [total, isFocused]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (locked) return;
     setIsDirty(true);
     const raw = e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
     setLocalVal(raw);
@@ -141,6 +147,9 @@ export function ItemTotalInput({
           : (hasDiscount ? "text-emerald-500" : "text-foreground")
       )}
       value={localVal}
+      readOnly={locked}
+      aria-readonly={locked}
+      title={locked ? lockHint : undefined}
       onChange={handleChange}
       onBlur={handleBlur}
       onFocus={handleFocus}

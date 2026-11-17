@@ -3,6 +3,8 @@ import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localizat
 import React, { useCallback } from 'react';
 import type { CartItem } from '../../../store/cartStore';
 import type { Tab } from '../../../store/tabStore';
+import { useBillingPermissions } from '../../../hooks/useBillingPermissions';
+import { PERMISSION_LOCK_HINTS } from '../../../utils/security/permissions';
 
 export interface UseGrandTotalOverrideContext {
   discount: number;
@@ -26,24 +28,37 @@ export interface UseGrandTotalOverrideContext {
 /** Grand-total override: start editing, reset, and commit a new total (spread as a discount). */
 export function useGrandTotalOverride(ctx: UseGrandTotalOverrideContext) {
   const { discount, displayGrandTotal, isReturnMode, isScrapMode, items, overrideTotalInput, setDiscount, setInfoToast, setIsEditingTotal, setOverrideTotalInput, storeReturnDeduction, storeScrapDeduction, subtotal, totalOverrideInputRef, totalTax, updateActiveTab } = ctx;
+  const { canDiscount, canEditPrice } = useBillingPermissions();
+  const showLockToast = useCallback((hint: string) => {
+    setInfoToast(hint);
+    setTimeout(() => setInfoToast(null), 2500);
+  }, [setInfoToast]);
   const startEditingTotal = useCallback(() => {
     if (isScrapMode || isReturnMode || items.length === 0) return;
+    // Overriding the grand total is a bill discount: staff need `sales.discount`.
+    if (!canDiscount) { showLockToast(PERMISSION_LOCK_HINTS.discount); return; }
     setOverrideTotalInput(String(displayGrandTotal || ''));
     setIsEditingTotal(true);
     setTimeout(() => {
       totalOverrideInputRef.current?.focus();
       totalOverrideInputRef.current?.select();
     }, 40);
-  }, [isScrapMode, isReturnMode, items.length, displayGrandTotal, setIsEditingTotal, setOverrideTotalInput, totalOverrideInputRef]);
+  }, [isScrapMode, isReturnMode, items.length, canDiscount, showLockToast, displayGrandTotal, setIsEditingTotal, setOverrideTotalInput, totalOverrideInputRef]);
 
   const handleResetGrandTotalOverride = useCallback(() => {
+    if (!canDiscount) { showLockToast(PERMISSION_LOCK_HINTS.discount); return; }
     setDiscount(0, 'FIXED');
     updateActiveTab({ manualTotalOverride: null });
     setIsEditingTotal(false);
     setOverrideTotalInput('');
-  }, [setDiscount, updateActiveTab, setIsEditingTotal, setOverrideTotalInput]);
+  }, [canDiscount, showLockToast, setDiscount, updateActiveTab, setIsEditingTotal, setOverrideTotalInput]);
 
   const commitTotalOverride = useCallback(() => {
+    if (!canDiscount) {
+      setIsEditingTotal(false);
+      showLockToast(PERMISSION_LOCK_HINTS.discount);
+      return;
+    }
     if (!overrideTotalInput || overrideTotalInput.trim() === '') {
       handleResetGrandTotalOverride();
       return;
@@ -58,6 +73,13 @@ export function useGrandTotalOverride(ctx: UseGrandTotalOverrideContext) {
     const deductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
     const basePayableBeforeDiscount = Math.max(0, (subtotal * (1 + effectiveTaxRate)) - deductions);
 
+    if (!canDiscount || (targetVal > basePayableBeforeDiscount + 0.005 && !canEditPrice)) {
+      // Raising the total above the bill is a price change: staff also need `sales.edit_price`.
+      setIsEditingTotal(false);
+      showLockToast(canDiscount ? PERMISSION_LOCK_HINTS.editPrice : PERMISSION_LOCK_HINTS.discount);
+      return;
+    }
+
     if (targetVal < basePayableBeforeDiscount) {
       const shortfall = basePayableBeforeDiscount - targetVal;
       const neededDisc = effectiveTaxRate > 0 ? shortfall / (1 + effectiveTaxRate) : shortfall;
@@ -71,7 +93,7 @@ export function useGrandTotalOverride(ctx: UseGrandTotalOverrideContext) {
     setIsEditingTotal(false);
     setInfoToast(`Grand Total overridden to ${getCurrencyPrefix()}${targetVal.toFixed(getCurrencyDecimals())}`);
     setTimeout(() => setInfoToast(null), 2500);
-  }, [overrideTotalInput, subtotal, totalTax, discount, storeScrapDeduction, storeReturnDeduction, setDiscount, updateActiveTab, handleResetGrandTotalOverride, setInfoToast, setIsEditingTotal]);
+  }, [canDiscount, canEditPrice, showLockToast, overrideTotalInput, subtotal, totalTax, discount, storeScrapDeduction, storeReturnDeduction, setDiscount, updateActiveTab, handleResetGrandTotalOverride, setInfoToast, setIsEditingTotal]);
 
   return { startEditingTotal, handleResetGrandTotalOverride, commitTotalOverride };
 }

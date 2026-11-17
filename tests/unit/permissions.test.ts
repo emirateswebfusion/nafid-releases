@@ -5,6 +5,7 @@ import {
   convertLegacyRestrictedPageToPermissions,
   formatRoleName,
   hasPermission,
+  getBillingPermissions,
   isAdminRole,
   isLegacyBillerRole,
   type UserPermissions,
@@ -175,5 +176,33 @@ describe('PERMISSION_GROUPS and ALL_PERMISSION_KEYS', () => {
       expect(seen.has(key)).toBe(false);
       seen.add(key);
     }
+  });
+});
+
+describe('getBillingPermissions', () => {
+  it.each(['ADMIN', 'OWNER', 'SUPER_ADMIN', 'ADMINISTRATOR'])('grants all rights to %s', role => {
+    expect(getBillingPermissions({ role, permissions: [] })).toEqual({ canEditPrice: true, canDiscount: true, canViewCost: true });
+  });
+  it('denies absent identities and staff with no permissions', () => {
+    for (const user of [null, undefined, { role: 'STAFF', permissions: [] }]) {
+      expect(getBillingPermissions(user)).toEqual({ canEditPrice: false, canDiscount: false, canViewCost: false });
+    }
+  });
+  it.each([
+    ['sales.edit_price', 'canEditPrice'], ['sales.discount', 'canDiscount'], ['products.view_cost', 'canViewCost'],
+  ] as const)('grants only the independent %s right', (key, right) => {
+    expect(getBillingPermissions({ role: 'STAFF', permissions: [key] })).toEqual({
+      canEditPrice: false, canDiscount: false, canViewCost: false, [right]: true,
+    });
+  });
+  it('allows all three explicit rights and wildcard staff', () => {
+    for (const permissions of [['sales.edit_price', 'sales.discount', 'products.view_cost'], ['*']]) {
+      expect(getBillingPermissions({ role: 'STAFF', permissions })).toEqual({ canEditPrice: true, canDiscount: true, canViewCost: true });
+    }
+  });
+  it('retains legacy discounts without silently granting manual price or cost access', () => {
+    expect(getBillingPermissions({ role: 'STAFF', permissions: null, restrictedPage: 'INVENTORY' })).toEqual({
+      canEditPrice: false, canDiscount: true, canViewCost: false,
+    });
   });
 });

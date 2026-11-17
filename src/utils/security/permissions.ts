@@ -347,4 +347,31 @@ export function formatRoleName(role: string | null | undefined): string {
   return 'Staff';
 }
 
+/**
+ * Owner-controlled billing and cost-visibility rights. Admin/owner roles always pass; staff need the explicit key.
+ * Choosing a configured price tier is not a manual price edit (that is governed by the Pricing Tiers toggle).
+ */
+export interface BillingPermissions {
+  /** `sales.edit_price`: type a new unit price or line total on a bill line. */
+  canEditPrice: boolean;
+  /** `sales.discount`: item discounts, bill discount and grand-total override. */
+  canDiscount: boolean;
+  /** `products.view_cost`: see purchase cost and margins. */
+  canViewCost: boolean;
+}
+
+export function getBillingPermissions(user: UserPermissions | null | undefined): BillingPermissions {
+  const admin = isAdminRole(user?.role);
+  return {
+    canEditPrice: admin || hasPermission(user, 'sales.edit_price'),
+    canDiscount: admin || hasPermission(user, 'sales.discount'),
+    canViewCost: admin || hasPermission(user, 'products.view_cost'),
+  };
+}
+
+export const PERMISSION_LOCK_HINTS = {
+  editPrice: 'Locked: the owner has not allowed you to change prices on a bill',
+  discount: 'Locked: the owner has not allowed you to give discounts',
+} as const;
+
 

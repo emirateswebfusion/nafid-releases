@@ -17,10 +17,12 @@ import { StockCategoryBreakdown } from './views/StockCategoryBreakdown';
 import { StockLowStockAlerts } from './views/StockLowStockAlerts';
 import { StockTable } from './views/StockTable';
 import type { EnrichedProduct, Product } from './stockReportTypes';
+import { useBillingPermissions } from '../../hooks/useBillingPermissions';
 
 export function StockReport({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
   const { shopName, tenantId, role } = useAuthStore();
+  const { canViewCost: hasCostPermission } = useBillingPermissions();
   const sr = useStockReportState();
   const {
     maskingConfig, products, grades, billQuantities, loading, searchQuery, categoryFilter, stockFilter, partyFilter,
@@ -246,7 +248,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
   const isStaff = isStaffRole(role);
   const shouldMask = shouldApplyStaffMasking(role, maskingConfig);
-  const canViewCost = !shouldMask || !maskingConfig.hide_purchase_cost_for_staff;
+  // `products.view_cost` (owner-granted) and the staff data-masking switch must both allow cost.
+  const canViewCost = hasCostPermission && (!shouldMask || !maskingConfig.hide_purchase_cost_for_staff);
 
   const maskedStockValue = useMemo(() => {
     return calculateMaskedStockValuation(totalSellingValue, maskingConfig, isStaff);
@@ -316,7 +319,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           <StockFilterBar sr={sr} categories={categories} />
 
           {/* Category Breakdown */}
-          <StockCategoryBreakdown sr={sr} categoryStats={categoryStats} maxPct={maxPct} />
+          <StockCategoryBreakdown sr={sr} categoryStats={categoryStats} maxPct={maxPct} canViewCost={canViewCost} />
 
           {/* Low Stock Alerts */}
           {!loading && stockFilter !== 'low_stock' && lowStockItems.length > 0 && (
