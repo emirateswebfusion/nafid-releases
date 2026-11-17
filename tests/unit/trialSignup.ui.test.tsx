@@ -28,7 +28,31 @@ it('loads the Super Admin default and creates the reviewed shop before signing i
   await user.type(screen.getByLabelText('Confirm password'), 'Password123');
   await user.click(screen.getByRole('button', { name: 'Start 45-day free trial' }));
   await waitFor(() => expect(api.login).toHaveBeenCalledWith('owner@example.com', 'Password123'));
-  expect(api.register).toHaveBeenCalledWith({ shop_name: 'Al Noor', owner_name: 'Owner', owner_email: 'owner@example.com', owner_password: 'Password123', phone: '+971501234567', city: 'Dubai', country: 'AE' });
+  expect(api.register).toHaveBeenCalledWith(expect.objectContaining({
+    shop_name: 'Al Noor', owner_name: 'Owner', owner_email: 'owner@example.com', owner_password: 'Password123',
+    phone: '+971501234567', city: 'Dubai', country: 'AE', business_category: 'retail',
+  }));
+});
+it('allows selecting a business category and registers with matching feature flags', async () => {
+  const user = userEvent.setup();
+  render(<TrialRegistration onSignIn={vi.fn()} />);
+  await user.type(screen.getByLabelText('Shop name'), 'Al Noor Cafe');
+  await user.type(screen.getByLabelText('Your name'), 'Owner');
+  await user.type(screen.getByLabelText('Email address'), 'cafe@example.com');
+  await user.type(screen.getByLabelText('Phone number'), '+971501234567');
+  await user.type(screen.getByLabelText('City / emirate'), 'Dubai');
+  await user.selectOptions(screen.getByLabelText('Business category'), 'restaurant');
+  await user.click(screen.getByRole('button', { name: 'Review shop details' }));
+  expect(screen.getByText('Restaurant / Cafeteria')).toBeDefined();
+  await user.type(screen.getByLabelText('Password', { exact: true }), 'Password123');
+  await user.type(screen.getByLabelText('Confirm password'), 'Password123');
+  await user.click(screen.getByRole('button', { name: 'Start 30-day free trial' }));
+  await waitFor(() => expect(api.login).toHaveBeenCalledWith('cafe@example.com', 'Password123'));
+  expect(api.register).toHaveBeenCalledWith(expect.objectContaining({
+    shop_name: 'Al Noor Cafe',
+    business_category: 'restaurant',
+    feature_flags: expect.objectContaining({ restaurant_mode: true, dining_tables: true }),
+  }));
 });
 it('rejects mismatched passwords before sending registration', async () => {
   const user = await review();
