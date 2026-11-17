@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { salesHistoryDb } from './fixtures/salesHistoryDb';
-import { getInvoicesSummaryStatement, getInvoicesStatement } from '../../electron/db/statements/invoices';
+import { getInvoicesSummaryStatement } from '../../electron/db/statements/invoices';
 import { sumCashSalesInWindow } from '../../electron/db/statements/cashDrawer';
 import { buildShopClosingSummaryData } from '../../electron/whatsapp/shopClosingSummary';
 import { getInvoiceNetTotal, getInvoicePreDeductionTotal } from '../../src/utils/pricing/salesHistoryAmount';
