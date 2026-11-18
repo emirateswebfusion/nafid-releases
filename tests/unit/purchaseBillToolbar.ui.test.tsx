@@ -23,7 +23,7 @@ it('selects and resets bill types with counts while retaining the toolbar action
     const [dateTo, setDateTo] = useState('');
     const props: PurchaseBillListProps = {
       bills: [bill('gst', 'GST'), bill('estimate', 'ESTIMATE')],
-      filteredBills: [bill('gst', 'GST')], billSummaries: { gst: {
+      filteredBills: [{ ...bill('gst', 'GST'), is_interstate: 1 }], billSummaries: { gst: {
         totalQty: 1, cgst: 0, sgst: 0, taxableAmount: 100, itemsCount: 1, hasPaper: true,
       } },
       filterType, setFilterType, searchQuery, setSearchQuery, dateFrom, dateTo, setDateFrom, setDateTo,
@@ -36,6 +36,7 @@ it('selects and resets bill types with counts while retaining the toolbar action
     return <PurchaseBillList {...props} />;
   }
   render(<Workspace />);
+  expect(screen.getByText('IGST', { exact: true })).toBeTruthy();
   const type = screen.getByRole('button', { name: 'Bill type' });
   expect(type.textContent).toContain('All Types (2)');
   for (const label of ['GST Only (1)', 'Estimate Only (1)', 'Paper Only (1)', 'All Types (2)']) {

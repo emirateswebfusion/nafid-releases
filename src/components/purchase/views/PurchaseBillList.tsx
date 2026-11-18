@@ -7,7 +7,7 @@ import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Skeleton } from '../../ui/Skeleton';
-import { formatDate } from '../purchaseFormat';
+import { formatDate, purchaseBillTypeLabel } from '../purchaseFormat';
 import type { PurchaseBill, PurchaseBillItem } from '../purchaseTypes';
 
 export interface PurchaseBillListProps {
@@ -209,7 +209,7 @@ export function PurchaseBillList({
                             ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
                             : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                         )}>
-                          {bill.bill_type}
+                          {purchaseBillTypeLabel(bill)}
                         </span>
                       )}
                       {billSummaries[bill.purchase_bill_id]?.isAllPaper && (

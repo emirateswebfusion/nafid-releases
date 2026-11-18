@@ -4,7 +4,7 @@ import React from 'react';
 import { PurchaseWhatsAppButton } from './PurchaseWhatsAppButton';
 import clsx from 'clsx';
 import { Receipt, Printer, Pencil, Trash, X, User, Calendar, Package } from 'lucide-react';
-import { formatDate } from '../purchaseFormat';
+import { formatDate, purchaseBillTypeLabel } from '../purchaseFormat';
 import type { PurchaseBill, PurchaseBillItem } from '../purchaseTypes';
 
 export interface PurchaseBillViewDialogProps {
@@ -61,7 +61,7 @@ export function PurchaseBillViewDialog({
                     ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25"
                     : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
                 )}>
-                  {viewingBill.bill_type || 'GST'}
+                  {purchaseBillTypeLabel(viewingBill)}
                 </span>
               </div>
               <p className="text-[11px] text-muted-foreground font-semibold mt-1">
