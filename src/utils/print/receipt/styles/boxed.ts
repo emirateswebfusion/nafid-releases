@@ -433,8 +433,12 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
   const instr = bs?.instructions;
   if (instr) {
     text += B_LINE(' Terms & Conditions:');
-    for (const line of instr.split('\n').filter(l => l.trim())) {
-      text += B_LINE(` ${line.trim()}`);
+    const lines = instr.split('\n');
+    for (const line of lines) {
+      const wrapped = wrapText(line.trim(), INNER - 1);
+      for (const w of wrapped) {
+        text += B_LINE(` ${w}`);
+      }
     }
     text += B_MID();
   }

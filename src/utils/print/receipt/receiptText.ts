@@ -72,15 +72,18 @@ function createReceiptTextContext(data: ReceiptData, widthCm: number, charsPerLi
   const isRateQty = selectedBillSettings.itemColumnOrder === 'rate_qty';
 
   const appendInstructions = (t: string): string => {
-    const instr = data.billSettings?.instructions;
+    const instr = (data.billSettings as { instructions?: string })?.instructions;
     if (!instr) return t;
-    const lines = instr.split('\n').filter(l => l.trim());
+    const lines = instr.split('\n');
     if (lines.length === 0) return t;
     const dash = '-'.repeat(charsPerLine);
     let out = t + '\n' + dash + '\n';
     out += centerText('TERMS & CONDITIONS', charsPerLine) + '\n';
     for (const line of lines) {
-      out += centerText(line.trim(), charsPerLine) + '\n';
+      const wrapped = wrapText(line.trim(), charsPerLine);
+      for (const w of wrapped) {
+        out += padRight(w, charsPerLine) + '\n';
+      }
     }
     out += dash + '\n';
     return out;
