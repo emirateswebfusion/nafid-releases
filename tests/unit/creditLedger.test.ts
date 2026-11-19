@@ -35,6 +35,8 @@ beforeEach(() => {
   raw = new DatabaseSync(':memory:');
   state.db = Object.assign(raw, { transaction: (fn: () => unknown) => () => { raw.exec('SAVEPOINT test_tx'); try { const result = fn(); raw.exec('RELEASE test_tx'); return result; } catch (e) { raw.exec('ROLLBACK TO test_tx; RELEASE test_tx'); throw e; } } }) as unknown as Database.Database;
   createCoreTables(state.db); createExtendedTables(state.db); ensureSchemaColumns(state.db); runColumnMigrations(state.db);
+  raw.exec("ALTER TABLE returns ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0");
+  raw.exec("ALTER TABLE return_items ADD COLUMN combo_details TEXT");
   state.db.exec("ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1; ALTER TABLE invoices ADD COLUMN bill_purpose TEXT NOT NULL DEFAULT 'SALE'; ALTER TABLE invoices ADD COLUMN stock_applied INTEGER NOT NULL DEFAULT 1;");
   raw.prepare("INSERT INTO products (product_id, tenant_id, name, base_price, current_stock) VALUES ('p', 't', 'Cement bag', 100, 100000)").run();
   recentCheckoutsCache.clear();
@@ -110,7 +112,8 @@ function pay(who: Customer, amount: number, description = 'Payment received', da
   expect(res.success).toBe(true);
 }
 function returnGoods(no: string, invoiceNo: string, amount: number, refund: string, who?: Customer) {
-  const res = createReturn({ return_id: `r:${no}`, invoice_id: id(invoiceNo), tenant_id: SHOP, return_number: no, subtotal: amount, tax_total: 0, grand_total: amount, refund_method: refund, customer_name: who?.name, customer_phone: who?.phone, items: [{ return_item_id: crypto.randomUUID(), product_id: 'p', name: 'Cement bag', quantity: 1, unit_price: amount, tax_amount: 0, total: amount }] } as Parameters<typeof createReturn>[0]);
+  const source = raw.prepare('SELECT item_id,unit_price FROM invoice_items WHERE invoice_id=? AND product_id=?').get(id(invoiceNo), 'p')!;
+  const res = createReturn({ return_id: `r:${no}`, invoice_id: id(invoiceNo), tenant_id: SHOP, return_number: no, subtotal: amount, tax_total: 0, grand_total: amount, refund_method: refund, customer_name: who?.name, customer_phone: who?.phone, items: [{ return_item_id: crypto.randomUUID(), product_id: 'p', invoice_item_id: String(source.item_id), name: 'Cement bag', quantity: amount / Number(source.unit_price), unit_price: Number(source.unit_price), tax_amount: 0, total: amount }] } as Parameters<typeof createReturn>[0]);
   expect(res.success, JSON.stringify(res)).toBe(true);
 }
 

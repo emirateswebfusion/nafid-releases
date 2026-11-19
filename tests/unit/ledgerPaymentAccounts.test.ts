@@ -27,6 +27,8 @@ beforeEach(() => {
     catch (error) { raw.exec('ROLLBACK TO ledger_test; RELEASE ledger_test'); throw error; }
   } }) as unknown as Database.Database;
   createCoreTables(state.db); createExtendedTables(state.db); ensureSchemaColumns(state.db); runColumnMigrations(state.db);
+  raw.exec("ALTER TABLE returns ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0");
+  raw.exec("ALTER TABLE return_items ADD COLUMN combo_details TEXT");
   m024PurchaseInterstate.up(state.db);
   raw.exec("INSERT INTO parties (party_id,tenant_id,name) VALUES ('p','t','Wholesale customer')");
   for (const type of ['UPI', 'CARD', 'BANK']) raw.prepare(`INSERT INTO payment_sources
@@ -143,6 +145,7 @@ it.each(['UPI', 'CARD', 'BANK_TRANSFER'])('deducts a %s return refund once and r
   raw.exec("INSERT INTO products (product_id,tenant_id,name,base_price,current_stock) VALUES ('product','t','Rice sack',375.5,10)");
   raw.exec("INSERT INTO invoices (invoice_id,tenant_id,invoice_number,grand_total,payment_method) VALUES ('i','t','B-1',375.5,'UPI')");
   expect(add(refund_method,1000)).toEqual({ success:true });
+  raw.exec("INSERT INTO invoice_items(item_id,invoice_id,tenant_id,product_id,name,quantity,unit_price,total) VALUES('source','i','t','product','Rice sack',1,375.5,375.5)");
   const payload = { return_id:'r',invoice_id:'i',tenant_id:'t',return_number:'RTN-1',subtotal:375.5,tax_total:0,grand_total:375.5,
     refund_method,items:[{return_item_id:'ri',product_id:'product',name:'Rice sack',quantity:1,unit_price:375.5,tax_amount:0,total:375.5}] };
   expect(createReturn(payload)).toEqual({ success:true });

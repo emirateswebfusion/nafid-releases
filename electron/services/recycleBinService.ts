@@ -1,5 +1,6 @@
 import { reconcileInvoicePoints } from './loyaltyService.js';
-import type { ColumnRow, InvoiceItem, InvoiceRow } from './typesB.js';
+import { outstandingInvoiceStock } from '../db/statements/invoiceStock.js';
+import type { ColumnRow, InvoiceRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { dbEmergencyPurgeLocalData } from './emergencyPurgeService.js';
 import { localAuthenticateUser } from './localAuthService.js';
@@ -91,13 +92,14 @@ export function restoreInvoice(invoice_id: string) {
     db.transaction(() => {
       const inv = recycleBinSql.findInvoicesByInvoiceId(db).get(invoice_id) as InvoiceRow;
       if (!inv) throw new Error('Invoice not found');
+      if (!inv.is_deleted) return;
       restoredInv = inv;
       oldCash = getCashAmountFromInvoice(inv);
 
       const isConversionCopy = !!(inv && (inv.converted_from_invoice_id || inv.converted_from_invoice_number));
 
       if (!isConversionCopy && inv.stock_applied !== 0) {
-        const items = recycleBinSql.findInvoiceItemsByInvoiceId(db).all(invoice_id) as InvoiceItem[];
+        const items = outstandingInvoiceStock(db, invoice_id, inv.tenant_id, true);
         for (const item of items) {
           // Deduct stock back (re-apply the sale)
           recycleBinSql.updateProductCurrentStock(db)

@@ -23,6 +23,8 @@ beforeEach(() => {
   raw = new DatabaseSync(':memory:');
   state.db = Object.assign(raw, { transaction: (fn: () => unknown) => () => { raw.exec('SAVEPOINT test_tx'); try { const result = fn(); raw.exec('RELEASE test_tx'); return result; } catch (e) { raw.exec('ROLLBACK TO test_tx; RELEASE test_tx'); throw e; } } }) as unknown as Database.Database;
   createCoreTables(state.db); createExtendedTables(state.db); ensureSchemaColumns(state.db); runColumnMigrations(state.db);
+  raw.exec("ALTER TABLE returns ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0");
+  raw.exec("ALTER TABLE return_items ADD COLUMN combo_details TEXT");
   state.db.exec("ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1; ALTER TABLE invoices ADD COLUMN bill_purpose TEXT NOT NULL DEFAULT 'SALE'; ALTER TABLE invoices ADD COLUMN stock_applied INTEGER NOT NULL DEFAULT 1;");
   raw.prepare("INSERT INTO customers (customer_id, tenant_id, name, current_points_balance, total_points_earned) VALUES ('c', 't', 'Customer', 10, 10)").run();
   raw.prepare("INSERT INTO products (product_id, tenant_id, name, base_price, current_stock) VALUES ('p', 't', 'Product', 100, 10)").run();
@@ -41,6 +43,19 @@ function stock() { return (raw.prepare("SELECT current_stock AS n FROM products 
 function returned() { return createReturn({ return_id: 'r', invoice_id: 'i', tenant_id: 't', return_number: 'R1', subtotal: 100, tax_total: 0, grand_total: 100, items: [{ return_item_id: 'ri', invoice_item_id: 'it', product_id: 'p', name: 'Product', quantity: 1, unit_price: 100, tax_amount: 0, total: 100 }] }); }
 
 describe('filing-only stored invoice lifecycle', () => {
+  it('deleting and restoring the same bill repeatedly moves stock only once', () => {
+    config(true); expect(makeBill().success).toBe(true); expect(stock()).toBe(8);
+    expect(deleteInvoice('i').success).toBe(true); expect(stock()).toBe(10);
+    expect(deleteInvoice('i').success).toBe(true); expect(stock()).toBe(10);
+    expect(restoreInvoice('i').success).toBe(true); expect(stock()).toBe(8);
+    expect(restoreInvoice('i').success).toBe(true); expect(stock()).toBe(8);
+  });
+  it('bill cancellation and recovery account for goods already returned', () => {
+    config(true); expect(makeBill().success).toBe(true); expect(returned().success).toBe(true); expect(stock()).toBe(9);
+    expect(deleteInvoice('i').success).toBe(true); expect(stock()).toBe(10);
+    expect(deleteReturn('r').success).toBe(true); expect(stock()).toBe(10);
+    expect(restoreInvoice('i').success).toBe(true); expect(stock()).toBe(8);
+  });
   it.each([true, false])('checkout captures stock and revenue choices (%s)', on => {
     config(on, on); expect(makeBill().success).toBe(true);
     expect(stock()).toBe(on ? 8 : 10);

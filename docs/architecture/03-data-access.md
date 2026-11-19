@@ -346,3 +346,12 @@ The five-layer review is complete: `cashierHandlers.ts` still registers one serv
 `parties` and `party_ledger` use the [multi-terminal account contract](multi-terminal-account-sync.md): captured `_sync_base`, additive upload `versions` receipts and negotiated `after_seq` download pages. Both cloud engines preserve pending conflicting financial data. Cloud account pulls run independently of generic timestamp hints; download-page writes and cursor advancement are atomic. Migration025 removes the old party contact-identity index and startup recreation. The generated row catalog is refreshed through the normal schema generator.
 
 `accountMetadata.ts` owns baseline/receipt/review state through its statement module; `accountPull.ts` owns bounded, resumable account downloads. Do not clear a pending edit from a pulled timestamp or resolve competing financial records from wall clocks. Same-second profile acknowledgements also match the captured row_version. Both sides and their characterization tests must change together.
+
+
+### Return refund-method compatibility (19 November 2026)
+
+`db/statements/sync/outboxSync.applyRow` maps the existing cloud `payment_method` alias to `refund_method` for returns
+when the explicit refund method is empty, before filtering to local columns. Explicit refund methods win. Legacy
+`stockDocsSync` already applies the same fallback. Server legacy uploads now populate both existing columns; no new
+wire field or migration is needed. Keep paired `returnMethodSync` tests and both cloud characterization harnesses green.
+See [general financial audit evidence](verification/2026-11-19-general-financial-boundaries.md).

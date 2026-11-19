@@ -4,7 +4,6 @@ import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { returnsApi } from '../../../data/returns';
 import { v4 as uuidv4 } from 'uuid';
-import { cashierApi } from '../../../data/cashier';
 import { useAuthStore } from '../../../store/authStore';
 import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
 import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime, generateReceiptText } from '../../../utils/print/receiptGenerator';
@@ -55,8 +54,7 @@ export interface UseReturnFromCartContext {
 }
 
 /**
- * Process a sales return from the cart in return mode (`handleProcessReturnFromCart`): creates the return, records a
- * cash refund in the drawer when refunded in cash, prints the return receipt unless `saveOnly`, then resets the tab.
+ * Process a sales return from the cart in return mode (`handleProcessReturnFromCart`): saves the return and its refund atomically in the main process, prints the return receipt unless `saveOnly`, then resets the tab.
  */
 export function useReturnFromCart(ctx: UseReturnFromCartContext) {
   const { activeTabId, clearCart, clearReturnDeduction, closeTab, customerAddress, customerName, customerPhone, getActiveTab, isCashSettlementEnabled, items, reserveInvoiceNumberForTab, reserveReturnNumberForTab, returnDiscountTotal, returnProcessingRef, returnRefundMethod, selectedReturnInvoice, setHardwareError, setPartiesForTier, setReturnDeduction, setReturnMode, setReturnProcessed, setReturnProcessing, setReturnSuccessToast, setSelectedReturnInvoice, shopAddress, shopName, shopNameState, shopPhone, syncActiveSnapshot, tenantId, uiConfig, updateActiveTab, userId } = ctx;
@@ -115,20 +113,6 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
         setHardwareError(`Failed to save return: ${result.error || 'Unknown error'}`);
         setReturnProcessing(false);
         return;
-      }
-
-      if (returnRefundMethod === 'CASH') {
-        try {
-          await cashierApi.addTransaction({
-            tenant_id: tid,
-            type: 'CASH_OUT',
-            amount: returnGrandTotal,
-            category: 'RETURN_REFUND',
-            notes: `Return refund for ${returnNumber} (Ref: ${selectedReturnInvoice.invoice_number})`,
-            user_id: userId as string, // type-only: the IPC param is typed string; value unchanged
-            user_name: useAuthStore.getState().userName || undefined,
-          });
-        } catch (e) { console.error('Failed to log return cash out', e); }
       }
 
       if (returnRefundMethod === 'CARD') {

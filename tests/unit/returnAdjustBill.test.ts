@@ -29,6 +29,7 @@ beforeEach(() => {
   raw = new DatabaseSync(':memory:');
   state.db = Object.assign(raw, { transaction: (fn: (...a: unknown[]) => unknown) => (...a: unknown[]) => { raw.exec('SAVEPOINT test_tx'); try { const result = fn(...a); raw.exec('RELEASE test_tx'); return result; } catch (e) { raw.exec('ROLLBACK TO test_tx; RELEASE test_tx'); throw e; } } }) as unknown as Database.Database;
   createCoreTables(state.db); createExtendedTables(state.db); ensureSchemaColumns(state.db); runColumnMigrations(state.db);
+  state.db.exec("ALTER TABLE returns ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0; ALTER TABLE return_items ADD COLUMN combo_details TEXT;");
   state.db.exec("ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1; ALTER TABLE invoices ADD COLUMN bill_purpose TEXT NOT NULL DEFAULT 'SALE'; ALTER TABLE invoices ADD COLUMN stock_applied INTEGER NOT NULL DEFAULT 1;");
   raw.prepare("INSERT INTO products (product_id, tenant_id, name, base_price, current_stock) VALUES ('p', 't', 'Cement', 100, 100000)").run();
   recentCheckoutsCache.clear();

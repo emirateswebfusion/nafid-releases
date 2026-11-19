@@ -1,3 +1,7 @@
+import { outstandingInvoiceStock, returnStockOwner } from '../db/statements/invoiceStock.js';
+import { movementBetween } from '../utils/stockOperation.js';
+import { stockComponents } from '../utils/invoiceStock.js';
+import { validateReturnSource, refreshReturnedInvoiceBalance } from './returnValidation.js';
 import { toIsoTimestamp } from '../utils/timestamps.js';
 import { reconcileInvoicePoints } from './loyaltyService.js';
 import type { InvoiceItem, InvoiceRow, ReturnRow, SettingRow } from './typesB.js';
@@ -48,9 +52,12 @@ export function createReturn(payload: {
   }
   if (!Number.isFinite(payload.grand_total) || payload.grand_total <= 0 || !Number.isFinite(payload.subtotal) || !Number.isFinite(payload.tax_total) || payload.subtotal < 0 || payload.tax_total < 0 || payload.items.some(item => !Number.isFinite(item.unit_price) || item.unit_price < 0 || !Number.isFinite(item.tax_amount) || item.tax_amount < 0 || !Number.isFinite(item.total) || item.total < 0)) return { success: false, error: 'Enter valid non-negative return amounts.' };
   if (payload.return_date && !Number.isFinite(Date.parse(payload.return_date))) return { success: false, error: 'Enter a valid return date.' };
-  const { items, ...returnData } = payload;
+  const { items: requestedItems, ...returnData } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
+    const items = validateReturnSource(db, returnData.tenant_id, returnData.invoice_id, requestedItems);
+    const owner = returnData.invoice_id ? returnStockOwner(db, returnData.invoice_id, returnData.tenant_id) : null;
+    const beforeStock = owner ? outstandingInvoiceStock(db, owner, returnData.tenant_id) : [];
     if (returnData.customer_name || returnData.customer_phone) {
       upsertCustomerRecord(db, returnData.tenant_id || 'global', returnData.customer_name, returnData.customer_phone, null);
     }
@@ -66,7 +73,6 @@ export function createReturn(payload: {
       occurredAt, occurredAt, now
     );
 
-    const stockInvoice = returnData.invoice_id ? returnsSql.findInvoicesByInvoiceId(db).get(returnData.invoice_id) as InvoiceRow | undefined : undefined;
     const itemStmt = returnsSql.insertReturnItem(db);
     const stockStmt = returnsSql.updateProductCurrentStock(db);
 
@@ -74,10 +80,14 @@ export function createReturn(payload: {
       itemStmt.run(
         item.return_item_id, returnData.return_id, returnData.tenant_id,
         item.invoice_item_id || null, item.product_id, item.name,
-        item.quantity, item.unit_price, item.tax_amount, item.total
+        item.quantity, item.unit_price, item.tax_amount, item.total, item.combo_details || null
       );
-      if (stockInvoice?.stock_applied !== 0) stockStmt.run(item.quantity, item.product_id);
+
     }
+
+    const movement = owner ? movementBetween(outstandingInvoiceStock(db, owner, returnData.tenant_id), beforeStock)
+      : items.flatMap(stockComponents);
+    for (const part of movement) stockStmt.run(part.quantity, part.product_id, returnData.tenant_id);
 
     let origInv: InvoiceRow | null | undefined = null;
     if (returnData.invoice_id) {
@@ -100,14 +110,8 @@ export function createReturn(payload: {
       )
     );
 
-    // If original invoice was a credit bill, reduce its balance_amount by the returned amount
-    if (isOrigCredit && origInv) {
-      const currentBal = Number(origInv.balance_amount) || (origPm === 'CREDIT' ? Math.max(0, Number(origInv.grand_total) - (Number(origInv.received_amount) || 0)) : origSplitCredit);
-      const newBal = Math.max(0, currentBal - Number(returnData.grand_total));
-      returnsSql.updateInvoiceBalanceAmount(db).run(newBal, origInv.invoice_id);
-    }
-
     const refMethod = (returnData.refund_method || (isOrigCredit ? 'CREDIT' : 'ADJUST_BILL')).toUpperCase();
+    refreshReturnedInvoiceBalance(db, returnData.invoice_id || '', returnData.tenant_id);
     syncReturnPaymentAccount(db, { ...returnData, refund_method: refMethod });
 
     if (refMethod === 'CASH' && Number(returnData.grand_total) > 0) {
@@ -325,38 +329,23 @@ export function deleteReturn(return_id: string) {
       if (!returnRow) return;
       syncReturnPaymentAccount(db, returnRow, true);
 
-      const stockInvoice = returnRow.invoice_id ? returnsSql.findInvoicesByInvoiceId(db).get(returnRow.invoice_id) as InvoiceRow | undefined : undefined;
+      const owner = returnRow.invoice_id ? returnStockOwner(db, returnRow.invoice_id, returnRow.tenant_id) : null;
+      const beforeStock = owner ? outstandingInvoiceStock(db, owner, returnRow.tenant_id) : [];
       const items = returnsSql.findReturnItemsByReturnIdProductIdAndQuantity(db).all(return_id) as InvoiceItem[];
-      for (const item of items) {
-        if (stockInvoice?.stock_applied !== 0) returnsSql.updateProductCurrentStockAlt(db).run(item.quantity, item.product_id);
-      }
-
-      // Restore original invoice balance_amount if it was a credit bill
-      if (returnRow.invoice_id) {
-        const origInv = returnsSql.findInvoicesByInvoiceId(db).get(returnRow.invoice_id) as InvoiceRow;
-        if (origInv) {
-          const origPm = (origInv.payment_method || '').toUpperCase();
-          let origSplitCredit = 0;
-          if (origInv.split_details) {
-            try {
-              const s = typeof origInv.split_details === 'string' ? JSON.parse(origInv.split_details) : origInv.split_details;
-              origSplitCredit = Number(s?.credit) || 0;
-            } catch { /* ignore */ }
-          }
-          const isOrigCredit = origPm === 'CREDIT' || origSplitCredit > 0 || (Number(origInv.balance_amount) > 0 && origPm !== 'CASH');
-          if (isOrigCredit) {
-            const restoredBalance = (Number(origInv.balance_amount) || 0) + (Number(returnRow.grand_total) || 0);
-            returnsSql.updateInvoiceBalanceAmount(db).run(restoredBalance, origInv.invoice_id);
-          }
-        }
-      }
 
       // Retire this return's ledger rows (exact references, this shop only) and recalculate the balances.
       removeReturnLedger(db, returnRow.tenant_id || 'global', returnRow.return_number);
 
       returnsSql.deleteReturnItemByReturnId(db).run(return_id);
       returnsSql.deleteReturnByReturnId(db).run(return_id);
-      if (returnRow.invoice_id) reconcileInvoicePoints(db, returnRow.invoice_id);
+      const movement = owner ? movementBetween(outstandingInvoiceStock(db, owner, returnRow.tenant_id), beforeStock)
+        : items.flatMap(stockComponents).map(part => ({ ...part, quantity: -part.quantity }));
+      for (const part of movement) returnsSql.updateProductCurrentStock(db).run(part.quantity, part.product_id, returnRow.tenant_id);
+
+      if (returnRow.invoice_id) {
+        refreshReturnedInvoiceBalance(db, returnRow.invoice_id, returnRow.tenant_id);
+        reconcileInvoicePoints(db, returnRow.invoice_id);
+      }
     });
     transaction();
     return { success: true };

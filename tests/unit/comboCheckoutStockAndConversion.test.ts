@@ -39,6 +39,7 @@ vi.mock('../../electron/sync/syncWorker', () => ({
 
 import { checkout, recentCheckoutsCache } from '../../electron/services/invoiceCheckoutService';
 import { previewConvertBosToGst, convertBosToGst } from '../../electron/services/bosConversionService';
+import { updateInvoice, deleteInvoice } from '../../electron/services/invoiceEditService';
 import * as invoicesSql from '../../electron/db/statements/invoices';
 
 let raw: DatabaseSync;
@@ -66,6 +67,8 @@ beforeEach(() => {
   runColumnMigrations(state.db);
 
   state.db.exec(`
+    ALTER TABLE returns ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE return_items ADD COLUMN combo_details TEXT;
     ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1;
     ALTER TABLE invoices ADD COLUMN bill_purpose TEXT NOT NULL DEFAULT 'SALE';
     ALTER TABLE invoices ADD COLUMN stock_applied INTEGER NOT NULL DEFAULT 1;
@@ -287,4 +290,33 @@ describe('combo checkout stock deduction and GST conversion', () => {
     expect(converted.tax_total).toBeCloseTo(32.4);
     expect(converted.grand_total).toBeCloseTo(212.4);
   });
+});
+
+it('editing a saved combo keeps its recipe and adjusts constituents through cancellation', async () => {
+  const item = { item_id: 'combo-edit-line', product_id: 'combo-1', name: 'Combo', quantity: 1, unit_price: 180, tax_amount: 0, total: 180 };
+  expect(checkout({ invoice_id: 'combo-edit', tenant_id: 't1', user_id: 'u1', invoice_number: 'EDIT', invoice_type: 'GST',
+    subtotal: 180, tax_total: 0, discount_total: 0, grand_total: 180, payment_method: 'CASH',
+    items: [{ ...item, isCombo: true, combo_id: 'combo-1', combo_items: [{ product_id: 'p-tea', quantity: 1 }, { product_id: 'p-sugar', quantity: 2 }] }] }).success).toBe(true);
+  expect((await updateInvoice({ invoice_id: 'combo-edit', tenant_id: 't1', role: 'ADMIN', subtotal: 360, tax_total: 0, discount_total: 0,
+    discount_type: 'FIXED', discount_value: 0, grand_total: 360, payment_method: 'CASH',
+    items: [{ ...item, quantity: 2, total: 360 }] })).success).toBe(true);
+  expect(raw.prepare("SELECT current_stock FROM products WHERE product_id='p-tea'").get()?.current_stock).toBe(18);
+  expect(raw.prepare("SELECT current_stock FROM products WHERE product_id='p-sugar'").get()?.current_stock).toBe(26);
+  expect(raw.prepare("SELECT combo_details FROM invoice_items WHERE item_id='combo-edit-line'").get()?.combo_details).toContain('p-sugar');
+  expect(deleteInvoice('combo-edit').success).toBe(true);
+  expect(raw.prepare("SELECT current_stock FROM products WHERE product_id='p-tea'").get()?.current_stock).toBe(20);
+  expect(raw.prepare("SELECT current_stock FROM products WHERE product_id='p-sugar'").get()?.current_stock).toBe(30);
+});
+
+it('rejects an edit below already-returned quantities without modifying the bill', async () => {
+  raw.exec(`INSERT INTO invoices(invoice_id,tenant_id,invoice_number,grand_total) VALUES('returned-edit','t1','RE',100);
+    INSERT INTO invoice_items(item_id,invoice_id,tenant_id,product_id,name,quantity,unit_price,total) VALUES('re-line','returned-edit','t1','p-tea','Tea',2,50,100);
+    INSERT INTO returns(return_id,invoice_id,tenant_id,return_number,grand_total) VALUES('re-return','returned-edit','t1','RR',50);
+    INSERT INTO return_items(return_item_id,return_id,tenant_id,product_id,name,quantity,unit_price,total) VALUES('rr-line','re-return','t1','p-tea','Tea',1,50,50);`);
+  const result = await updateInvoice({ invoice_id: 'returned-edit', tenant_id: 't1', role: 'ADMIN', subtotal: 0, tax_total: 0, discount_total: 0,
+    discount_type: 'FIXED', discount_value: 0, grand_total: 0, items: [] });
+  expect(result.success).toBe(false);
+  expect(result.error).toContain('already returned');
+  expect(raw.prepare("SELECT quantity FROM invoice_items WHERE item_id='re-line'").get()?.quantity).toBe(2);
+  expect(raw.prepare("SELECT grand_total FROM invoices WHERE invoice_id='returned-edit'").get()?.grand_total).toBe(100);
 });

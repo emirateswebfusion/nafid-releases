@@ -174,6 +174,17 @@ describe('return regressions', () => {
     expect(callsTo('dbCreateReturn')[0].args[0]).toMatchObject({ subtotal: 25, tax_total: 4.5, grand_total: 29.5,
       items: [expect.objectContaining({ quantity: 0.25, tax_amount: 4.5, total: 25 })] });
   });
+  it('saves a cash return through its atomic return operation without a second cash withdrawal', async () => {
+    const user = await openReturn(2, 100, 0, 0);
+    answers.dbCreateReturn = () => ({ success: true });
+    answers.dbCashierAddTransaction = () => ({ success: true });
+    act(() => { useCartStore.getState().updateQuantity('p1', 1); useCartStore.getState().setReturnRefundMethod('CASH'); });
+    await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await screen.findByText(/Return RTN-1 saved successfully/);
+    expect(callsTo('dbCreateReturn')).toHaveLength(1);
+    expect(callsTo('dbCreateReturn')[0].args[0]).toMatchObject({ refund_method: 'CASH' });
+    expect(callsTo('dbCashierAddTransaction')).toHaveLength(0);
+  });
 
   it('preserves the proportionate discount without rounding each unit first', async () => {
     const user = await openReturn(22, 0.05, 0, 0.11);

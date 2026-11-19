@@ -9,7 +9,7 @@ export const findInvoicesByInvoiceId = (db: Db) => db.prepare('SELECT * FROM inv
 
 export const findInvoiceItemsByInvoiceId = (db: Db) => db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?');
 
-export const updateProductCurrentStock = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = ${stockTimestampSql} WHERE product_id = ? AND tenant_id = ?`);
+export const updateProductCurrentStock = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = ${stockTimestampSql} WHERE product_id = ? AND tenant_id = ? AND COALESCE(is_service_item,0)=0`);
 
 export const updateInvoiceItemIsDeleted = (db: Db) => db.prepare("UPDATE invoice_items SET is_deleted = 0, sync_status = 'PENDING' WHERE invoice_id = ?");
 

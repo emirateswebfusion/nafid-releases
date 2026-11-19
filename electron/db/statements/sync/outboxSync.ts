@@ -51,6 +51,7 @@ export function applyRow(db: Db, entity: string, row: Row, tenant: string, affec
   const previous = entity === 'party_ledger'
     ? selectLedgerParty(db).get(row.ledger_id, tenant) as { party_id: string } | undefined : undefined;
   const values: Row = { ...row };
+  if (entity === 'returns' && !values.refund_method && typeof values.payment_method === 'string') values.refund_method = values.payment_method;
   if (columns.includes('tenant_id')) values.tenant_id = tenant;
   if (columns.includes('sync_status')) values.sync_status = 'SYNCED';
   if (keys.some(key => values[key] == null)) throw new Error('Missing sync identity');

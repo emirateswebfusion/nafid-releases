@@ -736,3 +736,27 @@ Coverage: `ledgerIntegrity.test.ts`, `cashRegisterAtomicSave.ui.test.tsx`, and t
 The [multi-terminal contract](multi-terminal-account-sync.md) defines which captured cloud revision authorizes a party/ledger edit. Higher counters and later/future timestamps do not authorize replacing an unseen cloud edit. Conflicting local values remain pending for review; balance recalculation failures roll back accepted ledger writes. Both staff and admin sync reads use the tenant account dataset; screen permissions can differ.
 
 `syncOutcome.ts` preserves review/incomplete-download outcomes on the dashboard. The authenticated shell also presents the existing FloatToast through `SyncAttentionToast`, so staff billing screens receive the notice. Dismissing it never deletes data or acknowledges an upload. No settings persistence behavior changes.
+
+
+## Return and stock lifecycle boundaries (19 November 2026)
+
+`services/returnValidation.ts` validates the original tenant-scoped, active, non-held invoice inside the save transaction.
+A return line must identify its original line, or resolve uniquely by product. Repeated lines and previous active returns
+share the remaining sold quantity; Bill of Supply and its GST conversion share the same product return allowance.
+An invoice edit cannot reduce a product below quantities already returned. Cancel returns before removing those goods.
+
+`db/statements/invoiceStock.ts` owns the outstanding physical projection used by invoice edit/delete/restore and return
+create/cancel. It combines saved invoice recipes with active return recipe snapshots through canonical `netStockComponents`.
+Conversion copies, holds and saved `stock_applied=0` documents do not move stock. Repeated deletion/restoration is a no-op.
+Cancelling a partly returned sale restores only the outstanding physical goods; cancelling its return while the sale is
+already deleted does not deduct stock. Edits preserve saved combo recipes when a caller omits them.
+
+`refreshReturnedInvoiceBalance` derives remaining invoice credit using canonical payment normalization and active account
+credits. Cash/card/bank refunds do not reduce invoice credit; cancelling a credit return restores only the original unpaid
+portion, not its full return value. Tombstoned returns are excluded from credit lookup, consumption and quantity summaries.
+The main-process return save owns the cash refund; `useReturnFromCart` must not post a second cash-register withdrawal.
+
+Payment-source opening amounts use `utils/paymentSourceInput.ts`: finite non-negative complete numeric values only.
+Boolean and integer enabled/default flags retain their meanings. Failed validation rolls back default selection.
+Coverage: `returnBoundaries`, `filingLifecycle`, `comboCheckoutStockAndConversion`, `paymentSourceBoundaries`,
+`billingScreen.ui`, existing ledger/payment-account and loyalty tests.

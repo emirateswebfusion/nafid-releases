@@ -1,4 +1,5 @@
 import type { PaymentSourceInput, PaymentTransactionInput } from './typesB.js';
+import { paymentSourceOpening } from '../utils/paymentSourceInput.js';
 import { getDb } from '../db/localDb.js';
 import crypto from 'node:crypto';
 import * as paymentSourcesSql from '../db/statements/paymentSources.js';
@@ -24,7 +25,7 @@ export function addSource(s: PaymentSourceInput) {
     if (!['BANK', 'CARD', 'UPI'].includes(s.type)) return { success: false, error: 'type must be BANK, CARD or UPI' };
 
     const tx = db.transaction(() => {
-      const opening = parseFloat(s.opening_balance as string) || 0;
+      const opening = paymentSourceOpening(s.opening_balance);
       const makeDefault = s.is_default === true || s.is_default === 1;
       const source_id = s.source_id || crypto.randomUUID();
 
@@ -37,7 +38,7 @@ export function addSource(s: PaymentSourceInput) {
         source_id, s.tenant_id, s.name.trim(), s.type,
         s.bank_name?.trim() || null, s.account_number?.trim() || null,
         s.holder_name?.trim() || null, s.upi_id?.trim() || null,
-        opening, opening, makeDefault ? 1 : 0, s.is_enabled === false ? 0 : 1,
+        opening, opening, makeDefault ? 1 : 0, s.is_enabled === false || s.is_enabled === 0 ? 0 : 1,
         s.sort_order ?? 0
       );
 
@@ -68,14 +69,14 @@ export function updateSource(s: PaymentSourceInput) {
       const existing = paymentSourcesSql.findPaymentSourcesBySourceId(db).get(s.source_id, s.tenant_id) as PaymentSourceInput;
       if (!existing) throw new Error('Payment source not found');
 
-      if (s.is_default === true) {
+      if (s.is_default === true || s.is_default === 1) {
         paymentSourcesSql.updatePaymentSourceIsDefault(db)
           .run(s.tenant_id, existing.type);
       }
 
       let newOpening: number | null = null;
       if (s.opening_balance !== undefined) {
-        const parsedOpening = parseFloat(s.opening_balance as string) || 0;
+        const parsedOpening = paymentSourceOpening(s.opening_balance);
         if (parsedOpening !== Number(existing.opening_balance)) {
           const txCount = (paymentSourcesSql.countPaymentSourceTransactionsBySourceId(db).get(s.source_id) as { cnt: number }).cnt;
           if (txCount > 0) throw new Error('Opening balance can only be changed when there are no transactions on this source');

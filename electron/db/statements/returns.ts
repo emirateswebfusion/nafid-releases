@@ -14,11 +14,11 @@ export const insertReturn = (db: Db) => db.prepare(`
     `);
 
 export const insertReturnItem = (db: Db) => db.prepare(`
-      INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, sync_status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+      INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, combo_details, sync_status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
     `);
 
-export const updateProductCurrentStock = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
+export const updateProductCurrentStock = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ? AND COALESCE(is_service_item,0) = 0');
 
 export const findInvoicesByInvoiceId = (db: Db) => db.prepare('SELECT * FROM invoices WHERE invoice_id = ?');
 
@@ -33,24 +33,23 @@ export const insertCashTransaction = (db: Db) => db.prepare(`
 
 
 export const findReturnItemsByReturnIdAndInvoiceId = (db: Db) => db.prepare(`
-    SELECT invoice_item_id, COALESCE(SUM(quantity), 0) as returned_qty
-    FROM return_items
-    WHERE return_id IN (SELECT return_id FROM returns WHERE invoice_id = ?)
-    GROUP BY invoice_item_id
+    SELECT ri.invoice_item_id, COALESCE(SUM(ri.quantity),0) AS returned_qty FROM return_items ri
+    JOIN returns r ON r.return_id=ri.return_id AND r.tenant_id=ri.tenant_id
+    WHERE r.invoice_id=? AND COALESCE(r.is_deleted,0)=0 GROUP BY ri.invoice_item_id
   `);
 
-export const findReturnsByReturnNumber = (db: Db) => db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND return_number = ?');
+export const findReturnsByReturnNumber = (db: Db) => db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND return_number = ? AND COALESCE(is_deleted,0)=0');
 
-export const findReturnsByReturnNumber2 = (db: Db) => db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND (return_number = ? OR return_number = ?)');
+export const findReturnsByReturnNumber2 = (db: Db) => db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND (return_number = ? OR return_number = ?) AND COALESCE(is_deleted,0)=0');
 
-export const findReturns = (db: Db) => db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND grand_total > COALESCE(adjusted_amount, 0)');
+export const findReturns = (db: Db) => db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND COALESCE(is_deleted,0)=0 AND grand_total > COALESCE(adjusted_amount, 0)');
 
 export const findReturnsByReturnNumber3 = (db: Db) => db.prepare(`
     SELECT r.return_id, r.return_number, r.customer_name, r.customer_phone, r.customer_address, r.grand_total, r.refund_method, r.created_at, r.user_id,
       i.invoice_number AS orig_invoice_number, i.customer_id AS orig_customer_id, i.customer_name AS orig_customer_name,
       i.customer_phone AS orig_customer_phone, i.customer_address AS orig_customer_address, i.customer_gstin AS orig_customer_gstin
     FROM returns r LEFT JOIN invoices i ON i.invoice_id = r.invoice_id
-    WHERE r.tenant_id = ? AND r.return_number = ?
+    WHERE r.tenant_id = ? AND r.return_number = ? AND COALESCE(r.is_deleted,0)=0
   `);
 
 export const updateReturnAdjustedAmountAndAdjustedInvoiceNumber = (db: Db) => db.prepare(`
@@ -58,16 +57,16 @@ export const updateReturnAdjustedAmountAndAdjustedInvoiceNumber = (db: Db) => db
     SET adjusted_amount = MIN(grand_total, COALESCE(adjusted_amount, 0) + ?),
         adjusted_invoice_number = ?,
         sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-    WHERE tenant_id = ? AND return_number = ? AND grand_total > COALESCE(adjusted_amount, 0)
+    WHERE tenant_id = ? AND return_number = ? AND COALESCE(is_deleted,0)=0 AND grand_total > COALESCE(adjusted_amount, 0)
   `);
 
 export const findReturnItemsByReturnId = (db: Db) => db.prepare('SELECT ri.*, p.sku_barcode, p.item_code FROM return_items ri LEFT JOIN products p ON ri.product_id = p.product_id WHERE ri.return_id = ?');
 
 export const findReturnsByReturnId = (db: Db) => db.prepare('SELECT * FROM returns WHERE return_id = ?');
 
-export const findReturnItemsByReturnIdProductIdAndQuantity = (db: Db) => db.prepare('SELECT product_id, quantity FROM return_items WHERE return_id = ?');
+export const findReturnItemsByReturnIdProductIdAndQuantity = (db: Db) => db.prepare('SELECT product_id, quantity, combo_details FROM return_items WHERE return_id = ?');
 
-export const updateProductCurrentStockAlt = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
+export const updateProductCurrentStockAlt = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ? AND COALESCE(is_service_item,0) = 0');
 
 export const deleteReturnItemByReturnId = (db: Db) => db.prepare('DELETE FROM return_items WHERE return_id = ?');
 
@@ -87,13 +86,13 @@ export function getReturnableInvoicesStatement(db: Db, args: { tenant_id: string
     FROM invoices i
     LEFT JOIN users u ON i.user_id = u.user_id
     WHERE i.tenant_id = ?
-      AND i.invoice_type NOT IN ('SCRAP', 'RETURN')
+      AND COALESCE(i.is_deleted,0)=0 AND i.invoice_type NOT IN ('SCRAP', 'RETURN','HOLD','EXPIRED_HOLD','RECALLED_HOLD')
       AND EXISTS (
         SELECT 1 FROM invoice_items ii
         WHERE ii.invoice_id = i.invoice_id
           AND ii.quantity > COALESCE((
-            SELECT SUM(ri.quantity) FROM return_items ri
-            WHERE ri.invoice_item_id = ii.item_id
+            SELECT SUM(ri.quantity) FROM return_items ri JOIN returns r ON r.return_id=ri.return_id AND r.tenant_id=ri.tenant_id
+            WHERE ri.invoice_item_id = ii.item_id AND COALESCE(r.is_deleted,0)=0
           ), 0)
       )
   `;
@@ -119,7 +118,7 @@ export function getPendingReturnInvoicesStatement(db: Db, args: { tenant_id: str
   const { tenant_id, search } = args;
   let query = `
     SELECT * FROM returns 
-    WHERE tenant_id = ? 
+    WHERE tenant_id = ? AND COALESCE(is_deleted,0)=0
       AND (refund_method = 'ADJUST_BILL' OR refund_method IS NULL OR refund_method = '')
       AND grand_total > COALESCE(adjusted_amount, 0)
   `;
@@ -135,7 +134,7 @@ export function getPendingReturnInvoicesStatement(db: Db, args: { tenant_id: str
 /** Builds and prepares the dynamic query of `getReturns` (filters appended in code; user values are bound). */
 export function getReturnsStatement(db: Db, args: { tenant_id: string | undefined; invoice_id: string | undefined; search: string | undefined; limit: number | undefined; offset: number | undefined }) {
   const { tenant_id, invoice_id, search, limit, offset } = args;
-  let query = `SELECT r.* FROM returns r WHERE r.tenant_id = ?`;
+  let query = `SELECT r.* FROM returns r WHERE r.tenant_id = ? AND COALESCE(r.is_deleted,0)=0`;
   const params: unknown[] = [tenant_id];
   if (invoice_id) {
     query += ' AND r.invoice_id = ?';

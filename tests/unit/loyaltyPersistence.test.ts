@@ -24,6 +24,8 @@ beforeEach(() => {
   raw = new DatabaseSync(':memory:');
   state.db = Object.assign(raw, { transaction: (fn: () => unknown) => () => { raw.exec('SAVEPOINT test_tx'); try { const result = fn(); raw.exec('RELEASE test_tx'); return result; } catch (e) { raw.exec('ROLLBACK TO test_tx; RELEASE test_tx'); throw e; } } }) as unknown as Database.Database;
   createCoreTables(state.db); createExtendedTables(state.db); ensureSchemaColumns(state.db); runColumnMigrations(state.db);
+  raw.exec("ALTER TABLE returns ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0");
+  raw.exec("ALTER TABLE return_items ADD COLUMN combo_details TEXT");
   state.db.exec("ALTER TABLE invoices ADD COLUMN counts_in_revenue INTEGER NOT NULL DEFAULT 1; ALTER TABLE invoices ADD COLUMN bill_purpose TEXT NOT NULL DEFAULT 'SALE'; ALTER TABLE invoices ADD COLUMN stock_applied INTEGER NOT NULL DEFAULT 1;");
   raw.prepare("INSERT INTO customers (customer_id, tenant_id, name, current_points_balance, total_points_earned) VALUES ('c', 't', 'Customer', 10, 10)").run();
   setConfig(true);
@@ -36,6 +38,7 @@ function setConfig(enabled: boolean) {
 }
 function sale(points = 10, redeemed = 0) {
   raw.prepare("INSERT INTO invoices (invoice_id, tenant_id, invoice_number, invoice_type, subtotal, tax_total, discount_total, grand_total, payment_method, customer_id, points_earned, points_redeemed) VALUES ('i', 't', 'POS1-1', 'ESTIMATE', 1000, 0, 0, 1000, 'CASH', 'c', ?, ?)").run(points, redeemed);
+  raw.exec("INSERT INTO invoice_items(item_id,invoice_id,tenant_id,product_id,name,quantity,unit_price,total) VALUES('source-i','i','t','p','Item',2,500,1000)");
 }
 function balance() { return (raw.prepare("SELECT current_points_balance AS balance FROM customers WHERE customer_id = 'c'").get() as { balance: number }).balance; }
 function returnSale() { return createReturn({ return_id: 'r', invoice_id: 'i', tenant_id: 't', return_number: 'RET1', subtotal: 500, tax_total: 0, grand_total: 500, items: [{ return_item_id: 'ri', product_id: 'p', name: 'Item', quantity: 1, unit_price: 500, tax_amount: 0, total: 500 }] }); }
@@ -125,6 +128,7 @@ describe('conversion ownership', () => {
   it('a GST conversion copy does not earn twice; its return reverses the original award', () => {
     sale();
     raw.prepare("INSERT INTO invoices (invoice_id, tenant_id, invoice_number, invoice_type, subtotal, grand_total, customer_id, points_earned, converted_from_invoice_id) VALUES ('gst', 't', 'GST1', 'GST', 1000, 1000, 'c', 0, 'i')").run();
+    raw.exec("INSERT INTO invoice_items(item_id,invoice_id,tenant_id,product_id,name,quantity,unit_price,total) VALUES('source-gst','gst','t','p','Item',2,500,1000)");
     raw.prepare("UPDATE invoices SET converted_to_invoice_id = 'gst' WHERE invoice_id = 'i'").run();
     const result = createReturn({ return_id: 'rg', invoice_id: 'gst', tenant_id: 't', return_number: 'RG', subtotal: 500, tax_total: 0, grand_total: 500, items: [{ return_item_id: 'rig', product_id: 'p', name: 'Item', quantity: 1, unit_price: 500, tax_amount: 0, total: 500 }] });
     expect(result.success).toBe(true); expect(balance()).toBe(5);

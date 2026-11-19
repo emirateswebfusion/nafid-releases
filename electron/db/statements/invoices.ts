@@ -226,7 +226,7 @@ export const findUsersByUserId = (db: Db) => db.prepare('SELECT role, permission
 
 export const findInvoicesByInvoiceId2 = (db: Db) => db.prepare(`SELECT * FROM invoices WHERE invoice_id = ?`);
 
-export const findInvoiceItemsByInvoiceIdProductIdAndQuantity2 = (db: Db) => db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?');
+export const findInvoiceItemsByInvoiceIdProductIdAndQuantity2 = (db: Db) => db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?');
 
 export const updateInvoiceByInvoiceId3 = (db: Db) => db.prepare(`
       UPDATE invoices SET
@@ -251,13 +251,13 @@ export const deleteInvoiceItemByInvoiceId = (db: Db) => db.prepare('DELETE FROM 
 
 export const insertInvoiceItem3 = (db: Db) => db.prepare(`
       INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, billing_type, uom,
-        cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, hsn_sac_code, supply_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, hsn_sac_code, supply_type, combo_id, combo_details)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
 export const findProductsByProductIdIsServiceItem = (db: Db) => db.prepare('SELECT is_service_item FROM products WHERE product_id = ?');
 
-export const updateProductCurrentStockCurrentStock3 = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
+export const updateProductCurrentStockCurrentStock3 = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id=? AND COALESCE(is_service_item,0)=0');
 
 export const updateInvoiceByInvoiceId4 = (db: Db) => db.prepare(`
       UPDATE invoices SET
@@ -406,11 +406,11 @@ export const findInvoiceItemsByInvoiceIdAndIsGstApplicable = (db: Db, invoiceIds
       WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR ? = 'global') AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND (i.is_deleted IS NULL OR i.is_deleted = 0)
     ` + (invoiceIds === undefined ? '' : ' AND i.invoice_id IN (' + invoiceIds.map(() => '?').join(',') + ')'));
 
-export const findInvoicesByInvoiceId3 = (db: Db) => db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id, stock_applied FROM invoices WHERE invoice_id = ?');
+export const findInvoicesByInvoiceId3 = (db: Db) => db.prepare('SELECT * FROM invoices WHERE invoice_id = ?');
 
 export const findInvoiceItemsByInvoiceIdProductIdAndQuantity3 = (db: Db) => db.prepare('SELECT product_id, quantity, qty_from_paper_stock FROM invoice_items WHERE invoice_id = ?');
 
-export const updateProductCurrentStockCurrentStock4 = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = ${stockTimestampSql} WHERE product_id = ? AND tenant_id = ?`);
+export const updateProductCurrentStockCurrentStock4 = (db: Db) => db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = ${stockTimestampSql} WHERE product_id = ? AND tenant_id = ? AND COALESCE(is_service_item,0)=0`);
 
 export const updateInvoiceItemIsDeleted = (db: Db) => db.prepare("UPDATE invoice_items SET is_deleted = 1, sync_status = 'PENDING' WHERE invoice_id = ?");
 

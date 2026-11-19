@@ -1,4 +1,7 @@
+import { validateInvoiceReturnQuantities } from './returnValidation.js';
+import { movementBetween } from '../utils/stockOperation.js';
 import { getStoreCountrySetting } from './storeCountryService.js';
+import { outstandingInvoiceStock } from '../db/statements/invoiceStock.js';
 import { captureInvoicePoints, reconcileInvoicePoints, refreshInvoiceEarnings, validateInvoicePointsEdit } from './loyaltyService.js';
 import { getDb } from '../db/localDb.js';
 import { upsertCustomerRecord } from '../db/customerIdentity.js';
@@ -101,6 +104,9 @@ export async function updateInvoice(payload: {
     tax_amount: number;
     total: number;
     isServiceItem?: boolean;
+    combo_id?: string | null;
+    combo_details?: string | null;
+    combo_items?: { product_id: string; quantity: number }[];
     pieces_sold?: number | null;
     pieces_override?: number | null;
     billing_type?: string | null;
@@ -164,6 +170,7 @@ export async function updateInvoice(payload: {
 
   let savedSplit: SplitDetails = {};
   const transaction = db.transaction(() => {
+    validateInvoiceReturnQuantities(db, existingInv.tenant_id || payload.tenant_id, payload.invoice_id, items || []);
     const targetCustId = invoice.customer_id || existingInv.customer_id || null;
     const customerId = upsertCustomerRecord(
       db,
@@ -187,6 +194,7 @@ export async function updateInvoice(payload: {
     captureInvoicePoints(db, payload.invoice_id);
     // 1. Get old items for stock adjustment
     const oldItems = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity2(db).all(payload.invoice_id) as InvoiceItemRow[];
+    const beforeStock = outstandingInvoiceStock(db, payload.invoice_id, existingInv.tenant_id || payload.tenant_id);
 
     const updatedCreatedAt = invoice.created_at
       ? (toEpochMs(invoice.created_at) === null ? null : toIsoTimestamp(invoice.created_at))
@@ -240,6 +248,10 @@ export async function updateInvoice(payload: {
     // 4. Insert new items
     const itemStmt = invoicesSql.insertInvoiceItem3(db);
     for (const item of (items || [])) {
+      const candidates = oldItems.filter(old => old.product_id === item.product_id);
+      const original = candidates.find(old => old.item_id === item.item_id) ?? (candidates.length === 1 ? candidates[0] : undefined);
+      const comboId = item.combo_id ?? original?.combo_id ?? null;
+      const recipe = item.combo_details ?? (item.combo_items ? JSON.stringify(item.combo_items) : original?.combo_details) ?? null;
       itemStmt.run(
         item.item_id || crypto.randomUUID(),
         payload.invoice_id,
@@ -262,6 +274,7 @@ export async function updateInvoice(payload: {
         item.igst_amount ?? 0,
         item.hsn_sac_code || null,
         item.supply_type || invoice.supply_type || 'INTRA',
+        comboId, recipe,
       );
     }
     const finalCreatedAt = updatedCreatedAt || existingInv.created_at;
@@ -269,31 +282,11 @@ export async function updateInvoice(payload: {
       invoicesSql.updateInvoiceItemsCreatedAt(db).run(finalCreatedAt, payload.invoice_id);
     }
 
-    // 5. Adjust stock: reverse old quantities, apply new (skip service items)
-    const isServiceItemLookup: Record<string, boolean> = {};
-    const svcStmt = invoicesSql.findProductsByProductIdIsServiceItem(db);
-    const isServiceItem = (pid: string) => {
-      if (isServiceItemLookup[pid] === undefined) {
-        const row = svcStmt.get(pid) as { is_service_item?: number | boolean | null } | undefined;
-        isServiceItemLookup[pid] = row ? !!row.is_service_item : false;
-      }
-      return isServiceItemLookup[pid];
-    };
-
-    const stockDelta: Record<string, number> = {};
-    for (const old of oldItems) {
-      if (existingInv.stock_applied !== 0 && !isServiceItem(old.product_id)) {
-        stockDelta[old.product_id] = (stockDelta[old.product_id] || 0) + old.quantity;
-      }
-    }
-    for (const item of items) {
-      if (existingInv.stock_applied !== 0 && !isServiceItem(item.product_id)) {
-        stockDelta[item.product_id] = (stockDelta[item.product_id] || 0) - item.quantity;
-      }
-    }
+    // A saved bill owns its remaining physical components, including active return snapshots.
+    const afterStock = outstandingInvoiceStock(db, payload.invoice_id, existingInv.tenant_id || payload.tenant_id);
     const stockStmt = invoicesSql.updateProductCurrentStockCurrentStock3(db);
-    for (const [product_id, delta] of Object.entries(stockDelta)) {
-      stockStmt.run(delta, product_id);
+    for (const part of movementBetween(afterStock, beforeStock)) {
+      stockStmt.run(part.quantity, part.product_id, existingInv.tenant_id);
     }
 
     // Sync party credit ledger
@@ -459,7 +452,8 @@ export function updateInvoicePayment(payload: {
 export function deleteInvoice(invoice_id: string) {
   try {
     const db = getDb();
-    const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as InvoiceRow | undefined;
+    const existingInv = invoicesSql.findInvoicesByInvoiceId2(db).get(invoice_id) as (InvoiceRow & { is_deleted?: number }) | undefined;
+    if (existingInv?.is_deleted) return { success: true };
     const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
 
     db.transaction(() => {
@@ -469,7 +463,7 @@ export function deleteInvoice(invoice_id: string) {
       // The superseded BoS owns the deduction.
       const isConversionCopy = !!(inv && inv.converted_from_invoice_id);
 
-      const items = invoicesSql.findInvoiceItemsByInvoiceIdProductIdAndQuantity3(db).all(invoice_id) as InvoiceItemRow[];
+      const items = outstandingInvoiceStock(db, invoice_id, inv.tenant_id || 'global');
       const restoreStockStmt = invoicesSql.updateProductCurrentStockCurrentStock4(db);
       if (!isConversionCopy && inv.stock_applied !== 0) {
         for (const item of items) {
