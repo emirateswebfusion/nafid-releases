@@ -39,6 +39,24 @@ beforeEach(() => {
   queue('old', 5, 500);
 });
 afterEach(() => raw.close());
+it('acknowledges a rebased duplicate after an upload response was lost', async () => {
+  raw.exec("UPDATE party_ledger SET updated_at='2026-11-19T10:00:00Z'");
+  let attempts = 0;
+  state.request = async url => {
+    if (!url.includes('/ops')) return { changes: [], next_since: '0', has_more: false };
+    if (++attempts === 1) throw new Error('Response lost after commit');
+    return { results: [{ op_id: 'old', status: 'duplicate', receipt: {
+      id: 'entry', base: '6:a', row_version: 6, origin: 'a', server_seq: '42',
+    } }] };
+  };
+  await expect(runOutboxSync('dummy', 'shop')).rejects.toThrow('Response lost after commit');
+  expect(raw.prepare("SELECT sent_at FROM sync_outbox WHERE op_id='old'").get()?.sent_at).toBeNull();
+  await runOutboxSync('dummy', 'shop');
+  expect(raw.prepare('SELECT credit_amount,row_version,sync_status FROM party_ledger').get())
+    .toMatchObject({ credit_amount: 500, row_version: 6, sync_status: 'SYNCED' });
+  expect(raw.prepare("SELECT value FROM sync_meta WHERE key='account_base:shop:party_ledger:entry'").get()?.value).toBe('6:a');
+  expect(raw.prepare("SELECT sent_at FROM sync_outbox WHERE op_id='old'").get()?.sent_at).toBeTruthy();
+});
 it.each([false, true])('derives downloaded account balances from the retained local ledger (pending=%s)', async pending => {
   balanceFixture();
   if (pending) raw.exec('UPDATE party_ledger SET credit_amount=900');

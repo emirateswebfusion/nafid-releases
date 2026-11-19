@@ -40,6 +40,20 @@ migration107. Therefore `server_seq` is a download cursor, not the edit baseline
 recalculation commit together; a failed recalculation rolls back the request rather than issuing a false acknowledgement.
 Ledger parent ownership is tenant-scoped and active parent accounts are checked before new active postings.
 
+## Retrying a lost server acknowledgement
+
+The server may accept an edit with a captured current baseline while rebasing its lower local counter to a newer
+cloud version. If the HTTP response is lost, the same applied operation must return a duplicate receipt when its
+business content still matches the stored account, even when the accepted counter differs from the request.
+`accountContentMatches` owns this comparison for both ordinary no-op retries and already-applied outbox requests.
+The duplicate path performs no write/recalculation and does not advance the sequence. Different intervening content,
+a missing row or a restored account after a delete still conflicts and cannot grant a receipt.
+
+This is a compatible server-only correction at the existing API URL. POS 2.2.83 already consumes duplicate receipts
+with snapshot guards; no new installer, endpoint, schema or migration is required. Regression coverage includes
+server `accountRetry.test.ts`, real PostgreSQL integration/native regressions and POS `outboxLedgerConflict.test.ts`.
+Existing manual-review markers/historical mismatches are not automatically removed by this correction.
+
 ## Ordered outbox edits and local balances
 
 The outbox selects only the earliest unsent operation for each financial identity. A subsequent edit waits for its
@@ -56,6 +70,21 @@ last entry and reassignment zero the old account. A recalculation failure rolls 
 
 Coverage: `outboxLedgerConflict.test.ts` (consecutive edits, blocked/exhausted predecessors, protected pending totals,
 ledger-only changes, deletion, reassignment and estimate buckets), plus outbox and migration characterization.
+
+## Commit visibility before a financial sequence page
+
+A PostgreSQL sequence number is allocated before commit. A transaction with a lower number may still be invisible
+when a higher-numbered transaction commits; a plain `server_seq > cursor` read could otherwise strand the later commit.
+Before sequence-based account reads and the outbox changes feed, the server obtains a short transaction-scoped
+`SHARE MODE NOWAIT` fence on `parties` and `party_ledger`. The standard tenant transaction uses READ COMMITTED, so the
+following SELECT sees preceding commits and new financial writers cannot allocate row sequences during that page.
+A busy writer fails the read immediately rather than waiting in a conflicting lock order. The client retains the
+previous cursor and retries; no successful partial page/cursor is emitted. Readers can coexist. New writers may wait
+briefly for the page transaction; this is deliberately scoped to financial tables, not a global guarantee for all sync
+domains. Keep page reads bounded and preserve lock/statement timeouts. Non-sequence legacy requests keep their protocol.
+
+Coverage: server `accountReadFence.test.ts`, a real PostgreSQL lower-sequence late-commit test, and POS
+`accountSequencePull.test.ts` busy-page cursor retention. This server correction requires no client wire/schema change.
 
 ## Complete, resumable cloud downloads
 
