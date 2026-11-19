@@ -323,14 +323,20 @@ Legacy cloud and LAN delta checks use `party_ledger.updated_at`, so edits and to
 
 Regression coverage: `tests/unit/partyLedgerSync.test.ts`; cloud login/no-login and LAN characterization. Server upload ownership/retry/delta coverage lives in `nafid-server/tests/partyLedgerSync.test.ts`.
 
-## Interstate purchase tax classification (17 November 2026)
-
-POS migration 024 adds `purchase_bills.is_interstate` (SQLite 0/1); server tenant migration 106 adds its boolean counterpart. Create/edit, cloud pull and LAN rows retain this additive field. Missing legacy uploads preserve existing server classification; new legacy bills default to intrastate. Deploy the server first. Regression coverage: `purchaseStockService.test.ts`, `purchaseInterstateSync.test.ts`, migration compatibility and server sync golden/integration tests.
-
 ### Ledger concurrency and stable identity (19 November 2026)
 
 Distinct ledger IDs represent distinct payments, including equal recurring amounts. Server recalculation never deduplicates by content. CUSTOM/supplier IDs are accepted unchanged; customer-only alias matching must not acknowledge a missing custom ID. Server migration 107 publishes legacy/API party and ledger mutations to the sequence feed, preserving supplied outbox versions; unchanged derived recalculation does not churn that feed.
 
-LAN ledger merge uses tenant identity and the existing `(row_version, origin)` ordering. Wall-clock timestamps cannot veto a higher version. A lower/equal retry cannot replace a newer restore or edit. Outbox conflict replies apply only while their captured operation still owns the local snapshot; a newer queued operation or row version keeps the latest local data pending.
+LAN ledger merge uses tenant identity and the existing `(row_version, origin)` ordering. Wall-clock timestamps cannot veto a higher version. An older version/origin pair or an identical retry cannot replace a newer restore or edit. Outbox conflict replies apply only while their captured operation still owns the local snapshot; a newer queued operation or row version keeps the latest local data pending.
 
 No HTTP payload or synced column changes. See `outboxLedgerConflict.test.ts`, `ledgerIntegrity.test.ts`, and server `tests/integration/ledgerIntegrity.embedded.cjs`.
+
+## Interstate purchase tax classification (17 November 2026)
+
+POS migration 024 adds `purchase_bills.is_interstate` (SQLite 0/1); server tenant migration 106 adds its boolean counterpart. Create/edit, cloud pull and LAN rows retain this additive field. Missing legacy uploads preserve existing server classification; new legacy bills default to intrastate. Deploy the server first. Regression coverage: `purchaseStockService.test.ts`, `purchaseInterstateSync.test.ts`, migration compatibility and server sync golden/integration tests.
+
+## Linked register payment IPC
+
+The existing channel is `db:cashier:addTransaction`, exposed as `dbCashierAddTransaction` in preload/types and `cashierApi.addTransaction` in `src/data/cashier.ts`. Its additive optional field is `party: { party_id: string; ledger_id: string; description: string }`; the existing result remains `{ success: boolean; error?: string }`. Unlinked callers omit it. The service owns the CASH ledger posting, explicit cash category link and transaction; the renderer must not follow a successful cash write with a second ledger IPC call.
+
+The five-layer review is complete: `cashierHandlers.ts` still registers one service function; `cashierService.ts` validates and transacts; both bridge declarations match; `bindBridge` derives the catalog signature without a duplicate input type; the hook awaits the result and retains failed drafts. No channel registration, generated row type or SQLite migration is needed for this argument-only extension. Existing browser renderer snapshots do not gain this desktop implementation automatically: upgrade them only through the reviewed renderer import/adapter workflow. HTTP contracts remain compatible.

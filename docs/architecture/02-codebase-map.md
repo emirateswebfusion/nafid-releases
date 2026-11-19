@@ -109,7 +109,7 @@ electron/
     productsService · gradesService · pricingTiersService · combosService
     customersService · partiesService · partyLedgerService · ledgerPaymentAccounts
     customerCreditService (credit limits/overdue) · quotationsService · returnsService · warrantiesService
-    scrapService · purchasesService · cashierService · cashDrawerService · paymentSourcesService
+    scrapService · purchasesService · cashierService · cashDrawerService · cashRegisterLedgerService (shared live/history cash projection) · paymentSourcesService
     staffService (staff, biller PIN, staff ledger, attendance) · localAuthService (offline login)
     emergencyPurgeService · settingsService · recycleBinService · syncService · ecommerceService · cardTerminalService
     restaurantOrderService · restaurantKitchenService · restaurantSetupService · restaurantKot · restaurantClaim

@@ -20,6 +20,7 @@
 | A cloud (online-only) call | `src/data/cloud/<domain>.ts` (`cloudFetch` / `cloudRequest`) | Verify the server route exists |
 | SQL | `electron/db/statements/<domain>.ts` | Intent-named factory `(db: Db) => db.prepare(…)`; bind user values with `?` |
 | Schema / migration | `electron/db/migrations/NNN-*.ts` + `migrations/index.ts` | A new numbered migration (runs once, recorded in `schema_migrations`); never grow the startup baseline (guard R10); mirror synced columns in the server migrations; see 03-data-access §3.4 |
+| Cash register / party ledger integrity | `cashierService`, `partiesService`, `cashRegisterLedgerService`; SQL in their statement modules | Preserve one transaction and explicit ledger identity; use the shared live/history projection. Follow [ledger rules](04-business-rules.md#cash-register-and-party-ledger-integrity-19-november-2026) and [concurrency contract](03-data-access.md#ledger-concurrency-and-stable-identity-19-november-2026); run the atomic-save, ledger-integrity and outbox-conflict regressions plus relevant main-process harnesses. Coordinate server changes |
 | A main-process use-case | `electron/services/<domain>Service.ts` | Validates, applies rules, runs statements in `db.transaction`; never imports `electron/ipc/` |
 | An IPC channel | `electron/ipc/<domain>Handlers.ts` | One line: `handle('db:doThing', domainService.doThing)` |
 | Printer / scale / scanner / WhatsApp behaviour | `electron/hardware/*`, `electron/whatsapp/*` | Adapters only |

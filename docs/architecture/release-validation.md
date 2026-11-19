@@ -96,6 +96,8 @@ Record the source commit/tree, version, CI result, packaged configuration checks
 
 Merge and remove temporary release branches/worktrees after publication. Before removing a worktree, verify its absolute path, preserve required artifacts, and ensure dependency links in the main checkout do not point into it. A local repair does not establish that other shops have upgraded; provide older-version recovery instructions when necessary.
 
+Historical completed example: [v2.2.81 ledger integrity verification](verification/2026-11-19-ledger-integrity.md) records source/tree identity, coordinated backend review, automated checks, final installer digests and recovery limits. It is evidence for that release only; a later release must run its own gate.
+
 ## Incident that motivated this gate
 
 On 6 November 2026, customer logs contained repeated HTTP 402 / `DEPLOYMENT_DISABLED` on cloud pushes and pulls.

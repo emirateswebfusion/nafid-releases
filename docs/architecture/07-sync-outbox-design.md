@@ -125,7 +125,7 @@ CREATE INDEX idx_sync_outbox_pending ON sync_outbox(tenant_id, sent_at, created_
    to return to legacy. LAN and HYBRID PRIMARY/SECONDARY terminals always use legacy, including cloud fallback.
    `outboxSync.ts` pushes at most 200 ops per batch; each cycle snapshots the queue boundary and attempts an op once.
    Applied/duplicate ops get `sent_at`; conflicts retain `last_error = 'conflict'` and `sent_at`, with the full server
-   row applied under the guard. Other result statuses retry next cycle; after 10 attempts they remain for review,
+   row applied under the guard only if the captured operation still owns the local snapshot. A newer unsent operation or higher local row version preserves the newer edit; the old operation is completed without marking that newer edit synced. Other result statuses retry next cycle; after 10 attempts they remain for review,
    stop sending and appear as a count in sync progress. Concurrent edits keep their PENDING badge.
    Pull uses `/api/sync/changes`, atomically applies each page and advances `sync_meta.server_seq_cursor` (with a
    tenant marker to reset it on account changes). Rows with unsent local ops are skipped. Boolean tombstones become
@@ -189,3 +189,9 @@ across terminals requires a coordinated POS/server position contract and migrati
 timestamp heuristic. Existing order already lost cannot be reconstructed. The local rule and tests are
 documented in [data access](03-data-access.md#saved-invoice-line-order) and
 [business rules](04-business-rules.md#saved-bill-line-order).
+
+## 7.9 Party ledger integrity (19 November 2026)
+
+The implemented ledger exceptions to the historical risks in §7.2 are documented in [data access](03-data-access.md#ledger-concurrency-and-stable-identity-19-november-2026): LAN ledger rows compare tenant and `(row_version, origin)`, and in-flight outbox replies cannot replace newer local edits. This does not implement LAN operation relay or retire the legacy engine. Server migration 107 also publishes legacy/API ledger and party mutations into the sequence feed; it does not add conflict guards to all legacy endpoints.
+
+See [business rules](04-business-rules.md#cash-register-and-party-ledger-integrity-19-november-2026) for stable payment identity, atomic register links and role-limited cleanup, and the [v2.2.81 verification record](verification/2026-11-19-ledger-integrity.md) for automated coverage, known characterization fixture limitations and installed-upgrade evidence. These checks do not establish completion of the real-shop rollout in §7.6.

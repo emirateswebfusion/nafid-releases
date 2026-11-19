@@ -723,7 +723,7 @@ price editing until the owner grants that permission. No permission keys, IPC or
 
 ## Cash register and party ledger integrity (19 November 2026)
 
-A linked register payment uses the optional `party` object on the existing `cashier:addTransaction` payload. The service commits the ledger, cash row, balances and outbox in one SQLite transaction; a failed write leaves the form retryable. Old unlinked callers remain compatible. Deletion follows only an explicit `PARTY_LEDGER:<id>` link, never amount/time similarity. Ledger delete and restore validate both identities before side effects. Restore recreates exactly one cash link; original Cash Register payments remain eligible when general ledger integration is off.
+A linked register payment uses the optional `party` object on the existing `db:cashier:addTransaction` payload. The service commits the ledger, cash row, balances and outbox in one SQLite transaction; a failed write leaves the form retryable. Old unlinked callers remain compatible. Deletion follows only an explicit `PARTY_LEDGER:<id>` link, never amount/time similarity. Ledger delete and restore validate both identities before side effects. Restore recreates exactly one cash link; original Cash Register payments remain eligible when general ledger integration is off.
 
 `cashRegisterLedgerService.ledgerCashMovement` owns live/history amount, effective date and direction projection. Cash Register-originated payments retain their original cash direction; ordinary manual entries derive direction from the ledger. Editing an existing historical payment cannot open a new drawer. Explicit Estimate-to-GST corrections persist the selected bucket.
 
