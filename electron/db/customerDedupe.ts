@@ -36,11 +36,11 @@ function recalcPartyBalanceLocal(d: Database.Database, partyId: string) {
     return total;
   } catch (err) {
     console.error('[recalcPartyBalanceLocal error]:', (err as Error).message);
-    return 0;
+    throw err;
   }
 }
 
-export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database): { merged_customers: number; merged_parties: number } {
+export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database): { merged_customers: number; merged_parties: number; error?: string } {
   const d = targetDb || db;
   if (!d) return { merged_customers: 0, merged_parties: 0 };
 
@@ -48,6 +48,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
   let mergedParties = 0;
 
   try {
+    return d.transaction(() => {
     // 1. DEDUPLICATE CUSTOMERS
     const custTenants = d.prepare('SELECT DISTINCT tenant_id FROM customers').all().map((r: unknown) => (r as { tenant_id: string }).tenant_id);
     for (const tenantId of custTenants) {
@@ -161,7 +162,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
       const parties = d.prepare(`
         SELECT party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, credit_limit, notes, created_at
         FROM parties 
-        WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+        WHERE party_type = 'CUSTOMER' AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
       `).all(tenantId) as Record<string, unknown>[];
 
       const n = parties.length;
@@ -242,9 +243,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
           if (!bestGstin && dup.gstin) bestGstin = dup.gstin;
 
           d.prepare("UPDATE party_ledger SET party_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(primary.party_id, dup.party_id);
-          try {
-            d.prepare('UPDATE purchase_bills SET supplier_id = ? WHERE supplier_id = ?').run(primary.party_id, dup.party_id);
-          } catch { /* ignore */ }
+          d.prepare('UPDATE purchase_bills SET supplier_id = ? WHERE supplier_id = ?').run(primary.party_id, dup.party_id);
           d.prepare("UPDATE parties SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(dup.party_id);
         }
 
@@ -282,9 +281,10 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
     }
 
     return { merged_customers: mergedCustomers, merged_parties: mergedParties };
+    })();
   } catch (err) {
     console.error('[DB Auto-Deduplication Error]:', (err as Error).message);
-    return { merged_customers: 0, merged_parties: 0 };
+    return { merged_customers: 0, merged_parties: 0, error: 'Duplicate cleanup failed; no accounts were changed' };
   }
 }
 

@@ -136,7 +136,7 @@ export const findPartyLedgerByPartyId = (db: Db) => db.prepare(`
 
 export const updatePartyLedgerRunningBalance = (db: Db) => db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`);
 
-export const findPartiesByPartyIdBalance = (db: Db) => db.prepare('SELECT balance, tenant_id FROM parties WHERE party_id = ?');
+export const findPartiesByPartyIdBalance = (db: Db) => db.prepare('SELECT balance, tenant_id FROM parties WHERE party_id = ? AND COALESCE(is_deleted, 0) = 0');
 
 export const insertPartyLedger3 = (db: Db) => db.prepare(`
       INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)

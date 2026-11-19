@@ -51,7 +51,7 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
         const action = resultAction(matches.length === 1 ? matches[0] : undefined);
         try {
           db.transaction(() => withSyncApplyGuard(db, () => {
-            if (action.current) sql.applyRow(db, op.entity, action.current, tenant);
+            if (action.current && sql.canApplyConflict(db, op)) sql.applyRow(db, op.entity, action.current, tenant);
             if (action.done) {
               sql.finishOp(db, op.op_id, action.error);
               sql.markLegacySynced(db, op);

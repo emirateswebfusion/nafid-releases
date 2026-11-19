@@ -13,9 +13,9 @@ export const insertCustomer = (db: Db) => db.prepare(`
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
 
-export const findPartiesByPhone = (db: Db) => db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)');
+export const findPartiesByPhone = (db: Db) => db.prepare("SELECT party_id FROM parties WHERE party_type = 'CUSTOMER' AND tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)");
 
-export const findParties = (db: Db) => db.prepare('SELECT party_id FROM parties WHERE tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)');
+export const findParties = (db: Db) => db.prepare("SELECT party_id FROM parties WHERE party_type = 'CUSTOMER' AND tenant_id = ? AND LOWER(TRIM(name)) = ? AND (is_deleted IS NULL OR is_deleted = 0)");
 
 export const updatePartyByPartyId = (db: Db) => db.prepare(`
         UPDATE parties 
@@ -40,9 +40,9 @@ export const findCustomersByCustomerId = (db: Db) => db.prepare(`SELECT * FROM c
 
 export const updateCustomerIsDeleted = (db: Db) => db.prepare(`UPDATE customers SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`);
 
-export const findPartiesByPhonePartyIdAndName = (db: Db) => db.prepare(`SELECT party_id, name FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)`);
+export const findPartiesByPhonePartyIdAndName = (db: Db) => db.prepare(`SELECT party_id, name FROM parties WHERE party_type = 'CUSTOMER' AND tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)`);
 
-export const findPartiesByName = (db: Db) => db.prepare(`SELECT party_id, name FROM parties WHERE tenant_id = ? AND name = ? COLLATE NOCASE AND (is_deleted IS NULL OR is_deleted = 0)`);
+export const findPartiesByName = (db: Db) => db.prepare(`SELECT party_id, name FROM parties WHERE party_type = 'CUSTOMER' AND tenant_id = ? AND name = ? COLLATE NOCASE AND (is_deleted IS NULL OR is_deleted = 0)`);
 
 export const updatePartyIsDeleted = (db: Db) => db.prepare(`UPDATE parties SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ? AND tenant_id = ?`);
 

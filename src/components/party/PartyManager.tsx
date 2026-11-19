@@ -342,8 +342,9 @@ export function PartyManager({
     if (!txToDelete || !selectedParty || !isOwner) return;
     setDeleteTxSaving(true);
     try {
+      const result = await partiesApi.deletePartyLedgerEntry(txToDelete.ledger_id, selectedParty.party_id);
+      if (!result.success) throw new Error(result.error || 'Could not delete transaction');
       setLedger(prev => prev.filter(e => e.ledger_id !== txToDelete.ledger_id));
-      await partiesApi.deletePartyLedgerEntry(txToDelete.ledger_id, selectedParty.party_id);
       showStatus('Transaction deleted', 'success');
       setDeleteTxModalOpen(false);
       setTxToDelete(null);

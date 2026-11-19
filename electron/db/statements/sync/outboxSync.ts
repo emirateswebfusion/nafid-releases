@@ -64,6 +64,18 @@ export function applyRow(db: Db, entity: string, row: Row, tenant: string): void
       .run(...names.map(name => bind(values[name])));
   }
 }
+/** An upload reply owns only its snapshot, never an edit made while awaiting HTTP. */
+export function canApplyConflict(db: Db, op: SyncOutboxRow): boolean {
+  if (db.prepare(`SELECT 1 FROM sync_outbox WHERE tenant_id = ? AND entity = ? AND entity_id = ?
+      AND sent_at IS NULL AND rowid > (SELECT rowid FROM sync_outbox WHERE op_id = ?) LIMIT 1`)
+    .get(op.tenant_id, op.entity, op.entity_id, op.op_id)) return false;
+  const { keys } = metadata(db, op.entity);
+  const payload: Row = op.payload ? JSON.parse(op.payload) as Row : {};
+  const values = keys.map(key => key === 'tenant_id' ? op.tenant_id : payload[key] ?? op.entity_id);
+  const current = db.prepare(`SELECT row_version FROM ${quote(op.entity)} WHERE ${keys.map(key => `${quote(key)} = ?`).join(' AND ')}`)
+    .get(...values.map(bind)) as { row_version: number } | undefined;
+  return !current || current.row_version <= op.row_version;
+}
 export function markLegacySynced(db: Db, op: SyncOutboxRow) {
   const { columns, keys } = metadata(db, op.entity);
   if (!columns.includes('sync_status')) return;

@@ -236,8 +236,8 @@ export function updateParty(p: Partial<PartyInput> & { party_id: string }) {
 
     partiesSql.updatePartyProfile(db, columns).run(...params);
 
-    // Synchronize to matching customer in customers table if exists
-    try {
+    // Custom/supplier profiles must not rename a separate customer sharing a phone.
+    if ((p.party_type || oldPartyRow?.party_type || 'CUSTOMER') === 'CUSTOMER') try {
       let cust: CustomerRow | null | undefined = null;
       if (newPhone) {
         cust = partiesSql.findCustomersByPhone(db).get(tenantId, newPhone) as CustomerRow | undefined;
@@ -426,7 +426,11 @@ export function restorePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: st
   try {
     const db = getDb();
     return db.transaction(() => {
+    const existing = partiesSql.findPartyLedgerByLedgerIdAndPartyId(db).get(ledger_id, party_id) as PartyLedgerRow | undefined;
+    const party = partiesSql.findPartiesByPartyIdBalance(db).get(party_id) as PartyRow | undefined;
+    if (!existing || !party) return { success: false, error: 'Ledger entry not found for this party' };
     partiesSql.updatePartyLedgerIsDeletedAlt(db).run(ledger_id, party_id);
+    recordLedgerCashEntry(db, party.tenant_id || 'global', ledger_id);
     const entries = partiesSql.findPartyLedgerByPartyId(db).all(party_id) as PartyLedgerRow[];
 
     let running = 0;
@@ -516,7 +520,7 @@ export function updatePartyLedgerEntry(entry: Partial<PartyLedgerEntryInput> & {
         entry.description || existing.description,
         creditAmount,
         debitAmount,
-        entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : (existing.balance_type || 'GST'),
+        entry.balance_type === 'ESTIMATE' || entry.balance_type === 'GST' ? entry.balance_type : (existing.balance_type || 'GST'),
         entry.payment_method !== undefined ? entry.payment_method : (existing.payment_method || null),
         entry.reference_number !== undefined ? entry.reference_number : existing.reference_number,
         entry.ledger_id,
@@ -549,7 +553,8 @@ export function deletePartyLedgerEntry({ ledger_id, party_id }: { ledger_id: str
   try {
     const db = getDb();
     return db.transaction(() => {
-    
+    const existing = partiesSql.findPartyLedgerByLedgerIdAndPartyId(db).get(ledger_id, party_id) as PartyLedgerRow | undefined;
+    if (!existing) return { success: false, error: 'Ledger entry not found for this party' };
     partiesSql.updatePartyLedgerIsDeletedIsDeleted2(db).run(ledger_id, party_id);
     partiesSql.deleteCashTransactionByPartyLedgerId(db).run(ledger_id);
     syncLedgerPaymentAccount(db, ledger_id, party_id);

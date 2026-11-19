@@ -311,7 +311,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCashierSetOpeningBalance: (params: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:setOpeningBalance', params),
   dbCashierGetPendingInvoices: (params: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:cashier:getPendingInvoices', params),
   dbCashierSettlePayment: (params: { tenant_id: string; invoice_id: string; received_amount: number; discount_amount?: number; payment_method: string; payment_source_id?: string; split_details?: unknown; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:settlePayment', params),
-  dbCashierAddTransaction: (params: { tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:addTransaction', params),
+  dbCashierAddTransaction: (params: { party?: { party_id: string; ledger_id: string; description: string }; tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:addTransaction', params),
   dbCashierDayClosing: (params: { tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:dayClosing', params),
   dbCashierGetAutoCloseStatus: (params: { tenant_id: string }) => ipcRenderer.invoke('db:cashier:getAutoCloseStatus', params),
   dbCashierSnoozeAutoClose: (params: { tenant_id: string; drawer_id: string; minutes: number }) => ipcRenderer.invoke('db:cashier:snoozeAutoClose', params),

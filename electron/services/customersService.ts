@@ -159,7 +159,7 @@ export function deduplicateCustomers(_tenant_id?: string) {
   try {
     const db = getDb();
     const result = autoDeduplicateCustomersAndParties(db);
-    return { success: true, ...result };
+    return { success: !result.error, ...result };
   } catch (error) {
     console.error('[db:deduplicateCustomers]', error);
     return { success: false, error: (error as Error).message };

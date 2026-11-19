@@ -326,3 +326,11 @@ Regression coverage: `tests/unit/partyLedgerSync.test.ts`; cloud login/no-login 
 ## Interstate purchase tax classification (17 November 2026)
 
 POS migration 024 adds `purchase_bills.is_interstate` (SQLite 0/1); server tenant migration 106 adds its boolean counterpart. Create/edit, cloud pull and LAN rows retain this additive field. Missing legacy uploads preserve existing server classification; new legacy bills default to intrastate. Deploy the server first. Regression coverage: `purchaseStockService.test.ts`, `purchaseInterstateSync.test.ts`, migration compatibility and server sync golden/integration tests.
+
+### Ledger concurrency and stable identity (19 November 2026)
+
+Distinct ledger IDs represent distinct payments, including equal recurring amounts. Server recalculation never deduplicates by content. CUSTOM/supplier IDs are accepted unchanged; customer-only alias matching must not acknowledge a missing custom ID. Server migration 107 publishes legacy/API party and ledger mutations to the sequence feed, preserving supplied outbox versions; unchanged derived recalculation does not churn that feed.
+
+LAN ledger merge uses tenant identity and the existing `(row_version, origin)` ordering. Wall-clock timestamps cannot veto a higher version. A lower/equal retry cannot replace a newer restore or edit. Outbox conflict replies apply only while their captured operation still owns the local snapshot; a newer queued operation or row version keeps the latest local data pending.
+
+No HTTP payload or synced column changes. See `outboxLedgerConflict.test.ts`, `ledgerIntegrity.test.ts`, and server `tests/integration/ledgerIntegrity.embedded.cjs`.

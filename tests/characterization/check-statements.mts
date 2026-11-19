@@ -24,6 +24,7 @@ const special: Record<string, unknown[]> = { findInvoiceItemsByInvoiceIdAndIsGst
   applyRow: ['products', { product_id: 'statement-check', tenant_id: 't1', name: 'Check', base_price: 0, purchase_price: 0, is_gst_applicable: 0, tax_rate_percent: 0, uom: 'Pcs' }, 't1'],
   pendingIdentity: ['products', { product_id: 'statement-check' }, 't1'],
   markLegacySynced: [{ entity: 'products', entity_id: 'statement-check', tenant_id: 't1', payload: null, row_version: 0 }],
+  canApplyConflict: [{ op_id: 'statement-check', entity: 'products', entity_id: 'statement-check', tenant_id: 't1', payload: null, row_version: 0 }],
   withSyncApplyGuard: [() => undefined], buildOutboxTriggerStatements: [['products']], listPendingOps: [10], enqueueLegacyPendingRows: [['products', 'returns']],
   updatePartyProfile: [['pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'party_type', 'custom_category', 'whatsapp_alerts_enabled']] };
 let ok = 0; const bad: string[] = [];

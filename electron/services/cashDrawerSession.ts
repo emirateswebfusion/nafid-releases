@@ -6,6 +6,7 @@ import { getCashRegisterPreferences } from './cashRegisterPreferences.js';
 import { toEpochMs } from '../utils/timestamps.js';
 import * as cashDrawerSql from '../db/statements/cashDrawer.js';
 import type { Db } from '../db/statements/types.js';
+import { ledgerCashMovement } from './cashRegisterLedgerService.js';
 
 /**
  * Drawer sessions: which bills and cash entries belong to a drawer, and when a drawer closes itself.
@@ -193,8 +194,10 @@ export function getRegisterCashEntries(db: Db, tenantId: string, drawer: DrawerR
       if (!fromRegister && prefs.ledgerMode === 'off') continue;
       if (linkedLedger) {
         if (!row.ledger_id || row.ledger_deleted || row.ledger_method?.toUpperCase() !== 'CASH') continue;
-        amount = Math.abs(Number(row.credit_amount) - Number(row.debit_amount));
-        if (!fromRegister) type = Number(row.credit_amount) > Number(row.debit_amount) ? 'CASH_OUT' : 'CASH_IN';
+        const movement = ledgerCashMovement(row, { credit_amount: row.credit_amount, debit_amount: row.debit_amount,
+          reference_number: row.ledger_reference, transaction_date: row.ledger_date });
+        amount = movement.amount;
+        type = movement.type;
       }
       if (!fromRegister && prefs.ledgerMode === 'today') {
         const timestamp = toEpochMs(row.ledger_date || row.transaction_date);

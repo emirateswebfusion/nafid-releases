@@ -1,7 +1,6 @@
 import type React from 'react';
 import { cashierApi } from '../../../data/cashier';
 import { hasBridge } from '../../../data/client';
-import { partiesApi } from '../../../data/parties';
 import type { DialogVariant } from '../../ui/CustomDialog';
 import type { CashDrawerRow, CashTransactionRow, DayCloseResult } from '../cashierTypes';
 
@@ -130,52 +129,24 @@ export function useCashDrawerActions(ctx: UseCashDrawerActionsContext) {
 
   const handleAddTransaction = async () => {
     setTxnError('');
-    if (!tenantId || !userId || txnAmt <= 0) return;
-    if (drawer?.status === 'CLOSED') {
-      setTxnError('Cash Register is closed for today. Entries are locked.');
-      return;
-    }
+    if (!tenantId || !userId || !Number.isFinite(txnAmt) || txnAmt <= 0) return;
+    if (drawer?.status === 'CLOSED') { setTxnError('Cash Register is closed for today. Entries are locked.'); return; }
     setTxnSubmitting(true);
-    const ledgerId = crypto.randomUUID();
-    const finalNotes = txnPartyName
-      ? (txnNote ? `Party: ${txnPartyName} | ${txnNote}` : `Party: ${txnPartyName}`)
-      : (txnNote || undefined);
-
-    const r = await cashierApi.addTransaction({
-      tenant_id: tenantId,
-      type: txnType,
-      amount: txnAmt,
-      category: txnPartyId ? `PARTY_LEDGER:${ledgerId}` : (txnCat || undefined),
-      notes: finalNotes,
-      user_id: userId,
-      user_name: userName || undefined,
-    });
-    if (r.success && txnPartyId) {
-      const partyTxnType = txnType === 'CASH_OUT' ? 'CREDIT' : 'DEBIT';
+    try {
       const cleanCat = txnCat && txnCat !== 'Other' ? txnCat : '';
-      const ledgerDesc = `${txnType === 'CASH_IN' ? 'Cash received' : 'Cash paid'}${cleanCat ? ` (${cleanCat})` : ''}${txnNote ? ': ' + txnNote : ''}`;
-      await partiesApi.addPartyLedgerEntry({
-        party_id: txnPartyId,
-        tenant_id: tenantId,
-        transaction_type: partyTxnType,
-        amount: txnAmt,
-        payment_method: 'CASH',
-        reference_number: 'Cash Register',
-        description: ledgerDesc,
-        created_by: userId,
-        created_by_name: userName || undefined,
-        ledger_id: ledgerId,
-        skip_cash_drawer: true,
+      const description = `${txnType === 'CASH_IN' ? 'Cash received' : 'Cash paid'}${cleanCat ? ` (${cleanCat})` : ''}${txnNote ? ': ' + txnNote : ''}`;
+      const r = await cashierApi.addTransaction({
+        tenant_id: tenantId, type: txnType, amount: txnAmt, category: txnCat || undefined,
+        notes: txnPartyName ? `Party: ${txnPartyName}${txnNote ? ' | ' + txnNote : ''}` : txnNote || undefined,
+        user_id: userId, user_name: userName || undefined,
+        party: txnPartyId ? { party_id: txnPartyId, ledger_id: crypto.randomUUID(), description } : undefined,
       });
-    }
-    setTxnSubmitting(false);
-    if (r.success) {
-      setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load();
-    } else {
-      // Show the error returned by the IPC handler so the user knows what went wrong
-      const errMsg = r.error || 'Failed to record entry. Please ensure the cash register is open.';
-      setTxnError(errMsg);
-    }
+      if (!r.success) { setTxnError(r.error || 'Could not save the cash and party entry. Please retry.'); return; }
+      setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch('');
+      setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load();
+    } catch (error) {
+      setTxnError(error instanceof Error ? error.message : 'Could not save the entry. Please retry.');
+    } finally { setTxnSubmitting(false); }
   };
 
   const handleDayClose = async () => {

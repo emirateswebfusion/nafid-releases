@@ -194,12 +194,14 @@ export const listRegisterInvoices = (db: Db) => db.prepare(`
 `);
 
 /** First cash receipt can start a zero-opening drawer, just like invoice cash collections. */
+export const ledgerCashOrigin = (db: Db) => db.prepare('SELECT reference_number FROM party_ledger WHERE tenant_id = ? AND ledger_id = ?');
 export const ensureLedgerCashDrawer = (db: Db) => db.prepare(`
   INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, status, sync_status)
   SELECT ?, ?, ?, 'OPEN', 'PENDING'
   WHERE EXISTS (SELECT 1 FROM party_ledger WHERE tenant_id = ? AND ledger_id = ?
     AND UPPER(payment_method) = 'CASH' AND COALESCE(is_deleted, 0) = 0
-    AND ABS(credit_amount - debit_amount) > 0)
+    AND ABS(credit_amount - debit_amount) > 0
+    AND NOT EXISTS (SELECT 1 FROM cash_transactions t WHERE t.tenant_id = party_ledger.tenant_id AND t.category = 'PARTY_LEDGER:' || party_ledger.ledger_id))
     AND NOT EXISTS (SELECT 1 FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN')
   ON CONFLICT DO NOTHING
 `);

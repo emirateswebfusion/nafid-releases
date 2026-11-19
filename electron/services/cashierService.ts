@@ -18,6 +18,10 @@ import { sendShopClosingReport } from '../whatsapp/shopClosingReportService.js';
 import * as cashierSql from '../db/statements/cashier.js';
 import * as partiesSql from '../db/statements/parties.js';
 import * as scrapSql from '../db/statements/scrap.js';
+import { addPartyLedgerEntry } from './partiesService.js';
+import { ledgerCashMovement } from './cashRegisterLedgerService.js';
+type PartyLedgerCashRow = { reference_number: string | null; is_deleted: number | null; payment_method: string | null;
+  credit_amount: number; debit_amount: number; transaction_date: string | null };
 /** cashier use-cases for the main process (called by electron/ipc handlers). */
 
 /** IPC `db:cashier:getDrawer` */
@@ -254,12 +258,13 @@ export function settlePayment({ tenant_id, invoice_id, received_amount, discount
 }
 
 /** IPC `db:cashier:addTransaction` */
-export function addTransaction({ tenant_id, type, amount, category, notes, user_id, user_name }: {
-  tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string
+export function addTransaction({ tenant_id, type, amount, category, notes, user_id, user_name, party }: {
+  tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string;
+  party?: { party_id: string; ledger_id: string; description: string }
 }) {
   const db = getDb();
   if (!['CASH_IN', 'CASH_OUT'].includes(type)) return { success: false, error: 'Type must be CASH_IN or CASH_OUT' };
-  if (!amount || amount <= 0) return { success: false, error: 'Amount must be positive' };
+  if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: 'Amount must be positive' };
   
   try {
     const tx = db.transaction(() => {
@@ -270,6 +275,15 @@ export function addTransaction({ tenant_id, type, amount, category, notes, user_
       
       const transaction_id = crypto.randomUUID();
       const txDateIso = new Date().toISOString();
+      if (party) {
+        const result = addPartyLedgerEntry({
+          ...party, tenant_id, amount, transaction_type: type === 'CASH_OUT' ? 'CREDIT' : 'DEBIT',
+          payment_method: 'CASH', reference_number: 'Cash Register', transaction_date: txDateIso,
+          created_by: user_id, created_by_name: user_name, skip_cash_drawer: true,
+        });
+        if (!result.success) throw new Error(result.error || 'Could not save party payment');
+        category = `PARTY_LEDGER:${party.ledger_id}`;
+      }
       cashierSql.insertCashTransaction2(db).run(transaction_id, tenant_id, drawer.drawer_id, type, amount, category || null, notes || null, user_id, user_name || null, txDateIso);
       
       reconcileCashDrawer(db, tenant_id, drawer);
@@ -414,16 +428,6 @@ export function deleteTransaction({ tenant_id, transaction_id, user_id, user_nam
       let linkedLedgerId: string | null = null;
       if (transaction.category?.startsWith('PARTY_LEDGER:')) {
         linkedLedgerId = transaction.category.slice('PARTY_LEDGER:'.length);
-      } else {
-        const match = cashierSql.findLinkedPartyLedgerForCashTransaction(db).get(
-          tenant_id,
-          transaction.amount,
-          transaction.amount,
-          transaction.transaction_date || ''
-        ) as { ledger_id: string; party_id: string } | undefined;
-        if (match) {
-          linkedLedgerId = match.ledger_id;
-        }
       }
 
       if (linkedLedgerId) {
@@ -543,11 +547,12 @@ export function getDayTransactions({ tenant_id, business_date, from_date, to_dat
     return rows.filter(row => !isDuplicateScrapCash(row)).flatMap(row => {
       if (row.category?.startsWith('PARTY_LEDGER:')) {
         const ledgerId = row.category.slice('PARTY_LEDGER:'.length);
-        const partyRow = partyNameStmt.get(ledgerId) as { party_name: string | null; reference_number: string | null; is_deleted: number | null; payment_method: string | null } | undefined;
+        const partyRow = partyNameStmt.get(ledgerId) as (PartyLedgerCashRow & { party_name: string | null }) | undefined;
         if (!partyRow || partyRow.is_deleted || partyRow.payment_method?.toUpperCase() !== 'CASH') return [];
         if (prefs.ledgerMode === 'off' && partyRow?.reference_number !== 'Cash Register') return [];
         const partyName = partyRow?.party_name?.trim() || row.party_name?.trim();
-        const isPartyIn = row.type === 'CASH_IN';
+        const movement = ledgerCashMovement(row, partyRow);
+        const isPartyIn = movement.type === 'CASH_IN';
         const partyCat = isPartyIn ? 'Party Receipt' : 'Party Payment';
         const existingNotes = row.notes?.trim();
         const displayNotes = partyName
@@ -555,6 +560,7 @@ export function getDayTransactions({ tenant_id, business_date, from_date, to_dat
           : existingNotes;
         return {
           ...row,
+          ...movement,
           party_name: partyName || null,
           category: partyName ? `Party: ${partyName}` : partyCat,
           notes: displayNotes || null,
