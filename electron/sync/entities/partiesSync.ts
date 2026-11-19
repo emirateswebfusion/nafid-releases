@@ -1,3 +1,5 @@
+import { pullAccountPages } from '../accountPull.js';
+import { accountPushRows, accountPushResult, rememberAccountBase } from '../accountMetadata.js';
 import { getDb } from '../../db/localDb.js';
 import { syncState } from '../syncState.js';
 import { BATCH_SIZE, FETCH_TIMEOUT_MS, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
@@ -87,7 +89,7 @@ export async function syncParties(token: string, tenantId: string) {
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
-    const parties = batch.map((p: Record<string, unknown>) => ({
+    const parties = accountPushRows(db, tenantId, 'parties', batch).map((p: Record<string, unknown>) => ({
       ...p,
       is_deleted: !!p.is_deleted,
     }));
@@ -98,12 +100,13 @@ export async function syncParties(token: string, tenantId: string) {
       parties,
       'parties',
       `Parties batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+      result => accountPushResult(db, tenantId, 'parties', batch, result),
     );
     if (synced.length > 0) {
       const tx = db.transaction((ids: string[]) => {
         for (const id of ids) {
           const sent = batch.find(p => p.party_id === id);
-          if (sent) updateStmt.run(id, tenantId, sent.updated_at, sent.party_type, sent.custom_category);
+          if (sent) updateStmt.run(id, tenantId, sent.updated_at, sent.party_type, sent.custom_category, sent.row_version);
         }
       });
       tx(synced);
@@ -153,13 +156,7 @@ export async function pullParties(token: string, tenantId: string): Promise<bool
 
   const upsertParty = partiesSyncSql.insertParties(db);
 
-  const findCustomerPartyDuplicate = partiesSyncSql.selectParties2(db);
-
-  const reassignPartyLedger = partiesSyncSql.updatePartyLedger(db);
-
-  const softDeleteParty = partiesSyncSql.updateParties2(db);
-
-  const result = await pullPaginated({
+  const result = await pullAccountPages({
     token,
     tenantId,
     table: 'parties',
@@ -170,23 +167,11 @@ export async function pullParties(token: string, tenantId: string): Promise<bool
       const tx = db.transaction((parties: Record<string, unknown>[]) => {
         for (const p of parties) {
           try {
-            const isCustomer = ((p.party_type as string) || ('CUSTOMER' as string)).toUpperCase() === 'CUSTOMER';
-            const hasPhone = p.phone && (p.phone as string).trim() !== '';
-            const phoneVal = hasPhone ? (p.phone as string).trim() : null;
+            const phoneVal = typeof p.phone === 'string' ? p.phone.trim() || null : null;
             const tId = p.tenant_id || tenantId;
-
-            // Only a live incoming customer may replace a local twin: a deleted copy in the cloud must never delete a
-            // live customer or take over its ledger rows.
-            if (isCustomer && !parseIsDeleted(p.is_deleted)) {
-              const dupParty: Record<string, unknown> = (findCustomerPartyDuplicate.get(tId, p.party_id, p.name, phoneVal, phoneVal) as Record<string, unknown>);
-              if (dupParty) {
-                // Reassign any local ledger entries to incoming canonical party_id and soft delete duplicate
-                reassignPartyLedger.run(p.party_id, dupParty.party_id, tId);
-                softDeleteParty.run(dupParty.party_id, tId);
-              }
-            }
-
-            upsertParty.run({
+            if (tId !== tenantId) throw new Error('Foreign tenant party');
+            const applied = upsertParty.run({
+              row_version: Number(p.row_version) || 0, origin: p.origin ?? null,
               party_id: p.party_id,
               tenant_id: tId,
               name: p.name,
@@ -212,13 +197,15 @@ export async function pullParties(token: string, tenantId: string): Promise<bool
               created_at: toSqliteDate((p.created_at as string | number | Date | null | undefined)),
               updated_at: toSqliteDate((p.updated_at as string | number | Date | null | undefined)),
             });
+            if (applied.changes > 0) rememberAccountBase(db, tenantId, 'parties', p);
           } catch (e) {
             console.error('[SyncWorker] Error pulling party:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'parties', 'party_id', rows);
+      return 0; // Pulling a copy is never an acknowledgement of a local edit.
     },
   });
 
@@ -244,9 +231,10 @@ export async function syncPartyLedger(token: string, tenantId: string) {
     const synced = await pushBatch(
       '/api/sync/party-ledger',
       token,
-      batch,
+      accountPushRows(db, tenantId, 'party_ledger', batch),
       'entries',
       `Party Ledger batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+      result => accountPushResult(db, tenantId, 'party_ledger', batch, result),
     );
     if (synced.length > 0) {
       const acknowledged = new Set(synced);
@@ -307,7 +295,7 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
   const existingParty = partiesSyncSql.selectLedgerParty(db);
   const recalculate = partiesSyncSql.updateParties3(db);
 
-  const result = await pullPaginated({
+  const result = await pullAccountPages({
     token,
     tenantId,
     table: 'party_ledger',
@@ -320,6 +308,7 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
         for (const e of entries) {
           const previous = existingParty.get(e.ledger_id, tenantId) as { party_id: string } | undefined;
           const applied = upsert.run({
+            row_version: Number(e.row_version) || 0, origin: e.origin ?? null,
             ledger_id: e.ledger_id,
             party_id: e.party_id,
             tenant_id: tenantId,
@@ -338,6 +327,7 @@ export async function pullPartyLedger(token: string, tenantId: string): Promise<
             updated_at: toSqliteDate((e.updated_at as string | number | Date | null | undefined)),
           });
           if (applied.changes > 0) {
+            rememberAccountBase(db, tenantId, 'party_ledger', e);
             if (previous) affected.add(previous.party_id);
             affected.add(e.party_id as string);
           }

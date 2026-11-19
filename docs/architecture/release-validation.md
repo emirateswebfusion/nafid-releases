@@ -116,3 +116,7 @@ On 4 November 2026, the published v2.2.40 installer was confirmed to omit `app-u
 ## Smart App Control publisher blocks
 
 If an affected shop reports Smart App Control blocking the installed Nafid.exe because its publisher cannot be verified, record the incident separately from download/install success. A progress-only release does not resolve that incident. Obtain a trusted code-signing identity, sign the installed app executable and installer (and other executable components as required), and verify the final build with Smart App Control enforced. Ordinary Windows CI with the policy absent is not evidence that this block is fixed. Do not disable the policy or use a locally trusted/self-signed certificate as a fleet-wide fix. Identity validation and provider eligibility must be completed before claiming a signed release is available.
+
+## Multi-terminal account release review
+
+For the [captured-revision account contract](multi-terminal-account-sync.md), deploy the compatible server before publishing the client. Existing endpoint names/row fields remain available, but unverifiable changes to existing financial records are failed conflicts rather than blind overwrites. Old installers retain their local changes and can still create identities/retry identical data; update every terminal so new edits capture revisions. No endpoint or hosting migration is required. Preserve local databases and pre-reset backups for shop reconciliation. Installer/upgrade/feed validation still applies, and published v2.2.81 assets remain immutable.

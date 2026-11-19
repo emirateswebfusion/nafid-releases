@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createCoreTables } from '../../electron/db/schemaCoreTables';
 import { createExtendedTables } from '../../electron/db/schemaExtendedTables';
 import { ensureSchemaColumns } from '../../electron/db/schemaColumns';
+import { runStartupMigrations } from '../../electron/db/migrations';
 import { runColumnMigrations } from '../../electron/db/migrationsColumns';
 
 const state = vi.hoisted(() => ({
@@ -42,13 +43,13 @@ beforeEach(() => {
         throw error;
       }
     },
-    pragma: (sql: string) => raw.exec(`PRAGMA ${sql}`),
+    pragma: (sql: string) => raw.prepare(`PRAGMA ${sql}`).all(),
   }) as unknown as Database.Database;
 
   createCoreTables(state.db);
   createExtendedTables(state.db);
   ensureSchemaColumns(state.db);
-  runColumnMigrations(state.db);
+  runColumnMigrations(state.db); runStartupMigrations(state.db);
   state.remote = [];
 });
 
@@ -192,4 +193,13 @@ it.each([['SUPPLIER', null], ['CUSTOM', 'Transport']])('keeps an in-flight chang
   vi.mocked(pushBatch).mockResolvedValueOnce(['shared-party']);
   await syncParties('token', 'tenant-1');
   expect(raw.prepare('SELECT sync_status FROM parties').get()).toEqual({ sync_status: 'SYNCED' });
+});
+it('a same-second phone edit is not acknowledged by an earlier profile upload', async () => {
+  raw.exec("INSERT INTO parties(party_id,tenant_id,name,party_type,sync_status) VALUES('shared-party','tenant-1','Shared Party','CUSTOMER','PENDING')");
+  vi.mocked(pushBatch).mockImplementationOnce(async () => {
+    raw.exec("UPDATE parties SET phone='9998887776' WHERE party_id='shared-party'");
+    return ['shared-party'];
+  });
+  await syncParties('token', 'tenant-1');
+  expect(raw.prepare("SELECT phone,sync_status FROM parties WHERE party_id='shared-party'").get()).toEqual({ phone: '9998887776', sync_status: 'PENDING' });
 });

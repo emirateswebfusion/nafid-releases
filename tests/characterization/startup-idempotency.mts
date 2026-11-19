@@ -40,6 +40,7 @@ const { initDb, getDb } = await import(pathToFileURL(path.join(tree, 'electron/d
 initDb();
 const db = getDb();
 const T = 'tenant-1';
+db.prepare("INSERT INTO parties(party_id,tenant_id,name,phone,party_type,sync_status) VALUES('identity-a',?,'Same Customer','9000000000','CUSTOMER','SYNCED'),('identity-b',?,'Same Customer','9000000000','CUSTOMER','SYNCED')").run(T, T);
 db.prepare(`INSERT INTO invoices (invoice_id, tenant_id, invoice_number, invoice_type, payment_method, customer_name, customer_phone,
   subtotal, discount_total, grand_total, created_at) VALUES (?, ?, ?, 'SALE', 'CASH', ?, ?, ?, ?, ?, ?)`)
   .run('inv-1', T, 'INV-1', 'Asha', '9876543210', 1000, 100, 900, '2026-09-01 05:00:00.000');
@@ -70,9 +71,11 @@ getDb().close();
 
 counting = true;
 initDb(); // start 3: must change nothing
+const identities = getDb().prepare("SELECT COUNT(*) n FROM parties WHERE party_id IN ('identity-a','identity-b') AND COALESCE(is_deleted,0)=0").get() as { n: number };
 getDb().close();
 
 const failures: string[] = [];
+if (identities.n !== 2) failures.push('restart merged independent same-name CUSTOMER identities');
 if (ret.grand_total !== 900) failures.push(`return total ${ret.grand_total}, expected 900 (invoice line 1000 less 10%)`);
 if (cust.length !== 1 || !String(cust[0].last_purchase_date).startsWith('2026-09-03T05:00:00')) {
   failures.push(`customer last_purchase_date ${JSON.stringify(cust)}, expected the latest invoice 2026-09-03T05:00:00`);

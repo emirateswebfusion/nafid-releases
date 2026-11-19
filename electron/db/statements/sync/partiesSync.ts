@@ -15,14 +15,14 @@ export const insertUsers = (db: Db) => db.prepare(`
         login_enabled = excluded.login_enabled
     `);
 export const selectParties = (db: Db) => db.prepare(`SELECT * FROM parties WHERE sync_status = 'PENDING' AND tenant_id = ?`);
-export const updateParties = (db: Db) => db.prepare(`UPDATE parties SET sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ? AND updated_at IS ? AND party_type IS ? AND custom_category IS ?`);
+export const updateParties = (db: Db) => db.prepare(`UPDATE parties SET sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ? AND updated_at IS ? AND party_type IS ? AND custom_category IS ? AND row_version IS ?`);
 export const insertParties = (db: Db) => db.prepare(`
     INSERT INTO parties (
       party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, custom_category, notes, last_transaction_date, pricing_tier_id, credit_limit, credit_period_enabled, credit_period_days, credit_period_basis, restrict_on_credit_expiry, whatsapp_alerts_enabled, is_deleted,
-      sync_status, created_at, updated_at
+      sync_status, created_at, updated_at, row_version, origin
     ) VALUES (
       @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @party_type, @custom_category, @notes, @last_transaction_date, @pricing_tier_id, @credit_limit, @credit_period_enabled, @credit_period_days, @credit_period_basis, @restrict_on_credit_expiry, @whatsapp_alerts_enabled, @is_deleted,
-      'SYNCED', @created_at, @updated_at
+      'SYNCED', @created_at, @updated_at, @row_version, @origin
     )
     ON CONFLICT(party_id) DO UPDATE SET
       name = excluded.name,
@@ -59,6 +59,7 @@ export const insertParties = (db: Db) => db.prepare(`
       is_deleted = excluded.is_deleted,
       created_at = COALESCE(parties.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
+      row_version = excluded.row_version, origin = excluded.origin,
       sync_status = 'SYNCED'
     WHERE parties.sync_status != 'PENDING'
   `);
@@ -84,10 +85,10 @@ export const selectLedgerParty = (db: Db) => db.prepare('SELECT party_id FROM pa
 export const insertPartyLedger = (db: Db) => db.prepare(`
     INSERT INTO party_ledger (
       ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount,
-      running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, is_deleted, sync_status, created_at, updated_at
+      running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, is_deleted, sync_status, created_at, updated_at, row_version, origin
     ) VALUES (
       @ledger_id, @party_id, @tenant_id, @transaction_date, @description, @credit_amount, @debit_amount,
-      @running_balance, @balance_type, @payment_method, @reference_number, @created_by, @created_by_name, @is_deleted, 'SYNCED', @created_at, @updated_at
+      @running_balance, @balance_type, @payment_method, @reference_number, @created_by, @created_by_name, @is_deleted, 'SYNCED', @created_at, @updated_at, @row_version, @origin
     )
     ON CONFLICT(ledger_id) DO UPDATE SET
       party_id = excluded.party_id,
@@ -103,6 +104,7 @@ export const insertPartyLedger = (db: Db) => db.prepare(`
       created_by_name = excluded.created_by_name,
       is_deleted = excluded.is_deleted,
       updated_at = excluded.updated_at,
+      row_version = excluded.row_version, origin = excluded.origin,
       sync_status = 'SYNCED'
     WHERE party_ledger.sync_status != 'PENDING' AND party_ledger.tenant_id = excluded.tenant_id
   `);

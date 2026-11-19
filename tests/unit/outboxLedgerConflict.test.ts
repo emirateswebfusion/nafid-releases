@@ -31,6 +31,7 @@ beforeEach(() => {
     catch (e) { raw.exec('ROLLBACK TO conflict; RELEASE conflict'); throw e; }
   } }) as unknown as Database.Database;
   raw.exec(`CREATE TABLE settings(tenant_id TEXT,key TEXT,value TEXT); INSERT INTO settings VALUES('shop','sync_engine','outbox');
+    CREATE TABLE parties(party_id TEXT PRIMARY KEY,tenant_id TEXT,sync_status TEXT);
     CREATE TABLE sync_meta(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE sync_apply_guard(id INTEGER PRIMARY KEY);
     CREATE TABLE sync_outbox(op_id TEXT PRIMARY KEY,tenant_id TEXT,entity TEXT,entity_id TEXT,op TEXT,row_version INTEGER,payload TEXT,origin TEXT,created_at TEXT,attempts INTEGER DEFAULT 0,last_error TEXT,sent_at TEXT);
     CREATE TABLE party_ledger(ledger_id TEXT PRIMARY KEY,tenant_id TEXT,party_id TEXT,credit_amount REAL,is_deleted INTEGER,row_version INTEGER,origin TEXT,sync_status TEXT,updated_at TEXT);
@@ -52,6 +53,6 @@ it.each([false, true])('a conflict reply preserves an edit made during upload (n
   await runOutboxSync('dummy', 'shop');
   expect(raw.prepare('SELECT credit_amount,is_deleted,row_version,sync_status FROM party_ledger').get()).toMatchObject(newer
     ? { credit_amount: 1000, is_deleted: 0, row_version: 7, sync_status: 'PENDING' }
-    : { credit_amount: 500, is_deleted: 1, row_version: 6, sync_status: 'SYNCED' });
-  if (newer) expect(raw.prepare("SELECT row_version FROM sync_outbox WHERE sent_at IS NULL").get()?.row_version).toBe(7);
+    : { credit_amount: 500, is_deleted: 0, row_version: 5, sync_status: 'PENDING' });
+  if (newer) expect(raw.prepare("SELECT row_version FROM sync_outbox WHERE op_id='new' AND sent_at IS NULL").get()?.row_version).toBe(7);
 });

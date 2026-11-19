@@ -110,14 +110,20 @@ it('startup cleanup preserves distinct CUSTOM identities even with equal names',
   expect(autoDeduplicateCustomersAndParties(state.db).merged_parties).toBe(0);
   expect(raw.prepare("SELECT count(*) n FROM parties WHERE COALESCE(is_deleted,0)=0").get()?.n).toBe(2);
 });
-it.each(['deletion', 'balance'])('failed customer cleanup at %s rolls back earlier ledger reassignment and reports failure', failure => {
+it('startup cleanup preserves same-name CUSTOMER identities and their independent ledgers', () => {
   raw.exec("INSERT INTO parties(party_id,tenant_id,name,party_type,balance,phone) VALUES('a','shop','Same Customer','CUSTOMER',1000,'1111111'),('b','shop','Same Customer','CUSTOMER',500,'2222222')");
   parties.addPartyLedgerEntry({ ledger_id: 'b-payment', party_id: 'b', tenant_id: 'shop', amount: 500, transaction_type: 'CREDIT', description: 'Payment' });
-  raw.exec(failure === 'deletion'
-    ? "CREATE TRIGGER reject_cleanup BEFORE UPDATE OF is_deleted ON parties WHEN OLD.party_id='b' BEGIN SELECT RAISE(ABORT,'cleanup failure'); END"
-    : "CREATE TRIGGER reject_cleanup BEFORE UPDATE OF balance ON parties WHEN OLD.party_id='a' BEGIN SELECT RAISE(ABORT,'balance failure'); END");
-  expect(autoDeduplicateCustomersAndParties(state.db).error).toBeTruthy();
+  expect(autoDeduplicateCustomersAndParties(state.db).merged_parties).toBe(0);
   expect(raw.prepare("SELECT party_id FROM party_ledger WHERE ledger_id='b-payment'").get()?.party_id).toBe('b');
+  expect(raw.prepare("SELECT COUNT(*) n FROM parties WHERE party_id IN ('a','b') AND COALESCE(is_deleted,0)=0").get()?.n).toBe(2);
+});
+it('refuses ambiguous customer deletion and only cascades an exact party identity', () => {
+  raw.exec("INSERT INTO parties(party_id,tenant_id,name,party_type,phone) VALUES('a','shop','Same','CUSTOMER','222'),('b','shop','Same','CUSTOMER','222'); INSERT INTO customers(customer_id,tenant_id,name,phone) VALUES('ambiguous','shop','Same','222')");
+  expect(customers.deleteCustomer({ customer_id: 'ambiguous', tenant_id: 'shop' }).success).toBe(false);
+  expect(raw.prepare("SELECT is_deleted FROM customers WHERE customer_id='ambiguous'").get()?.is_deleted ?? 0).toBe(0);
+  raw.exec("UPDATE customers SET customer_id='a' WHERE customer_id='ambiguous'");
+  expect(customers.deleteCustomer({ customer_id: 'a', tenant_id: 'shop' }).success).toBe(true);
+  expect(raw.prepare("SELECT is_deleted FROM parties WHERE party_id='b'").get()?.is_deleted ?? 0).toBe(0);
 });
 it('a historical description edit cannot open a new drawer without a new cash movement', () => {
   cash(); raw.prepare("UPDATE cash_drawer SET business_date='2026-10-15',status='CLOSED',closed_at='2026-10-15T18:00:00Z' WHERE drawer_id='drawer'").run();

@@ -727,6 +727,12 @@ A linked register payment uses the optional `party` object on the existing `db:c
 
 `cashRegisterLedgerService.ledgerCashMovement` owns live/history amount, effective date and direction projection. Cash Register-originated payments retain their original cash direction; ordinary manual entries derive direction from the ledger. Editing an existing historical payment cannot open a new drawer. Explicit Estimate-to-GST corrections persist the selected bucket.
 
-Customer phone/name matching and automatic party merging apply only to exact CUSTOMER accounts. CUSTOM, supplier and mixed-role identities remain independent even when contact details match. Startup deduplication is transactional and reports failure after rollback. Historical deletions are never bulk restored by these fixes.
+Customer phone/name matching remains limited to exact CUSTOMER accounts. All financial party identities remain independent during sync/startup, including same-name CUSTOMER accounts; merging requires an explicit user operation. Customer deletion must resolve an exact identity or a single unambiguous match and refuses multiple matches before changing records. Startup deduplication is transactional and reports failure after rollback. Historical deletions are never bulk restored by these fixes.
 
 Coverage: `ledgerIntegrity.test.ts`, `cashRegisterAtomicSave.ui.test.tsx`, and the server native PostgreSQL regression.
+
+### Competing edits across computers
+
+The [multi-terminal contract](multi-terminal-account-sync.md) defines which captured cloud revision authorizes a party/ledger edit. Higher counters and later/future timestamps do not authorize replacing an unseen cloud edit. Conflicting local values remain pending for review; balance recalculation failures roll back accepted ledger writes. Both staff and admin sync reads use the tenant account dataset; screen permissions can differ.
+
+`syncOutcome.ts` preserves review/incomplete-download outcomes on the dashboard. The authenticated shell also presents the existing FloatToast through `SyncAttentionToast`, so staff billing screens receive the notice. Dismissing it never deletes data or acknowledges an upload. No settings persistence behavior changes.

@@ -56,6 +56,12 @@
      "n": 1
     }
    ],
+   "loyalty_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
    "parties": [
     {
      "sync_status": "PENDING",
@@ -65,7 +71,7 @@
    "party_ledger": [
     {
      "sync_status": "PENDING",
-     "n": 2
+     "n": 1
     }
    ],
    "payment_source_transactions": [
@@ -107,7 +113,7 @@
    "settings": [
     {
      "sync_status": "LOCAL",
-     "n": 3
+     "n": 4
     },
     {
      "sync_status": "PENDING",
@@ -178,22 +184,52 @@
   {
    "method": "GET",
    "path": "/api/sync/emergency-commands",
-   "query": "?terminal_code=N5FG",
+   "query": "?terminal_code=VS54",
    "body": null
   }
  ],
  [
   "http:5",
-  "GET /api/sync/invoices",
+  "GET /api/sync/parties",
   {
    "method": "GET",
-   "path": "/api/sync/invoices",
-   "query": "?limit=500&offset=0",
+   "path": "/api/sync/parties",
+   "query": "?after_seq=0&limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http:6",
+  "GET /api/sync/parties",
+  {
+   "method": "GET",
+   "path": "/api/sync/parties",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:7",
+  "GET /api/sync/party-ledger",
+  {
+   "method": "GET",
+   "path": "/api/sync/party-ledger",
+   "query": "?after_seq=0&limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:8",
+  "GET /api/sync/party-ledger",
+  {
+   "method": "GET",
+   "path": "/api/sync/party-ledger",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http:9",
   "GET /api/sync/payment_source_transactions",
   {
    "method": "GET",
@@ -203,41 +239,11 @@
   }
  ],
  [
-  "http:7",
+  "http:10",
   "GET /api/sync/payment_sources",
   {
    "method": "GET",
    "path": "/api/sync/payment_sources",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:8",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:9",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http:10",
-  "GET /api/sync/quotations",
-  {
-   "method": "GET",
-   "path": "/api/sync/quotations",
    "query": "?limit=500&offset=0",
    "body": null
   }
@@ -264,11 +270,11 @@
  ],
  [
   "http:13",
-  "GET /health",
+  "GET /api/sync/quotations",
   {
    "method": "GET",
-   "path": "/health",
-   "query": "",
+   "path": "/api/sync/quotations",
+   "query": "?limit=500&offset=0",
    "body": null
   }
  ],
@@ -314,26 +320,6 @@
  ],
  [
   "http:18",
-  "GET /health",
-  {
-   "method": "GET",
-   "path": "/health",
-   "query": "",
-   "body": null
-  }
- ],
- [
-  "http:19",
-  "GET /health",
-  {
-   "method": "GET",
-   "path": "/health",
-   "query": "",
-   "body": null
-  }
- ],
- [
-  "http:20",
   "POST /api/sync/cash_categories",
   {
    "method": "POST",
@@ -357,7 +343,7 @@
   }
  ],
  [
-  "http:21",
+  "http:19",
   "POST /api/sync/cash_drawer",
   {
    "method": "POST",
@@ -393,7 +379,7 @@
   }
  ],
  [
-  "http:22",
+  "http:20",
   "POST /api/sync/cash_transactions",
   {
    "method": "POST",
@@ -438,7 +424,7 @@
   }
  ],
  [
-  "http:23",
+  "http:21",
   "POST /api/sync/cashier_audit_log",
   {
    "method": "POST",
@@ -463,7 +449,7 @@
   }
  ],
  [
-  "http:24",
+  "http:22",
   "POST /api/sync/customers",
   {
    "method": "POST",
@@ -493,7 +479,8 @@
       "deleted_at": null,
       "sync_status": "PENDING",
       "created_at": "<ts>",
-      "updated_at": "<ts>"
+      "updated_at": "<ts>",
+      "einvoice_profile": null
      },
      {
       "customer_id": "<uuid>",
@@ -517,7 +504,8 @@
       "deleted_at": null,
       "sync_status": "PENDING",
       "created_at": "<ts>",
-      "updated_at": "<ts>"
+      "updated_at": "<ts>",
+      "einvoice_profile": null
      },
      {
       "customer_id": "<uuid>",
@@ -541,14 +529,15 @@
       "deleted_at": null,
       "sync_status": "PENDING",
       "created_at": "<ts>",
-      "updated_at": "<ts>"
+      "updated_at": "<ts>",
+      "einvoice_profile": null
      }
     ]
    }
   }
  ],
  [
-  "http:25",
+  "http:23",
   "POST /api/sync/delta-pull",
   {
    "method": "POST",
@@ -561,8 +550,6 @@
      "products": null,
      "product_pricing": null,
      "settings": null,
-     "parties": null,
-     "party_ledger": null,
      "customers": null,
      "loyalty_transactions": null,
      "scrap_categories": null,
@@ -584,7 +571,7 @@
   }
  ],
  [
-  "http:26",
+  "http:24",
   "POST /api/sync/invoices",
   {
    "method": "POST",
@@ -593,6 +580,7 @@
    "body": {
     "invoices": [
      {
+      "stock_sync_mode": "PRODUCT_SNAPSHOT",
       "invoice_id": "<uuid>",
       "tenant_id": "t1",
       "invoice_number": "GST-001",
@@ -610,7 +598,7 @@
       "discount_value": 0,
       "grand_total": 600,
       "payment_method": "CASH",
-      "split_details": null,
+      "split_details": "{\"cash\":600,\"upi\":0,\"card\":0,\"bank_transfer\":0,\"cheque\":0,\"credit\":0}",
       "received_amount": 600,
       "balance_amount": 0,
       "user_id": "u1",
@@ -646,6 +634,10 @@
       "actual_refund_paid": 0,
       "notes": null,
       "description": null,
+      "counts_in_revenue": 1,
+      "bill_purpose": "SALE",
+      "stock_applied": 1,
+      "stock_revision": 0,
       "items": [
        {
         "item_id": null,
@@ -716,6 +708,7 @@
       ]
      },
      {
+      "stock_sync_mode": "PRODUCT_SNAPSHOT",
       "invoice_id": "<uuid>",
       "tenant_id": "t1",
       "invoice_number": "GST-002",
@@ -733,7 +726,7 @@
       "discount_value": 0,
       "grand_total": 100,
       "payment_method": "CASH",
-      "split_details": null,
+      "split_details": "{\"cash\":50,\"upi\":0,\"card\":0,\"bank_transfer\":0,\"cheque\":0,\"credit\":0}",
       "received_amount": 50,
       "balance_amount": 0,
       "user_id": "u1",
@@ -769,6 +762,10 @@
       "actual_refund_paid": 0,
       "notes": null,
       "description": null,
+      "counts_in_revenue": 1,
+      "bill_purpose": "SALE",
+      "stock_applied": 1,
+      "stock_revision": 0,
       "items": [
        {
         "item_id": null,
@@ -806,9 +803,10 @@
       ]
      },
      {
+      "stock_sync_mode": "PRODUCT_SNAPSHOT",
       "invoice_id": "<uuid>",
       "tenant_id": "t1",
-      "invoice_number": "N5FG-001",
+      "invoice_number": "VS54-001",
       "invoice_type": "BILL_OF_SUPPLY",
       "customer_id": "<uuid>",
       "customer_name": "Ravi Kumar",
@@ -823,7 +821,7 @@
       "discount_value": 0,
       "grand_total": 800,
       "payment_method": "CASH",
-      "split_details": null,
+      "split_details": "{\"cash\":800,\"upi\":0,\"card\":0,\"bank_transfer\":0,\"cheque\":0,\"credit\":0}",
       "received_amount": 800,
       "balance_amount": 0,
       "user_id": "u1",
@@ -859,6 +857,10 @@
       "actual_refund_paid": 0,
       "notes": null,
       "description": null,
+      "counts_in_revenue": 1,
+      "bill_purpose": "SALE",
+      "stock_applied": 1,
+      "stock_revision": 0,
       "items": [
        {
         "item_id": null,
@@ -900,6 +902,138 @@
   }
  ],
  [
+  "http:25",
+  "POST /api/sync/loyalty-transactions",
+  {
+   "method": "POST",
+   "path": "/api/sync/loyalty-transactions",
+   "query": "",
+   "body": {
+    "loyalty_transactions": [
+     {
+      "transaction_id": "<uuid>",
+      "tenant_id": "t1",
+      "customer_id": "<uuid>",
+      "invoice_id": "<uuid>",
+      "transaction_type": "EARNED",
+      "points": 0,
+      "points_balance_before": 0,
+      "points_balance_after": 0,
+      "reference_number": "GST-002",
+      "description": "Recorded historical invoice contribution",
+      "created_by": "system",
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>"
+     }
+    ]
+   }
+  }
+ ],
+ [
+  "http:26",
+  "POST /api/sync/parties",
+  {
+   "method": "POST",
+   "path": "/api/sync/parties",
+   "query": "",
+   "body": {
+    "parties": [
+     {
+      "party_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Ravi Kumar",
+      "phone": "9876543210",
+      "address": "Kochi",
+      "gstin": null,
+      "balance": 0,
+      "gst_balance": 0,
+      "estimate_balance": 0,
+      "balance_type": "RECEIVABLE",
+      "pricing_tier_id": null,
+      "credit_limit": 0,
+      "credit_period_enabled": 0,
+      "credit_period_days": 30,
+      "credit_period_basis": "BILL_BASED",
+      "restrict_on_credit_expiry": 1,
+      "whatsapp_alerts_enabled": 1,
+      "party_type": "CUSTOMER",
+      "custom_category": null,
+      "notes": null,
+      "last_transaction_date": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>",
+      "row_version": 0,
+      "origin": "<origin>"
+     },
+     {
+      "party_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Acme Traders",
+      "phone": "9123456780",
+      "address": null,
+      "gstin": null,
+      "balance": 0,
+      "gst_balance": 0,
+      "estimate_balance": 0,
+      "balance_type": "GST",
+      "pricing_tier_id": null,
+      "credit_limit": 0,
+      "credit_period_enabled": 0,
+      "credit_period_days": 30,
+      "credit_period_basis": "BILL_BASED",
+      "restrict_on_credit_expiry": 1,
+      "whatsapp_alerts_enabled": 1,
+      "party_type": "CUSTOMER",
+      "custom_category": null,
+      "notes": null,
+      "last_transaction_date": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>",
+      "row_version": 2,
+      "origin": "<origin>"
+     },
+     {
+      "party_id": "<uuid>",
+      "tenant_id": "t1",
+      "name": "Ravi",
+      "phone": null,
+      "address": null,
+      "gstin": null,
+      "balance": 0,
+      "gst_balance": 0,
+      "estimate_balance": 0,
+      "balance_type": "RECEIVABLE",
+      "pricing_tier_id": null,
+      "credit_limit": 0,
+      "credit_period_enabled": 0,
+      "credit_period_days": 30,
+      "credit_period_basis": "BILL_BASED",
+      "restrict_on_credit_expiry": 0,
+      "whatsapp_alerts_enabled": 1,
+      "party_type": "CUSTOMER",
+      "custom_category": null,
+      "notes": null,
+      "last_transaction_date": null,
+      "is_deleted": false,
+      "deleted_at": null,
+      "sync_status": "PENDING",
+      "created_at": "<ts>",
+      "updated_at": "<ts>",
+      "row_version": 0,
+      "origin": "<origin>"
+     }
+    ]
+   }
+  }
+ ],
+ [
   "http:27",
   "POST /api/sync/party-ledger",
   {
@@ -926,27 +1060,9 @@
       "deleted_at": null,
       "sync_status": "PENDING",
       "created_at": "<ts>",
-      "updated_at": "<ts>"
-     },
-     {
-      "ledger_id": "l1",
-      "party_id": "<uuid>",
-      "tenant_id": "t1",
-      "transaction_date": "<ts>",
-      "description": "Payment received",
-      "credit_amount": 0,
-      "debit_amount": 0,
-      "running_balance": 0,
-      "balance_type": "GST",
-      "payment_method": "CASH",
-      "reference_number": null,
-      "created_by": null,
-      "created_by_name": null,
-      "is_deleted": 0,
-      "deleted_at": null,
-      "sync_status": "PENDING",
-      "created_at": "<ts>",
-      "updated_at": "<ts>"
+      "updated_at": "<ts>",
+      "row_version": 2,
+      "origin": "<origin>"
      }
     ]
    }
@@ -1081,7 +1197,11 @@
       "sync_status": "PENDING",
       "print_status": "PENDING",
       "created_at": "<ts>",
-      "updated_at": "<ts>"
+      "updated_at": "<ts>",
+      "stock_counters": "{\"<stock-origin>:r\":3.0}",
+      "stock_opening": 50,
+      "stock_bootstrap": null,
+      "stock_protocol": null
      },
      {
       "product_id": "<uuid>",
@@ -1114,7 +1234,11 @@
       "sync_status": "PENDING",
       "print_status": "PENDING",
       "created_at": "<ts>",
-      "updated_at": "<ts>"
+      "updated_at": "<ts>",
+      "stock_counters": "{\"<stock-origin>:r\":4.0}",
+      "stock_opening": 50,
+      "stock_bootstrap": null,
+      "stock_protocol": null
      }
     ]
    }
@@ -1247,6 +1371,12 @@
      "n": 4
     }
    ],
+   "loyalty_transactions": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
    "parties": [
     {
      "sync_status": "SYNCED",
@@ -1256,7 +1386,7 @@
    "party_ledger": [
     {
      "sync_status": "SYNCED",
-     "n": 2
+     "n": 1
     }
    ],
    "payment_source_transactions": [
@@ -1298,7 +1428,7 @@
    "settings": [
     {
      "sync_status": "LOCAL",
-     "n": 3
+     "n": 4
     },
     {
      "sync_status": "PENDING",
@@ -1372,26 +1502,16 @@
  ],
  [
   "http2:4",
-  "GET /api/sync/emergency-commands",
+  "GET /api/sync/parties",
   {
    "method": "GET",
-   "path": "/api/sync/emergency-commands",
-   "query": "?terminal_code=N5FG",
+   "path": "/api/sync/parties",
+   "query": "?after_seq=0&limit=500&offset=0",
    "body": null
   }
  ],
  [
   "http2:5",
-  "GET /api/sync/invoices",
-  {
-   "method": "GET",
-   "path": "/api/sync/invoices",
-   "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:6",
   "GET /api/sync/parties",
   {
    "method": "GET",
@@ -1401,7 +1521,27 @@
   }
  ],
  [
+  "http2:6",
+  "GET /api/sync/party-ledger",
+  {
+   "method": "GET",
+   "path": "/api/sync/party-ledger",
+   "query": "?after_seq=0&limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
   "http2:7",
+  "GET /api/sync/party-ledger",
+  {
+   "method": "GET",
+   "path": "/api/sync/party-ledger",
+   "query": "?limit=500&offset=0",
+   "body": null
+  }
+ ],
+ [
+  "http2:8",
   "GET /api/sync/payment_source_transactions",
   {
    "method": "GET",
@@ -1411,7 +1551,7 @@
   }
  ],
  [
-  "http2:8",
+  "http2:9",
   "GET /api/sync/payment_sources",
   {
    "method": "GET",
@@ -1421,7 +1561,7 @@
   }
  ],
  [
-  "http2:9",
+  "http2:10",
   "GET /api/sync/products",
   {
    "method": "GET",
@@ -1431,7 +1571,7 @@
   }
  ],
  [
-  "http2:10",
+  "http2:11",
   "GET /api/sync/quotations",
   {
    "method": "GET",
@@ -1441,22 +1581,12 @@
   }
  ],
  [
-  "http2:11",
+  "http2:12",
   "GET /api/sync/settings",
   {
    "method": "GET",
    "path": "/api/sync/settings",
    "query": "?limit=500&offset=0",
-   "body": null
-  }
- ],
- [
-  "http2:12",
-  "GET /health",
-  {
-   "method": "GET",
-   "path": "/health",
-   "query": "",
    "body": null
   }
  ],
@@ -1494,8 +1624,6 @@
      "products": null,
      "product_pricing": null,
      "settings": null,
-     "parties": null,
-     "party_ledger": null,
      "customers": null,
      "loyalty_transactions": null,
      "scrap_categories": null,
@@ -1556,7 +1684,11 @@
       "sync_status": "PENDING",
       "print_status": "PENDING",
       "created_at": "<ts>",
-      "updated_at": "<ts>"
+      "updated_at": "<ts>",
+      "stock_counters": "{\"<stock-origin>:r\":4.0,\"<stock-origin>:a\":2.0}",
+      "stock_opening": 50,
+      "stock_bootstrap": null,
+      "stock_protocol": null
      }
     ]
    }
@@ -1618,8 +1750,8 @@
    "parties": [
     {
      "party_id": "<uuid>",
-     "name": "Ravi",
-     "phone": null,
+     "name": "Ravi Kumar",
+     "phone": "9876543210",
      "sync_status": "SYNCED"
     },
     {
@@ -1636,8 +1768,8 @@
     },
     {
      "party_id": "<uuid>",
-     "name": "Ravi Kumar",
-     "phone": "9876543210",
+     "name": "Ravi",
+     "phone": null,
      "sync_status": "SYNCED"
     }
    ],
@@ -1697,6 +1829,12 @@
      "n": 4
     }
    ],
+   "loyalty_transactions": [
+    {
+     "sync_status": "SYNCED",
+     "n": 1
+    }
+   ],
    "parties": [
     {
      "sync_status": "SYNCED",
@@ -1706,7 +1844,7 @@
    "party_ledger": [
     {
      "sync_status": "SYNCED",
-     "n": 2
+     "n": 1
     }
    ],
    "payment_source_transactions": [
@@ -1752,7 +1890,7 @@
    "settings": [
     {
      "sync_status": "LOCAL",
-     "n": 3
+     "n": 4
     },
     {
      "sync_status": "PENDING",

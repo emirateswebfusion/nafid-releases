@@ -1,3 +1,4 @@
+import { accountSyncNotice } from './accountMetadata.js';
 import { outboxEnabled, runOutboxSync } from './outboxSync.js';
 import { type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
@@ -106,7 +107,7 @@ export async function pullLightweightPendingBills(token: string, tenantId: strin
 export async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ success: boolean; dataUpdated: boolean }> {
   const tables = [
     'product_grades', 'pricing_tiers', 'products', 'product_pricing', 'settings',
-    'parties', 'party_ledger', 'customers', 'loyalty_transactions', 'scrap_categories',
+    'customers', 'loyalty_transactions', 'scrap_categories',
     'scrap_transactions', 'purchase_bills', 'cash_drawer', 'cash_transactions',
     'cashier_audit_log', 'cash_categories', 'returns', 'payment_sources',
     'payment_source_transactions', 'combo_offers', 'quotations', 'invoices', 'users'
@@ -151,8 +152,6 @@ export async function unifiedDeltaPull(token: string, tenantId: string): Promise
     if (data.products?.length) if (await pullProducts(token, tenantId)) dataUpdated = true;
     if (data.product_pricing?.length) if (await pullProductPricing(token, tenantId)) dataUpdated = true;
     if (data.settings?.length) if (await pullSettings(token, tenantId)) dataUpdated = true;
-    if (data.parties?.length) if (await pullParties(token, tenantId)) dataUpdated = true;
-    if (data.party_ledger?.length) if (await pullPartyLedger(token, tenantId)) dataUpdated = true;
     if (data.customers?.length) if (await pullCustomers(token, tenantId)) dataUpdated = true;
     if (data.invoices?.length) if (await pullInvoices(token, tenantId)) dataUpdated = true;
     if (data.loyalty_transactions?.length) if (await pullLoyaltyTransactions(token, tenantId)) dataUpdated = true;
@@ -265,7 +264,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
           if (await runOutboxSync(jwt_token, tenant_id, sender)) notifyRenderer('outbox-sync');
           if (await syncEinvoices(jwt_token, tenant_id, { force: uploadedRecords })) notifyRenderer('sync-cycle-completed-with-changes');
           await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then(r => r.response), () => { syncState.isSyncActive = false; });
-        } finally { notifyCycleComplete(sender); }
+        } finally { notifyCycleComplete(sender, false); }
         return;
       }
       let dataUpdated = false;
@@ -360,17 +359,20 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         if (activeRoute === 'CLOUD' && await syncEinvoices(jwt_token, tenant_id, { force: totalRecords > 0 })) dataUpdated = true;
         if (activeRoute === 'CLOUD') await pollEmergencyCommands(jwt_token, (p, init) => fetchWithFallback(p, init).then((r) => r.response), () => { syncState.isSyncActive = false; });
         if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
-        // Pre-check if cloud has any new changes before running pull requests
+        // Accounts use their own sequence cursors, independent of timestamp hints. Parties precede their ledgers.
+        if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
+        if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
+        // Pre-check other domains only after accounts have resumed their sequence download.
         const syncCheckTables = [
           'product_grades', 'pricing_tiers', 'product_pricing', 'products', 'settings',
-          'parties', 'party_ledger', 'customers', 'loyalty_transactions', 'scrap_categories',
+          'customers', 'loyalty_transactions', 'scrap_categories',
           'scrap_transactions', 'purchase_bills', 'cash_drawer', 'cash_transactions',
           'cashier_audit_log', 'cash_categories', 'returns', 'payment_sources',
           'payment_source_transactions', 'combo_offers', 'quotations', 'warranties', 'invoices', 'users'
         ];
         let latestPulledTs: string | null = null;
         let hasMissingCatalogCursor = false;
-        const catalogTables = ['pricing_tiers', 'product_pricing', 'product_grades', 'products', 'settings'];
+        const catalogTables = syncCheckTables;
         for (const t of catalogTables) {
           if (!getMeta(cursorKey(tenant_id, t))) {
             hasMissingCatalogCursor = true;
@@ -381,7 +383,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         for (const t of syncCheckTables) {
           const ts = getMeta(cursorKey(tenant_id, t));
           if (ts) {
-            if (!latestPulledTs || new Date(ts).getTime() > new Date(latestPulledTs).getTime()) {
+            if (!latestPulledTs || new Date(ts).getTime() < new Date(latestPulledTs).getTime()) {
               latestPulledTs = ts;
             }
           }
@@ -390,13 +392,15 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
           const statusCheck = await checkCloudStatus(jwt_token, tenant_id, latestPulledTs);
           if (statusCheck.success && !statusCheck.hasChanges) {
             console.log(`[SyncWorker] ⚡ Cloud check-status: 0 changes detected since ${latestPulledTs}. Skipping pull phase.`);
-            notifyPercent(100, 'Sync completed', sender);
+            if (dataUpdated) notifyRenderer('account-sequence-download');
+            const notice = accountSyncNotice(getDb(), tenant_id);
+            notifyPercent(100, notice || 'Sync completed', sender);
             notifyCycleComplete(sender);
             return;
           }
         }
 
-        // Try unified delta pull first (1 request for all datasets)
+        // Other domains retain their existing delta protocol.
         const deltaRes = await unifiedDeltaPull(jwt_token, tenant_id);
         if (deltaRes.success) {
           if (deltaRes.dataUpdated) dataUpdated = true;
@@ -411,8 +415,6 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
             { run: () => pullInvoices(jwt_token, tenant_id) },
             { run: () => pullUsers(jwt_token, tenant_id) },
             { run: () => pullSettings(jwt_token, tenant_id) },
-            { run: () => pullParties(jwt_token, tenant_id) },
-            { run: () => pullPartyLedger(jwt_token, tenant_id) },
             { run: () => pullCustomers(jwt_token, tenant_id) },
             { run: () => pullLoyaltyTransactions(jwt_token, tenant_id) },
             { run: () => pullScrapCategories(jwt_token, tenant_id) },
@@ -452,6 +454,8 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       if (dataUpdated) {
         notifyRenderer('sync-cycle-completed-with-changes');
       }
+      const notice = accountSyncNotice(getDb(), tenant_id);
+      if (notice) notifyPercent(100, notice, sender);
       notifyCycleComplete(sender);
     } finally {
       syncState.syncInProgress = false;

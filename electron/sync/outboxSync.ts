@@ -8,6 +8,7 @@ import { fetchWithFallback, getMeta, setMeta } from './syncTransport.js';
 import { notifyPercent } from './syncProgress.js';
 import { cloudTokenUnusable } from './syncAuth.js';
 import { isRow, resultAction, usesOutbox } from './outboxResults.js';
+import { accountPushRows, accountPushResult, rememberAccountBase, accountSyncNotice } from './accountMetadata.js';
 
 export function outboxEnabled(tenant: string): boolean {
   const db = getDb();
@@ -43,7 +44,11 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
     try {
       const response = await request('/api/sync/ops', { ops: batch.map(op => ({ op_id: op.op_id, tenant_id: op.tenant_id,
         entity: op.entity, entity_id: op.entity_id, op: op.op, row_version: op.row_version,
-        payload: op.payload ? JSON.parse(op.payload) as unknown : null, origin: op.origin, created_at: op.created_at })) });
+        payload: op.payload ? JSON.parse(op.payload) as unknown : null, origin: op.origin, created_at: op.created_at,
+        ...((op.entity === 'parties' || op.entity === 'party_ledger') ? {
+          _sync_base: accountPushRows(db, tenant, op.entity, [{ [op.entity === 'parties' ? 'party_id' : 'ledger_id']: op.entity_id }])[0]._sync_base,
+        } : {}),
+      })) });
       if (!isRow(response) || !Array.isArray(response.results)) throw new Error('Invalid ops response');
       const results = response.results;
       for (const op of batch) {
@@ -51,6 +56,16 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
         const action = resultAction(matches.length === 1 ? matches[0] : undefined);
         try {
           db.transaction(() => withSyncApplyGuard(db, () => {
+            if (op.entity === 'parties' || op.entity === 'party_ledger') {
+              const reply = matches.length === 1 && isRow(matches[0]) ? matches[0] : {};
+              if (reply.status === 'conflict') {
+                const error = 'Sync conflict: a newer cloud copy exists; local changes were retained for review';
+                accountPushResult(db, tenant, op.entity, [], { synced: [], failed: [{ error, party_id: op.entity_id, ledger_id: op.entity_id }] });
+                sql.failOp(db, op.op_id, error); return;
+              }
+              if (isRow(reply.receipt) && op.payload) accountPushResult(db, tenant, op.entity,
+                [JSON.parse(op.payload) as Record<string, unknown>], { synced: [op.entity_id], failed: [], versions: [reply.receipt] });
+            }
             if (action.current && sql.canApplyConflict(db, op)) sql.applyRow(db, op.entity, action.current, tenant);
             if (action.done) {
               sql.finishOp(db, op.op_id, action.error);
@@ -81,6 +96,7 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
         if (!isRow(change) || typeof change.entity !== 'string' || !isRow(change.row)) throw new Error('Invalid change');
         if (localSetting(change.entity, change.row) || sql.pendingIdentity(db, change.entity, change.row, tenant)) continue;
         sql.applyRow(db, change.entity, change.row, tenant);
+        if (change.entity === 'parties' || change.entity === 'party_ledger') rememberAccountBase(db, tenant, change.entity, change.row);
         updated = true;
       }
       setMeta('server_seq_cursor', next);
@@ -90,6 +106,7 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
     if (!page.has_more) break;
   }
   const exhausted = sql.exhaustedCount(db, tenant);
-  notifyPercent(100, exhausted ? `Sync completed; ${exhausted} operations stopped after 10 attempts` : 'Sync completed', sender);
+  const notice = accountSyncNotice(db, tenant, false);
+  notifyPercent(100, notice || (exhausted ? `Sync completed; ${exhausted} operations stopped after 10 attempts` : 'Sync completed'), sender);
   return updated;
 }

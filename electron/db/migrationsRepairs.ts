@@ -130,16 +130,6 @@ export function runLegacyRepairs(db: Database.Database) {
     console.warn('[DB Migration] Could not create unique index for invoice number. Duplicate data might exist.', (e as Error).message);
   }
 
-  try {
-    db.exec(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_parties_tenant_name_phone_customer 
-      ON parties(tenant_id, name, phone) 
-      WHERE party_type = 'CUSTOMER' AND (is_deleted IS NULL OR is_deleted = 0);
-    `);
-  } catch (e) {
-    console.warn('[DB Migration] Could not create unique index for parties:', (e as Error).message);
-  }
-
   // Fix inline constraint for products table by recreating it if needed
   try {
     const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='products'").get() as Record<string, unknown>;

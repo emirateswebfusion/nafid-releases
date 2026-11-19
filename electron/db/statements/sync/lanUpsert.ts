@@ -100,11 +100,11 @@ export function upsertRows(db: Db, tableName: string, allCols: string[], pkCols:
   } else if (tableName === 'settings' && pkCols.length > 0 && updateCols.length > 0) {
     sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}
       WHERE EXCLUDED.key != 'feature_flags' OR julianday(EXCLUDED.updated_at) >= julianday(settings.updated_at)`;
-  } else if (tableName === 'party_ledger' && pkCols.length > 0) {
+  } else if ((tableName === 'party_ledger' || tableName === 'parties') && pkCols.length > 0) {
     sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}
-      WHERE party_ledger.tenant_id = EXCLUDED.tenant_id
-        AND (EXCLUDED.row_version > party_ledger.row_version OR
-          (EXCLUDED.row_version = party_ledger.row_version AND COALESCE(EXCLUDED.origin, '') > COALESCE(party_ledger.origin, '')))`;
+      WHERE ${tableName}.tenant_id = EXCLUDED.tenant_id
+        AND (EXCLUDED.row_version > ${tableName}.row_version OR
+          (EXCLUDED.row_version = ${tableName}.row_version AND COALESCE(EXCLUDED.origin, '') > COALESCE(${tableName}.origin, '')))`;
   } else if (pkCols.length > 0 && updateCols.length > 0) {
     sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
   } else if (pkCols.length > 0) {

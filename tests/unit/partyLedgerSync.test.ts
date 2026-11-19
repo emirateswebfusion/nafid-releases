@@ -27,6 +27,7 @@ beforeEach(() => {
     },
   }) as unknown as Database.Database;
   raw.exec(`
+    CREATE TABLE sync_meta(key TEXT PRIMARY KEY,value TEXT);
     CREATE TABLE settings (tenant_id TEXT, key TEXT, value TEXT);
     CREATE TABLE parties (party_id TEXT PRIMARY KEY, tenant_id TEXT, balance REAL, gst_balance REAL,
       estimate_balance REAL, last_transaction_date TEXT);
@@ -41,6 +42,7 @@ beforeEach(() => {
     INSERT INTO party_ledger VALUES ('entry', 'old', 'shop', '2026-11-01', 'Bill', 100, 0, 100, 'GST',
       NULL, NULL, NULL, NULL, 0, 'SYNCED', '2026-11-01', '2026-11-01');
     ALTER TABLE party_ledger ADD COLUMN row_version INTEGER DEFAULT 0;
+    ALTER TABLE party_ledger ADD COLUMN origin TEXT;
   `);
   state.rows = [{ ledger_id: 'entry', party_id: 'old', transaction_date: '2026-11-01', description: 'Bill',
     credit_amount: 100, debit_amount: 0, balance_type: 'GST', is_deleted: false,

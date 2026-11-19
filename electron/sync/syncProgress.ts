@@ -3,6 +3,7 @@ import { getDb } from '../db/localDb.js';
 import { syncState } from './syncState.js';
 import { getAuthConfig } from './syncConfig.js';
 import * as syncProgressSql from '../db/statements/sync/syncProgress.js';
+import { accountSyncNotice } from './accountMetadata.js';
 
 /** Sync progress and renderer notifications: phases, percent / label updates, cycle completion and online status. */
 export function getTotalPendingRecords(db: import('better-sqlite3').Database, tenantId: string): number {
@@ -57,8 +58,9 @@ export function notifyProgress(phaseIndex: number, sender?: WebContents, records
     const synced = totalRecords !== undefined ? totalRecords - remaining : (recordsSynced ?? 0);
     const total = totalRecords ?? remaining + synced;
     syncState.currentSyncProgress = { percent, label: SYNC_PHASES[phaseIndex], recordsSynced: synced, totalRecords: total };
-    if (sender && !sender.isDestroyed()) {
-      sender.send('sync:progress', syncState.currentSyncProgress);
+    const target = sender ?? BrowserWindow.getAllWindows()[0]?.webContents;
+    if (target && !target.isDestroyed()) {
+      target.send('sync:progress', syncState.currentSyncProgress);
     }
   }
 }
@@ -72,8 +74,9 @@ export function notifyPercent(percent: number, label: string, sender?: WebConten
     recordsSynced: recordsSynced ?? 0,
     totalRecords: totalRecords ?? 0,
   };
-  if (sender && !sender.isDestroyed()) {
-    sender.send('sync:progress', syncState.currentSyncProgress);
+  const target = sender ?? BrowserWindow.getAllWindows()[0]?.webContents;
+  if (target && !target.isDestroyed()) {
+    target.send('sync:progress', syncState.currentSyncProgress);
   }
 }
 
@@ -91,9 +94,18 @@ export function notifyRenderer(reason?: string) {
   }
 }
 
-export function notifyCycleComplete(sender?: WebContents) {
-  if (sender && !sender.isDestroyed()) {
-    sender.send('sync:cycle-complete');
+export function notifyCycleComplete(sender?: WebContents, includeDownloads = true) {
+  const target = sender ?? BrowserWindow.getAllWindows()[0]?.webContents;
+  if (target && !target.isDestroyed()) {
+    try {
+      const tenant = getAuthConfig()?.tenant_id;
+      const notice = tenant ? accountSyncNotice(getDb(), tenant, includeDownloads) : null;
+      if (notice) notifyPercent(100, notice, target);
+    } catch (error) {
+      console.error('[SyncWorker] Account completion check failed:', error);
+      notifyPercent(100, 'Account sync check failed; changes kept on this computer.', target);
+    }
+    target.send('sync:cycle-complete');
   }
 }
 

@@ -94,8 +94,8 @@ const pulled = {
   settings: dump(`SELECT tenant_id, key, value, sync_status FROM settings WHERE key = 'store_name' ORDER BY tenant_id`),
 };
 const after2 = statusCounts();
-const norm = (v: unknown) => JSON.parse(JSON.stringify(v, (_k, x) => typeof x === 'string'
-  ? x.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<uuid>').replace(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?Z?/g, '<ts>').replace(/\d{4}-\d{2}-\d{2}/g, '<date>').replace(/\b1[789]\d{11}\b/g, '<ms>').replace(/\b\d{1,2}:\d{2}( ?[AP]M)?\b/g, '<time>')
+const norm = (v: unknown) => JSON.parse(JSON.stringify(v, (_k, x) => _k === 'origin' ? '<origin>' : typeof x === 'string'
+  ? x.replace(/[0-9a-f]{32}(?=:[ar]")/gi, '<stock-origin>').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<uuid>').replace(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?Z?/g, '<ts>').replace(/\d{4}-\d{2}-\d{2}/g, '<date>').replace(/\b1[789]\d{11}\b/g, '<ms>').replace(/\b\d{1,2}:\d{2}( ?[AP]M)?\b/g, '<time>')
   : x));
 // Requests from the main cycle and the concurrent "urgent" syncs interleave nondeterministically, so each
 // phase is recorded in a canonical order (method + path + body), not in arrival order.

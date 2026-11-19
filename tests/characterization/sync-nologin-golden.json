@@ -57,6 +57,12 @@
      "n": 1
     }
    ],
+   "loyalty_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
    "parties": [
     {
      "sync_status": "PENDING",
@@ -66,7 +72,7 @@
    "party_ledger": [
     {
      "sync_status": "PENDING",
-     "n": 2
+     "n": 1
     }
    ],
    "payment_source_transactions": [
@@ -108,7 +114,7 @@
    "settings": [
     {
      "sync_status": "LOCAL",
-     "n": 3
+     "n": 4
     },
     {
      "sync_status": "PENDING",
@@ -183,6 +189,12 @@
      "n": 1
     }
    ],
+   "loyalty_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
    "parties": [
     {
      "sync_status": "PENDING",
@@ -192,7 +204,7 @@
    "party_ledger": [
     {
      "sync_status": "PENDING",
-     "n": 2
+     "n": 1
     }
    ],
    "payment_source_transactions": [
@@ -234,7 +246,7 @@
    "settings": [
     {
      "sync_status": "LOCAL",
-     "n": 3
+     "n": 4
     },
     {
      "sync_status": "PENDING",
@@ -294,12 +306,6 @@
    "parties": [
     {
      "party_id": "<uuid>",
-     "name": "Ravi",
-     "phone": null,
-     "sync_status": "PENDING"
-    },
-    {
-     "party_id": "<uuid>",
      "name": "Ravi Kumar",
      "phone": "9876543210",
      "sync_status": "PENDING"
@@ -308,6 +314,12 @@
      "party_id": "<uuid>",
      "name": "Acme Traders",
      "phone": "9123456780",
+     "sync_status": "PENDING"
+    },
+    {
+     "party_id": "<uuid>",
+     "name": "Ravi",
+     "phone": null,
      "sync_status": "PENDING"
     }
    ],
@@ -371,6 +383,12 @@
      "n": 1
     }
    ],
+   "loyalty_transactions": [
+    {
+     "sync_status": "PENDING",
+     "n": 1
+    }
+   ],
    "parties": [
     {
      "sync_status": "PENDING",
@@ -380,7 +398,7 @@
    "party_ledger": [
     {
      "sync_status": "PENDING",
-     "n": 2
+     "n": 1
     }
    ],
    "payment_source_transactions": [
@@ -422,7 +440,7 @@
    "settings": [
     {
      "sync_status": "LOCAL",
-     "n": 3
+     "n": 4
     },
     {
      "sync_status": "PENDING",

@@ -1,3 +1,4 @@
+import { syncNeedsAttention } from '../../../utils/sync/syncOutcome';
 import { useEffect, useState } from 'react';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
 import { bridgeEvents } from '../../../data/events';
@@ -60,13 +61,13 @@ export function useSyncStatus({ isAuthenticated, isCloudSyncPaused }: { isAuthen
 
   // Auto-hide sync complete bar after 4 seconds
   useEffect(() => {
-    if (!syncComplete) return;
+    if (!syncComplete || syncNeedsAttention(syncProgress?.label)) return;
     const timer = setTimeout(() => {
       setSyncComplete(false);
       setSyncProgress(null);
     }, 4000);
     return () => clearTimeout(timer);
-  }, [syncComplete]);
+  }, [syncComplete, syncProgress?.label]);
 
   // Trigger initial sync once on first login — progress events will activate the bar
   useEffect(() => {

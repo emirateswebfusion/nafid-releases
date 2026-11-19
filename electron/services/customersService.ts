@@ -190,9 +190,6 @@ export function deleteCustomer({ customer_id, tenant_id }: { customer_id: string
       const customer = customersSql.findCustomersByCustomerId(db).get(customer_id, tenant_id) as CustomerCreditRow;
       if (!customer) return { success: false, error: 'Customer not found' };
 
-      // 2. Mark customer as deleted
-      customersSql.updateCustomerIsDeleted(db).run(customer_id, tenant_id);
-
       // 3. Find matching party by phone or name
       let matchedParties: CustomerCreditRow[] = [];
       const cleanPhone = (customer.phone || '').trim();
@@ -205,7 +202,11 @@ export function deleteCustomer({ customer_id, tenant_id }: { customer_id: string
         matchedParties = customersSql.findPartiesByName(db).all(tenant_id, cleanName) as CustomerCreditRow[];
       }
 
-      // 4. Soft-delete matched parties and their party_ledger entries
+      const exact = matchedParties.find(party => party.party_id === customer_id);
+      if (exact) matchedParties = [exact];
+      else if (matchedParties.length > 1) return { success: false, error: 'More than one party matches this customer. Review the accounts before deleting.' };
+      customersSql.updateCustomerIsDeleted(db).run(customer_id, tenant_id);
+      // 4. Soft-delete only the identified party and its ledger entries
       for (const party of matchedParties) {
         customersSql.updatePartyIsDeleted(db).run(party.party_id, tenant_id);
         customersSql.updatePartyLedgerIsDeleted(db).run(party.party_id, tenant_id);

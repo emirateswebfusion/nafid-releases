@@ -511,3 +511,7 @@ Regression coverage in cashierPartyTransactions replays the deleted cash row and
 - **Header & Screen Standardization**: `DigitalClock.tsx` (`variant="header"`, `card`, `pill`) resolves the dynamic abbreviation using the store timezone and instant. Tooltips and dropdown options show clear human-readable descriptions (`formatTimezoneOptionLabel`). Trial registration and store settings reflect standard abbreviations.
 - **Contract & Database Integrity**: Stored timezone settings, database timestamps, UTC queries, and IPC channels remain strictly keyed to canonical IANA strings (`Asia/Calcutta`, `Asia/Dubai`, etc.).
 - **Verification**: `tests/unit/timezoneAbbreviation.test.ts` (12 tests) and `tests/unit/digitalClockTimezone.ui.test.tsx` (9 tests); `tsc`, `typecheck:electron`, `check:arch` (0 debt), and `lint:ratchet` (0 errors / 0 warnings) pass.
+
+### Multi-terminal financial changes
+
+Follow [multi-terminal account sync](multi-terminal-account-sync.md) before changing party identity, baseline receipts, account page cursors, LAN merge or outbox financial conflict handling. Update server `accountConcurrency`, the relevant repository/HTTP contracts, and both test suites together. Run migration/restart, statement, IPC, cloud/no-login, outbox and LAN characterization; preserve queued data on every failure path. Conflict notices use the existing FloatToast and shared sync-outcome helper. Do not equate a successful HTTP response or ended cycle with all records having synchronized.

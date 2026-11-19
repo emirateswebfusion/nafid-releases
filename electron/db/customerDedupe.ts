@@ -1,51 +1,14 @@
-import { parseStoreCountry, roundStoreMoney } from '../utils/moneyRounding.js';
 import Database from 'better-sqlite3';
 import { db } from './localDb.js';
 import { upsertCustomerRecord } from './customerIdentity.js';
 
-/** Customer / party data repair used by initDb, main and services: merge duplicate customers and parties (recomputing
- * party balances) and backfill customers from historical invoices. */
-function recalcPartyBalanceLocal(d: Database.Database, partyId: string) {
-  try {
-    const rows: Record<string, unknown> = (d.prepare(`
-      SELECT 
-        COALESCE(SUM(CASE WHEN balance_type = 'GST' THEN credit_amount - debit_amount ELSE 0 END), 0) AS gst,
-        COALESCE(SUM(CASE WHEN balance_type = 'ESTIMATE' THEN credit_amount - debit_amount ELSE 0 END), 0) AS estimate,
-        COALESCE(SUM(credit_amount - debit_amount), 0) AS total
-      FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-    `).get(partyId) as Record<string, unknown>);
-    const partyRow = d.prepare('SELECT tenant_id FROM parties WHERE party_id = ?').get(partyId) as { tenant_id?: string } | undefined;
-    let country: 'IN' | 'AE' | 'BH' = 'IN';
-    if (partyRow?.tenant_id) {
-      const setting = d.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'store_country' LIMIT 1").get(partyRow.tenant_id) as { value?: string } | undefined;
-      country = parseStoreCountry(setting?.value);
-    }
-    const gst = roundStoreMoney(parseFloat((rows?.gst as string)) || 0, country);
-    const estimate = roundStoreMoney(parseFloat((rows?.estimate as string)) || 0, country);
-    const total = roundStoreMoney(gst + estimate, country);
-    const latest: Record<string, unknown> = (d.prepare(`
-      SELECT transaction_date FROM party_ledger 
-      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) 
-      ORDER BY transaction_date DESC LIMIT 1
-    `).get(partyId) as Record<string, unknown>);
-    d.prepare(`
-      UPDATE parties 
-      SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
-      WHERE party_id = ?
-    `).run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
-    return total;
-  } catch (err) {
-    console.error('[recalcPartyBalanceLocal error]:', (err as Error).message);
-    throw err;
-  }
-}
-
+/** Customer profile repair/backfill. Financial party IDs are never merged automatically. */
 export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database): { merged_customers: number; merged_parties: number; error?: string } {
   const d = targetDb || db;
   if (!d) return { merged_customers: 0, merged_parties: 0 };
 
   let mergedCustomers = 0;
-  let mergedParties = 0;
+  const mergedParties = 0;
 
   try {
     return d.transaction(() => {
@@ -156,110 +119,7 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
       }
     }
 
-    // 2. DEDUPLICATE PARTIES (same party_type and phone/name)
-    const partyTenants = d.prepare('SELECT DISTINCT tenant_id FROM parties').all().map((r: unknown) => (r as { tenant_id: string }).tenant_id);
-    for (const tenantId of partyTenants) {
-      const parties = d.prepare(`
-        SELECT party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, party_type, credit_limit, notes, created_at
-        FROM parties 
-        WHERE party_type = 'CUSTOMER' AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
-      `).all(tenantId) as Record<string, unknown>[];
-
-      const n = parties.length;
-      if (n <= 1) continue;
-
-      const parent = Array.from({ length: n }, (_, i) => i);
-      function find(i: number): number {
-        if (parent[i] === i) return i;
-        parent[i] = find(parent[i]);
-        return parent[i];
-      }
-      function union(i: number, j: number) {
-        const rootI = find(i);
-        const rootJ = find(j);
-        if (rootI !== rootJ) parent[rootI] = rootJ;
-      }
-
-      const phoneMap = new Map<string, number>();
-      const nameMap = new Map<string, number>();
-
-      for (let i = 0; i < n; i++) {
-        const p = parties[i];
-        const pType = ((p.party_type as string) || ('CUSTOMER' as string)).toUpperCase();
-        const normName = ((p.name as string) || ('' as string)).trim().toLowerCase().replace(/\s+/g, ' ');
-        const cleanPhone = ((p.phone as string) || ('' as string)).replace(/\D/g, '');
-        const last10 = cleanPhone.length >= 7 ? cleanPhone.slice(-10) : null;
-
-        // Phone match alone does not merge; different people can share numbers
-        // Only exact same party_type + normalized name merge duplicates
-        if (normName && normName.length >= 3 && last10 && !last10.startsWith('0000')) {
-          const comboKey = pType + ":" + normName + ":" + last10;
-          if (phoneMap.has(comboKey)) union(i, phoneMap.get(comboKey)!);
-          else phoneMap.set(comboKey, i);
-        }
-        // end combo phone key
-
-        if (normName && normName.length >= 3) {
-          const nameKey = `${pType}:${normName}`;
-          if (nameMap.has(nameKey)) {
-            union(i, nameMap.get(nameKey)!);
-          } else {
-            nameMap.set(nameKey, i);
-          }
-        }
-      }
-
-      const clusters = new Map<number, Record<string, unknown>[]>();
-      for (let i = 0; i < n; i++) {
-        const root = find(i);
-        if (!clusters.has(root)) clusters.set(root, []);
-        clusters.get(root)!.push(parties[i]);
-      }
-
-      for (const [_, list] of clusters) {
-        if (list.length <= 1) continue;
-
-        // Prefer party with non-zero balance / ledger entries, then older created_at
-        list.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
-          const balA = Math.abs((a.balance as number) || (0 as number));
-          const balB = Math.abs((b.balance as number) || (0 as number));
-          if (balA !== balB) return balB - balA;
-          const timeA = new Date((a.created_at as string | number) || (0 as string | number)).getTime();
-          const timeB = new Date((b.created_at as string | number) || (0 as string | number)).getTime();
-          return timeA - timeB;
-        });
-
-        const primary = list[0];
-        const duplicates = list.slice(1);
-
-        let bestPhone = primary.phone;
-        let bestAddr = primary.address;
-        let bestGstin = primary.gstin;
-        mergedParties += duplicates.length;
-
-        for (const dup of duplicates) {
-          if (!bestPhone && dup.phone) bestPhone = dup.phone;
-          if (!bestAddr && dup.address) bestAddr = dup.address;
-          if (!bestGstin && dup.gstin) bestGstin = dup.gstin;
-
-          d.prepare("UPDATE party_ledger SET party_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(primary.party_id, dup.party_id);
-          d.prepare('UPDATE purchase_bills SET supplier_id = ? WHERE supplier_id = ?').run(primary.party_id, dup.party_id);
-          d.prepare("UPDATE parties SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(dup.party_id);
-        }
-
-        d.prepare(`
-          UPDATE parties 
-          SET phone = COALESCE(?, phone),
-              address = COALESCE(?, address),
-              gstin = COALESCE(?, gstin),
-              sync_status = 'PENDING',
-              updated_at = CURRENT_TIMESTAMP
-          WHERE party_id = ?
-        `).run(bestPhone, bestAddr, bestGstin, primary.party_id);
-
-        recalcPartyBalanceLocal(d, (primary.party_id as string));
-      }
-    }
+    // Party IDs are financial identities. Account merging is an explicit user operation.
     console.log('[DB Auto-Deduplication] Completed clean deduplication of customers and parties.');
 
     // Create partial unique indexes after deduplication to prevent future duplicates
@@ -269,11 +129,6 @@ export function autoDeduplicateCustomersAndParties(targetDb?: Database.Database)
         CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_tenant_name_no_phone 
         ON customers(tenant_id, name) 
         WHERE (phone IS NULL OR phone = '') AND (is_deleted IS NULL OR is_deleted = 0);
-      `);
-      d.exec(`
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_parties_tenant_name_phone_customer 
-        ON parties(tenant_id, name, phone) 
-        WHERE party_type = 'CUSTOMER' AND (is_deleted IS NULL OR is_deleted = 0);
       `);
       console.log('[DB Auto-Deduplication] Partial unique indexes created/verified.');
     } catch (idxErr) {

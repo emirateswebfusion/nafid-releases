@@ -8,13 +8,12 @@ import { notifyOnlineStatus } from './syncProgress.js';
 import * as syncTransportSql from '../db/statements/sync/syncTransport.js';
 import { withSyncApplyGuard } from '../db/statements/outbox.js';
 
-/** Outbox bookkeeping columns (migration 002). They stay local until the pusher switches to the outbox
- * (docs/architecture/07-sync-outbox-design.md, rollout step 4), so push bodies keep their pre-outbox shape. */
+/** Logical metadata remains local for other legacy domains; financial account batches carry it explicitly. */
 const LOCAL_ONLY_SYNC_KEYS = new Set(['row_version', 'origin']);
 
-/** JSON body of a sync push, without the local-only outbox columns (at any depth: items travel inside parents). */
-export function syncPushBody(body: Record<string, unknown>): string {
-  return JSON.stringify(body, (key, value) => (LOCAL_ONLY_SYNC_KEYS.has(key) ? undefined : value));
+/** Legacy serialization, with an explicit financial-account metadata extension. */
+export function syncPushBody(body: Record<string, unknown>, accountMetadata = false): string {
+  return JSON.stringify(body, (key, value) => (!accountMetadata && LOCAL_ONLY_SYNC_KEYS.has(key) ? undefined : value));
 }
 
 /** Sync transport: LAN / cloud endpoints and connectivity, fetch with fallback, batched push with outbox reconciliation, pull cursors and paginated pulls. */
@@ -224,6 +223,7 @@ export async function pushBatch<T>(
   batch: T[],
   bodyKey: string,
   label: string,
+  onResult?: (result: { synced: string[]; failed: { error: string; party_id?: string; ledger_id?: string }[]; versions?: Record<string, unknown>[] }) => void,
 ): Promise<string[]> {
   if (!syncState.isSyncActive) return [];
   if (batch.length === 0) return [];
@@ -236,7 +236,7 @@ export async function pushBatch<T>(
       const { response } = await fetchWithFallback(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: syncPushBody({ [bodyKey]: batch }),
+        body: syncPushBody({ [bodyKey]: batch }, bodyKey === 'parties' || bodyKey === 'entries'),
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
@@ -250,12 +250,13 @@ export async function pushBatch<T>(
         return [];
       }
 
-      const result: { synced: string[]; failed: { error: string }[]; synced_count?: number; failed_count?: number } = await response.json();
+      const result: { synced: string[]; failed: { error: string }[]; versions?: Record<string, unknown>[]; synced_count?: number; failed_count?: number } = await response.json();
       if (result.synced?.length > 0) {
         console.log(`${getSyncPrefix()} ${label}: ${result.synced_count ?? result.synced.length} synced, ${result.failed_count ?? 0} failed.`);
       } else if (result.failed?.length > 0) {
         console.log(`${getSyncPrefix()} ${label}: 0 synced, ${result.failed_count ?? result.failed.length} failed. First error: ${result.failed[0].error}`);
       }
+      onResult?.(result);
       return result.synced || [];
     } catch (err) {
       const isTimeout = (err as Error).name === 'TimeoutError' || (err as Error).message?.includes('timeout') || (err as Error).message?.includes('aborted');
@@ -422,7 +423,12 @@ export async function pullPaginated(opts: {
     }
     if (rows.length === 0) break;
 
-    reconciled += withSyncApplyGuard(getDb(), () => opts.processPage(rows));
+    try {
+      reconciled += withSyncApplyGuard(getDb(), () => opts.processPage(rows));
+    } catch (error) {
+      console.error(`[SyncWorker] Pull ${opts.label} page rolled back:`, error);
+      failed = true; break;
+    }
     count += rows.length;
     for (const r of rows) {
       const ts = r?.[tsColumn] || r?.updated_at || r?.created_at;

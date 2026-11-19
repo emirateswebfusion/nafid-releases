@@ -1,3 +1,4 @@
+import { syncNeedsAttention } from '../../utils/sync/syncOutcome';
 import { useRef } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -112,11 +113,11 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                 <div className="px-6 py-2.5 border-t border-border bg-card relative z-0">
                     <div className="flex items-center gap-3 mb-1.5">
                         <span className="text-xs font-medium text-foreground/80 shrink-0">
-                            {syncComplete ? 'Sync Complete' : syncProgress.label}
+                            {syncComplete && !syncNeedsAttention(syncProgress.label) ? 'Sync Complete' : syncProgress.label}
                         </span>
                         <div className="flex-1 bg-primary/10 rounded-full h-2 overflow-hidden">
                             <div
-                                className={`h-full rounded-full transition-all duration-500 ease-out ${syncComplete ? 'bg-emerald-500' : 'bg-primary'}`}
+                                className={`h-full rounded-full transition-all duration-500 ease-out ${syncNeedsAttention(syncProgress.label) ? 'bg-amber-500' : syncComplete ? 'bg-emerald-500' : 'bg-primary'}`}
                                 style={{ width: `${syncComplete ? 100 : syncProgress.percent}%` }}
                             />
                         </div>

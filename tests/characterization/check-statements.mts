@@ -12,6 +12,12 @@ console.log = () => {}; console.warn = () => {};
 const { initDb, getDb } = await import(pathToFileURL(path.join(tree, 'electron/db/localDb.ts')).href);
 initDb();
 const db = getDb();
+const { operationId } = await import(pathToFileURL(path.join(tree, 'electron/utils/stockOperation.ts')).href);
+db.prepare("INSERT OR IGNORE INTO products(product_id,tenant_id,name,base_price,current_stock) VALUES('statement-stock','t1','Statement fixture',0,0)").run();
+const movement = [{ product_id: 'statement-stock', quantity: 1 }];
+const stockOp = { operation_id: '', tenant_id: 't1', document_id: 'statement-document', document_type: 'invoice',
+  revision: 1, action: 'characterization', deltas: movement, before: [], after: movement, origin: 'statement-check', created_at: '2026-11-19T00:00:00Z' };
+stockOp.operation_id = operationId(stockOp);
 const dir = path.join(tree, 'electron/db/statements');
 const fragment = (p: string) => /placeholder/i.test(p) ? '?' : /col$/i.test(p) ? (/deleted/i.test(p) ? ', deleted_at' : 'gst_balance')
   : /select|fields/i.test(p) ? '*' : /^t$|table/i.test(p) ? 'products' : '';
@@ -25,6 +31,9 @@ const special: Record<string, unknown[]> = { findInvoiceItemsByInvoiceIdAndIsGst
   pendingIdentity: ['products', { product_id: 'statement-check' }, 't1'],
   markLegacySynced: [{ entity: 'products', entity_id: 'statement-check', tenant_id: 't1', payload: null, row_version: 0 }],
   canApplyConflict: [{ op_id: 'statement-check', entity: 'products', entity_id: 'statement-check', tenant_id: 't1', payload: null, row_version: 0 }],
+  acknowledgeVersion: ['parties'],
+  applyIncomingOperation: [stockOp, 't1'], groupRevision: ['invoice', 'statement-document'],
+  saveRevision: ['invoice', 'statement-document', 1], withStockOperation: ['invoice', 'statement-noop', 'characterization', () => undefined],
   withSyncApplyGuard: [() => undefined], buildOutboxTriggerStatements: [['products']], listPendingOps: [10], enqueueLegacyPendingRows: [['products', 'returns']],
   updatePartyProfile: [['pricing_tier_id', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry', 'party_type', 'custom_category', 'whatsapp_alerts_enabled']] };
 let ok = 0; const bad: string[] = [];
