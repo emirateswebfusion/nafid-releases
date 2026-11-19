@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { resultAction, usesOutbox } from '../../electron/sync/outboxResults';
+import { resultAction, usesOutbox, orderedFinancialBatch } from '../../electron/sync/outboxResults';
 describe('outbox result decisions', () => {
+  it('stops before repeated financial identities without reordering other queued work', () => {
+    const account = { tenant_id: 'shop', entity: 'parties', entity_id: 'account' };
+    const other = { ...account, entity_id: 'other' };
+    const rows = [account, other, { ...account }, { ...account, entity: 'products' }];
+    expect(orderedFinancialBatch(rows)).toEqual([account, other]);
+    const independent = [account, { ...account, tenant_id: 'another-shop' }, { ...account, entity: 'party_ledger' }];
+    expect(orderedFinancialBatch(independent)).toEqual(independent);
+  });
   it('acknowledges applied and duplicate, retains conflict server copy', () => {
     for (const status of ['applied', 'duplicate']) expect(resultAction({ status })).toEqual({ done: true, error: null });
     const current = { name: 'Server' };

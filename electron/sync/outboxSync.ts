@@ -7,7 +7,7 @@ import { LOCAL_DEVICE_SETTING_KEYS } from './entities/settingsSync.js';
 import { fetchWithFallback, getMeta, setMeta } from './syncTransport.js';
 import { notifyPercent } from './syncProgress.js';
 import { cloudTokenUnusable } from './syncAuth.js';
-import { isRow, resultAction, usesOutbox } from './outboxResults.js';
+import { isRow, resultAction, usesOutbox, orderedFinancialBatch } from './outboxResults.js';
 import { accountPushRows, accountPushResult, rememberAccountBase, accountSyncNotice } from './accountMetadata.js';
 
 export function outboxEnabled(tenant: string): boolean {
@@ -32,7 +32,7 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
   const through = sql.queueBoundary(db);
   let after = 0;
   for (;;) {
-    const pending = listPendingOps(db, 200, { tenant, after, through });
+    const pending = orderedFinancialBatch(listPendingOps(db, 200, { tenant, after, through }));
     if (!pending.length) break;
     after = pending[pending.length - 1].queue_id!;
     const batch = pending.filter(op => {
@@ -92,13 +92,15 @@ export async function runOutboxSync(token: string, tenant: string, sender?: WebC
     if (BigInt(next) < BigInt(since) || (page.has_more && BigInt(next) <= BigInt(since))) throw new Error('Non advancing changes cursor');
     const changes = page.changes;
     db.transaction(() => withSyncApplyGuard(db, () => {
+      const affectedAccounts = new Set<string>();
       for (const change of changes) {
         if (!isRow(change) || typeof change.entity !== 'string' || !isRow(change.row)) throw new Error('Invalid change');
         if (localSetting(change.entity, change.row) || sql.pendingIdentity(db, change.entity, change.row, tenant)) continue;
-        sql.applyRow(db, change.entity, change.row, tenant);
+        sql.applyRow(db, change.entity, change.row, tenant, affectedAccounts);
         if (change.entity === 'parties' || change.entity === 'party_ledger') rememberAccountBase(db, tenant, change.entity, change.row);
         updated = true;
       }
+      sql.refreshAccountBalances(db, tenant, affectedAccounts);
       setMeta('server_seq_cursor', next);
       setMeta('server_seq_cursor_tenant', tenant);
     }))();

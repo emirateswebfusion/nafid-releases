@@ -201,3 +201,12 @@ See [business rules](04-business-rules.md#cash-register-and-party-ledger-integri
 For parties and ledger entries, the implemented [multi-terminal account contract](multi-terminal-account-sync.md) supersedes arrival-order merge and timestamp-only pull assumptions above. Both cloud engines compare a captured business revision. Account conflicts retain local rows and operations for review instead of applying the generic server-copy winner; generic non-account outbox behavior is unchanged. A duplicate operation cannot advance an offline edit's baseline past another terminal's intervening change.
 
 Legacy account GET endpoints negotiate sequence pages, resume across cycle limits and commit each cursor with its page. LAN/older-server fallback remains explicit. Migration025 preserves all party IDs and removes automatic party consolidation; it does not automatically recover older lost records. This is not a global outbox rollout or a guarantee for other domains. The real-shop beta field checks in §7.6 remain distinct from automated cloud/LAN tests.
+
+
+## 7.11 Ordered financial queue and local balance projection
+
+Financial operations wait behind every earlier unsent operation for the same tenant/entity/ID, including an exhausted
+predecessor. The next request attaches the preceding successful receipt instead of batching multiple edits against one
+old baseline. Migration026 indexes pending identities without changing data. Account download pages recalculate each
+affected local ledger balance once, including protected pending entries, before committing the cursor. The canonical
+statement is shared with the legacy engine; see [account contract](multi-terminal-account-sync.md#ordered-outbox-edits-and-local-balances).

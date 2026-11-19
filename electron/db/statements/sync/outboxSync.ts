@@ -1,6 +1,7 @@
 import type { Db } from '../types.js';
 import type { SyncOutboxRow } from '../outbox.js';
 import { ALL_SYNCED_TABLES } from '../../migrations/syncedTables.js';
+import { selectLedgerParty, updateParties3 } from './partiesSync.js';
 
 const quote = (name: string) => `"${name.replace(/"/g, '""')}"`;
 type Row = Record<string, unknown>;
@@ -44,9 +45,11 @@ const bind = (v: unknown): string | number | null => v == null ? null : typeof v
   : typeof v === 'object' ? JSON.stringify(v) : typeof v === 'number' ? v
   : typeof v === 'string' && PG_TIMESTAMP.test(v) ? new Date(asUtc(v)).toISOString() : String(v);
 /** Column-filtered UPDATE/INSERT preserves omitted local columns and SQLite defaults. */
-export function applyRow(db: Db, entity: string, row: Row, tenant: string): void {
+export function applyRow(db: Db, entity: string, row: Row, tenant: string, affectedAccounts?: Set<string>): void {
   const { columns, keys } = metadata(db, entity);
   if (row.tenant_id != null && row.tenant_id !== tenant) throw new Error('Foreign tenant row');
+  const previous = entity === 'party_ledger'
+    ? selectLedgerParty(db).get(row.ledger_id, tenant) as { party_id: string } | undefined : undefined;
   const values: Row = { ...row };
   if (columns.includes('tenant_id')) values.tenant_id = tenant;
   if (columns.includes('sync_status')) values.sync_status = 'SYNCED';
@@ -63,6 +66,20 @@ export function applyRow(db: Db, entity: string, row: Row, tenant: string): void
     db.prepare(`INSERT INTO ${quote(entity)} (${names.map(quote).join(', ')}) VALUES (${names.map(() => '?').join(', ')})`)
       .run(...names.map(name => bind(values[name])));
   }
+  // The local ledger includes protected pending edits; remote derived totals cannot replace that projection.
+  const affected = new Set<string>();
+  if (entity === 'party_ledger') {
+    if (previous) affected.add(previous.party_id);
+    if (typeof row.party_id === 'string') affected.add(row.party_id);
+  } else if (entity === 'parties' && typeof row.party_id === 'string'
+    && db.prepare('SELECT 1 FROM party_ledger WHERE party_id = ? AND tenant_id = ? LIMIT 1').get(row.party_id, tenant)) {
+    affected.add(row.party_id);
+  }
+  if (affectedAccounts) for (const party of affected) affectedAccounts.add(party);
+  else refreshAccountBalances(db, tenant, affected);
+}
+export function refreshAccountBalances(db: Db, tenant: string, affected: Set<string>): void {
+  for (const party of affected) updateParties3(db).run(tenant, party);
 }
 /** An upload reply owns only its snapshot, never an edit made while awaiting HTTP. */
 export function canApplyConflict(db: Db, op: SyncOutboxRow): boolean {

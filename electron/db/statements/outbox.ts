@@ -244,9 +244,14 @@ export function countPendingOps(db: Db): number {
 }
 
 export function listPendingOps(db: Db, limit: number, scope?: { tenant: string; after: number; through: number }): SyncOutboxRow[] {
-  if (scope) return db.prepare(`SELECT rowid AS queue_id, * FROM sync_outbox
-    WHERE tenant_id = ? AND sent_at IS NULL AND attempts < 10 AND rowid > ? AND rowid <= ?
-    ORDER BY rowid LIMIT ?`).all(scope.tenant, scope.after, scope.through, Math.min(200, Math.max(0, Math.trunc(limit)))) as SyncOutboxRow[];
+  // Financial revisions must be acknowledged in queue order. A blocked predecessor also blocks later edits.
+  if (scope) return db.prepare(`SELECT q.rowid AS queue_id, q.* FROM sync_outbox q
+    WHERE q.tenant_id = ? AND q.sent_at IS NULL AND q.attempts < 10 AND q.rowid > ? AND q.rowid <= ?
+      AND (q.entity NOT IN ('parties', 'party_ledger') OR NOT EXISTS (
+        SELECT 1 FROM sync_outbox earlier WHERE earlier.tenant_id = q.tenant_id AND earlier.entity = q.entity
+          AND earlier.entity_id = q.entity_id AND earlier.sent_at IS NULL AND earlier.rowid < q.rowid
+          AND (earlier.rowid <= ? OR earlier.attempts >= 10)))
+    ORDER BY q.rowid LIMIT ?`).all(scope.tenant, scope.after, scope.through, scope.after, Math.min(200, Math.max(0, Math.trunc(limit)))) as SyncOutboxRow[];
   const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : 0;
   return db.prepare(`SELECT op_id, tenant_id, entity, entity_id, op, row_version, payload, origin, created_at, attempts, last_error, sent_at
     FROM sync_outbox WHERE sent_at IS NULL ORDER BY created_at, op_id LIMIT ?`).all(safeLimit) as SyncOutboxRow[];

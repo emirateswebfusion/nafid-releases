@@ -29,6 +29,7 @@ const special: Record<string, unknown[]> = { findInvoiceItemsByInvoiceIdAndIsGst
   updateCustomerProfile: [['gstin', 'notes', 'credit_limit', 'credit_period_enabled', 'credit_period_days', 'credit_period_basis', 'restrict_on_credit_expiry']],
   applyRow: ['products', { product_id: 'statement-check', tenant_id: 't1', name: 'Check', base_price: 0, purchase_price: 0, is_gst_applicable: 0, tax_rate_percent: 0, uom: 'Pcs' }, 't1'],
   pendingIdentity: ['products', { product_id: 'statement-check' }, 't1'],
+  refreshAccountBalances: ['t1', new Set(['statement-check'])],
   markLegacySynced: [{ entity: 'products', entity_id: 'statement-check', tenant_id: 't1', payload: null, row_version: 0 }],
   canApplyConflict: [{ op_id: 'statement-check', entity: 'products', entity_id: 'statement-check', tenant_id: 't1', payload: null, row_version: 0 }],
   acknowledgeVersion: ['parties'],

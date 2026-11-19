@@ -2,14 +2,14 @@ import { DatabaseSync } from 'node:sqlite';
 import type Database from 'better-sqlite3';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ db: null as unknown as Database.Database,
-  request: null as unknown as (url: string) => Promise<unknown>, meta: new Map<string, string>() }));
+  request: null as unknown as (url: string, body?: string) => Promise<unknown>, meta: new Map<string, string>() }));
 vi.mock('../../electron/db/localDb', () => ({ getDb: () => state.db }));
 vi.mock('../../electron/sync/syncAuth', () => ({ cloudTokenUnusable: () => false }));
 vi.mock('../../electron/sync/syncProgress', () => ({ notifyPercent: vi.fn() }));
 vi.mock('../../electron/sync/entities/settingsSync', () => ({ LOCAL_DEVICE_SETTING_KEYS: [] }));
 vi.mock('../../electron/sync/syncTransport', () => ({
   getMeta: (key: string) => state.meta.get(key), setMeta: (key: string, value: string) => state.meta.set(key, value),
-  fetchWithFallback: async (url: string) => ({ response: { ok: true, json: () => state.request(url) } }),
+  fetchWithFallback: async (url: string, init?: RequestInit) => ({ response: { ok: true, json: () => state.request(url, init?.body as string | undefined) } }),
 }));
 vi.mock('../../electron/db/statements/outbox', async original => {
   const actual = await original<typeof import('../../electron/db/statements/outbox')>();
@@ -39,6 +39,33 @@ beforeEach(() => {
   queue('old', 5, 500);
 });
 afterEach(() => raw.close());
+it.each([false, true])('derives downloaded account balances from the retained local ledger (pending=%s)', async pending => {
+  balanceFixture();
+  if (pending) raw.exec('UPDATE party_ledger SET credit_amount=900');
+  else raw.exec("UPDATE sync_outbox SET sent_at='done'; UPDATE party_ledger SET sync_status='SYNCED'");
+  state.request = async url => {
+    if (url.includes('/ops')) return { results: [{ op_id: 'old', status: 'conflict', current: server }] };
+    return { changes: pending
+      ? [{ entity: 'parties', row: { party_id: 'chitty', tenant_id: 'shop', balance: 500, gst_balance: 500, estimate_balance: 0 } }]
+      : [{ entity: 'party_ledger', row: { ...server, is_deleted: false, credit_amount: 900 } }], next_since: '9', has_more: false };
+  };
+  await runOutboxSync('dummy', 'shop');
+  expect(raw.prepare("SELECT balance,gst_balance,estimate_balance FROM parties WHERE party_id='chitty'").get())
+    .toMatchObject({ balance: 900, gst_balance: 900, estimate_balance: 0 });
+});
+it('does not bypass a failed or exhausted financial predecessor on later cycles', async () => {
+  queue('latest', 6, 900);
+  const uploaded: string[] = [];
+  state.request = async (url, body) => {
+    if (!url.includes('/ops')) return { changes: [], next_since: '0', has_more: false };
+    const { ops } = JSON.parse(body!) as { ops: { op_id: string }[] };
+    uploaded.push(...ops.map(op => op.op_id));
+    return { results: ops.map(op => ({ op_id: op.op_id, status: 'error', error: 'Temporary failure' })) };
+  };
+  for (let cycle = 0; cycle < 11; cycle++) await runOutboxSync('dummy', 'shop');
+  expect(uploaded).toEqual(Array(10).fill('old'));
+  expect(raw.prepare("SELECT attempts,sent_at FROM sync_outbox WHERE op_id='latest'").get()).toMatchObject({ attempts: 0, sent_at: null });
+});
 it.each([false, true])('a conflict reply preserves an edit made during upload (newer=%s)', async newer => {
   state.request = async url => {
     if (url.includes('/ops')) {
@@ -55,4 +82,47 @@ it.each([false, true])('a conflict reply preserves an edit made during upload (n
     ? { credit_amount: 1000, is_deleted: 0, row_version: 7, sync_status: 'PENDING' }
     : { credit_amount: 500, is_deleted: 0, row_version: 5, sync_status: 'PENDING' });
   if (newer) expect(raw.prepare("SELECT row_version FROM sync_outbox WHERE op_id='new' AND sent_at IS NULL").get()?.row_version).toBe(7);
+});
+it('uploads consecutive edits of one account using each preceding receipt', async () => {
+  raw.exec("INSERT INTO sync_meta VALUES('account_base:shop:party_ledger:entry','4:b'); UPDATE party_ledger SET row_version=6,credit_amount=900");
+  queue('latest', 6, 900);
+  let base = '4:b';
+  const batches: string[][] = [];
+  state.request = async (url, body) => {
+    if (!url.includes('/ops')) return { changes: [], next_since: '0', has_more: false };
+    const { ops } = JSON.parse(body!) as { ops: { op_id: string; _sync_base: string; row_version: number }[] };
+    batches.push(ops.map(op => op.op_id));
+    return { results: ops.map(op => {
+      if (op._sync_base !== base) return { op_id: op.op_id, status: 'conflict', current: server };
+      base = `${op.row_version}:a`;
+      return { op_id: op.op_id, status: 'applied', receipt: { id: 'entry', base, row_version: op.row_version, origin: 'a' } };
+    }) };
+  };
+  await runOutboxSync('dummy', 'shop');
+  expect(raw.prepare('SELECT COUNT(*) AS n FROM sync_outbox WHERE sent_at IS NULL').get()?.n).toBe(0);
+  expect(batches).toEqual([['old'], ['latest']]);
+  expect(raw.prepare('SELECT credit_amount,sync_status FROM party_ledger').get()).toMatchObject({ credit_amount: 900, sync_status: 'SYNCED' });
+});
+
+function balanceFixture() {
+  raw.exec(`ALTER TABLE parties ADD COLUMN balance REAL; ALTER TABLE parties ADD COLUMN gst_balance REAL;
+    ALTER TABLE parties ADD COLUMN estimate_balance REAL; ALTER TABLE parties ADD COLUMN last_transaction_date TEXT;
+    ALTER TABLE party_ledger ADD COLUMN debit_amount REAL DEFAULT 0;
+    ALTER TABLE party_ledger ADD COLUMN balance_type TEXT DEFAULT 'GST';
+    ALTER TABLE party_ledger ADD COLUMN transaction_date TEXT DEFAULT '2026-11-19T09:00:00Z';
+    INSERT INTO parties VALUES('chitty','shop','SYNCED',500,500,0,NULL);`);
+}
+
+it.each(['delete', 'move', 'estimate'])('updates both affected balances for a downloaded %s', async action => {
+  balanceFixture();
+  raw.exec("UPDATE sync_outbox SET sent_at='done'; UPDATE party_ledger SET sync_status='SYNCED'; INSERT INTO parties VALUES('other','shop','SYNCED',0,0,0,NULL)");
+  state.request = async () => ({ changes: [{ entity: 'party_ledger', row: { ...server,
+    is_deleted: action === 'delete', party_id: action === 'move' ? 'other' : 'chitty',
+    balance_type: action === 'estimate' ? 'ESTIMATE' : 'GST', credit_amount: 900 } }], next_since: '9', has_more: false });
+  await runOutboxSync('dummy', 'shop');
+  const original = raw.prepare("SELECT balance,gst_balance,estimate_balance,last_transaction_date FROM parties WHERE party_id='chitty'").get();
+  expect(original).toMatchObject(action === 'estimate'
+    ? { balance: 900, gst_balance: 0, estimate_balance: 900 }
+    : { balance: 0, gst_balance: 0, estimate_balance: 0, last_transaction_date: null });
+  if (action === 'move') expect(raw.prepare("SELECT balance FROM parties WHERE party_id='other'").get()?.balance).toBe(900);
 });

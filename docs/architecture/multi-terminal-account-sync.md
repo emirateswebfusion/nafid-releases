@@ -40,6 +40,23 @@ migration107. Therefore `server_seq` is a download cursor, not the edit baseline
 recalculation commit together; a failed recalculation rolls back the request rather than issuing a false acknowledgement.
 Ledger parent ownership is tenant-scoped and active parent accounts are checked before new active postings.
 
+## Ordered outbox edits and local balances
+
+The outbox selects only the earliest unsent operation for each financial identity. A subsequent edit waits for its
+predecessor's receipt before attaching the next captured revision; failed or exhausted predecessors block later edits
+of that identity. Other accounts remain eligible. This prevents false self-conflicts and prevents an older retry
+from replacing a later accepted edit. Migration026 adds a partial pending-identity index; it changes no records or
+wire fields. Existing strict cloud revision checks remain unchanged.
+
+Account changes downloaded by the outbox collect both previous and incoming party IDs. Before advancing the page
+cursor, the same transaction recalculates each affected account once using the canonical ledger balance statement.
+This includes protected local pending ledger rows and all GST/estimate buckets. Party-only downloads preserve the
+local ledger projection; accounts with no ledger history retain their remote opening-only balance. Deletion of the
+last entry and reassignment zero the old account. A recalculation failure rolls back the page and retains the cursor.
+
+Coverage: `outboxLedgerConflict.test.ts` (consecutive edits, blocked/exhausted predecessors, protected pending totals,
+ledger-only changes, deletion, reassignment and estimate buckets), plus outbox and migration characterization.
+
 ## Complete, resumable cloud downloads
 
 Parties and ledger entries negotiate sequence pages on their existing GET endpoints:
