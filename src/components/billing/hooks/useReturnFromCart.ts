@@ -1,5 +1,4 @@
 import { priceReturnLine, totalReturnLines } from '../../../utils/pricing/returnPricing';
-import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import type * as B from '../billingTypes';
 import type React from 'react';
@@ -149,14 +148,13 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
             const rawRate = Number(cartItem?.rawUnitPrice) || ri.unit_price;
             const hasDisc = rawRate > ri.unit_price + 0.005;
             const discPct = hasDisc ? Math.round(((rawRate - ri.unit_price) / rawRate) * 100) : 0;
-            const discAmt = hasDisc ? (rawRate - ri.unit_price) : 0;
             return {
               name: ri.name,
               quantity: ri.quantity,
               unit_price: ri.unit_price,
               total: ri.total,
               originalRate: hasDisc ? rawRate : undefined,
-              discountLabel: hasDisc ? `${discPct}% OFF (-${getCurrencyPrefix()}${discAmt.toFixed(2)})` : undefined,
+              discountLabel: hasDisc ? (discPct > 0 ? `${discPct}% OFF` : 'Offer') : undefined,
               isPriceOverride: hasDisc,
               brand: ri.brand_manufacturer || undefined,
             };

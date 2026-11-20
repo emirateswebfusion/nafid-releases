@@ -242,10 +242,7 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
       // 1. Add a small gap row before the offer note (45% line-height) - no extra column dividers
       text += '[[LH:0.45]]' + B_ROW(['', ''], offerWidths);
 
-      const isReturn = data.invoiceType === 'RETURN' || data.invoiceType === 'SALES_RETURN' || data.invoiceType === 'CREDIT_NOTE';
-      const offerLabel = isReturn
-        ? ` Orig ${item.originalRate.toFixed(2)} → Refund ${fmt.displayRate}${item.discountLabel ? ` (${item.discountLabel})` : ''}`
-        : ` MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
+      const offerLabel = ` MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
       // 2. Print as 2-column row: empty Sr. column, offer label in remaining space
       text += B_ROW(['', offerLabel], offerWidths);
 

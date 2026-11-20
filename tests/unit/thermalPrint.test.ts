@@ -411,7 +411,7 @@ describe('return receipt discount breakdown', () => {
           unit_price: 3015,
           total: 3015,
           originalRate: 3350,
-          discountLabel: '10% OFF (-₹335.00)',
+          discountLabel: '10% OFF',
           isPriceOverride: true,
         },
       ],
@@ -421,9 +421,13 @@ describe('return receipt discount breakdown', () => {
       grandTotal: 3015,
     };
 
-    const text = generateReceiptText(returnBill, 8.0, 48, 'standard');
-    expect(text).toContain('RETURN INVOICE');
-    expect(text).toContain('Orig ₹3350.00 → Refund ₹3015.00  (10% OFF (-₹335.00))');
+    const boxedText = generateReceiptText(returnBill, 8.0, 42, 'boxed');
+    expect(boxedText).toContain('RETURN INVOICE');
+    expect(boxedText).toContain('MRP 3350.00 @ 3015.00 (10% OFF)');
+
+    const standardText = generateReceiptText(returnBill, 8.0, 48, 'standard');
+    expect(standardText).toContain('RETURN INVOICE');
+    expect(standardText).toContain('MRP ₹3350.00 → ₹3015.00  (10% OFF)');
   });
 
   it('labels B2B return documents as CREDIT NOTE', () => {

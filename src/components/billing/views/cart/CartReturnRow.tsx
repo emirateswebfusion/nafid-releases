@@ -74,7 +74,7 @@ export const CartReturnRow: React.FC<CartReturnRowProps> = ({
                 {formatCurrency(rawRate)}
               </span>
               <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/15 px-1 py-0.5 rounded font-mono">
-                {Math.round(((rawRate - rate) / rawRate) * 100)}% OFF (-{formatCurrency(rawRate - rate)})
+                {Math.round(((rawRate - rate) / rawRate) * 100)}% OFF
               </span>
             </>
           )}

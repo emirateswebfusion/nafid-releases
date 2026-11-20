@@ -1,5 +1,5 @@
 import { storeDate } from '../../utils/time/dateDisplay';
-import { getStoreLocale, getCurrencyPrefix } from '../../utils/localization/storeProfile';
+import { getStoreLocale } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { Undo2, Search, X, Package, User, AlertCircle, Lock, Phone, Trash, Clock, Printer, RefreshCw } from 'lucide-react';
@@ -169,14 +169,13 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           const origRate = Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0);
           const hasDiscount = origRate > uPrice + 0.005;
           const discPercent = hasDiscount ? Math.round(((origRate - uPrice) / origRate) * 100) : 0;
-          const discAmtPerUnit = hasDiscount ? (origRate - uPrice) : 0;
           return {
             name: item.name as string,
             quantity: item.quantity,
             unit_price: item.unit_price,
             total: item.total,
             originalRate: hasDiscount ? origRate : undefined,
-            discountLabel: hasDiscount ? `${discPercent}% OFF (-${getCurrencyPrefix()}${discAmtPerUnit.toFixed(2)})` : undefined,
+            discountLabel: hasDiscount ? (discPercent > 0 ? `${discPercent}% OFF` : 'Offer') : undefined,
             isPriceOverride: hasDiscount,
             billing_type: itemAny.billing_type,
             pieces_sold: itemAny.pieces_sold != null ? Number(itemAny.pieces_sold) : undefined,
