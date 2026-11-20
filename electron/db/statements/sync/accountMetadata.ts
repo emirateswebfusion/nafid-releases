@@ -9,3 +9,10 @@ export const pendingAccounts = (db: Db) => db.prepare(`SELECT
 export const acknowledgeVersion = (db: Db, table: 'parties' | 'party_ledger') => db.prepare(`UPDATE ${table}
   SET row_version = ?, origin = ?, sync_status = 'SYNCED' WHERE ${table === 'parties' ? 'party_id' : 'ledger_id'} = ? AND tenant_id = ?
   AND row_version IS ? AND updated_at IS ?`);
+
+/** Retained support markers only count when the matching shop record is still awaiting upload. */
+export const activeAccountConflicts = (db: Db) => db.prepare(`SELECT
+  (SELECT COUNT(*) FROM parties p JOIN sync_meta m ON m.key='account_conflict:'||p.tenant_id||':parties:'||p.party_id
+    WHERE p.tenant_id=? AND p.sync_status IN ('PENDING','FAILED')) +
+  (SELECT COUNT(*) FROM party_ledger l JOIN sync_meta m ON m.key='account_conflict:'||l.tenant_id||':party_ledger:'||l.ledger_id
+    WHERE l.tenant_id=? AND l.sync_status IN ('PENDING','FAILED')) AS n`);

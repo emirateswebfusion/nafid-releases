@@ -12,7 +12,9 @@ Read it before writing code. If the code and these documents disagree, fix one o
 | 5 | [Conventions](05-conventions.md) | coding standards and the rules the guard scripts enforce |
 | 6 | [Change guide](06-change-guide.md) | where to put a new feature, how to modify one safely, definition of done |
 | — | [Authentication lifecycle](auth-session-lifecycle.md) | password/PIN entry, separate cloud credentials, reconnect, logout and truthful connection status |
+| — | [Platform sync support](sync-support.md) | SUPER_ADMIN-only shop/terminal diagnostics, reporting contract and rollout limits |
 | — | [Multi-terminal account sync](multi-terminal-account-sync.md) | captured cloud revisions, independent party IDs, complete downloads, conflicts and coordinated rollout |
+| — | [Sync support diagnostics](verification/2026-11-20-sync-support-diagnostics.md) | customer-facing sync summaries, opt-in admin diagnostics and active-conflict count verification |
 | — | [General financial boundary audit](verification/2026-11-19-general-financial-boundaries.md) | return/stock/payment/refund-sync regressions, v2.2.84 delivery evidence and verification limits |
 | — | [Ledger integrity verification](verification/2026-11-19-ledger-integrity.md) | v2.2.81 contract review, regression coverage, installed-upgrade evidence and historical-recovery limits |
 | — | [Release validation](release-validation.md) | mandatory final-installer, production configuration, upgrade and publication checks |

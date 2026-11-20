@@ -38,7 +38,7 @@ export function accountPushResult(db: Db, tenant: string, table: Table, sent: Ro
   });
 }
 export function pendingAccountConflicts(db: Db, tenant: string): number {
-  return Number((sql.countConflicts(db).get(`account_conflict:${tenant}:%`) as { n: number }).n);
+  return Number((sql.activeAccountConflicts(db).get(tenant, tenant) as { n: number }).n);
 }
 export function accountSyncNotice(db: Db, tenant: string, includeDownloads = true): string | null {
   const conflicts = pendingAccountConflicts(db, tenant);

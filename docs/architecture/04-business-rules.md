@@ -739,7 +739,7 @@ Coverage: `ledgerIntegrity.test.ts`, `cashRegisterAtomicSave.ui.test.tsx`, and t
 
 The [multi-terminal contract](multi-terminal-account-sync.md) defines which captured cloud revision authorizes a party/ledger edit. Higher counters and later/future timestamps do not authorize replacing an unseen cloud edit. Conflicting local values remain pending for review; balance recalculation failures roll back accepted ledger writes. Both staff and admin sync reads use the tenant account dataset; screen permissions can differ.
 
-`syncOutcome.ts` preserves review/incomplete-download outcomes on the dashboard. The authenticated shell also presents the existing FloatToast through `SyncAttentionToast`, so staff billing screens receive the notice. Dismissing it never deletes data or acknowledges an upload. No settings persistence behavior changes.
+`syncOutcome.ts` classifies review/incomplete-download outcomes without presenting technical conflict counts to cashiers. The shell has no global account-sync warning toast; `SyncStatusFooter` shows simple active progress and successful completion only, falling back to the normal footer for unresolved outcomes. `SyncSupportPage` exposes shop/terminal-tagged reports only to platform SUPER_ADMIN in Super Dashboard. Shop ADMIN/STAFF cannot read reports, and Settings contains no developer diagnostics. Report reads do not save settings, clear conflicts or acknowledge uploads. Existing authentication recovery controls remain available.
 
 
 ## Return and stock lifecycle boundaries (19 November 2026)

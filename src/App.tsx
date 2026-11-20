@@ -16,7 +16,6 @@ import { useStoreProfile } from './hooks/useStoreProfile';
 import { CashDrawerAutoCloseWatcher } from './components/cashier/CashDrawerAutoCloseWatcher';
 import { SessionExpiredModal } from './components/app/SessionExpiredModal';
 import { AuthErrorToast } from './components/app/AuthErrorToast';
-import { SyncAttentionToast } from './components/app/SyncAttentionToast';
 import { CardTerminalDialog } from './components/app/CardTerminalDialog';
 import { useFeatureFlagsStore, isAiAssistantAvailable } from './config/featureFlags';
 import { SplashScreen } from './components/app/SplashScreen';
@@ -386,7 +385,6 @@ function App() {
       />
 
       <AuthErrorToast />
-      <SyncAttentionToast label={syncProgress?.label} complete={syncComplete} />
       <CardTerminalDialog />
       <EmergencyWipePrompt panic={panic} />
       <TaskBridgeFeedbackModal isOpen={showTaskBridgeModal} onClose={() => setShowTaskBridgeModal(false)} />

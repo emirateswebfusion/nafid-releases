@@ -1,3 +1,4 @@
+import { SyncSupportPage } from './views/SyncSupportPage';
 import { parseUTCDate } from '../../utils/time/utc';
 import { useState, useMemo } from 'react';
 import { ManagedGspModal } from './views/ManagedGspModal';
@@ -21,6 +22,7 @@ import { SuperDashboardHeader } from './views/SuperDashboardHeader';
 
 export default function SuperDashboard() {
   const { userName, logout } = useAuthStore();
+  const [supportOpen, setSupportOpen] = useState(false);
   const [managedGspModalOpen, setManagedGspModalOpen] = useState(false);
   const [cardTerminalModalOpen, setCardTerminalModalOpen] = useState(false);
   const { theme, toggleTheme } = useThemeStore();
@@ -161,6 +163,10 @@ export default function SuperDashboard() {
       {/* Main Container */}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         
+        <button type="button" className="mb-5 rounded-lg border border-border px-4 py-2" onClick={() => setSupportOpen(value => !value)}>
+          {supportOpen ? 'Close sync support' : 'Shop sync support'}
+        </button>
+        {supportOpen && <SyncSupportPage />}
         {/* Statistics Hero Grid */}
         <SuperDashboardStats
           stats={stats}

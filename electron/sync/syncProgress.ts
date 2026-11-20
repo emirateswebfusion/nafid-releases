@@ -95,6 +95,7 @@ export function notifyRenderer(reason?: string) {
 }
 
 export function notifyCycleComplete(sender?: WebContents, includeDownloads = true) {
+  void import('./supportReport.js').then(module => module.reportSyncSupport()).catch(() => {});
   const target = sender ?? BrowserWindow.getAllWindows()[0]?.webContents;
   if (target && !target.isDestroyed()) {
     try {

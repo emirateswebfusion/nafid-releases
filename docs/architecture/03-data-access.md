@@ -355,3 +355,8 @@ when the explicit refund method is empty, before filtering to local columns. Exp
 `stockDocsSync` already applies the same fallback. Server legacy uploads now populate both existing columns; no new
 wire field or migration is needed. Keep paired `returnMethodSync` tests and both cloud characterization harnesses green.
 See [general financial audit evidence](verification/2026-11-19-general-financial-boundaries.md).
+
+
+## Platform-only sync support
+
+Developer diagnostics belong to SUPER_ADMIN, never shop ADMIN. The additive `/support/sync-reports` endpoint stores bounded terminal snapshots with authoritative shop identity. Reporting is independent of business sync and never clears or accepts financial conflicts. Follow the [shared report contract](sync-support.md) for schema, roles, privacy, cadence and coordinated rollout.

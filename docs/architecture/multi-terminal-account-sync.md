@@ -117,8 +117,17 @@ financial push serialization now actually carries these metadata fields.
 
 Unresolved conflicts are recorded as `account_conflict:<tenant>:<table>:<id>`. Sync progress reports their count and
 unfinished downloads and pending uploads, including network failures. Background cycles broadcast the same outcome.
-The outbox engine ignores timestamp-engine download markers. The dashboard preserves this outcome instead of replacing it with a green generic completion
-badge or hiding it after four seconds. `syncOutcome.ts` owns that display decision. The authenticated shell also exposes the notice through the canonical FloatToast, including staff billing screens; no new toast library or immediate settings save is introduced.
+The outbox engine ignores timestamp-engine download markers. Technical outcomes remain in the sync progress state and
+retained review metadata; they are not broadcast as cashier warning toasts or raw dashboard labels. `SyncStatusFooter`
+shows simple active progress and genuine success only; an unresolved cycle uses the normal footer without claiming
+100% completion. Super Dashboard has a SUPER_ADMIN-only shop sync support page. Authenticated terminals send bounded operational
+snapshots to `/support/sync-reports`; only SUPER_ADMIN can read the cross-shop list. Shop ADMIN/STAFF cannot
+read it and have no developer support panel in Settings. Authentication recovery controls remain actionable.
+
+`activeAccountConflicts` counts only matching tenant party/ledger rows still PENDING or FAILED. Old markers whose
+records have since synced or no longer exist remain retained for support but do not inflate the active count.
+This is a diagnostic correction, not permission to overwrite competing financial records or report unresolved uploads
+as successful. The specific 75 records in a customer screenshot were not inspected on a shop database.
 
 This preserves competing records for administrator reconciliation; it does not choose a financial winner from a
 name, amount or timestamp. There is no automatic historical repair. Mannar Metals was reported as a cloud-only
