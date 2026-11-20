@@ -127,6 +127,24 @@ describe('Quick PIN Login & Staff Security', () => {
     expect(config.shop_name).toBe('Manaar Metals');
   });
 
+  it('rejects platform token and offline session persistence without side effects', () => {
+    const token = `h.${Buffer.from(JSON.stringify({ role: 'SUPER_ADMIN', tenant_id: 'SYSTEM', exp: 4102444800 })).toString('base64url')}.s`;
+    expect(saveToken({ jwt_token: token, role: 'ADMIN', tenant_id: 'shop', user_id: 'central' })).toMatchObject({ success: false });
+    expect(saveOfflineSession({ role: 'SUPER_ADMIN', tenant_id: 'shop', user_id: 'central' })).toMatchObject({ success: false });
+    expect(readAuthPayload()).toBeNull(); expect(readOfflineSession()).toBeNull();
+  });
+
+  it('rejects a legacy platform account instead of upgrading its PIN to shop ADMIN', () => {
+    const tenant = 'legacy-shop';
+    raw!.prepare("INSERT INTO staff(staff_id,tenant_id,staff_code,name,role_designation,biller_pin_hash,status,is_deleted) VALUES('platform',?,'P1','Platform','SUPER_ADMIN',?,'ACTIVE',0)").run(tenant, hashStaffPin('4321', tenant));
+    expect(localAuthenticatePin({ pin: '4321', tenant_id: tenant })).toMatchObject({ success: false, error: expect.stringContaining('Central Web Portal') });
+    expect(readOfflineSession()).toBeNull();
+  });
+  it('rejects platform accounts from the local password cache before returning credentials', () => {
+    raw!.prepare("INSERT INTO users(user_id,tenant_id,name,email,role,password_hash,login_enabled) VALUES('platform','legacy-shop','Platform','platform@example.test','SUPER_ADMIN',?,1)").run(bcrypt.hashSync('fixture-password', 4));
+    expect(localAuthenticateUser('platform@example.test', 'fixture-password')).toMatchObject({ success: false, error: expect.stringContaining('Central Web Portal') });
+  });
+
   it('authenticates active staff with valid 4-digit PIN', () => {
     const tenantId = 'tenant-manaar';
     const pin = '4321';

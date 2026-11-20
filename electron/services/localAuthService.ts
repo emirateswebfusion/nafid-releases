@@ -110,6 +110,7 @@ export function localAuthenticateUser(email: string, password: string): {
   if (!user) {
     return { success: false, error: 'User not found in local database cache. Please login online once.' };
   }
+  if ((user.role || '').toUpperCase() === 'SUPER_ADMIN') return { success: false, error: 'Super Admin login is restricted to the Central Web Portal.' };
   if (!user.password_hash) {
     return { success: false, error: 'Local password hash missing. Please login online once to sync credentials.' };
   }
@@ -360,10 +361,13 @@ export function localAuthenticatePin(payload: { pin: string; tenant_id?: string;
   if (staff.status !== 'ACTIVE') return fail('Staff account is inactive');
   if (staff.user_login_enabled === 0) return fail('System login is disabled for this account');
 
+  if ((staff.user_role || '').toUpperCase() === 'SUPER_ADMIN' || (staff.role_designation || '').toUpperCase() === 'SUPER_ADMIN') {
+    return fail('Super Admin login is restricted to the Central Web Portal.');
+  }
   clearPinLockout(tenantId);
 
   const rawRole = (staff.user_role || staff.role_designation || '').toUpperCase();
-  const isAdmin = rawRole === 'ADMIN' || rawRole === 'OWNER' || rawRole === 'SUPER_ADMIN' || rawRole === 'ADMINISTRATOR';
+  const isAdmin = rawRole === 'ADMIN' || rawRole === 'OWNER' || rawRole === 'ADMINISTRATOR';
   const role: 'ADMIN' | 'STAFF' = isAdmin ? 'ADMIN' : 'STAFF';
 
   const permissions = isAdmin

@@ -2,8 +2,8 @@
 
 ## Ownership and access
 
-Shop ADMIN belongs to the customer. Only platform SUPER_ADMIN reads developer diagnostics in Super Dashboard > Shop
-sync support. Shop Settings has no support panel and billing/dashboard has no unsolicited conflict-count toast.
+Shop ADMIN belongs to the customer. Only platform SUPER_ADMIN reads developer diagnostics in the Central Web Portal at `/super-dashboard/sync-support`.
+The desktop POS contains no platform administration pages or platform configuration clients. Shop Settings has no support panel and billing/dashboard has no unsolicited conflict-count toast.
 The normal footer says Last checked, not a guarantee that every upload succeeded. Unresolved cycles never show success.
 
 `POST /support/sync-reports` accepts authenticated ADMIN/OWNER/STAFF terminal reports. The server derives tenant identity
@@ -33,10 +33,12 @@ Do not choose winners by time, phone, equal amount or a larger counter. There is
 ## Implementation and deployment
 
 Server: routes/syncSupport -> services/syncSupport validation -> db/repositories/syncSupport central queries.
-POS: sync/supportReport -> db/statements/sync/supportReport; SuperDashboard -> data/cloud/syncSupport.
+POS: sync/supportReport -> db/statements/sync/supportReport (background reporting only).
+Web: PortalApp SUPER_ADMIN route -> SyncSupportPage -> lib/syncSupport -> existing server GET.
+The web portal owns tenant administration, managed GSP and platform card-provider configuration; shops retain their own setup screens.
 Deploy migration097 and server routes before distributing an updated validated POS installer. Existing clients continue
 business sync but cannot populate this new page until updated. No existing sync wire fields/schema or endpoint URL change.
 A blank report list must say no reports received, not no problems. No live shop conclusions can be drawn before reports arrive.
 
-Coverage: server syncSupport role/tenant/sanitization/bounds tests and route golden; POS syncSupportPage role/identity UI,
+Coverage: server syncSupport role/tenant/sanitization/bounds tests and route golden; web syncSupport role/identity UI; POS native password/PIN/session rejection,
 syncSupportReport upload/throttle/cloud-access/privacy, active-account conflict and footer regression tests.

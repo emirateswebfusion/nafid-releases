@@ -51,20 +51,6 @@ export interface GstFilingRecordItem {
   updated_at: string;
 }
 
-export interface ManagedGspPlatformConfig {
-  configured: boolean;
-  id?: string;
-  provider_id?: string;
-  environment: 'SANDBOX' | 'PRODUCTION';
-  is_enabled?: boolean;
-  status?: string;
-  masked_config?: Record<string, string>;
-  allowed_tenants?: string[];
-  monthly_quota?: number;
-  updated_at?: string;
-  updated_by?: string;
-}
-
 export const gstCloudApi = {
   // ── Tenant Shop Operations ──
 
@@ -166,38 +152,4 @@ export const gstCloudApi = {
     });
   },
 
-  // ── Super Admin Platform Operations ──
-
-  async getManagedGspConfig(environment: 'SANDBOX' | 'PRODUCTION' = 'PRODUCTION'): Promise<ManagedGspPlatformConfig> {
-    return cloudFetch<ManagedGspPlatformConfig>(`/super-admin/gst/managed?environment=${encodeURIComponent(environment)}`);
-  },
-
-  async saveManagedGspConfig(params: {
-    providerId: string;
-    environment: 'SANDBOX' | 'PRODUCTION';
-    credentials: Record<string, string>;
-    isEnabled: boolean;
-    allowedTenants?: string[];
-    monthlyQuota?: number;
-  }): Promise<{ success: boolean; connection: unknown }> {
-    return cloudFetch('/super-admin/gst/managed', {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
-  },
-
-  async toggleManagedGsp(id: string, isEnabled: boolean): Promise<{ success: boolean; connection: unknown }> {
-    return cloudFetch('/super-admin/gst/managed/toggle', {
-      method: 'POST',
-      body: JSON.stringify({ id, isEnabled }),
-    });
-  },
-
-  async getAuditLogs(tenantId?: string, limit?: number): Promise<Array<{ id: string; tenant_id: string; actor_id: string; action: string; details: unknown; created_at: string }>> {
-    const params = new URLSearchParams();
-    if (tenantId) params.set('tenantId', tenantId);
-    if (limit) params.set('limit', String(limit));
-    const qs = params.toString() ? `?${params.toString()}` : '';
-    return cloudFetch(`/super-admin/gst/audit-logs${qs}`);
-  },
 };

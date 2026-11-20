@@ -1,3 +1,4 @@
+import { isPlatformSession, PLATFORM_LOGIN_ERROR } from '../utils/desktopSessionPolicy.js';
 import fs from 'node:fs';
 import { localSaveUser, localAuthenticatePin, clearPinLockout } from './localAuthService.js';
 import { setSyncActive } from '../sync/syncWorker.js';
@@ -37,6 +38,7 @@ function isLanSyncReady(): boolean {
 
 export function saveToken(value: unknown, localSession?: Record<string, unknown>) {
     if (!value || typeof value !== 'object') return { success: false, error: 'Incomplete session' };
+    if (isPlatformSession(value) || isPlatformSession(localSession)) return { success: false, error: PLATFORM_LOGIN_ERROR };
     const payload = value as Record<string, unknown>;
     try {
       const plaintext = JSON.stringify(payload);
@@ -74,6 +76,7 @@ export function saveToken(value: unknown, localSession?: Record<string, unknown>
 }
 
 export function saveOfflineSession(value: unknown) {
+    if (isPlatformSession(value)) return { success: false, error: PLATFORM_LOGIN_ERROR };
     if (!value || typeof value !== 'object') return { success: false, error: 'Incomplete offline session' };
     const payload = value as Record<string, unknown>;
     try {

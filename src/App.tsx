@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useLayoutEffect, useState, useRef } from 'react';
-import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, NotificationsPage, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, SuperDashboard, WarrantyManager, RestaurantPage, preloadBilling, VariantsManager } from './components/app/lazyScreens';
+import { AdsManager, AiAssistant, BillingPage, CashierSettlement, ComboManager, CustomersPage, EcommercePortal, FinancialReport, GstReportScreen, VatReportScreen, InventoryManager, NotificationsPage, PartyManager, PaymentMethods, PricingTiers, PurchaseBillManager, QuotationManager, RecycleBin, ReturnManager, SalesHistory, ScrapManager, SettingsGrades, SettingsManager, StaffManager, StockReport, WarrantyManager, RestaurantPage, preloadBilling, VariantsManager } from './components/app/lazyScreens';
 import UpdateBanner from './components/app/UpdateBanner';
 import { useStartupReady } from './components/app/hooks/useStartupReady';
 import { PermissionGuard } from './components/app/PermissionGuard';
@@ -168,7 +168,7 @@ function App() {
     return <SplashScreen />;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || role === 'SUPER_ADMIN') {
     return <><LoginScreen /><AuthErrorToast /></>;
   }
 
@@ -176,9 +176,6 @@ function App() {
     return <TrialAccessScreen error={trialAccess.error} retry={trialAccess.retry} />;
   }
 
-  if (role === 'SUPER_ADMIN') {
-    return <Suspense fallback={<ScreenLoading />}><SuperDashboard /></Suspense>;
-  }
 
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">

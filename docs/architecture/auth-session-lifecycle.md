@@ -4,6 +4,14 @@ POS access, a terminal cloud credential, a network connection and completed data
 The main process owns stored credentials and sync activation; renderer state must not infer cloud readiness from a
 successful PIN/password check or from `navigator.onLine`.
 
+## Platform administration boundary
+
+Desktop POS permits shop sessions only. Central SUPER_ADMIN login and administration belong to the web portal.
+`electron/utils/desktopSessionPolicy.ts` rejects platform roles, SYSTEM tenancy and central JWT claims before token/offline-session writes.
+`localAuthService` rejects cached platform passwords and platform staff PINs before persisting access; never downgrade SUPER_ADMIN to shop ADMIN.
+Renderer online/offline/startup checks remain a second boundary. JWT decoding here only rejects sessions and never grants permission.
+Regression coverage: `quickPinLogin` platform password/PIN/persistence cases; portal route and report role tests.
+
 ## Ownership and transitions
 
 | Action | Local access | Cloud behavior |
