@@ -360,3 +360,7 @@ See [general financial audit evidence](verification/2026-11-19-general-financial
 ## Platform-only sync support
 
 Developer diagnostics belong to SUPER_ADMIN, never shop ADMIN. The additive `/support/sync-reports` endpoint stores bounded terminal snapshots with authoritative shop identity. Reporting is independent of business sync and never clears or accepts financial conflicts. Follow the [shared report contract](sync-support.md) for schema, roles, privacy, cadence and coordinated rollout.
+
+## Background source recovery
+
+The support-report response may queue a validated account-recovery-v1 directive; report uploads remain metadata-only. A separate source-bound job and endpoint carry financial snapshots. All SQLite reads/queue acknowledgement statements remain data-layer factories; no bridge access is introduced. Backups precede HTTP, existing snapshot guards retain newer edits, and local financial values are never replaced. See [account recovery](account-recovery.md).

@@ -774,3 +774,7 @@ The stored `bill_type` remains GST: IGST is its interstate classification, not a
 retain their existing labels, and UAE stores keep VAT localization. Editing/saving must retain the interstate flag
 through the [purchase data contract](03-data-access.md#interstate-purchase-tax-classification-17-november-2026).
 Coverage: `tests/unit/purchaseBillBadge.ui.test.tsx`, purchase save/stock and cross-app sync tests.
+
+## Explicit source-authority recovery
+
+Ordinary account synchronization still requires captured revisions for differing cloud values. The sole recovery exception is a separately authorized, tenant/terminal/identity-bound platform job with durable before-images, immutable source backup, unchanged-cloud guards and canonical writes. Ledger totals must match the source or all financial writes roll back. Never infer deletions, reassign a ledger parent, merge contact matches or clear a local database. Exact receipts acknowledge only unchanged local snapshots; covered history is retained and newer edits stay pending. See [account recovery](account-recovery.md).

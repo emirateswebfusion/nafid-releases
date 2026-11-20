@@ -5,6 +5,7 @@ import { getAuthConfig } from './syncConfig.js';
 import * as sql from '../db/statements/sync/accountMetadata.js';
 import { accountIssues } from '../db/statements/sync/supportReport.js';
 import { syncState } from './syncState.js';
+import { queueAccountRecovery, accountRecoveryStatus } from './accountRecovery.js';
 let lastAttempt = 0;
 let inFlight = false;
 /** Bounded operational snapshots never carry party names, money, credentials, raw logs or arbitrary error text. */
@@ -26,7 +27,7 @@ export async function reportSyncSupport(): Promise<void> {
         : !row.base || /baseline|base revision|unverifiable/i.test(String(row.reason)) ? 'BASE_REQUIRED'
         : /deleted|unavailable/i.test(String(row.reason)) ? 'PARENT_UNAVAILABLE' : 'CLOUD_REVISION_CONFLICT',
     }));
-    const report = { terminal_id: origin.value, version: app.getVersion(), platform: process.platform,
+    const report = { terminal_id: origin.value, version: app.getVersion(), platform: process.platform, recovery_capable: true, recovery_status: accountRecoveryStatus(tenant),
       observed_at: new Date().toISOString(), route: syncState.currentActiveRoute,
       pending: (sql.pendingAccounts(db).get(tenant, tenant) as { n: number }).n,
       conflicts: (sql.activeAccountConflicts(db).get(tenant, tenant) as { n: number }).n,
@@ -35,6 +36,7 @@ export async function reportSyncSupport(): Promise<void> {
       headers: { Authorization: `Bearer ${auth.jwt_token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(report), signal: AbortSignal.timeout(10000), redirect: 'error' });
     if (!response.ok) console.warn('[SyncSupport] Report not accepted:', response.status);
+    else { const reply: unknown = await response.json(); if (reply && typeof reply === 'object') queueAccountRecovery(tenant, origin.value, (reply as Record<string, unknown>).recovery); }
   } catch { console.warn('[SyncSupport] Report unavailable; business sync unchanged.'); }
   finally { inFlight = false; }
 }

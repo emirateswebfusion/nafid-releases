@@ -521,3 +521,7 @@ Regression coverage in cashierPartyTransactions replays the deleted cash row and
 ### Multi-terminal financial changes
 
 Follow [multi-terminal account sync](multi-terminal-account-sync.md) before changing party identity, baseline receipts, account page cursors, LAN merge or outbox financial conflict handling. Update server `accountConcurrency`, the relevant repository/HTTP contracts, and both test suites together. Run migration/restart, statement, IPC, cloud/no-login, outbox and LAN characterization; preserve queued data on every failure path. Conflict notices use the existing FloatToast and shared sync-outcome helper. Do not equate a successful HTTP response or ended cycle with all records having synchronized.
+
+## Source-terminal recovery changes
+
+Change `sync/accountRecovery`, its SQL factories, paired server lifecycle/audit/policy and platform controls together. Review [account-recovery.md](account-recovery.md), both ADRs, support contracts and backend client-release gates. Run source/queue/storage/response-loss/concurrency regressions, native PostgreSQL rollback/RLS/receipt checks and no-job IPC/cloud/LAN characterization. A new capable POS needs full packaged-installer validation; never activate a broad local-wins rule or force restart billing.

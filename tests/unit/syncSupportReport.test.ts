@@ -3,6 +3,7 @@ const fixture = vi.hoisted(() => ({ allowed: true, auth: { tenant_id: 'shop', jw
 vi.mock('electron', () => ({ app: { getVersion: () => '2.2.85' } }));
 vi.mock('../../electron/db/localDb', () => ({ getDb: () => ({}) }));
 vi.mock('../../electron/sync/syncConfig', () => ({ getAuthConfig: () => fixture.auth }));
+vi.mock('../../electron/sync/accountRecovery', () => ({ queueAccountRecovery: vi.fn(), accountRecoveryStatus: () => undefined }));
 vi.mock('../../electron/sync/cloudAccess', () => ({ calculateEffectiveCloudAccess: () => ({ isCloudAllowed: fixture.allowed }) }));
 vi.mock('../../electron/db/statements/sync/accountMetadata', () => ({
   read: () => ({ get: () => ({ value: 'pc01' }) }), pendingAccounts: () => ({ get: () => ({ n: 2 }) }),
@@ -15,7 +16,7 @@ vi.mock('../../electron/db/statements/sync/supportReport', () => ({ accountIssue
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); fixture.fetch.mockReset(); fixture.allowed = true; });
 it('uploads bounded metadata without raw errors or financial/customer values and throttles cycles', async () => {
   vi.resetModules(); vi.stubEnv('VENDORA_CLOUD_API', 'https://example.test');
-  fixture.fetch.mockResolvedValue({ ok: true }); vi.stubGlobal('fetch', fixture.fetch);
+  fixture.fetch.mockResolvedValue({ ok: true, json: async () => ({ recovery: null }) }); vi.stubGlobal('fetch', fixture.fetch);
   const { reportSyncSupport } = await import('../../electron/sync/supportReport');
   await reportSyncSupport(); await reportSyncSupport();
   expect(fixture.fetch).toHaveBeenCalledTimes(1);

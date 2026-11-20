@@ -25,8 +25,8 @@ with zero counts shows the terminal's latest observation, not a repair action or
 ## Diagnosis and correction
 
 The developer page groups reports by authoritative shop/terminal identity and offers shop/terminal search and explicit
-refresh. Record metadata is read-only. No force overwrite, delete, conflict acknowledgement or financial repair button
-exists. Compare identified records and captured baselines with actual scoped cloud data before choosing a resolution.
+refresh. Record metadata is read-only. A separate SUPER_ADMIN source-recovery operation is available only through the
+[scoped recovery contract](account-recovery.md), with staged before-images, explicit activation, immutable source capture and guarded receipts. Ordinary report reads/copies never authorize financial repair. Compare identified records and captured baselines with actual scoped cloud data before choosing a resolution.
 Old support markers for synced/absent rows no longer count as active conflicts, but remain retained for investigation.
 Do not choose winners by time, phone, equal amount or a larger counter. There is no automatic historical repair.
 
@@ -42,3 +42,5 @@ A blank report list must say no reports received, not no problems. No live shop 
 
 Coverage: server syncSupport role/tenant/sanitization/bounds tests and route golden; web syncSupport role/identity UI; POS native password/PIN/session rejection,
 syncSupportReport upload/throttle/cloud-access/privacy, active-account conflict and footer regression tests.
+
+Recovery-capable clients add only capability and allow-listed job status metadata to reports; the response may queue a scoped directive. Full financial snapshots travel through the separate authenticated recovery endpoint and private tenant audit, never ordinary reports/exports. Deploy central098/tenant108 and the validated new POS together as described in account-recovery.md; older clients receive no recovery operation. The approved API/update URLs and ordinary sync contracts remain unchanged.

@@ -199,3 +199,7 @@ See [cloud session recovery](03-data-access.md#cloud-session-recovery).
 ## Multi-terminal account sync owners
 
 `electron/sync/accountMetadata.ts` owns account baselines, receipts and review markers; its SQL is in `electron/db/statements/sync/accountMetadata.ts`. `electron/sync/accountPull.ts` owns negotiated sequence downloads. `entities/partiesSync.ts` integrates these with legacy cloud/LAN operations; `outboxSync.ts` integrates captured revisions into the opt-in engine. See [the shared contract](multi-terminal-account-sync.md). `src/utils/sync/syncOutcome.ts` classifies incomplete outcomes; `components/owner-dashboard/views/SyncStatusFooter.tsx` shows simple progress without diagnostics or false completion. Platform support reports are uploaded by `electron/sync/supportReport.ts` and read exclusively through the Central Web Portal `src/components/admin/SyncSupportPage.tsx` / `src/lib/syncSupport.ts`. Shop ADMIN/STAFF have no support diagnostics page or warning toast.
+
+## Scoped account recovery
+
+`electron/sync/accountRecovery.ts` validates/queues source-bound directives, durably captures selected rows/history in sync_meta, executes only inside the serialized CLOUD cycle, and acknowledges through accountPushResult. SQL factories live in `electron/db/statements/sync/accountRecovery.ts`. No renderer page, IPC channel or customer toast is added. Platform lifecycle is owned by the web portal/server. See [recovery contract](account-recovery.md).

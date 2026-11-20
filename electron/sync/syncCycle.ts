@@ -1,4 +1,5 @@
 import { accountSyncNotice } from './accountMetadata.js';
+import { runAccountRecovery } from './accountRecovery.js';
 import { outboxEnabled, runOutboxSync } from './outboxSync.js';
 import { type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
@@ -258,6 +259,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       }
 
       notifyOnlineStatus(true, activeRoute);
+      if (activeRoute === 'CLOUD' && effective.isCloudAllowed) await runAccountRecovery(tenant_id, jwt_token);
       if (activeRoute === 'CLOUD' && outboxEnabled(tenant_id)) {
         try {
           const uploadedRecords = getTotalPendingRecords(getDb(), tenant_id) > 0;
