@@ -152,3 +152,9 @@ older renderers still have their own account-merging behavior. HTTP endpoint nam
 remain available, with additive revision receipts/query parameters. REST changes continue to publish revisions via
 migration107. An imported browser renderer needs its separate reviewed import/adapter update. No hosting/account/API
 URL changes are required. Complete the final-installer gate before publication; retain the immutable v2.2.81 assets.
+
+## Exact retry representation (20 November 2026)
+
+`accountConcurrency` compares empty optional text as NULL only for fields whose writers already persist that representation: parties phone/address/GSTIN/custom category/notes/pricing tier; ledger payment method/reference. This fixes false conflicts on unchanged SQLite retries after PostgreSQL normalization. A matching retry returns a receipt without rewriting cloud content, amount, timestamp or revision. Never trim substantive text, merge IDs, ignore amounts/classifications/categories or authorize a different existing value without its captured baseline.
+
+No payload, schema, endpoint URL or desktop build input changes. Existing POS clients benefit on their next ordinary retry; this backward-compatible server fix requires no new installer. Actual distinct pending local edits still require scoped reconciliation. The owner's choice of the affected shop POS as the correct source is repair intent, not a global replacement rule or proof that the reported records have been repaired.
