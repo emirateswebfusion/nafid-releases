@@ -1,6 +1,6 @@
 # 0007 — Source-terminal recovery without remote desktop
 
-Status: implementation, validation and rollout in progress. See the [shared recovery contract](../account-recovery.md) and paired server ADR0004.
+Status: accepted; implementation and Windows 2.2.87 validation/publication completed. Actual shop recovery remains unconfirmed. See the [shared recovery contract](../account-recovery.md), [delivery evidence](../account-recovery-validation.md) and paired server ADR0004.
 
 Owner-confirmed source authority is represented by an explicit tenant/terminal/identity job rather than global local-wins synchronization. Keep both cloud and source snapshots and use canonical server writers with exact receipts; never repair by deleting a shop database, force restarting billing, accepting stale timestamps as authority or replacing newer local edits.
 
