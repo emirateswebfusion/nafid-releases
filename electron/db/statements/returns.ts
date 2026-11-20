@@ -60,7 +60,13 @@ export const updateReturnAdjustedAmountAndAdjustedInvoiceNumber = (db: Db) => db
     WHERE tenant_id = ? AND return_number = ? AND COALESCE(is_deleted,0)=0 AND grand_total > COALESCE(adjusted_amount, 0)
   `);
 
-export const findReturnItemsByReturnId = (db: Db) => db.prepare('SELECT ri.*, p.sku_barcode, p.item_code FROM return_items ri LEFT JOIN products p ON ri.product_id = p.product_id WHERE ri.return_id = ?');
+export const findReturnItemsByReturnId = (db: Db) => db.prepare(`
+    SELECT ri.*, p.sku_barcode, p.item_code, p.base_price AS catalog_base_price, ii.unit_price AS orig_inv_unit_price
+    FROM return_items ri
+    LEFT JOIN products p ON ri.product_id = p.product_id
+    LEFT JOIN invoice_items ii ON ri.invoice_item_id = ii.item_id
+    WHERE ri.return_id = ?
+  `);
 
 export const findReturnsByReturnId = (db: Db) => db.prepare('SELECT * FROM returns WHERE return_id = ?');
 

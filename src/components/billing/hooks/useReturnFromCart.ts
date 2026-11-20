@@ -1,14 +1,16 @@
 import { priceReturnLine, totalReturnLines } from '../../../utils/pricing/returnPricing';
+import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
+import { generateInvoiceHtml } from '../../../utils/print/invoiceHtmlGenerator';
 import type * as B from '../billingTypes';
 import type React from 'react';
 import { isDesktopRuntime } from '../../../data/client';
 import { returnsApi } from '../../../data/returns';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuthStore } from '../../../store/authStore';
-import { getSetting, type ReceiptPrinterConfig, type PrintFormatSettings } from '../../../data/settings';
+import { getSetting, type ReceiptPrinterConfig } from '../../../data/settings';
 import { DEFAULT_BILL_SETTINGS, type ReceiptData, formatBillDateTime, generateReceiptText } from '../../../utils/print/receiptGenerator';
 import { printingApi } from '../../../data/printing';
-import { formatPrinterError } from '../../../utils/print/printFormatHelper';
+import { formatPrinterError, parsePrintFormat } from '../../../utils/print/printFormatHelper';
 import { listParties } from '../../../data/parties';
 import { useTabStore } from '../../../store/tabStore';
 import type { CartItem } from '../../../store/cartStore';
@@ -125,10 +127,14 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
 
       if (!saveOnly) {
         const cfg = await getSetting<ReceiptPrinterConfig>({ tenant_id: tid, key: 'receipt_printer_config' });
-        const printFmt = await getSetting<PrintFormatSettings>({ tenant_id: tid, key: 'print_format' });
-        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : (cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 8.0);
-        const thermalStyle = printFmt?.style || 'standard';
-        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
+        const printFmtRaw = await getSetting({ tenant_id: tid, key: 'print_format' });
+        const printFmt = parsePrintFormat(printFmtRaw);
+        const isHalfA4 = printFmt.format === 'half-a4';
+        const isA4 = printFmt.format === 'a4';
+        const useA4 = isA4 || isHalfA4;
+        const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : (cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 8.0);
+        const thermalStyle = printFmt.thermalStyle || 'standard';
+        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
         const returnReceiptData: ReceiptData = {
           shopName: shopNameState || shopName || 'My Shop',
           shopPhone: shopPhone || undefined,
@@ -138,7 +144,23 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
           refundMethod: returnRefundMethod.replace('_', ' '),
           date: formatBillDateTime(new Date()),
           billerName: useAuthStore.getState().userName || undefined,
-          items: returnItems.map(ri => ({ name: ri.name, quantity: ri.quantity, unit_price: ri.unit_price, total: ri.total, brand: ri.brand_manufacturer || undefined })),
+          items: returnItems.map(ri => {
+            const cartItem = returnCartItems.find(ci => ci.product_id === ri.product_id);
+            const rawRate = Number(cartItem?.rawUnitPrice) || ri.unit_price;
+            const hasDisc = rawRate > ri.unit_price + 0.005;
+            const discPct = hasDisc ? Math.round(((rawRate - ri.unit_price) / rawRate) * 100) : 0;
+            const discAmt = hasDisc ? (rawRate - ri.unit_price) : 0;
+            return {
+              name: ri.name,
+              quantity: ri.quantity,
+              unit_price: ri.unit_price,
+              total: ri.total,
+              originalRate: hasDisc ? rawRate : undefined,
+              discountLabel: hasDisc ? `${discPct}% OFF (-${getCurrencyPrefix()}${discAmt.toFixed(2)})` : undefined,
+              isPriceOverride: hasDisc,
+              brand: ri.brand_manufacturer || undefined,
+            };
+          }),
           subtotal: returnSubtotal,
           tax: returnTaxTotal,
           discount: returnDiscountTotal,
@@ -149,10 +171,18 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
           customerAddress: (selectedReturnInvoice as B.BillingInvoice)?.customer_address || customerAddress || undefined,
           customerState: (selectedReturnInvoice as B.BillingInvoice)?.customer_state || undefined,
           billSettings,
+          a5Orientation: printFmt.a5Orientation || 'horizontal',
         };
-        const receiptText = generateReceiptText(returnReceiptData, thermalWidth, undefined, thermalStyle);
-        const printResult = await printingApi.printReceipt(tid, receiptText);
-        if (printResult?.skipped) {
+        let printResult;
+        if (useA4) {
+          const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.a4Style || 'boxed');
+          const invoiceHtml = generateInvoiceHtml(returnReceiptData, invoiceStyle as Parameters<typeof generateInvoiceHtml>[1]);
+          printResult = await printingApi.printA4Html(tid, invoiceHtml);
+        } else {
+          const receiptText = generateReceiptText(returnReceiptData, thermalWidth, undefined, thermalStyle);
+          printResult = await printingApi.printReceipt(tid, receiptText);
+        }
+        if (printResult && 'skipped' in printResult && printResult.skipped) {
           setHardwareError(formatPrinterError('No printer configured'));
           setTimeout(() => setHardwareError(null), 5000);
         } else if (printResult && !printResult.success) {

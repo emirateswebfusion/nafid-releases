@@ -194,7 +194,7 @@ export const BillingTotalsPanel: React.FC<BillingTotalsPanelProps> = ({
                 <span className="font-semibold text-muted-foreground line-through font-mono">{formatCurrency(originalReturnTotal)}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-rose-600 dark:text-rose-400 font-semibold">Invoice Discount Deducted</span>
+                <span className="text-rose-600 dark:text-rose-400 font-semibold">Total Discount Deducted {originalReturnTotal > 0 ? `(${Math.round((returnDiscountTotal / originalReturnTotal) * 100)}%)` : ''}</span>
                 <span className="font-semibold text-rose-600 dark:text-rose-400 font-mono">-{formatCurrency(returnDiscountTotal)}</span>
               </div>
               <div className="flex justify-between items-center">

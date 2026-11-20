@@ -69,9 +69,14 @@ export const CartReturnRow: React.FC<CartReturnRowProps> = ({
             )}
           </span>
           {rawRate > rate + 0.005 && (
-            <span className="text-[9px] text-muted-foreground/50 line-through font-mono">
-              {formatCurrency(rawRate)}
-            </span>
+            <>
+              <span className="text-[9px] text-muted-foreground/50 line-through font-mono">
+                {formatCurrency(rawRate)}
+              </span>
+              <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/15 px-1 py-0.5 rounded font-mono">
+                {Math.round(((rawRate - rate) / rawRate) * 100)}% OFF (-{formatCurrency(rawRate - rate)})
+              </span>
+            </>
           )}
           <span className="mx-0.5">&middot;</span>
           <span>Avail: {avail} {isPiecesWeight ? 'Kg' : ''}</span>

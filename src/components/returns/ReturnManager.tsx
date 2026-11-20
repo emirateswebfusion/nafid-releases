@@ -1,5 +1,5 @@
 import { storeDate } from '../../utils/time/dateDisplay';
-import { getStoreLocale } from '../../utils/localization/storeProfile';
+import { getStoreLocale, getCurrencyPrefix } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { Undo2, Search, X, Package, User, AlertCircle, Lock, Phone, Trash, Clock, Printer, RefreshCw } from 'lucide-react';
@@ -34,6 +34,8 @@ interface ReturnItem extends Rows.ReturnItemsRow {
   billing_type?: string | null; pieces_sold?: number | null; pieces_override?: number | null; unit?: string | null; uom?: string | null;
   sku_barcode?: string;
   item_code?: string;
+  catalog_base_price?: number | null;
+  orig_inv_unit_price?: number | null;
 }
 
 
@@ -163,11 +165,19 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         billerName: billSettings.showBillerName !== false ? (r.biller_name || useAuthStore.getState().userName || undefined) : undefined,
         items: items.map(item => {
           const itemAny = item;
+          const uPrice = Number(item.unit_price) || 0;
+          const origRate = Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0);
+          const hasDiscount = origRate > uPrice + 0.005;
+          const discPercent = hasDiscount ? Math.round(((origRate - uPrice) / origRate) * 100) : 0;
+          const discAmtPerUnit = hasDiscount ? (origRate - uPrice) : 0;
           return {
             name: item.name as string,
             quantity: item.quantity,
             unit_price: item.unit_price,
             total: item.total,
+            originalRate: hasDiscount ? origRate : undefined,
+            discountLabel: hasDiscount ? `${discPercent}% OFF (-${getCurrencyPrefix()}${discAmtPerUnit.toFixed(2)})` : undefined,
+            isPriceOverride: hasDiscount,
             billing_type: itemAny.billing_type,
             pieces_sold: itemAny.pieces_sold != null ? Number(itemAny.pieces_sold) : undefined,
             pieces_override: itemAny.pieces_override != null ? Number(itemAny.pieces_override) : undefined,
@@ -176,7 +186,11 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         }),
         subtotal: r.subtotal,
         tax: r.tax_total,
-        discount: 0,
+        discount: items.reduce((acc, item) => {
+          const origRate = Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0);
+          const uPrice = Number(item.unit_price) || 0;
+          return origRate > uPrice + 0.005 ? acc + (origRate - uPrice) * (Number(item.quantity) || 0) : acc;
+        }, 0),
         grandTotal: r.grand_total,
         customerName: billSettings.showCustomerName !== false ? (r.customer_name || undefined) : undefined,
         customerPhone: billSettings.showCustomerPhone !== false ? (r.customer_phone || undefined) : undefined,
@@ -469,7 +483,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-bold text-foreground truncate">{item.name}</div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1 flex-wrap">
                           {item.sku_barcode && (
                             <>
                               <span className="font-mono bg-muted px-1.5 py-0.5 rounded">{item.sku_barcode}</span>
@@ -477,6 +491,16 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
                             </>
                           )}
                           <span>{item.quantity} × {formatCurrency(item.unit_price)}</span>
+                          {Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0) > Number(item.unit_price) + 0.005 && (
+                            <>
+                              <span className="line-through text-muted-foreground/50 font-mono">
+                                {formatCurrency(Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0))}
+                              </span>
+                              <span className="font-bold text-rose-600 dark:text-rose-400 bg-rose-500/15 px-1 py-0.5 rounded font-mono">
+                                {Math.round(((Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0) - Number(item.unit_price)) / Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0)) * 100)}% OFF
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -498,6 +522,22 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
                     <span className="text-muted-foreground">Tax</span>
                     <span className="font-bold text-foreground">{formatCurrency(selectedReturn.tax_total)}</span>
                   </div>
+                  {(() => {
+                    const totalDisc = returnItems.reduce((acc, item) => {
+                      const orig = Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0);
+                      const u = Number(item.unit_price) || 0;
+                      return orig > u + 0.005 ? acc + (orig - u) * (Number(item.quantity) || 0) : acc;
+                    }, 0);
+                    if (totalDisc > 0.005) {
+                      return (
+                        <div className="flex justify-between text-xs font-medium">
+                          <span className="text-rose-600 dark:text-rose-400 font-semibold">Total Discount Deducted</span>
+                          <span className="font-bold text-rose-600 dark:text-rose-400 font-mono">-{formatCurrency(totalDisc)}</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   <div className="flex justify-between text-sm font-black text-rose-500 pt-2.5 border-t border-border">
                     <span>Total Refund</span>
                     <span>-{formatCurrency(selectedReturn.grand_total)}</span>

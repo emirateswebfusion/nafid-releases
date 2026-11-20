@@ -351,6 +351,9 @@ export function numberToIndianWords(amount: number): string {
 }
 
 export function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
+  if (invoiceType === 'RETURN' || invoiceType === 'SALES_RETURN' || invoiceType === 'CREDIT_NOTE') {
+    return isB2B ? 'CREDIT NOTE' : 'RETURN INVOICE';
+  }
   if (isB2B) return 'TAX INVOICE';
   const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
   switch (invoiceType) {
@@ -358,8 +361,7 @@ export function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, est
     case 'SCRAP': return 'SCRAP BILL';
     case 'BILL_OF_SUPPLY': return nonGstTitle;
     case 'ESTIMATE': return nonGstTitle;
-    case 'RETURN': return 'RETURN INVOICE';
-    default: return isB2B ? 'TAX INVOICE' : nonGstTitle;
+    default: return nonGstTitle;
   }
 }
 

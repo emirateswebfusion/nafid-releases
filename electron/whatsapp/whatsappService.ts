@@ -325,7 +325,7 @@ async function generatePdfBufferFromHtml(htmlContent: string, thermal = false): 
         const pdfOpts: Electron.PrintToPDFOptions = {
           printBackground: true,
           preferCSSPageSize: thermal,
-          margins: { marginType: 'none' },
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
         };
         if (thermal) {
           pdfOpts.pageSize = {

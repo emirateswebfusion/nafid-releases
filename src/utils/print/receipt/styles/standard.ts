@@ -111,7 +111,10 @@ export function renderStandardReceipt(ctx: ReceiptTextContext): string {
       }
     }
     if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
-      const mrpLine = `  MRP ${getCurrencyPrefix()}${item.originalRate.toFixed(2)} → ${getCurrencyPrefix()}${fmt.displayRate}`;
+      const isReturn = data.invoiceType === 'RETURN' || data.invoiceType === 'SALES_RETURN' || data.invoiceType === 'CREDIT_NOTE';
+      const mrpLine = isReturn
+        ? `  Orig ${getCurrencyPrefix()}${item.originalRate.toFixed(2)} → Refund ${getCurrencyPrefix()}${fmt.displayRate}`
+        : `  MRP ${getCurrencyPrefix()}${item.originalRate.toFixed(2)} → ${getCurrencyPrefix()}${fmt.displayRate}`;
       const clipped = mrpLine.length > charsPerLine ? mrpLine.substring(0, charsPerLine - 3) + '..' : mrpLine;
       text += `${clipped}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
     } else if (data.invoiceType === 'SCRAP') {

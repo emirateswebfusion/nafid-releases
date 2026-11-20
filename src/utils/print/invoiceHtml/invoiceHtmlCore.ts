@@ -112,15 +112,14 @@ export function shouldShowItemMrpHtml(data: InvoiceData, item: InvoiceItemDispla
 export function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
   const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
   let baseTitle: string;
-  if (isB2B) {
+  if (invoiceType === 'RETURN' || invoiceType === 'SALES_RETURN' || invoiceType === 'CREDIT_NOTE') {
+    baseTitle = isB2B ? 'CREDIT NOTE' : 'SALES RETURN';
+  } else if (isB2B) {
     baseTitle = 'TAX INVOICE';
   } else {
     switch (invoiceType) {
       case 'GST': baseTitle = 'TAX INVOICE'; break;
       case 'SCRAP': baseTitle = 'SCRAP BILL'; break;
-      case 'RETURN':
-      case 'SALES_RETURN':
-      case 'CREDIT_NOTE': baseTitle = 'SALES RETURN'; break;
       case 'QUOTATION': baseTitle = 'QUOTATION'; break;
       case 'BILL_OF_SUPPLY': baseTitle = nonGstTitle; break;
       case 'ESTIMATE': baseTitle = nonGstTitle; break;

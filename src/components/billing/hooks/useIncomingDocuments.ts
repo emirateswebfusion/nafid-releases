@@ -521,7 +521,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             availableToReturn: item.available_to_return,
             alreadyReturned: item.already_returned,
             originalUnitPrice: Number(item.unit_price) || 0,
-            rawUnitPrice: Number(item.rawUnitPrice ?? item.unit_price) || 0,
+            rawUnitPrice: Math.max(Number(catProd?.base_price) || 0, Number(item.rawUnitPrice ?? item.unit_price) || 0),
             originalTaxAmount: Number(item.tax_amount) || 0,
             returnSourceInvoiceId: invoice.invoice_id,
             returnSourceInvoiceNumber: invoice.invoice_number,

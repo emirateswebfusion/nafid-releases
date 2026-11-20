@@ -395,3 +395,59 @@ describe('UAE Arabic on thermal receipts', () => {
     expect(html).toContain('\u0641\u0627\u062a\u0648\u0631\u0629 \u0636\u0631\u064a\u0628\u064a\u0629</pre>');
   });
 });
+
+describe('return receipt discount breakdown', () => {
+  it('displays original price, refund rate, and discount percentage on return receipts', () => {
+    const returnBill: ReceiptData = {
+      shopName: 'Test Store',
+      invoiceNumber: 'RTN-101',
+      referenceInvoiceNumber: 'INV-500',
+      invoiceType: 'RETURN',
+      date: '2026-11-20 10:00',
+      items: [
+        {
+          name: 'Stove 3-Burner',
+          quantity: 1,
+          unit_price: 3015,
+          total: 3015,
+          originalRate: 3350,
+          discountLabel: '10% OFF (-₹335.00)',
+          isPriceOverride: true,
+        },
+      ],
+      subtotal: 3015,
+      tax: 0,
+      discount: 335,
+      grandTotal: 3015,
+    };
+
+    const text = generateReceiptText(returnBill, 8.0, 48, 'standard');
+    expect(text).toContain('RETURN INVOICE');
+    expect(text).toContain('Orig ₹3350.00 → Refund ₹3015.00  (10% OFF (-₹335.00))');
+  });
+
+  it('labels B2B return documents as CREDIT NOTE', () => {
+    const b2bReturnBill: ReceiptData = {
+      shopName: 'Test Store',
+      invoiceNumber: 'CN-101',
+      invoiceType: 'RETURN',
+      isB2B: true,
+      date: '2026-11-20 10:00',
+      items: [
+        {
+          name: 'Wholesale Item',
+          quantity: 2,
+          unit_price: 500,
+          total: 1000,
+        },
+      ],
+      subtotal: 1000,
+      tax: 0,
+      discount: 0,
+      grandTotal: 1000,
+    };
+
+    const text = generateReceiptText(b2bReturnBill, 8.0, 48, 'standard');
+    expect(text).toContain('CREDIT NOTE');
+  });
+});
