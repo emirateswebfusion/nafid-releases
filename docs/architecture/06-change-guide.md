@@ -1,5 +1,9 @@
 # 6. Change guide
 
+Before coding, identify affected architecture sections; before completion, update them and provide exact file/section
+evidence under the [mandatory documentation review](../../CONTRIBUTING.md#mandatory-documentation-review-for-every-change).
+This applies to bug fixes, features and refactors, not only changes that introduce a new layer.
+
 ## 6.1 Where does my code go?
 
 | You are adding / changing… | Put it in | Notes |
@@ -20,6 +24,8 @@
 | A cloud (online-only) call | `src/data/cloud/<domain>.ts` (`cloudFetch` / `cloudRequest`) | Verify the server route exists |
 | SQL | `electron/db/statements/<domain>.ts` | Intent-named factory `(db: Db) => db.prepare(…)`; bind user values with `?` |
 | Schema / migration | `electron/db/migrations/NNN-*.ts` + `migrations/index.ts` | A new numbered migration (runs once, recorded in `schema_migrations`); never grow the startup baseline (guard R10); mirror synced columns in the server migrations; see 03-data-access §3.4 |
+| Return quantity, credit and physical stock lifecycle | `services/returnValidation.ts`, `db/statements/returnValidation.ts`, `db/statements/invoiceStock.ts`; existing invoice/return/recycle services | Preserve active conversion-family allowance, saved recipes and outstanding physical stock; update [business rules](04-business-rules.md#return-and-stock-lifecycle-boundaries-19-november-2026), paired server contracts and regression coverage |
+| Refund method across cloud engines | `db/statements/sync/outboxSync.ts` + legacy `stockDocsSync`; server `sync/documents.ts` | Align both existing method aliases, [sync rules](03-data-access.md#return-refund-method-compatibility-19-november-2026) and both apps/tests |
 | Cash register / party ledger integrity | `cashierService`, `partiesService`, `cashRegisterLedgerService`; SQL in their statement modules | Preserve one transaction and explicit ledger identity; use the shared live/history projection. Follow [ledger rules](04-business-rules.md#cash-register-and-party-ledger-integrity-19-november-2026) and [concurrency contract](03-data-access.md#ledger-concurrency-and-stable-identity-19-november-2026); run the atomic-save, ledger-integrity and outbox-conflict regressions plus relevant main-process harnesses. Coordinate server changes |
 | A main-process use-case | `electron/services/<domain>Service.ts` | Validates, applies rules, runs statements in `db.transaction`; never imports `electron/ipc/` |
 | An IPC channel | `electron/ipc/<domain>Handlers.ts` | One line: `handle('db:doThing', domainService.doThing)` |
@@ -49,7 +55,7 @@ for this local correction; a new conflict-resolution contract requires coordinat
 5. **UI last, in small files.** Extract instead of growing a screen.
 6. **Verify:** `npm run verify` (must pass), and run the app for UI changes (`npm run dev`) — exercise the screen you changed
    and one neighbouring flow (for billing: create a bill, hold/recall, print preview).
-7. **Document:** update these docs if you changed a contract, a layer, a rule module or a convention.
+7. **Document:** review documentation impact for every change; update all affected canonical sections in the same change and list exact file/section evidence. Use a specific, section-based no-impact assessment only when the reference remains accurate (see CONTRIBUTING.md).
 8. **Clean up branches and worktrees:** If a dedicated branch or worktree (`C:\nafid-wt\...`) was used, once merged into `main` and verified through gates, promptly delete the worktree and branch so no dead branches or orphaned worktrees remain.
 
 ### Thermal receipt paper layout

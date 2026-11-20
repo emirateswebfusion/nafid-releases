@@ -13,6 +13,7 @@ Read it before writing code. If the code and these documents disagree, fix one o
 | 6 | [Change guide](06-change-guide.md) | where to put a new feature, how to modify one safely, definition of done |
 | — | [Authentication lifecycle](auth-session-lifecycle.md) | password/PIN entry, separate cloud credentials, reconnect, logout and truthful connection status |
 | — | [Multi-terminal account sync](multi-terminal-account-sync.md) | captured cloud revisions, independent party IDs, complete downloads, conflicts and coordinated rollout |
+| — | [General financial boundary audit](verification/2026-11-19-general-financial-boundaries.md) | return/stock/payment/refund-sync regressions, v2.2.84 delivery evidence and verification limits |
 | — | [Ledger integrity verification](verification/2026-11-19-ledger-integrity.md) | v2.2.81 contract review, regression coverage, installed-upgrade evidence and historical-recovery limits |
 | — | [Release validation](release-validation.md) | mandatory final-installer, production configuration, upgrade and publication checks |
 | — | [macOS distribution](macos-distribution.md) | native Intel/Apple Silicon builds, signing, notarization, combined update feed and Mac release gates |
@@ -30,6 +31,12 @@ Related:
 - Agent/developer operating rules and commands: `../../../AGENTS.md`
 - Cloud API counterpart: `../../../nafid-server/docs/architecture/`
 - Setup, hardware and packaging how-to: `../../DEVELOPER_ONBOARDING.md`
+
+## Mandatory documentation gate
+
+For every change, follow the documentation review in [CONTRIBUTING](../../CONTRIBUTING.md#mandatory-documentation-review-for-every-change)
+and the repository [agent instructions](../../AGENTS.md). Required canonical updates and file/section evidence are part
+of completion, not later work. Review must reject stale docs or an unsupported no-impact assertion.
 
 ## The rules in one screen
 

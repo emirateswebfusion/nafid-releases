@@ -760,3 +760,13 @@ Payment-source opening amounts use `utils/paymentSourceInput.ts`: finite non-neg
 Boolean and integer enabled/default flags retain their meanings. Failed validation rolls back default selection.
 Coverage: `returnBoundaries`, `filingLifecycle`, `comboCheckoutStockAndConversion`, `paymentSourceBoundaries`,
 `billingScreen.ui`, existing ledger/payment-account and loyalty tests.
+
+
+## Interstate purchase badge and saved classification
+
+`components/purchase/purchaseFormat.ts` owns `purchaseBillTypeLabel`, used by the purchase list and detail dialog.
+For India, a saved GST purchase with `is_interstate` enabled displays **IGST**; an intrastate purchase displays GST.
+The stored `bill_type` remains GST: IGST is its interstate classification, not a new bill type. Non-GST categories
+retain their existing labels, and UAE stores keep VAT localization. Editing/saving must retain the interstate flag
+through the [purchase data contract](03-data-access.md#interstate-purchase-tax-classification-17-november-2026).
+Coverage: `tests/unit/purchaseBillBadge.ui.test.tsx`, purchase save/stock and cross-app sync tests.

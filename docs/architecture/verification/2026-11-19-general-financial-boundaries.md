@@ -44,5 +44,24 @@ authentication, permissions, tax/pricing, printing, settings, cash/party ledgers
 
 These checks do not prove there are no other defects. No production shop database was inspected or repaired, and previously
 missing records were not reconstructed. Physical printers, weighing scales, external card terminals, disaster recovery and
-real customer multi-device acceptance remain separate checks. Desktop source is prepared as 2.2.84; an installer is shipped
-only after the final packaged-artifact/upgrade gate in release-validation.md and publication to nafid-releases.
+real customer multi-device acceptance remain separate checks. Windows 2.2.84 passed the final packaged-artifact/upgrade gate and was published to nafid-releases;
+the completed delivery evidence and remaining limitations are recorded below.
+
+
+## Completed delivery (19 November 2026; documentation reconciled 20 November)
+
+[Windows v2.2.84](https://github.com/emirateswebfusion/nafid-releases/releases/tag/v2.2.84) was published after
+[source CI](https://github.com/emirateswebfusion/nafid-pos/actions/runs/44581120805) and
+[packaged upgrade validation](https://github.com/emirateswebfusion/nafid-pos/actions/runs/44581117036) passed.
+Source commit `7d895fff07bf109bea0951c24e187a8f16627a6d` has the same tree as tested build commit
+`3dccd9bd2e4faa77a094b5738023df41b2860603`. Backend `9e1756a` was deployed at the existing approved endpoint;
+[backend CI](https://github.com/sabeersaluk-creator/nafid/actions/runs/44580831302) passed 373 unit/golden tests
+and 13 PostgreSQL integration tests, with one unrelated skip.
+
+Final EXE configuration/native runtime, data-preserving full-installer recovery, candidate update handoff and
+launch-failure retention checks passed. The EXE, blockmap and latest.yml draft upload digests matched the verified
+build. Anonymous public latest-release discovery and latest.yml download/hash were verified after publication.
+Installer size: 114724350 bytes; SHA-256: `edd973937b951be2d1aa8181204729914aebf2cd9e0d09024d836630ea73f3b0`.
+Signature status was `NotSigned`; trusted-publisher/Smart App Control acceptance is not established. The legacy
+v2.2.41 automatic path reproduced its pre-spawn checksum stall; full-installer recovery passed instead. These
+results do not establish recovery of previously missing production records or acceptance on every shop device.

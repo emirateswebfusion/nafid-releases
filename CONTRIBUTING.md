@@ -40,6 +40,22 @@ One logical change per commit. Never mix formatting or mass renames with behavio
    change in the other repository.
 4. Squash-merge into `main` with a Conventional-Commit title.
 
+## Mandatory documentation review for every change
+
+Every bug fix, feature, refactor, schema/configuration/deployment or release change includes a documentation-impact review
+before coding and before handoff. Update affected canonical architecture sections in the same change whenever behavior,
+invariants, module ownership, flows, contracts, permissions, compatibility/recovery or verification/delivery status changes.
+A small fix still needs documentation when it corrects a documented rule. Update counterpart apps for shared contracts,
+codebase maps/change guides for moved/new ownership, README indexes for new documents, and ADRs for changed decisions.
+Correct obsolete statements rather than only appending a dated report. Tests, release notes and chat summaries do not
+replace the current architecture reference. Required documentation must be complete before completion, merge or release.
+
+PRs and final handoffs must list exact updated files/sections and checks. For a truly documentation-neutral change, list
+the exact sections reviewed and explain why the documented behavior/structure remains accurate; an unexplained "N/A",
+"minor fix" or "docs unchanged" is not acceptable. Reviewers must reject changes without this evidence or with stale docs.
+This is a mandatory contributor/agent review gate; the existing architecture guard does not assess prose correctness.
+Documentation edits do not authorize commits or releases on their own.
+
 ## Releases
 
 Bump the version (semantic versioning), update the release notes, merge to `main`, then tag: `git tag vX.Y.Z && git push --tags`.
