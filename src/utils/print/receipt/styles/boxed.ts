@@ -236,6 +236,12 @@ export function renderBoxedReceipt(ctx: ReceiptTextContext): string {
       text += B_ROW(['', ` Brand: ${item.brand}`], brandWidths);
     }
 
+    // Secondary piece count for weighed products (e.g. "Qty: 3 Pcs")
+    if (fmt.pcsInfo) {
+      const pcsWidths = [idxW, INNER - idxW - 1];
+      text += B_ROW(['', ` Qty: ${fmt.pcsInfo}`], pcsWidths);
+    }
+
     // MRP offer note — aligned under the Product column with Sr. column divider intact
     if (shouldShowItemMrp(data, item) && item.originalRate != null && item.originalRate !== item.unit_price) {
       const offerWidths = [idxW, INNER - idxW - 1];

@@ -489,7 +489,11 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
                               <span>·</span>
                             </>
                           )}
-                          <span>{item.quantity} × {formatCurrency(item.unit_price)}</span>
+                          <span>
+                            {item.billing_type === 'WEIGHT' ? `${Number(item.quantity).toFixed(3)} ${item.uom || item.unit || 'Kg'}` : `${item.quantity} ${item.uom || item.unit || 'Pcs'}`}
+                            {item.billing_type === 'WEIGHT' && item.pieces_sold != null && item.pieces_sold > 0 ? ` (${item.pieces_sold} Pcs)` : ''}
+                            {' × '}{formatCurrency(item.unit_price)}
+                          </span>
                           {Math.max(Number(item.catalog_base_price) || 0, Number(item.orig_inv_unit_price) || 0) > Number(item.unit_price) + 0.005 && (
                             <>
                               <span className="line-through text-muted-foreground/50 font-mono">

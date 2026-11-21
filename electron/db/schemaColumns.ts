@@ -107,7 +107,7 @@ export function ensureSchemaColumns(db: Database.Database) {
     ],
     return_items: [
         'return_item_id', 'return_id', 'tenant_id', 'invoice_item_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'sync_status', 'created_at',
-        'taxable_amount', 'cgst_rate', 'sgst_rate', 'igst_rate', 'cgst_amount', 'sgst_amount', 'igst_amount', 'hsn_sac_code'
+        'taxable_amount', 'cgst_rate', 'sgst_rate', 'igst_rate', 'cgst_amount', 'sgst_amount', 'igst_amount', 'hsn_sac_code', 'pieces_sold', 'billing_type', 'uom'
     ],
     loyalty_transactions: [
         'transaction_id', 'tenant_id', 'customer_id', 'invoice_id', 'transaction_type', 'points',
@@ -152,7 +152,7 @@ export function ensureSchemaColumns(db: Database.Database) {
         console.log(`[DB Migration] Adding missing column ${col} to ${table} table...`);
         // We use TEXT or REAL depending on column name suffix or type
         let type = 'TEXT';
-        if (['weight_override_allowed', 'is_service_item', 'is_held', 'is_deleted', 'is_default', 'is_active', 'is_enabled', 'is_gst'].includes(col)) {
+        if (['weight_override_allowed', 'is_service_item', 'is_held', 'is_deleted', 'is_default', 'is_active', 'is_enabled', 'is_gst', 'pieces_sold'].includes(col)) {
           type = 'INTEGER DEFAULT 0';
         } else if (col === 'print_status') {
           type = "TEXT DEFAULT 'PENDING'";
