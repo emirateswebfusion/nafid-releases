@@ -788,3 +788,19 @@ Coverage: `tests/unit/purchaseBillBadge.ui.test.tsx`, purchase save/stock and cr
 ## Explicit source-authority recovery
 
 Ordinary account synchronization still requires captured revisions for differing cloud values. The sole recovery exception is a separately authorized, tenant/terminal/identity-bound platform job with durable before-images, immutable source backup, unchanged-cloud guards and canonical writes. Ledger totals must match the source or all financial writes roll back. Never infer deletions, reassign a ledger parent, merge contact matches or clear a local database. Exact receipts acknowledge only unchanged local snapshots; covered history is retained and newer edits stay pending. See [account recovery](account-recovery.md).
+
+## Purchase bill payment mode & cash register synchronization (21 November 2026)
+
+`electron/services/purchasesService.ts` (`addPurchaseBill`, `updatePurchaseBill`, `deletePurchaseBill`) and `electron/db/statements/purchases.ts` govern purchase bill financial mutations:
+1. **Prior state resolution**: `findPurchaseBillsByPurchaseBillId` selects `supplier_id, bill_number, tenant_id, payment_type, total_amount, bill_type`. `updatePurchaseBill` queries this prior state before mutating records to reliably detect transitions in payment mode, total amount, or supplier identity.
+2. **CASH to CREDIT transition**: When an existing bill originally saved with `payment_type = 'CASH'` is updated to `CREDIT` (or non-cash):
+   - All associated `cash_transactions` records for that bill number (`category = 'Purchase Bill'`, `notes LIKE '%<bill_number>%'`) are deleted (`deleteCashTransactionByTransactionId`).
+   - The drawer's `cash_out` is decremented by the transaction amounts, `current_cash` and `expected_closing` are restored, and `reconcileCashDrawer` is invoked to recalculate session totals.
+   - If a supplier is present, the credit debit is posted to `party_ledger` and `recalcPartyBalances` recalculates the supplier balance.
+3. **CREDIT to CASH transition**: When an existing bill originally saved with `payment_type = 'CREDIT'` is updated to `CASH`:
+   - Prior ledger entries for that bill are retired (`updatePartyLedgerIsDeleted`) and `recalcPartyBalances` recalculates the supplier's balance without the debt.
+   - A new `CASH_OUT` entry is inserted into `cash_transactions` against the active open cash drawer, deducting from the drawer and reconciling the session.
+4. **Amount updates on CASH bills**: When editing the total of a `CASH` bill, previous cash transactions are removed and replaced with a fresh transaction reflecting the updated amount, and drawer metrics are adjusted and reconciled.
+5. **Bill deletion**: `deletePurchaseBill` retires prior `party_ledger` entries (calling `recalcPartyBalances`), deletes all matching `cash_transactions`, restores cash drawer funds, and reconciles the drawer session.
+6. **Window notification & sync**: Following create, update, or delete, `purchasesService` broadcasts `sync:data-updated` to renderer windows and invokes `triggerUrgentCashSync()` and `runInitialSync()`.
+Coverage: `tests/unit/purchasePaymentSync.test.ts`.

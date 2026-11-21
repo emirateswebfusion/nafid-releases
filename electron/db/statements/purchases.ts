@@ -73,7 +73,7 @@ export const updateCashDrawerByDrawerId = (db: Db) => db.prepare(`
 
 export const findPurchaseBillItemsByPurchaseBillId = (db: Db) => db.prepare('SELECT pbi.*, p.name as product_name, p.sku_barcode, p.item_code, p.base_price as product_base_price, p.offer_price as product_offer_price, p.current_stock as product_stock FROM purchase_bill_items pbi LEFT JOIN products p ON pbi.product_id = p.product_id WHERE pbi.purchase_bill_id = ? ORDER BY pbi.created_at ASC');
 
-export const findPurchaseBillsByPurchaseBillId = (db: Db) => db.prepare('SELECT bill_number, bill_type FROM purchase_bills WHERE purchase_bill_id = ?');
+export const findPurchaseBillsByPurchaseBillId = (db: Db) => db.prepare('SELECT supplier_id, bill_number, tenant_id, payment_type, total_amount, bill_type FROM purchase_bills WHERE purchase_bill_id = ?');
 
 export const findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity = (db: Db) => db.prepare('SELECT product_id, quantity, skip_stock_update FROM purchase_bill_items WHERE purchase_bill_id = ?');
 
