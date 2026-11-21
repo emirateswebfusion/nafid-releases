@@ -519,6 +519,18 @@ Regression coverage in cashierPartyTransactions replays the deleted cash row and
 - **Contract & Database Integrity**: Stored timezone settings, database timestamps, UTC queries, and IPC channels remain strictly keyed to canonical IANA strings (`Asia/Calcutta`, `Asia/Dubai`, etc.).
 - **Verification**: `tests/unit/timezoneAbbreviation.test.ts` (12 tests) and `tests/unit/digitalClockTimezone.ui.test.tsx` (9 tests); `tsc`, `typecheck:electron`, `check:arch` (0 debt), and `lint:ratchet` (0 errors / 0 warnings) pass.
 
+### Purchase bill barcode label printing and Escape modal navigation (21 November 2026)
+
+- **Direct Barcode Label Printing**: Added direct barcode label printing from Purchase Bill form items (`openBarcodeModalForFormItem`), bill list rows, and the saved bill detail dialog (`openBarcodeModalForBillItem` & `openBulkBarcodeModal`).
+- **Bulk Barcode Printing Modal (`BulkBarcodePrintModal.tsx`)**: Displays line items with editable label counts defaulting to purchased line quantities. Includes a prominent **"Show Price on Labels"** toggle checkbox (`showPrice`), ensuring `price`, `sp`, and `spType` are omitted when disabled so thermal barcode printers hide prices cleanly.
+- **Hierarchical Escape Navigation**: Resolved issue where pressing Escape kicked users out to the home dashboard:
+  - Added capture-phase Escape listeners (`{ capture: true }`) in `BarcodePrintModal.tsx` and `BulkBarcodePrintModal.tsx` stopping event propagation.
+  - Added explicit Cancel buttons in both print modals.
+  - Added dedicated Escape listener in `PurchaseBillViewDialog.tsx` to dismiss the detail dialog cleanly back to the bill list.
+  - Replaced the global `useCloseOnEscape(onClose)` in `PurchaseBillManager.tsx` with a layered `handleEscape` dispatcher (`bulkPrintModalOpen` → `printModalProduct` → `deleteConfirmOpen` → `showPartyCreateForm` → `viewingBill` → `showAddForm` → `onClose()`).
+- **Architecture & Line Budgets**: Extracted `PurchaseBillFormHeaderCard.tsx` and `PurchaseBillDeleteModal.tsx` to maintain `PurchaseBillManager.tsx` at 712 lines (well under the 800-line budget, R7). Bridge access remains isolated in `src/data/` (R1, R4).
+- **Verification**: `tests/unit/purchaseBarcodePrint.test.ts` (6 tests); `tsc -b`, `npm run typecheck:electron`, `npm run check:arch` (0 debt), and `npm run lint:ratchet` (0 errors / 0 warnings).
+
 ### Multi-terminal financial changes
 
 Follow [multi-terminal account sync](multi-terminal-account-sync.md) before changing party identity, baseline receipts, account page cursors, LAN merge or outbox financial conflict handling. Update server `accountConcurrency`, the relevant repository/HTTP contracts, and both test suites together. Run migration/restart, statement, IPC, cloud/no-login, outbox and LAN characterization; preserve queued data on every failure path. Conflict notices use the existing FloatToast and shared sync-outcome helper. Do not equate a successful HTTP response or ended cycle with all records having synchronized.

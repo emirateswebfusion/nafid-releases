@@ -3,7 +3,7 @@ import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import { moneyFixed } from '../../../utils/pricing/moneyRounding';
 import React from 'react';
 import clsx from 'clsx';
-import { Pencil, Trash, Send } from 'lucide-react';
+import { Pencil, Trash, Send, Barcode } from 'lucide-react';
 import type { PurchaseFormItem } from '../purchaseTypes';
 import type { PurchaseAddItem } from '../purchaseTypes';
 
@@ -21,19 +21,21 @@ export interface PurchaseBillItemsTableProps {
   type: 'GST' | 'ESTIMATE';
   updateBillItem: (productId: string, field: "quantity" | "purchase_price" | "selling_price" | "offer_price" | "hsn_sac_code", value: string) => void;
   isInterstate?: boolean;
+  onPrintBarcode?: (item: PurchaseFormItem) => void;
 }
 
 /** Items of the bill being entered: per-line quantity, rate, tax, discount and totals (estimate and GST layouts), with edit / dummy / remove actions. */
 export function PurchaseBillItemsTable({
   billItems, enableRealPaperStock, getOtherSectionItems, hsnInputRefs, isEstimate, openProductEditor,
   otherSectionAddItem, removeBillItem, setBillItems, toggleBillItemDummy, type, updateBillItem, isInterstate,
+  onPrintBarcode,
 }: PurchaseBillItemsTableProps) {
   return (
     <div className="overflow-x-auto pb-2 scrollbar-thin">
       <div className={clsx("space-y-1.5", isEstimate ? "min-w-[768px]" : "min-w-[1100px]")}>
         {isEstimate ? (
         <>
-          <div className="grid grid-cols-[30px_1fr_80px_100px_100px_100px_70px_36px_36px] gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 border-b border-border/40 mb-1.5">
+          <div className="grid grid-cols-[30px_1fr_80px_100px_100px_100px_70px_75px_36px] gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 border-b border-border/40 mb-1.5">
             <span className="text-center">#</span>
             <span>Product</span>
             <span className="text-right">Qty</span>
@@ -45,7 +47,7 @@ export function PurchaseBillItemsTable({
             <span></span>
           </div>
           {billItems.map((item, index) => {
-            return (                    <div key={item.product_id} className="grid grid-cols-[30px_1fr_80px_100px_100px_100px_70px_36px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+            return (                    <div key={item.product_id} className="grid grid-cols-[30px_1fr_80px_100px_100px_100px_70px_75px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
                 <span className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
                   {index + 1}
                 </span>
@@ -90,19 +92,34 @@ export function PurchaseBillItemsTable({
                 <div className="text-right font-bold text-foreground text-xs">
                   {getCurrencyPrefix()}{moneyFixed(((Number(item.quantity) || 0) * (Number(item.purchase_price) || 0)))}
                 </div>
-                <div className="flex items-center gap-0.5">
+                <div className="flex items-center gap-0.5 justify-end">
                   <button
+                    type="button"
+                    onClick={() => onPrintBarcode?.(item)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-blue-500 hover:bg-blue-500/10 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                    title="Print Barcode Label"
+                  >
+                    <Barcode className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => openProductEditor(item)}
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-amber-500 hover:bg-amber-500/10 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
                     title="Edit Product"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => removeBillItem(item.product_id)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-all cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                  <button
+                    type="button"
+                    onClick={() => removeBillItem(item.product_id)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-all cursor-pointer shrink-0 opacity-0 group-hover:opacity-100"
+                    title="Remove Item"
+                  >
                     <Trash className="w-3.5 h-3.5" />
                   </button>
                 </div>
                 <button
+                  type="button"
                   onClick={() => otherSectionAddItem?.({
                     product_id: item.product_id,
                     name: item.name,
@@ -113,6 +130,11 @@ export function PurchaseBillItemsTable({
                     is_gst_applicable: item.is_gst_applicable,
                     tax_rate_percent: item.tax_rate_percent,
                     hsn_sac_code: item.hsn_sac_code,
+                    sku_barcode: item.sku_barcode,
+                    grade_id: item.grade_id,
+                    pricing_mode: item.pricing_mode,
+                    discount_flat: item.discount_flat,
+                    discount_percent: item.discount_percent,
                   })}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-amber-500/50 hover:text-amber-500 hover:bg-amber-500/10 transition-all cursor-pointer shrink-0 opacity-0 group-hover:opacity-100 mx-auto"
                   title={localizeTaxText("Send to GST Bill")}
@@ -125,7 +147,7 @@ export function PurchaseBillItemsTable({
         </>
       ) : (
         <>
-          <div className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 border-b border-border/40 mb-1.5">
+          <div className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_75px_34px] gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 border-b border-border/40 mb-1.5">
             <span className="text-center">#</span>
             <span>Product</span>
             <span className="text-center">HSN</span>
@@ -152,7 +174,7 @@ export function PurchaseBillItemsTable({
             const isOtherSectionPresent = (getOtherSectionItems?.() ?? []).some(i => i.product_id === item.product_id);
             const isDummy = enableRealPaperStock && (isOtherSectionPresent || item.skip_stock_update === 1);
             return (
-              <div key={item.product_id} className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+              <div key={item.product_id} className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_75px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
                 <span className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
                   {index + 1}
                 </span>
@@ -267,19 +289,34 @@ export function PurchaseBillItemsTable({
                 <div className="text-right font-bold text-foreground text-xs">
                   {getCurrencyPrefix()}{moneyFixed(itemTotal)}
                 </div>
-                <div className="flex items-center gap-0.5">
+                <div className="flex items-center gap-0.5 justify-end">
                   <button
+                    type="button"
+                    onClick={() => onPrintBarcode?.(item)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-blue-500 hover:bg-blue-500/10 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                    title="Print Barcode Label"
+                  >
+                    <Barcode className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => openProductEditor(item)}
                     className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-amber-500 hover:bg-amber-500/10 transition-all cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
                     title="Edit Product"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => removeBillItem(item.product_id)} className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-all cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                  <button
+                    type="button"
+                    onClick={() => removeBillItem(item.product_id)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-all cursor-pointer shrink-0 opacity-0 group-hover:opacity-100"
+                    title="Remove Item"
+                  >
                     <Trash className="w-3.5 h-3.5" />
                   </button>
                 </div>
                 <button
+                  type="button"
                   onClick={() => otherSectionAddItem?.({
                     product_id: item.product_id,
                     name: item.name,
@@ -290,6 +327,11 @@ export function PurchaseBillItemsTable({
                     is_gst_applicable: item.is_gst_applicable,
                     tax_rate_percent: item.tax_rate_percent,
                     hsn_sac_code: item.hsn_sac_code,
+                    sku_barcode: item.sku_barcode,
+                    grade_id: item.grade_id,
+                    pricing_mode: item.pricing_mode,
+                    discount_flat: item.discount_flat,
+                    discount_percent: item.discount_percent,
                   })}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-500/50 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all cursor-pointer shrink-0 opacity-0 group-hover:opacity-100 mx-auto"
                   title="Send to Estimate Bill"

@@ -123,6 +123,11 @@ export function usePurchaseQuickProduct(ctx: UsePurchaseQuickProductContext) {
                 tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
                 hsn_sac_code: newProductIsGstApplicable ? newProductHsn : '',
                 skip_stock_update: type === 'GST' ? (newProductIsDummy ? 1 : 0) : 0,
+                sku_barcode: newProductBarcode || i.sku_barcode,
+                grade_id: selectedGrade?.grade_id || null,
+                pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
+                discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+                discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
               }
             : i
         ));
@@ -222,6 +227,11 @@ export function usePurchaseQuickProduct(ctx: UsePurchaseQuickProductContext) {
         tax_rate_percent: type === 'GST' ? newProductTaxRate : 0,
         hsn_sac_code: type === 'GST' ? newProductHsn : '',
         skip_stock_update: type === 'GST' ? (newProductIsDummy ? 1 : 0) : 0,
+        sku_barcode: finalBarcode,
+        grade_id: selectedGrade?.grade_id || null,
+        pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
+        discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+        discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
       }]);
       setProductSearch('');
       setProducts([]);

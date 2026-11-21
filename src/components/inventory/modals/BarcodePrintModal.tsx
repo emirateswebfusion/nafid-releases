@@ -30,14 +30,27 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   printProductLabel,
   grades,
 }) => {
+  React.useEffect(() => {
+    if (!printModalProduct) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [printModalProduct, onClose]);
+
   if (!printModalProduct) return null;
 
   return (
     <Modal
       isOpen={true}
       onClose={onClose}
+      title="Print Barcode Label"
       className="max-w-lg"
-      closeButton={null}
     >
       <div className="flex flex-col">
         {/* ── Label Preview Card ── */}
@@ -107,11 +120,18 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
         </div>
 
         {/* ── Status & Actions ── */}
-        <div className="flex items-center justify-end px-6 py-4 border-t border-border mt-3">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border mt-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground rounded-xl text-sm font-semibold transition-all cursor-pointer"
+          >
+            Cancel
+          </button>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => printProductLabel(printModalProduct)}
-              className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all"
+              className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               Print {printQuantity !== '' && Number(printQuantity) > 1 ? `${printQuantity} Labels` : 'Label'}
