@@ -531,6 +531,17 @@ Regression coverage in cashierPartyTransactions replays the deleted cash row and
 - **Architecture & Line Budgets**: Extracted `PurchaseBillFormHeaderCard.tsx` and `PurchaseBillDeleteModal.tsx` to maintain `PurchaseBillManager.tsx` at 712 lines (well under the 800-line budget, R7). Bridge access remains isolated in `src/data/` (R1, R4).
 - **Verification**: `tests/unit/purchaseBarcodePrint.test.ts` (6 tests); `tsc -b`, `npm run typecheck:electron`, `npm run check:arch` (0 debt), and `npm run lint:ratchet` (0 errors / 0 warnings).
 
+### Purchase bill payment mode & cash register synchronization (21 November 2026)
+
+- **Prior Payment State Resolution**: Updated `purchasesSql.findPurchaseBillsByPurchaseBillId` (`electron/db/statements/purchases.ts`) to query `supplier_id, bill_number, tenant_id, payment_type, total_amount, bill_type`. Previously, only `bill_number` and `bill_type` were selected, leaving `oldBill.payment_type` undefined and preventing `updatePurchaseBill` from detecting payment mode transitions.
+- **Bidirectional Payment Mode Synchronization**: In `electron/services/purchasesService.ts` (`updatePurchaseBill`):
+  - **CASH to CREDIT**: When changing from Cash to Credit, queries and deletes matching `cash_transactions` (`category = 'Purchase Bill'`), reverses `cash_out`, updates `current_cash` and `expected_closing` on the active `cash_drawer` session, and invokes `reconcileCashDrawer` to recompute drawer totals. Concurrently records a `DEBIT` entry in `party_ledger` and triggers `recalcPartyBalances`.
+  - **CREDIT to CASH**: When changing from Credit to Cash, soft-deletes prior ledger entries for the bill (`updatePartyLedgerIsDeleted`), recalculates supplier balances, inserts a fresh `cash_transactions` record, updates drawer cash-out/closing balances, and runs `reconcileCashDrawer`.
+  - **CASH Amount Adjustment**: If a bill remains `CASH` but its `total_amount` changes, adjusts existing cash transaction amounts, shifts drawer totals by the delta, and reconciles the drawer.
+  - **Deletion Handling**: `deletePurchaseBill` cleans up all matching cash transactions and reconciles the cash drawer.
+- **Event Broadcast & Urgent Sync**: Dispatches `sync:data-updated` to renderer windows and triggers background urgent cash sync (`triggerUrgentCashSync()`) on every purchase bill add/edit/delete.
+- **Verification**: `tests/unit/purchasePaymentSync.test.ts` (4 unit tests); `tsc -b`, `npm run typecheck:electron`, `npm run check:arch` (0 debt), and `npm run lint:ratchet` (0 errors / 0 warnings).
+
 ### Multi-terminal financial changes
 
 Follow [multi-terminal account sync](multi-terminal-account-sync.md) before changing party identity, baseline receipts, account page cursors, LAN merge or outbox financial conflict handling. Update server `accountConcurrency`, the relevant repository/HTTP contracts, and both test suites together. Run migration/restart, statement, IPC, cloud/no-login, outbox and LAN characterization; preserve queued data on every failure path. Conflict notices use the existing FloatToast and shared sync-outcome helper. Do not equate a successful HTTP response or ended cycle with all records having synchronized.

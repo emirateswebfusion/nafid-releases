@@ -1,12 +1,14 @@
-import type { CashDrawerRow, CashTransactionRow, CustomerCreditRow, InvoiceItem, LedgerRow, ProductRow, PurchaseBillRow, ServiceDb, SettingRow } from './typesB.js';
+import type { CashDrawerRow } from './typesA.js';
+import type { CashTransactionRow, CustomerCreditRow, InvoiceItem, LedgerRow, ProductRow, PurchaseBillRow, ServiceDb, SettingRow } from './typesB.js';
 import { getDb } from '../db/localDb.js';
 import { getOrInitTerminalCode } from './invoiceNumberService.js';
 import crypto from 'node:crypto';
 import { localTimestamp, localDate } from './storeTime.js';
-import { getOpenCashDrawer } from './cashDrawerService.js';
+import { getOpenCashDrawer, reconcileCashDrawer } from './cashDrawerService.js';
 import { recalcPartyBalances } from './partyLedgerService.js';
 import { syncPurchasePaymentAccount } from './ledgerPaymentAccounts.js';
 import * as purchasesSql from '../db/statements/purchases.js';
+import { BrowserWindow } from 'electron';
 /** purchases use-cases for the main process (called by electron/ipc handlers). */
 
 function getNextOrPeekPurchaseBillNumber(
@@ -244,6 +246,7 @@ export function addPurchaseBill(payload: {
           purchasesSql.insertPartyLedger(db).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, balanceType, bill.bill_number, 'system', 'System');
           purchasesSql.updatePartyBalanceColumn(db, balanceCol)
             .run(newBalance, newTypeBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
+          recalcPartyBalances(db, bill.supplier_id);
         }
       }
 
@@ -264,12 +267,19 @@ export function addPurchaseBill(payload: {
           const newCurrentCash = Number(drawer.current_cash) - Number(bill.total_amount);
           const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
           purchasesSql.updateCashDrawerByDrawerId(db).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+          reconcileCashDrawer(db, bill.tenant_id, drawer);
         }
       }
 
       syncPurchasePaymentAccount(db, { ...bill, payment_type: paymentType });
       return { success: true };
     })();
+    const win = BrowserWindow?.getAllWindows?.()?.[0];
+    if (win) win.webContents.send('sync:data-updated');
+    import('../sync/syncWorker.js').then(({ triggerUrgentCashSync, runInitialSync }) => {
+      triggerUrgentCashSync().catch(e => console.error('[Main] Urgent cash sync error on add purchase:', e));
+      runInitialSync().catch(e => console.error('[Main] Sync after add purchase error:', e));
+    }).catch(() => {});
     return result;
   } catch (error) {
     console.error('[db:addPurchaseBill]', error);
@@ -395,6 +405,25 @@ export function updatePurchaseBill(payload: {
         }
       }
 
+      // Party ledger synchronisation on edit:
+      // Retire previous ledger entries for this bill if supplier/bill_number was known
+      const prevSupplierId = oldBill?.supplier_id || bill.supplier_id;
+      const prevBillNumber = oldBill?.bill_number || bill.bill_number;
+      if (prevSupplierId && prevBillNumber) {
+        const ledgerEntries = purchasesSql.findPartyLedgerByPartyIdAndReferenceNumber(db).all(
+          bill.tenant_id,
+          prevSupplierId,
+          prevBillNumber
+        ) as LedgerRow[];
+        for (const entry of ledgerEntries) {
+          purchasesSql.updatePartyLedgerIsDeleted(db).run(entry.ledger_id);
+        }
+        recalcPartyBalances(db, prevSupplierId);
+      }
+      if (oldBill?.supplier_id && bill.supplier_id && oldBill.supplier_id !== bill.supplier_id) {
+        recalcPartyBalances(db, oldBill.supplier_id);
+      }
+
       if (paymentType === 'CREDIT' && bill.supplier_id) {
         const party = purchasesSql.findPartiesByPartyId(db).get(bill.supplier_id) as CustomerCreditRow;
         if (party) {
@@ -405,15 +434,80 @@ export function updatePurchaseBill(payload: {
           const currentTypeBalance = parseFloat(party[balanceCol] as string) || 0;
           const newTypeBalance = currentTypeBalance - debitAmount;
           const newBalance = (parseFloat(party.balance as string) || 0) - debitAmount;
-          purchasesSql.insertPartyLedger(db).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, balanceType, bill.bill_number, 'system', 'System');
+          purchasesSql.insertPartyLedger(db).run(
+            ledgerId,
+            bill.supplier_id,
+            bill.tenant_id,
+            bill.bill_date || localTimestamp(),
+            `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`,
+            0,
+            debitAmount,
+            newBalance,
+            balanceType,
+            bill.bill_number,
+            'system',
+            'System'
+          );
           purchasesSql.updatePartyBalanceColumn(db, balanceCol)
             .run(newBalance, newTypeBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
+          recalcPartyBalances(db, bill.supplier_id);
+        }
+      }
+
+      // Cash Register synchronisation on edit:
+      // A. If the bill was previously CASH, remove previous cash transactions and refund the drawer
+      const oldPaymentType = (oldBill?.payment_type || 'CASH').toUpperCase();
+      if (oldPaymentType === 'CASH') {
+        const billNumbersToCheck = Array.from(new Set([oldBill?.bill_number, bill.bill_number].filter(Boolean))) as string[];
+        for (const num of billNumbersToCheck) {
+          const txRows = purchasesSql.findCashTransactionsByCategory(db).all(
+            bill.tenant_id,
+            `%${num}%`
+          ) as CashTransactionRow[];
+          for (const tx of txRows) {
+            purchasesSql.deleteCashTransactionByTransactionId(db).run(tx.transaction_id);
+            const drawer = purchasesSql.findCashDrawerByDrawerId(db).get(tx.drawer_id) as CashDrawerRow;
+            if (drawer) {
+              const newCashOut = Math.max(0, Number(drawer.cash_out) - Number(tx.amount));
+              const newCurrentCash = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
+              const newExpectedClosing = newCurrentCash;
+              purchasesSql.updateCashDrawerByDrawerId(db).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+              reconcileCashDrawer(db, bill.tenant_id, drawer);
+            }
+          }
+        }
+      }
+
+      // B. If updated bill is now CASH, record cash transaction and deduct from current cash drawer
+      if (paymentType === 'CASH' && Number(bill.total_amount) > 0) {
+        const todayDate = localDate(new Date(), bill.tenant_id);
+        const drawer = getOpenCashDrawer(db, bill.tenant_id, todayDate);
+        if (drawer) {
+          const txnId = crypto.randomUUID();
+          purchasesSql.insertCashTransaction(db).run(
+            txnId,
+            bill.tenant_id,
+            drawer.drawer_id,
+            Number(bill.total_amount),
+            `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`
+          );
+          const newCashOut = Number(drawer.cash_out) + Number(bill.total_amount);
+          const newCurrentCash = Number(drawer.current_cash) - Number(bill.total_amount);
+          const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
+          purchasesSql.updateCashDrawerByDrawerId(db).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+          reconcileCashDrawer(db, bill.tenant_id, drawer);
         }
       }
 
       syncPurchasePaymentAccount(db, { ...bill, payment_type: paymentType });
       return { success: true };
     })();
+    const win = BrowserWindow?.getAllWindows?.()?.[0];
+    if (win) win.webContents.send('sync:data-updated');
+    import('../sync/syncWorker.js').then(({ triggerUrgentCashSync, runInitialSync }) => {
+      triggerUrgentCashSync().catch(e => console.error('[Main] Urgent cash sync error on update purchase:', e));
+      runInitialSync().catch(e => console.error('[Main] Sync after update purchase error:', e));
+    }).catch(() => {});
     return result;
   } catch (error) {
     console.error('[db:updatePurchaseBill]', error);
@@ -445,8 +539,8 @@ export function deletePurchaseBill(purchase_bill_id: string) {
         }
 
         if (bill.payment_type === 'CASH' && Number(bill.total_amount) > 0) {
-          const tx = purchasesSql.findCashTransactionsByCategory(db).get(bill.tenant_id, `%${bill.bill_number}%`) as CashTransactionRow;
-          if (tx) {
+          const txRows = purchasesSql.findCashTransactionsByCategory(db).all(bill.tenant_id, `%${bill.bill_number}%`) as CashTransactionRow[];
+          for (const tx of txRows) {
             purchasesSql.deleteCashTransactionByTransactionId(db).run(tx.transaction_id);
             const drawer = purchasesSql.findCashDrawerByDrawerId(db).get(tx.drawer_id) as CashDrawerRow;
             if (drawer) {
@@ -454,6 +548,7 @@ export function deletePurchaseBill(purchase_bill_id: string) {
               const newCurrentCash = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
               const newExpectedClosing = newCurrentCash;
               purchasesSql.updateCashDrawerByDrawerId(db).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+              reconcileCashDrawer(db, bill.tenant_id, drawer);
             }
           }
         }
@@ -461,7 +556,10 @@ export function deletePurchaseBill(purchase_bill_id: string) {
       purchasesSql.deletePurchaseBillItemByPurchaseBillId(db).run(purchase_bill_id);
       purchasesSql.deletePurchaseBillByPurchaseBillId(db).run(purchase_bill_id);
     })();
-    import('../sync/syncWorker.js').then(({ runInitialSync }) => {
+    const win = BrowserWindow?.getAllWindows?.()?.[0];
+    if (win) win.webContents.send('sync:data-updated');
+    import('../sync/syncWorker.js').then(({ triggerUrgentCashSync, runInitialSync }) => {
+      triggerUrgentCashSync().catch(e => console.error('[Main] Urgent cash sync error on delete purchase:', e));
       runInitialSync().catch(e => console.error('[Main] Sync after delete error:', e));
     }).catch(() => {});
     return { success: true };
