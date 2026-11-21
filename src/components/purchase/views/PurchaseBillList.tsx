@@ -1,6 +1,6 @@
 import { getCurrencyPrefix, getCurrencyDecimals } from '../../../utils/localization/storeProfile';
 import React, { Fragment } from 'react';
-import { Search, X, Download, Plus, Receipt, FileText, User, Calendar, Printer, Pencil, Trash, Eye, RefreshCw } from 'lucide-react';
+import { Search, X, Download, Plus, Receipt, FileText, User, Calendar, Printer, Pencil, Trash, Eye, RefreshCw, Barcode } from 'lucide-react';
 import clsx from 'clsx';
 import { DateRangeFilter } from '../../ui/DateRangeFilter';
 import { Button } from '../../ui/Button';
@@ -21,6 +21,7 @@ export interface PurchaseBillListProps {
   handleEditBill: (bill: PurchaseBill) => Promise<void>;
   handleExportCSV: () => Promise<void>;
   handlePrintBill: (billToPrint: PurchaseBill, itemsToPrint?: PurchaseBillItem[]) => Promise<void>;
+  handlePrintBillBarcodes?: (bill: PurchaseBill) => Promise<void> | void;
   handleViewBill: (bill: PurchaseBill) => Promise<void>;
   isExporting: boolean;
   loading: boolean;
@@ -43,7 +44,7 @@ export interface PurchaseBillListProps {
 /** Purchase bill list: filters (type, search), summary, and the bills table with view / edit / print / delete actions. */
 export function PurchaseBillList({
   bills, billSummaries, dateFrom, dateTo, filteredBills, filterType, handleDelete, handleEditBill, handleExportCSV,
-  handlePrintBill, handleViewBill, isExporting, loading, searchQuery, setDateFrom, setDateTo, setEditHasItems,
+  handlePrintBill, handlePrintBillBarcodes, handleViewBill, isExporting, loading, searchQuery, setDateFrom, setDateTo, setEditHasItems,
   setEditingBill, setEstHasItems, setFilterType, setGstHasItems, setSearchQuery, setShowAddForm, showAddForm,
   viewingBill, isResyncing, onResyncPurchases,
 }: PurchaseBillListProps) {
@@ -264,6 +265,15 @@ export function PurchaseBillList({
                   <span className="text-sm font-black text-foreground">{getCurrencyPrefix()}{Number(bill.total_amount).toFixed(getCurrencyDecimals())}</span>
                 </div>
                 <div className="col-span-1 flex items-center justify-center gap-1">
+                  {handlePrintBillBarcodes && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handlePrintBillBarcodes(bill); }}
+                      className="w-8 h-8 flex items-center justify-center text-muted-foreground/40 hover:text-blue-500 hover:bg-blue-500/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                      title="Print Barcode Labels"
+                    >
+                      <Barcode className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={e => { e.stopPropagation(); handlePrintBill(bill); }}
                     className="w-8 h-8 flex items-center justify-center text-muted-foreground/40 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"

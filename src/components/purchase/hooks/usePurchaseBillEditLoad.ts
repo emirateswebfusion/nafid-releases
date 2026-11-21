@@ -51,6 +51,7 @@ export function usePurchaseBillEditLoad(ctx: UsePurchaseBillEditLoadContext) {
                 is_gst_applicable: item.is_gst_applicable,
                 tax_rate_percent: item.tax_rate_percent,
                 hsn_sac_code: item.hsn_sac_code,
+                sku_barcode: item.sku_barcode,
                 skip_stock_update: item.skip_stock_update !== undefined && item.skip_stock_update !== null
                   ? Number(item.skip_stock_update)
                   : 0,

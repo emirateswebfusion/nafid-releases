@@ -35,6 +35,11 @@ export interface PurchaseFormItem {
   hsn_sac_code?: string | null;
   skip_stock_update?: number | null;
   is_interstate?: boolean | number | null;
+  sku_barcode?: string | null;
+  grade_id?: string | null;
+  pricing_mode?: string | null;
+  discount_flat?: number | null;
+  discount_percent?: number | null;
   is_new_product_clone?: boolean;
   clone_metadata?: {
     barcode: string;
@@ -72,6 +77,10 @@ export interface PurchaseAddItem {
   hsn_sac_code?: string | null;
   sku_barcode?: string | null;
   item_code?: string | null;
+  grade_id?: string | null;
+  pricing_mode?: string | null;
+  discount_flat?: number | null;
+  discount_percent?: number | null;
   skip_stock_update?: number | null;
   is_interstate?: boolean | number | null;
 }

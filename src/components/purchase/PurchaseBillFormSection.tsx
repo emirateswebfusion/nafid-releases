@@ -42,7 +42,8 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   otherSectionAddItem?: (item: PurchaseAddItem) => void;
   editingData?: PurchaseBillEditingData;
   getOtherSectionItems?: () => PurchaseFormItem[];
-}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData, getOtherSectionItems }, ref) => {
+  onPrintBarcode?: (item: PurchaseFormItem) => void;
+}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData, getOtherSectionItems, onPrintBarcode }, ref) => {
   const [billNumber, setBillNumber] = useState('');
   const [isInterstate, setIsInterstate] = useState(false);
   const [peekedBillNumber, setPeekedBillNumber] = useState('');
@@ -191,6 +192,11 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       tax_rate_percent: type === 'GST' ? (product.tax_rate_percent ?? 18) : 0,
       hsn_sac_code: product.hsn_sac_code || '',
       skip_stock_update: type === 'GST' ? (isPaperProduct || isSharedWithOther ? 1 : 0) : 0,
+      sku_barcode: product.sku_barcode,
+      grade_id: product.grade_id,
+      pricing_mode: product.pricing_mode,
+      discount_flat: product.discount_flat,
+      discount_percent: product.discount_percent,
     }]);
     setProductSearch('');
     setProducts([]);
@@ -532,7 +538,7 @@ export const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             getOtherSectionItems={getOtherSectionItems} hsnInputRefs={hsnInputRefs} isEstimate={isEstimate}
             openProductEditor={openProductEditor} otherSectionAddItem={otherSectionAddItem}
             removeBillItem={removeBillItem} setBillItems={setBillItems} toggleBillItemDummy={toggleBillItemDummy}
-            type={type} updateBillItem={updateBillItem}
+            type={type} updateBillItem={updateBillItem} onPrintBarcode={onPrintBarcode}
           />
         )}
 

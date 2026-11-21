@@ -54,11 +54,20 @@ Tests: `tests/unit/productSearch.test.ts`. No IPC or sync contract changes.
 | Restaurant mode: KOT station routing and ticket text; orders, voids, merge / split, billing claim, settlement inside checkout; forward-only statuses | `electron/services/restaurantKot.ts`, `restaurantOrderService.ts`, migration `016-restaurant.ts` triggers | `tests/unit/restaurantOrders.test.ts`, `restaurantRules.test.ts` |
 | Printed documents (receipt text, A4/half-A4 HTML, quotation HTML, party ledger PDF, WhatsApp bill) | `src/utils/print/receiptGenerator.ts`, `invoiceHtmlGenerator.ts`, `quotationHtmlGenerator.ts`, `partyLedgerPdfGenerator.ts`, `whatsappBillHelper.ts`, `printFormatHelper.ts`, `receiptCore.ts`, `styles/boxed.ts` | `tests/unit/thermalPrint.test.ts`, `printGenerators.characterization.test.ts`, `thermalBillTaxBreakup.test.ts` |
 | Inventory product CSV export formatting & bulk upload header normalization | `src/components/inventory/hooks/useInventoryExports.ts` (`buildInventoryCsvRow`), `src/components/data-upload/dataUploadTypes.ts` (`PRODUCT_HEADER_MAP`, `resolveDynamicTierName`) | `tests/unit/inventoryCsvExport.test.ts` |
+| Purchase barcode printing, bulk label payloads & price toggle | `src/components/purchase/hooks/usePurchaseBarcodePrint.ts`, `src/components/purchase/views/BulkBarcodePrintModal.tsx` | `tests/unit/purchaseBarcodePrint.test.ts` |
 
 Sales History date filters and dashboard sales use invoice creation instants in the store timezone. The shared `electron/db/statements/invoiceDates.ts` predicate parses legacy UTC space-separated timestamps and ISO timestamps numerically; later settlement does not move a sale to another date. Tests: `invoiceDateFilters.test.ts`.
 
 Main-process rules live in `electron/services/` (document numbering, party ledger, cash drawer reconciliation, store time)
 and `electron/utils/` (ids, cashier settlement math).
+
+### Purchase bill barcode label printing and price visibility
+
+`src/components/purchase/hooks/usePurchaseBarcodePrint.ts` and `src/components/purchase/views/BulkBarcodePrintModal.tsx` govern barcode label printing directly from purchase bills:
+1. **Quantity defaulting**: Default label counts automatically populate from purchased line quantities (`quantity`), defaulting to 1 if unset or non-positive. Users can adjust quantities per item or exclude an item with quantity 0.
+2. **Price visibility suppression**: When "Show Price on Labels" is toggled off (`showPrice = false`), `price`, `sp`, and `spType` are strictly omitted (`undefined`) from all item payloads sent to the thermal barcode printer driver (`printingApi.printBarcode`, `printingApi.printBulkBarcodes`). Labels are printed with barcodes and item names only, ensuring no cost or selling price leaks.
+3. **Modal Escape hierarchy**: `BarcodePrintModal` and `BulkBarcodePrintModal` register capture-phase `Escape` listeners that stop event propagation. `PurchaseBillManager` coordinates modal dismissal via a hierarchical `handleEscape` dispatcher (`bulkPrintModalOpen` → `printModalProduct` → `deleteConfirmOpen` → `showPartyCreateForm` → `viewingBill` → `showAddForm` → `onClose`), guaranteeing that pressing `Escape` or clicking `Cancel` returns to the active parent view without exiting to the home dashboard.
+Coverage: `tests/unit/purchaseBarcodePrint.test.ts`.
 
 ### Saved bill line order
 
