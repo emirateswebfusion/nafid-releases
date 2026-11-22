@@ -176,3 +176,69 @@ it('cleans up cash transactions and restores drawer upon bill deletion', () => {
   expect(drawer.cash_out).toBe(0);
   expect(drawer.current_cash).toBe(5000);
 });
+
+it('clears Cash Register entry and updates closed drawer when editing CASH bill to CREDIT after drawer is CLOSED', () => {
+  // 1. Initial entry: Saved as CASH for 1000 while drawer was open
+  expect(addPurchaseBill(createBillPayload('PUR-005', 'CASH', 1000)).success).toBe(true);
+
+  // 2. Simulate drawer closing (status = 'CLOSED', counted cash = 4000)
+  const closedAt = new Date().toISOString();
+  sql.prepare(`
+    UPDATE cash_drawer 
+    SET status = 'CLOSED', closed_at = ?, actual_cash = 4000, cash_short = 0, cash_excess = 0
+    WHERE drawer_id = 'd1'
+  `).run(closedAt);
+
+  // 3. User edits bill to CREDIT after drawer closing
+  expect(updatePurchaseBill(createBillPayload('PUR-005', 'CREDIT', 1000)).success).toBe(true);
+
+  // Verify cash transaction is removed
+  const txs = sql.prepare("SELECT * FROM cash_transactions WHERE category = 'Purchase Bill'").all();
+  expect(txs.length).toBe(0);
+
+  // Verify closed drawer reflects removal of cash_out
+  const drawer = sql.prepare('SELECT * FROM cash_drawer WHERE drawer_id = ?').get('d1') as {
+    status: string; cash_out: number; expected_closing: number; actual_cash: number; cash_short: number
+  };
+  expect(drawer.status).toBe('CLOSED');
+  expect(drawer.cash_out).toBe(0);
+  expect(drawer.expected_closing).toBe(5000);
+  // With expected 5000 and counted 4000, short is 1000
+  expect(drawer.cash_short).toBe(1000);
+
+  // Verify party ledger reflects the credit transaction
+  const ledgerEntries = sql.prepare('SELECT * FROM party_ledger WHERE party_id = ? AND is_deleted = 0').all('sup1') as Array<{ debit_amount: number }>;
+  expect(ledgerEntries.length).toBe(1);
+  expect(ledgerEntries[0].debit_amount).toBe(1000);
+});
+
+it('records cash transaction and reconciles drawer when editing CREDIT bill to CASH even if drawer is CLOSED', () => {
+  // 1. Initial entry: Saved as CREDIT for 1000
+  expect(addPurchaseBill(createBillPayload('PUR-006', 'CREDIT', 1000)).success).toBe(true);
+
+  // 2. Simulate drawer closing
+  const closedAt = new Date().toISOString();
+  sql.prepare(`
+    UPDATE cash_drawer 
+    SET status = 'CLOSED', closed_at = ?, actual_cash = 5000, cash_short = 0, cash_excess = 0
+    WHERE drawer_id = 'd1'
+  `).run(closedAt);
+
+  // 3. User edits bill to CASH while drawer is CLOSED
+  expect(updatePurchaseBill(createBillPayload('PUR-006', 'CASH', 1000)).success).toBe(true);
+
+  // Verify cash transaction is recorded
+  const txs = sql.prepare("SELECT * FROM cash_transactions WHERE category = 'Purchase Bill'").all() as Array<{ amount: number }>;
+  expect(txs.length).toBe(1);
+  expect(txs[0].amount).toBe(1000);
+
+  // Verify drawer totals
+  const drawer = sql.prepare('SELECT * FROM cash_drawer WHERE drawer_id = ?').get('d1') as {
+    status: string; cash_out: number; expected_closing: number; actual_cash: number; cash_excess: number
+  };
+  expect(drawer.status).toBe('CLOSED');
+  expect(drawer.cash_out).toBe(1000);
+  expect(drawer.expected_closing).toBe(4000);
+  // Counted was 5000, expected is now 4000 -> excess is 1000
+  expect(drawer.cash_excess).toBe(1000);
+});
