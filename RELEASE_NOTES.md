@@ -1,3 +1,13 @@
+# Nafid POS v2.2.89
+
+## What's New
+
+- **Purchase Bill Payment & Drawer Synchronisation**: Switching a purchase bill payment mode from Cash to Credit or Credit to Cash atomically updates the Cash Register, refunds/adjusts the cash drawer balance, and synchronises the supplier credit ledger.
+- **Cash Drawer Reconciliation**: Editing cash purchase amounts or deleting purchase bills automatically restores drawer cash balances and runs session reconciliation.
+- **Multi-Window Sync Broadcasting**: Changes to purchase bills broadcast updates immediately across all open POS windows.
+
+**Download:** [Nafid-Setup-2.2.89.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.89/Nafid-Setup-2.2.89.exe)
+
 # Nafid POS v2.2.88
 
 ## What's New
