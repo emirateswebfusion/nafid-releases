@@ -7,7 +7,7 @@ This is the canonical release gate for Nafid POS. It applies to every agent, dev
 - Build a clean, reviewed source tree that passed `verify` and `lint:ratchet`. Record its commit and version. Exclude unrelated uncommitted work. The source tag must identify the exact shipped tree; rebuild if source or build settings change after validation.
 - Each release worktree must have its own writable `node_modules`. Share the package-manager download store, not a dependency-directory junction: package-manager/packager operations can rewrite links to an ephemeral worktree and break the original checkout when it is removed.
 - Supply the approved production settings before both renderer compilation and packaging. Do not package with missing, blank, development, localhost, or placeholder cloud URLs. Renderer build-time settings and main-process runtime settings must agree.
-- The approved backend is `https://nafid.vercel.app`, owned by `PRODUCTION_CLOUD_API` in `scripts/runtime-env.cjs`.
+- The approved backend is `https://nafid-server-production.up.railway.app`, owned by `PRODUCTION_CLOUD_API` in `scripts/runtime-env.cjs`.
   `validateProductionCloudEnv` blocks packaging and final Windows/Mac artifact validation when either cloud key differs.
   Both release workflows must supply this address (`runtimeEnv.test.ts` checks them). A backend-account migration must
   update the renderer build environment, packaged `resources/app.env`, workflows and this approval together; changing

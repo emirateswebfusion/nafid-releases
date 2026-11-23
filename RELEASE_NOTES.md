@@ -1,3 +1,12 @@
+# Nafid POS v2.2.90
+
+## What's New
+
+- **Backend Infrastructure Migration**: Migrated the central production cloud API from Vercel to high-availability Railway infrastructure (`https://nafid-server-production.up.railway.app`) for faster cloud synchronisation and increased background sync reliability.
+- **Drawer Synchronisation Coverage**: Added automated test coverage for open vs. closed drawer sessions during purchase bill mutations.
+
+**Download:** [Nafid-Setup-2.2.90.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.90/Nafid-Setup-2.2.90.exe)
+
 # Nafid POS v2.2.89
 
 ## What's New
