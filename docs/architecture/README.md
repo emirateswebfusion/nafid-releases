@@ -12,6 +12,9 @@ Read it before writing code. If the code and these documents disagree, fix one o
 | 5 | [Conventions](05-conventions.md) | coding standards and the rules the guard scripts enforce |
 | 6 | [Change guide](06-change-guide.md) | where to put a new feature, how to modify one safely, definition of done |
 | — | [Authentication lifecycle](auth-session-lifecycle.md) | password/PIN entry, separate cloud credentials, reconnect, logout and truthful connection status |
+| — | [Shop-confirmed source recovery](source-confirmed-recovery.md) | background source request, online local backup and platform-only diagnostics |
+| — | [Manual cloud sync](manual-sync.md) | guarded native Sync now, truthful queue results and conflict recovery limits |
+| — | [Sync integrity](sync-integrity.md) | upload-only acknowledgement, protected pending/failed rows and clock-safe preferences |
 | — | [Scoped account recovery](account-recovery.md) | operator-selected source, durable cloud/local/source backups, exact receipts, rollback and rollout |
 | — | [Account recovery validation](account-recovery-validation.md) | verified source checks and explicit outstanding delivery/remote evidence |
 | — | [Platform sync support](sync-support.md) | SUPER_ADMIN-only shop/terminal diagnostics, reporting contract and rollout limits |
@@ -30,6 +33,9 @@ Read it before writing code. If the code and these documents disagree, fix one o
 | — | [Scan & Go](scan-go-design.md) | customer carts sent from the phone, the Carts panel at the cash register, claim/complete with the normal checkout |
 
 Related:
+
+- [ADR 0008 — Manual sync preserves financial conflicts](adr/0008-manual-sync-preserves-conflicts.md)
+- [ADR 0009 — Shop-confirmed background account recovery](adr/0009-shop-confirmed-background-account-recovery.md)
 
 - Workspace overview (all apps, cross-app contracts): `../../../ARCHITECTURE.md`
 - Agent/developer operating rules and commands: `../../../AGENTS.md`

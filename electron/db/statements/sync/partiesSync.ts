@@ -61,7 +61,7 @@ export const insertParties = (db: Db) => db.prepare(`
       updated_at = excluded.updated_at,
       row_version = excluded.row_version, origin = excluded.origin,
       sync_status = 'SYNCED'
-    WHERE parties.sync_status != 'PENDING'
+    WHERE parties.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const selectParties2 = (db: Db) => db.prepare(`
     SELECT party_id FROM parties
@@ -79,8 +79,8 @@ export const updateParties2 = (db: Db) => db.prepare(`
 export const selectPartyLedger = (db: Db) => db.prepare(`SELECT * FROM party_ledger WHERE sync_status = 'PENDING' AND tenant_id = ?`);
 export const updatePartyLedger2 = (db: Db) => db.prepare(`UPDATE party_ledger SET sync_status = 'SYNCED' WHERE ledger_id = ? AND tenant_id = ? AND row_version IS ? AND updated_at IS ?`);
 export const selectLoyaltyTransactions = (db: Db) => db.prepare(`SELECT * FROM loyalty_transactions WHERE tenant_id = ? AND sync_status IN ('PENDING', 'FAILED')`);
-export const updateLoyaltyTransactions = (db: Db) => db.prepare("UPDATE loyalty_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ?");
-export const updateLoyaltyTransactions2 = (db: Db) => db.prepare("UPDATE loyalty_transactions SET sync_status = 'FAILED' WHERE transaction_id = ?");
+export const updateLoyaltyTransactions = (db: Db) => db.prepare("UPDATE loyalty_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ? AND tenant_id = ? AND row_version IS ? AND updated_at IS ?");
+export const updateLoyaltyTransactions2 = (db: Db) => db.prepare("UPDATE loyalty_transactions SET sync_status = 'FAILED' WHERE transaction_id = ? AND tenant_id = ? AND row_version IS ? AND updated_at IS ?");
 export const selectLedgerParty = (db: Db) => db.prepare('SELECT party_id FROM party_ledger WHERE ledger_id = ? AND tenant_id = ?');
 export const insertPartyLedger = (db: Db) => db.prepare(`
     INSERT INTO party_ledger (
@@ -106,7 +106,7 @@ export const insertPartyLedger = (db: Db) => db.prepare(`
       updated_at = excluded.updated_at,
       row_version = excluded.row_version, origin = excluded.origin,
       sync_status = 'SYNCED'
-    WHERE party_ledger.sync_status != 'PENDING' AND party_ledger.tenant_id = excluded.tenant_id
+    WHERE party_ledger.sync_status NOT IN ('PENDING', 'FAILED') AND party_ledger.tenant_id = excluded.tenant_id
   `);
 export const updateParties3 = (db: Db) => db.prepare(`
             UPDATE parties
@@ -161,15 +161,15 @@ export const insertCustomers = (db: Db) => db.prepare(`
       einvoice_profile = COALESCE(excluded.einvoice_profile, customers.einvoice_profile),
       sync_status = 'SYNCED',
       updated_at = excluded.updated_at
-    WHERE customers.sync_status != 'PENDING'
+    WHERE customers.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const selectCustomers = (db: Db) => db.prepare(`
-    SELECT customer_id FROM customers 
+    SELECT customer_id, sync_status FROM customers
     WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)
     LIMIT 1
   `);
 export const selectCustomers2 = (db: Db) => db.prepare(`
-    SELECT customer_id FROM customers 
+    SELECT customer_id, sync_status FROM customers
     WHERE tenant_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND (phone IS NULL OR phone = '') AND (is_deleted IS NULL OR is_deleted = 0)
     LIMIT 1
   `);
@@ -184,7 +184,7 @@ export const updateCustomers = (db: Db) => db.prepare(`
         is_deleted = @is_deleted,
         sync_status = 'SYNCED',
         updated_at = @updated_at
-    WHERE customer_id = @target_customer_id AND sync_status != 'PENDING'
+    WHERE customer_id = @target_customer_id AND sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const reassignCustomerInvoices = (db: Db) => db.prepare('UPDATE invoices SET customer_id = ? WHERE customer_id = ? AND tenant_id = ?');
 export const reassignCustomerLoyalty = (db: Db) => db.prepare('UPDATE loyalty_transactions SET customer_id = ? WHERE customer_id = ? AND tenant_id = ?');
@@ -204,8 +204,9 @@ export const insertLoyaltyTransactions = (db: Db) => db.prepare(`
       points_balance_after = excluded.points_balance_after,
       reference_number = excluded.reference_number, description = excluded.description,
       sync_status = 'SYNCED'
+    WHERE loyalty_transactions.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 
 export const selectCustomers3 = (db: Db) => db.prepare(`SELECT * FROM customers WHERE tenant_id = ? AND sync_status IN ('PENDING', 'FAILED')`);
-export const updateCustomers2 = (db: Db) => db.prepare(`UPDATE customers SET sync_status = 'SYNCED', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?`);
-export const updateCustomers3 = (db: Db) => db.prepare(`UPDATE customers SET sync_status = 'FAILED', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?`);
+export const updateCustomers2 = (db: Db) => db.prepare(`UPDATE customers SET sync_status = 'SYNCED' WHERE customer_id = ? AND tenant_id = ? AND row_version IS ? AND updated_at IS ?`);
+export const updateCustomers3 = (db: Db) => db.prepare(`UPDATE customers SET sync_status = 'FAILED' WHERE customer_id = ? AND tenant_id = ? AND row_version IS ? AND updated_at IS ?`);

@@ -1,3 +1,4 @@
+import { matchingBusinessProfile } from '../../../config/businessProfiles';
 import type { SettingsSaveSession } from '../settingsSaveSession';
 import { setStoreCountry, setStoreVatInclusive, isValidTaxRegistration, getStoreProfile } from '../../../utils/localization/storeProfile';
 import { setStoreTimezone } from '../../../utils/time/timezoneHelper';
@@ -27,6 +28,7 @@ export interface UseSettingsSaveContext {
   saveSession: SettingsSaveSession;
   buildSettingsSnapshot: (overrides?: SettingsSnapshotOverrides) => string;
   featureFlags: FeatureFlags | null;
+  onFeatureFlagsSaved?: (flags: FeatureFlags) => void;
   setInitialSnapshot: React.Dispatch<React.SetStateAction<string>>;
   localDomain: "GENERAL" | "HARDWARE" | "JEWELRY" | "GROCERY";
   returnPrefix: string;
@@ -144,6 +146,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'bank_branch', value: bankBranch }), name: 'bank_branch' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: Boolean(sanitizedFlags.scrap) }), name: 'enable_scrap' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: sanitizedFlags.cash_register }), name: 'show_cash_register' },
+        { promise: setSetting({ tenant_id: tenantId || 'global', key: 'business_category', value: matchingBusinessProfile(sanitizedFlags) }), name: 'business_category' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...sanitizedFlags } }), name: 'feature_flags' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'auto_print_barcode', value: autoPrintBarcode }), name: 'auto_print_barcode' },
         { promise: setSetting({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
@@ -252,6 +255,7 @@ export function useSettingsSave(ctx: UseSettingsSaveContext) {
       useCartStore.setState({ shopState });
       useBillingUIStore.getState().updateConfig(billingUIConfig);
       useFeatureFlagsStore.getState().setFlags(sanitizeFeatureFlags(featureFlags || DEFAULT_FEATURE_FLAGS));
+      ctx.onFeatureFlagsSaved?.(sanitizedFlags);
       setEnableScrap(Boolean(featureFlags?.scrap));
       ctx.form.setShowCashRegister(sanitizedFlags.cash_register);
       ctx.form.setLoyaltyEnabled(sanitizedFlags.loyalty);

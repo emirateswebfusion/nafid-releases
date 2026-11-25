@@ -1,5 +1,13 @@
 # 3. Data access
 
+Legacy downloads never clear outgoing pending state from a matching timestamp or record ID. Only upload acknowledgements
+for the captured snapshot may do that; SQL failure cannot fall back to clearing by ID. Protected legacy upserts retain
+PENDING and FAILED source rows. See [sync integrity](sync-integrity.md) for ownership and regression coverage.
+
+Generic pull cursors commit only after proven completion; malformed/capped/failed pages retain the old cursor and an
+incomplete marker. Per-row SQL failures must escape page transactions. Invoice reads cannot infer ledger deletion from
+text references. See sync-integrity.md §Download completion and independent financial ownership for compatibility limits.
+
 All data the renderer reads or writes goes through one of three doors:
 
 | Door | Module | Transport | Use for |
@@ -364,3 +372,17 @@ Developer diagnostics belong to SUPER_ADMIN, never shop ADMIN. The additive `/su
 ## Background source recovery
 
 The support-report response may queue a validated account-recovery-v1 directive; report uploads remain metadata-only. A separate source-bound job and endpoint carry financial snapshots. All SQLite reads/queue acknowledgement statements remain data-layer factories; no bridge access is introduced. Backups precede HTTP, existing snapshot guards retain newer edits, and local financial values are never replaced. See [account recovery](account-recovery.md).
+
+### Initial shop feature bootstrap
+
+The existing authSaveToken payload accepts optional unknown store_profile metadata. authSessionService delegates bounded feature/category validation and missing-only SYNCED inserts to initialShopFeatures; SQL remains in statements/settings. Sync apply guard prevents bootstrap upload loops, and pending local configuration survives relogin. No new IPC channel or sync wire format is introduced. See the unified shop feature configuration contract in 04-business-rules.
+
+Bootstrap settings retain the server-reported updated_at (epoch fallback when unavailable), never the terminal current time. A cloud change committed while login is in flight must remain eligible for normal pull. Registration does not requeue already-confirmed feature choices as a new local pending write.
+
+## Explicit native cloud sync
+
+`syncApi.manualCloudSync → preload manualCloudSync → sync:manualCloud → manualSyncService` takes no tenant body and returns `ManualSyncResult` from `src/data/manualSyncTypes.d.ts`. The service validates the current shop session and uses the existing serialized engine. The old clear-pending channel rejects unacknowledged clears; drain delegates to the same use-case. See [Manual cloud sync](manual-sync.md) for retry and result semantics.
+
+## Source confirmation payload
+
+The existing manualCloudSync method also accepts `{confirm_complete:true}` and returns QUEUED once local intent is persisted, without awaiting network. Main revalidates ADMIN/OWNER, tenant/user/token, lock, CLOUD route and saved policy. The worker posts exact IDs to `/support/account-recovery/source-confirmed`; no renderer tenant or arbitrary SQL/table list is accepted. Developer result metadata is report-only. See [source-confirmed-recovery.md](source-confirmed-recovery.md).

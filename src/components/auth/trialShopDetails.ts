@@ -1,3 +1,4 @@
+import type { FeatureFlags } from '../../config/featureFlags';
 import { BUSINESS_PROFILES } from '../../config/businessProfiles';
 
 // Onboarding suggestions only. These do not configure billing, tax or store time.
@@ -15,6 +16,7 @@ export interface TrialShopDetails {
   city: string;
   country: TrialCountryCode;
   businessCategory?: string;
+  featureFlags?: FeatureFlags;
 }
 
 export function validateTrialDetails(details: TrialShopDetails): Partial<Record<keyof TrialShopDetails, string>> {
@@ -26,7 +28,7 @@ export function validateTrialDetails(details: TrialShopDetails): Partial<Record<
   if (!/^[+\d\s()-]+$/.test(details.phone.trim()) || digits.length < 7 || digits.length > 15) errors.phone = 'Enter a valid phone number, including country code.';
   if (!details.city.trim()) errors.city = 'Enter your city or emirate.';
   if (!TRIAL_COUNTRIES.some(country => country.code === details.country)) errors.country = 'Choose a supported country.';
-  if (details.businessCategory && !BUSINESS_PROFILES.some(profile => profile.id === details.businessCategory)) {
+  if (details.businessCategory && details.businessCategory !== 'custom' && !BUSINESS_PROFILES.some(profile => profile.id === details.businessCategory)) {
     errors.businessCategory = 'Choose a supported business category.';
   }
   return errors;

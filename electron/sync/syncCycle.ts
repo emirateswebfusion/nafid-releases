@@ -1,5 +1,6 @@
 import { accountSyncNotice } from './accountMetadata.js';
 import { runAccountRecovery } from './accountRecovery.js';
+import { processSourceRecoveryRequest } from './sourceRecoveryRequest.js';
 import { outboxEnabled, runOutboxSync } from './outboxSync.js';
 import { type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
@@ -183,6 +184,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
     return syncState.syncPromise ?? Promise.resolve();
   }
 
+  syncState.lastCycleFailed = false;
   syncState.syncInProgress = true;
   syncState.currentSyncProgress = null;
   syncState.lastCycleAt = Date.now();
@@ -259,7 +261,10 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
       }
 
       notifyOnlineStatus(true, activeRoute);
-      if (activeRoute === 'CLOUD' && effective.isCloudAllowed) await runAccountRecovery(tenant_id, jwt_token);
+      if (activeRoute === 'CLOUD' && effective.isCloudAllowed) {
+        if (!await processSourceRecoveryRequest(tenant_id, jwt_token)) { notifyCycleComplete(sender, false); return; }
+        await runAccountRecovery(tenant_id, jwt_token);
+      }
       if (activeRoute === 'CLOUD' && outboxEnabled(tenant_id)) {
         try {
           const uploadedRecords = getTotalPendingRecords(getDb(), tenant_id) > 0;
@@ -448,6 +453,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
           }
         }
       } catch (err) {
+        syncState.lastCycleFailed = true;
         console.error('[SyncWorker] Sync cycle error:', (err as Error).message);
       } finally {
         syncState.pullProgressCtx = null;

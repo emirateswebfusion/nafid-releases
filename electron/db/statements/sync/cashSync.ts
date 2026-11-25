@@ -66,7 +66,7 @@ export const insertCashDrawer = (db: Db) => db.prepare(`
       closed_at = excluded.closed_at,
       sync_status = CASE WHEN cash_drawer.sync_status = 'PENDING' THEN 'PENDING' ELSE 'SYNCED' END,
       updated_at = excluded.updated_at
-    WHERE cash_drawer.sync_status != 'PENDING'
+    WHERE cash_drawer.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const selectCashDrawer3 = (db: Db) => db.prepare(`SELECT * FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND status = 'OPEN'`);
 export const insertCashTransactions = (db: Db) => db.prepare(`
@@ -89,7 +89,7 @@ export const insertCashTransactions = (db: Db) => db.prepare(`
       transaction_date = excluded.transaction_date,
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE cash_transactions.sync_status != 'PENDING'
+    WHERE cash_transactions.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const selectCashDrawer4 = (db: Db) => db.prepare(`SELECT drawer_id FROM cash_drawer WHERE drawer_id = ? OR (tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)) LIMIT 1`);
 export const insertCashierAuditLog = (db: Db) => db.prepare(`
@@ -106,7 +106,7 @@ export const insertCashierAuditLog = (db: Db) => db.prepare(`
       performed_by_name = excluded.performed_by_name,
       performed_at = excluded.performed_at,
       sync_status = 'SYNCED'
-    WHERE cashier_audit_log.sync_status != 'PENDING'
+    WHERE cashier_audit_log.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertCashCategories = (db: Db) => db.prepare(`
     INSERT INTO cash_categories (
@@ -120,7 +120,7 @@ export const insertCashCategories = (db: Db) => db.prepare(`
       sort_order = excluded.sort_order,
       is_default = excluded.is_default,
       sync_status = 'SYNCED'
-    WHERE cash_categories.sync_status != 'PENDING'
+    WHERE cash_categories.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const selectPaymentSources = (db: Db) => db.prepare(`SELECT * FROM payment_sources WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
 export const updatePaymentSources = (db: Db) => db.prepare(`UPDATE payment_sources SET sync_status = 'SYNCED' WHERE source_id = ?`);
@@ -144,7 +144,7 @@ export const insertPaymentSources = (db: Db) => db.prepare(`
       is_default = excluded.is_default, is_enabled = excluded.is_enabled,
       sort_order = excluded.sort_order, is_deleted = excluded.is_deleted,
       updated_at = excluded.updated_at, sync_status = 'SYNCED'
-    WHERE payment_sources.sync_status != 'PENDING'
+    WHERE payment_sources.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertPaymentSourceTransactions = (db: Db) => db.prepare(`
     INSERT INTO payment_source_transactions (
@@ -160,5 +160,5 @@ export const insertPaymentSourceTransactions = (db: Db) => db.prepare(`
       transaction_date = excluded.transaction_date, running_balance = excluded.running_balance,
       entered_by = excluded.entered_by, entered_by_name = excluded.entered_by_name,
       updated_at = excluded.updated_at, sync_status = 'SYNCED'
-    WHERE payment_source_transactions.sync_status != 'PENDING'
+    WHERE payment_source_transactions.sync_status NOT IN ('PENDING', 'FAILED')
   `);

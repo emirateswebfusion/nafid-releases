@@ -1,9 +1,11 @@
+import { manualCloudSync } from '../services/manualSyncService.js';
 import { ipcMain } from 'electron';
 import { handle } from './common.js';
 import * as syncService from '../services/syncService.js';
 import * as ecommerceService from '../services/ecommerceService.js';
 
 export function registerSyncEcommerceHandlers(): void {
+handle('sync:manualCloud', manualCloudSync);
 handle('sync:clearPending', syncService.syncClearPending);
 
 // ── Diagnostic: Get stuck PENDING sync records ────────────────────────────────

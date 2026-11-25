@@ -1,5 +1,10 @@
 import type { Db } from './types.js';
 
+export const insertInitialShopSetting = (db: Db) => db.prepare(`
+  INSERT INTO settings (tenant_id,key,value,sync_status,updated_at) VALUES (?,?,?,'SYNCED',?)
+  ON CONFLICT(tenant_id,key) DO NOTHING
+`);
+
 export const findCountryChangeBlockers = (db: Db) => db.prepare(`
   SELECT (
     EXISTS(SELECT 1 FROM invoices WHERE tenant_id = @tenant_id) OR

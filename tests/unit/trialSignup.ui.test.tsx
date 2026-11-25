@@ -43,7 +43,7 @@ it('allows selecting a business category and registers with matching feature fla
   await user.type(screen.getByLabelText('City / emirate'), 'Dubai');
   await user.selectOptions(screen.getByLabelText('Business category'), 'restaurant');
   await user.click(screen.getByRole('button', { name: 'Review shop details' }));
-  expect(screen.getByText('Restaurant / Cafeteria')).toBeDefined();
+  expect(screen.getByRole('button', { name: /Restaurant \/ Cafeteria/ }).getAttribute('aria-pressed')).toBe('true');
   await user.type(screen.getByLabelText('Password', { exact: true }), 'Password123');
   await user.type(screen.getByLabelText('Confirm password'), 'Password123');
   await user.click(screen.getByRole('button', { name: 'Start 30-day free trial' }));

@@ -258,20 +258,12 @@ export function initSyncWorker() {
   scheduleNextSyncCycle();
 }
 
-export async function drainPendingCloudQueue(sender?: WebContents): Promise<{ success: boolean; drainedCount: number; message: string }> {
-  const effective = calculateEffectiveCloudAccess();
-  if (!effective.isCloudAllowed) {
-    console.log(`[SyncWorker] Cannot drain pending queue: ${effective.activeReason}`);
-    return { success: false, drainedCount: 0, message: effective.activeReason };
-  }
-
-  console.log(`[SyncWorker] 🚀 Starting controlled queue drain (${effective.pendingCount} pending records)...`);
-  const initialPending = effective.pendingCount;
-  await runSyncCycle(sender);
-  const remaining = effective.config ? getTotalPendingRecords(getDb(), getAuthConfig()?.tenant_id || 'global') : 0;
-  const drainedCount = Math.max(0, initialPending - remaining);
-  console.log(`[SyncWorker] ✅ Queue drain completed. Drained ${drainedCount} records, ${remaining} remaining.`);
-  return { success: true, drainedCount, message: `Successfully drained ${drainedCount} records.` };
+/** Legacy entry point delegates to the same guarded manual operation; never claims unmeasured upload counts. */
+export async function drainPendingCloudQueue(_sender?: WebContents): Promise<{ success: boolean; drainedCount: number; message: string; error?: string }> {
+  const { manualCloudSync } = await import('../services/manualSyncService.js');
+  const result = await manualCloudSync();
+  const success = result.status === 'CHECKED';
+  return { success, drainedCount: 0, message: result.message, ...(!success ? { error: result.message } : {}) };
 }
 
 export async function triggerUrgentInvoiceSync(): Promise<void> {

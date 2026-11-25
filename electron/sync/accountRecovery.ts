@@ -32,7 +32,7 @@ export function accountRecoveryStatus(tenant: string): { job_id: string; state: 
   return { job_id:last.value,state:meta.read(db).get(`account_recovery_complete:${tenant}:${last.value}`)?'COMPLETE':error?'RETRY':'PENDING',
     code:error && /^(HTTP_[0-9]{3}|RETRY_RETAINED)$/.test(error.value)?error.value:'' };
 }
-function snapshot(tenant: string, command: Directive): Snapshot {
+export function prepareAccountRecoverySnapshot(tenant: string, command: Directive): Snapshot {
   const db = getDb(), key = `account_recovery_backup:${tenant}:${command.job_id}`;
   const saved = meta.read(db).get(key) as { value: string } | undefined;
   if (saved) return JSON.parse(saved.value) as Snapshot;
@@ -95,7 +95,7 @@ export async function runAccountRecovery(tenant: string, token: string): Promise
     if (command.tenant_id !== tenant || command.terminal_id !== terminal?.value || !uuid(command.job_id)) return;
     if (meta.read(db).get(`account_recovery_complete:${tenant}:${command.job_id}`)) return;
     if (Date.parse(command.expires_at) <= Date.now() && !meta.read(db).get(`account_recovery_backup:${tenant}:${command.job_id}`)) return;
-    const saved = snapshot(tenant, command);
+    const saved = prepareAccountRecoverySnapshot(tenant, command);
     const base = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || '').replace(/\/$/, '');
     if (!base) return;
     const response = await fetch(`${base}/support/account-recovery/apply`, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(60_000),

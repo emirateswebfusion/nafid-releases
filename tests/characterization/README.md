@@ -50,6 +50,7 @@ EQ_USERDATA="$EQ/u1" npx tsx "$H/run.mts" cand cand.json
 |---|---|
 | `electron/ipc`, `electron/services`, `electron/db/statements` | `run.mts` (base vs cand) and `check-statements.mts` |
 | `electron/sync/*`, server sync routes | `sync-run.mts` (login and `EQ_NO_LOGIN=1`), `lan-run.mts` |
+| Online source database backup | `source-backup.mts` with a fresh isolated `EQ_USERDATA`; verifies concurrent foreground writes, retained rows, SQLite integrity and replay digest without touching the live app profile |
 | `electron/db/localDb.ts`, `migrations*.ts`, startup repairs | `startup-idempotency.mts`, `migrations.mts` |
 | A new migration | `migrations.mts`, then regenerate row types: `EQ_USERDATA=<empty> npx tsx $H/gen-row-types.mts cand <pos repo>/src/data/dbRows.ts` |
 | Cash drawer rules | `drawer-session.mts` |

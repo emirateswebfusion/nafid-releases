@@ -1,0 +1,28 @@
+import { DatabaseSync } from 'node:sqlite';
+import type Database from 'better-sqlite3';
+import { afterEach, expect, it, vi } from 'vitest';
+const state = vi.hoisted(() => ({ db: null as unknown as Database.Database }));
+vi.mock('../../electron/db/localDb', () => ({ getDb: () => state.db }));
+import { insertSettings } from '../../electron/db/statements/sync/settingsSync';
+import { cacheInitialShopFeatures } from '../../electron/services/initialShopFeatures';
+let raw: DatabaseSync;
+afterEach(() => raw?.close());
+it('bootstraps a new device without upload or overwriting a pending local selection, scoped to the shop', () => {
+  raw = new DatabaseSync(':memory:');
+  raw.exec(`CREATE TABLE settings(tenant_id TEXT,key TEXT,value TEXT,sync_status TEXT,updated_at TEXT,PRIMARY KEY(tenant_id,key));
+    CREATE TABLE sync_apply_guard(id INTEGER PRIMARY KEY); CREATE TABLE uploads(key TEXT);
+    CREATE TRIGGER upload AFTER INSERT ON settings WHEN NOT EXISTS(SELECT 1 FROM sync_apply_guard) BEGIN INSERT INTO uploads VALUES (NEW.key); END;`);
+  state.db = Object.assign(raw, { transaction: (fn: () => unknown) => fn }) as unknown as Database.Database;
+  cacheInitialShopFeatures('shop-a', { feature_flags: { billing: false }, business_category: 'custom', updated_at: '2026-11-21T08:00:00Z' });
+  expect(raw.prepare('SELECT value,sync_status FROM settings WHERE tenant_id=? AND key=?').get('shop-a', 'feature_flags')).toEqual({ value: '{"billing":false}', sync_status: 'SYNCED' });
+  expect(raw.prepare('SELECT updated_at FROM settings WHERE tenant_id=? AND key=?').get('shop-a', 'feature_flags')?.updated_at).toBe('2026-11-21T08:00:00.000Z');
+  expect(raw.prepare('SELECT * FROM uploads').all()).toEqual([]);
+  insertSettings(state.db).run({ tenant_id: 'shop-a', key: 'feature_flags', value: '{"billing":true}', updated_at: '2026-11-21T08:00:00.100Z' });
+  expect(raw.prepare('SELECT value FROM settings WHERE tenant_id=? AND key=?').get('shop-a', 'feature_flags')?.value).toBe('{"billing":true}');
+  raw.prepare('UPDATE settings SET value=?,sync_status=? WHERE tenant_id=? AND key=?').run('{"billing":true}', 'PENDING', 'shop-a', 'feature_flags');
+  cacheInitialShopFeatures('shop-a', { feature_flags: { billing: false } });
+  cacheInitialShopFeatures('shop-b', { feature_flags: {} });
+  expect(raw.prepare('SELECT value,sync_status FROM settings WHERE tenant_id=? AND key=?').get('shop-a', 'feature_flags')).toEqual({ value: '{"billing":true}', sync_status: 'PENDING' });
+  expect(raw.prepare('SELECT value FROM settings WHERE tenant_id=? AND key=?').get('shop-b', 'feature_flags')?.value).toBe('{}');
+  expect(raw.prepare('SELECT * FROM sync_apply_guard').all()).toEqual([]);
+});

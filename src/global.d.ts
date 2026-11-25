@@ -1,3 +1,4 @@
+import type { ManualSyncResult } from './data/manualSyncTypes';
 import type { Invoice, InvoiceItem, InvoiceItemWithProduct } from './data/invoices';
 import type { AppCheckForUpdatesResult, AppInstallUpdateResult, AppRendererReadyResult, UpdateInfoPayload } from './data/app';
 import type { Product } from './data/products';
@@ -116,12 +117,13 @@ export interface IElectronAPI {
   dbSaveStaffAttendance: (params: unknown) => Promise<{ success: boolean; attendance_id?: string; error?: string }>;
 
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
+  manualCloudSync: (value?: { confirm_complete: true }) => Promise<ManualSyncResult>;
   forceResyncInvoices: () => Promise<{ success: boolean; error?: string }>;
   forceResyncCatalog: () => Promise<{ success: boolean; error?: string }>;
   forceResyncEntities: (categories: string[]) => Promise<{ success: boolean; error?: string }>;
   getSyncProgress: () => Promise<SyncProgress | null>;
   testNetworkConnection?: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number; lanPairingKey?: string }) => Promise<{ ok: boolean; route?: string; fallback?: boolean; message?: string; error?: string }>;
-  authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean }) => Promise<{ success: boolean; error?: string }>;
+  authSaveToken: (payload: { store_profile?: unknown; jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean }) => Promise<{ success: boolean; error?: string }>;
   authLoginCloud: (payload: { email: string; password: string }) => Promise<CloudLoginReply>;
   authResumeCloudSession: (payload: CloudSessionResumeRequest) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string; password_hash?: string; email?: string; permissions?: string[]; login_enabled?: boolean } | null>;
@@ -143,7 +145,7 @@ export interface IElectronAPI {
   appGetNetworkDetails?: () => Promise<{ ip: string; subnetPrefix: string; netmask: string; gateway: string; dns: string }>;
   getCloudAccessState?: () => Promise<EffectiveCloudState | null>;
   onCloudStateChanged?: (callback: (state: EffectiveCloudState) => void) => () => void;
-  drainPendingCloudQueue?: () => Promise<{ success: boolean; error?: string }>;
+  drainPendingCloudQueue?: () => Promise<{ success: boolean; error?: string; message?: string; drainedCount?: number }>;
   updateCloudAccessConfig?: (config: unknown) => Promise<{ success: boolean; error?: string }>;
   onDeepLink: (callback: (token: string) => void) => void;
   settingsGet: (payload: { tenant_id: string; key: string; tenant_only?: boolean }) => Promise<unknown>;

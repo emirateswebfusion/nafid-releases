@@ -3,10 +3,13 @@ import { getDb } from '../db/localDb.js';
 import { LAN_KEY_HEADER, getLanPairingKey } from '../services/lanPairing.js';
 import { syncState } from './syncState.js';
 import { calculateEffectiveCloudAccess } from './cloudAccess.js';
-import { CURSOR_REPLAY_SECONDS, FETCH_TIMEOUT_MS, PULL_MAX_PAGES, PULL_MAX_RETRIES, PULL_PAGE_SIZE, getAuthConfig, toSqliteDate } from './syncConfig.js';
+import { CURSOR_REPLAY_SECONDS, FETCH_TIMEOUT_MS, PULL_MAX_PAGES, PULL_MAX_RETRIES, PULL_PAGE_SIZE, getAuthConfig } from './syncConfig.js';
 import { notifyOnlineStatus } from './syncProgress.js';
 import * as syncTransportSql from '../db/statements/sync/syncTransport.js';
 import { withSyncApplyGuard } from '../db/statements/outbox.js';
+import * as pullMetadata from '../db/statements/sync/accountMetadata.js';
+import { toEpochMs } from '../utils/timestamps.js';
+import { createHash } from 'node:crypto';
 
 /** Logical metadata remains local for other legacy domains; financial account batches carry it explicitly. */
 const LOCAL_ONLY_SYNC_KEYS = new Set(['row_version', 'origin']);
@@ -277,40 +280,6 @@ export async function pushBatch<T>(
   return [];
 }
 
-// ── Reconcile helper ────────────────────────────────────────────────────────────
-export function reconcilePending(
-  db: import('better-sqlite3').Database,
-  table: string,
-  idColumn: string,
-  cloudRows: Record<string, unknown>[],
-  tsColumn: string = 'updated_at'
-): number {
-  if (cloudRows.length === 0) return 0;
-
-  let updateStmt: import('better-sqlite3').Statement;
-  try {
-    updateStmt = syncTransportSql.markSyncedIfUnchanged(db, table, idColumn, tsColumn);
-  } catch {
-    updateStmt = syncTransportSql.markSynced(db, table, idColumn);
-  }
-
-  let count = 0;
-  for (const row of cloudRows) {
-    try {
-      const tsVal = row[tsColumn] || row.updated_at || row.created_at;
-      const result = updateStmt.run(row[idColumn], toSqliteDate((tsVal as string | number | Date | null | undefined)));
-      if (result.changes > 0) count++;
-    } catch {
-      try {
-        const fallbackStmt = syncTransportSql.markSynced(db, table, idColumn);
-        const result = fallbackStmt.run(row[idColumn]);
-        if (result.changes > 0) count++;
-      } catch { /* ignore */ }
-    }
-  }
-  return count;
-}
-
 // ── Sync metadata (per-tenant pull cursors) ─────────────────────────────────────
 export const cursorKey = (tenantId: string, table: string) => `pull_cursor:${tenantId}:${table}`;
 
@@ -337,9 +306,9 @@ export function replaySince(cursor: string | null): string | null {
   if (!cursor) return null;
   const str = cursor.trim();
   try {
-    const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T') + 'Z');
-    if (!isNaN(d.getTime())) {
-      const rewound = new Date(d.getTime() - CURSOR_REPLAY_SECONDS * 1000);
+    const instant = toEpochMs(str);
+    if (instant !== null) {
+      const rewound = new Date(instant - CURSOR_REPLAY_SECONDS * 1000);
       return rewound.toISOString();
     }
   } catch { /* ignore */ }
@@ -376,7 +345,10 @@ export async function pullPaginated(opts: {
   let maxTs: string | null = null;
   let failed = false;
   let hasChanged = false;
-  const fetchedRowSignatures: string[] = [];
+  let complete = false;
+  const pendingKey = `account_pull_pending:${opts.tenantId}:${opts.table}`;
+  const fetchedContentHash = createHash('sha256');
+  let nextHash: { key: string; value: string } | null = null;
 
   const fetchPage = async (offsetVal: number): Promise<Record<string, unknown>[] | null> => {
     if (!syncState.isSyncActive) return null;
@@ -394,11 +366,11 @@ export async function pullPaginated(opts: {
           console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP ${response.status}`);
           return null;
         }
-        const data = await response.json();
-        const rows = Array.isArray(data)
-          ? data
-          : (data[opts.table] || data.data || data.items || data.rows || []);
-        return Array.isArray(rows) ? rows : [];
+        const data: unknown = await response.json();
+        const body = data && typeof data === 'object' ? data as Record<string, unknown> : null;
+        const rows: unknown = Array.isArray(data) ? data : body ? (body[opts.table] ?? body.data ?? body.items ?? body.rows) : undefined;
+        if (!Array.isArray(rows) || rows.some((row: unknown) => !row || typeof row !== 'object' || Array.isArray(row))) throw new Error('Invalid sync page');
+        return rows as Record<string, unknown>[];
       } catch (err) {
         const isTimeout = (err as Error).name === 'TimeoutError' || (err as Error).message?.includes('timeout') || (err as Error).message?.includes('aborted');
         const isNetwork = (err as Error).message?.includes('fetch failed') || (err as Error).message?.includes('ENOTFOUND') || (err as Error).message?.includes('ECONNREFUSED');
@@ -421,9 +393,10 @@ export async function pullPaginated(opts: {
       failed = true;
       break;
     }
-    if (rows.length === 0) break;
+    if (rows.length === 0) { complete = true; break; }
 
     try {
+      if (rows.some(row => toEpochMs(row[tsColumn] || row.updated_at || row.created_at) === null)) throw new Error('Invalid sync page timestamp');
       reconciled += withSyncApplyGuard(getDb(), () => opts.processPage(rows));
     } catch (error) {
       console.error(`[SyncWorker] Pull ${opts.label} page rolled back:`, error);
@@ -433,46 +406,51 @@ export async function pullPaginated(opts: {
     for (const r of rows) {
       const ts = r?.[tsColumn] || r?.updated_at || r?.created_at;
       if (ts) {
-        const rawTs = String(ts).trim();
+        const rawTs = new Date(toEpochMs(ts)!).toISOString();
         if (!maxTs || rawTs > maxTs) maxTs = rawTs;
       }
 
       // Create clean row signature (ignoring volatile server timestamps)
       const { updated_at, created_at, opened_at, ...clean } = r || {};
-      fetchedRowSignatures.push(JSON.stringify(clean));
+      fetchedContentHash.update(JSON.stringify(clean)).update('\n');
     }
     opts.onProgress?.(count);
 
-    // A page shorter than requested is the last one. A page *longer* than
-    // requested means the server ignored pagination (old server) — consume it
-    // once and stop rather than looping forever over the same data.
-    if (rows.length !== pageSize) break;
+    // Only a short page establishes completion. An oversized legacy response cannot prove completeness.
+    if (rows.length < pageSize) { complete = true; break; }
+    if (rows.length > pageSize) { failed = true; break; }
     offset += pageSize;
   }
+  if (!complete) failed = true;
 
   // ── DEBUG: Log pull result for every table ─────────────────────────────────
   console.log(`[SyncWorker][pull:${opts.table}] count=${count} reconciled=${reconciled} failed=${failed} since=${since || 'FULL'}`);
 
   if (count > 0) {
-    const combinedHash = fetchedRowSignatures.join('|');
-    const previousHash = tableContentHashes[opts.table];
+    const combinedHash = fetchedContentHash.digest('hex');
+    const hashKey = JSON.stringify([opts.tenantId, opts.table]);
+    const previousHash = tableContentHashes[hashKey];
     if (previousHash && previousHash === combinedHash && reconciled === 0) {
       console.log(`[SyncWorker][pull:${opts.table}] ℹ️ ${count} rows fetched, but content matches previous pull → no net change.`);
       hasChanged = false;
     } else {
       hasChanged = true;
-      tableContentHashes[opts.table] = combinedHash;
+      nextHash = { key: hashKey, value: combinedHash };
       console.log(`[SyncWorker][pull:${opts.table}] ✅ ${count} rows fetched → marking hasChanged=true`);
     }
   } else {
     console.log(`[SyncWorker][pull:${opts.table}] ℹ️ 0 rows fetched (delta is empty or table fully up-to-date)`);
   }
 
-  if (maxTs && count > 0 && !failed) {
-    const newCursor = maxTs;
-    setMeta(cursorKey(opts.tenantId, opts.table), newCursor);
-    console.log(`[SyncWorker][pull:${opts.table}] Cursor updated to: ${newCursor}`);
-  }
+  try {
+    if (failed) pullMetadata.write(getDb()).run(pendingKey, '1');
+    else getDb().transaction(() => {
+      if (maxTs && count > 0) syncTransportSql.insertSyncMeta(getDb()).run(cursorKey(opts.tenantId, opts.table), maxTs);
+      pullMetadata.remove(getDb()).run(pendingKey);
+    })();
+  } catch { failed = true; try { pullMetadata.write(getDb()).run(pendingKey, '1'); } catch { /* Retain the previous cursor on metadata failure. */ } }
+  if (failed) syncState.lastCycleFailed = true;
+  else if (nextHash) tableContentHashes[nextHash.key] = nextHash.value;
   return { count, reconciled, failed, hasChanged: (hasChanged || reconciled > 0) && !failed };
 }
 

@@ -15,14 +15,15 @@ vi.mock('../../electron/services/cashDrawerService', () => ({
     cash_sales: drawer.cash_sales, cash_in: drawer.cash_in, cash_out: drawer.cash_out, expected: drawer.current_cash,
   }),
 }));
-vi.mock('../../electron/sync/syncTransport', () => ({
-  pushBatch: vi.fn(), reconcilePending: () => 0,
+vi.mock('../../electron/sync/syncTransport', async importOriginal => ({
+  ...await importOriginal<typeof import('../../electron/sync/syncTransport')>(),
+  pushBatch: vi.fn(),
   pullPaginated: async (args: { processPage: (rows: Record<string, unknown>[]) => unknown }) => {
     args.processPage(state.remote);
     return { hasChanged: true, count: state.remote.length, reconciled: 0, failed: false };
   },
 }));
-import { pullCashDrawer } from '../../electron/sync/entities/cashSync';
+import { pullCashDrawer, pullCashTransactions } from '../../electron/sync/entities/cashSync';
 
 let raw: DatabaseSync;
 beforeEach(() => {
@@ -34,7 +35,11 @@ beforeEach(() => {
       statement.setAllowUnknownNamedParameters(true);
       return statement;
     },
-    transaction: (fn: (...args: unknown[]) => unknown) => (...args: unknown[]) => fn(...args),
+    transaction: (fn: (...args: unknown[]) => unknown) => (...args: unknown[]) => {
+      raw.exec('SAVEPOINT cash_pull');
+      try { const result=fn(...args);raw.exec('RELEASE cash_pull');return result; }
+      catch(error){raw.exec('ROLLBACK TO cash_pull; RELEASE cash_pull');throw error;}
+    },
     pragma: (sql: string) => raw.exec(`PRAGMA ${sql}`),
   }) as unknown as Database.Database;
   createCoreTables(state.db);
@@ -54,6 +59,20 @@ beforeEach(() => {
   }];
 });
 afterEach(() => raw.close());
+it('a rejected cash row rolls back its whole download page instead of silently skipping the row',async()=>{
+  const row={transaction_id:'good',drawer_id:'local',type:'CASH_OUT',amount:10,transaction_date:'2026-11-06T03:24:00Z',created_at:'2026-11-06T03:24:00Z',updated_at:'2026-11-06T03:24:00Z'};
+  state.remote=[row,{...row,transaction_id:'bad',amount:{invalid:true}}];
+  await expect(pullCashTransactions('token','shop')).rejects.toThrow();
+  expect(raw.prepare('SELECT transaction_id FROM cash_transactions').all()).toEqual([]);
+});
+
+it.each(['PENDING','FAILED'])('two cloud downloads cannot acknowledge and replace an unsent cash entry: %s',async status=>{
+  raw.prepare(`INSERT INTO cash_transactions(transaction_id,tenant_id,drawer_id,type,amount,sync_status,transaction_date,updated_at)
+    VALUES('entry','shop','local','CASH_OUT',500,?,'2026-11-06 03:24:00','2026-11-06T03:24:00.000Z')`).run(status);
+  state.remote=[{transaction_id:'entry',drawer_id:'local',type:'CASH_OUT',amount:10,transaction_date:'2026-11-06T03:24:00Z',created_at:'2026-11-06T03:24:00Z',updated_at:'2026-11-06T03:24:00Z'}];
+  await pullCashTransactions('token','shop');await pullCashTransactions('token','shop');
+  expect(raw.prepare("SELECT amount,sync_status FROM cash_transactions WHERE transaction_id='entry'").get()).toEqual({amount:500,sync_status:status});
+});
 
 it('accepts another terminal closing an open drawer without reopening or changing its frozen totals', async () => {
   await pullCashDrawer('token', 'shop');

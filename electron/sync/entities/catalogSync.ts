@@ -1,7 +1,9 @@
+import { acknowledgeLegacySnapshot } from '../../db/statements/sync/legacyAcknowledgement.js';
+import { assertAcknowledgedIdentity } from '../pendingIdentity.js';
 import { getDb } from '../../db/localDb.js';
 import { BATCH_SIZE, isGstApplicableProduct, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
-import { pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
+import { pullPaginated, pushBatch } from '../syncTransport.js';
 import * as catalogSyncSql from '../../db/statements/sync/catalogSync.js';
 
 /** Catalog sync: grades, pricing tiers, product pricing, products and combo offers (push and pull). */
@@ -25,7 +27,7 @@ export async function syncGrades(token: string, tenantId: string) {
       `Grades batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'product_grades', 'grade_id', tenantId, batch.find(row => row.grade_id === id), () => updateStmt.run(id, tenantId)); });
       tx(synced);
     }
   }
@@ -78,7 +80,7 @@ export async function syncPricingTiers(token: string, tenantId: string) {
       `Pricing tiers batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(tenantId, id); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'pricing_tiers', 'pricing_tier_id', tenantId, batch.find(row => row.pricing_tier_id === id), () => updateStmt.run(tenantId, id)); });
       tx(synced);
     }
   }
@@ -126,7 +128,7 @@ export async function syncProductPricing(token: string, tenantId: string) {
       const tx = db.transaction((rows: Record<string, unknown>[]) => {
         for (const pp of rows) {
           if (syncedSet.has((pp.product_pricing_id as string)) || syncedSet.has((pp.product_id as string))) {
-            updateStmt.run(tenantId, pp.product_pricing_id, pp.product_id, pp.pricing_tier_id);
+            acknowledgeLegacySnapshot(db, 'product_pricing', 'product_pricing_id', tenantId, pp, () => updateStmt.run(tenantId, pp.product_pricing_id, pp.tenant_id ?? null, pp.row_version));
           }
         }
       });
@@ -216,11 +218,12 @@ export async function pullGrades(token: string, tenantId: string): Promise<boole
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling grade:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'product_grades', 'grade_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -256,8 +259,9 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
         for (const t of tiers) {
           try {
             const cleanName = String(t.name || '').trim();
-            const existing = findByName.get(tenantId, cleanName) as { pricing_tier_id: string } | undefined;
+            const existing = findByName.get(tenantId, cleanName) as { pricing_tier_id: string; sync_status: string } | undefined;
             if (existing && existing.pricing_tier_id !== t.pricing_tier_id) {
+              assertAcknowledgedIdentity(existing.pricing_tier_id, t.pricing_tier_id, existing.sync_status);
               try {
                 // Remove duplicates in product_pricing to avoid UNIQUE(product_id, pricing_tier_id) error
                 catalogSyncSql.deleteProductPricing(db).run(existing.pricing_tier_id, t.pricing_tier_id);
@@ -273,6 +277,7 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
                 }
               } catch (remapErr) {
                 console.warn('[SyncWorker] Error remapping tier ID:', (remapErr as Error).message);
+                throw remapErr;
               }
             }
 
@@ -289,11 +294,12 @@ export async function pullPricingTiers(token: string, tenantId: string): Promise
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling pricing tier:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'pricing_tiers', 'pricing_tier_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -342,19 +348,12 @@ export async function pullProductPricing(token: string, tenantId: string): Promi
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling product pricing row:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      const reconcileStmt = catalogSyncSql.updateProductPricing5(db);
-      let reconciled = 0;
-      for (const r of rows) {
-        try {
-          const res = reconcileStmt.run(r.product_pricing_id, r.product_id, r.pricing_tier_id, toSqliteDate((r.updated_at as string | number | Date | null | undefined)));
-          if (res.changes > 0) reconciled += res.changes;
-        } catch { /* ignore */ }
-      }
-      return reconciled;
+      return 0; // A download cannot acknowledge an unconfirmed pricing upload.
     },
   });
 
@@ -439,10 +438,11 @@ export async function pullProducts(token: string, tenantId: string): Promise<boo
               }
             }
           }
+          if (!success) throw new Error('Product identity collision could not be resolved');
         }
       });
       tx(rows);
-      return reconcilePending(db, 'products', 'product_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -488,7 +488,7 @@ export async function syncComboOffers(token: string, tenantId: string) {
       `Combo offers batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'combo_offers', 'combo_id', tenantId, batch.find(row => row.combo_id === id), () => updateStmt.run(id, tenantId)); });
       tx(synced);
     }
   }
@@ -542,11 +542,12 @@ export async function pullComboOffers(token: string, tenantId: string): Promise<
             }
           } catch (e) {
             console.error('[SyncWorker] Error pulling combo offer row:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'combo_offers', 'combo_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 

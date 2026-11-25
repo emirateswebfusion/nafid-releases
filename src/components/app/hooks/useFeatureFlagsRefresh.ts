@@ -11,7 +11,8 @@ export function useFeatureFlagsRefresh(tenantId: string | null, authenticated: b
     refresh();
     window.addEventListener('settings:updated', refresh);
     window.addEventListener('focus', refresh);
+    const timer = !isDesktopRuntime() ? window.setInterval(refresh, 30000) : undefined;
     const unsubscribe = isDesktopRuntime() ? bridgeEvents.onSyncDataUpdated(refresh) : undefined;
-    return () => { window.removeEventListener('settings:updated', refresh); window.removeEventListener('focus', refresh); if (typeof unsubscribe === 'function') unsubscribe(); };
+    return () => { if (timer !== undefined) window.clearInterval(timer); window.removeEventListener('settings:updated', refresh); window.removeEventListener('focus', refresh); if (typeof unsubscribe === 'function') unsubscribe(); };
   }, [tenantId, authenticated]);
 }

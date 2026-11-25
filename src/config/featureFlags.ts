@@ -121,6 +121,9 @@ export function resolveFeatureFlags(stored: unknown): FeatureFlags {
   const flags = { ...DEFAULT_FEATURE_FLAGS };
   if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
     const values = stored as Record<string, unknown>;
+    if (Object.keys(values).length === 0) {
+      for (const def of FEATURE_LIST) flags[def.key] = false;
+    }
     for (const def of FEATURE_LIST) {
       if (typeof values[def.key] === 'boolean') flags[def.key] = values[def.key] as boolean;
     }
@@ -135,6 +138,14 @@ export function isFeatureEnabled(flags: FeatureFlags | null, key: FeatureKey): b
   if (!flags || flags[key] !== true) return false;
   if (key === 'dining_tables' || key === 'takeaway_delivery' || key === 'kitchen_display') return flags.restaurant_mode;
   return true;
+}
+
+/** Individual choices preserve the existing Settings parent-enabling behavior. */
+export function updateFeatureFlag(flags: FeatureFlags, key: FeatureKey, value: boolean): FeatureFlags {
+  return sanitizeFeatureFlags({ ...flags, [key]: value,
+    ...(key === 'cash_register' && value ? { cash_settlement: true } : {}),
+    ...(['dining_tables', 'takeaway_delivery', 'kitchen_display'].includes(key) && value ? { restaurant_mode: true } : {}),
+  });
 }
 
 export function sanitizeFeatureFlags(flags: FeatureFlags): FeatureFlags {

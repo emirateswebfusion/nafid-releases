@@ -3,7 +3,8 @@ import { ArrowRight, Check, Clock3 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { TRIAL_COUNTRIES, validateTrialDetails } from './trialShopDetails';
-import { BUSINESS_PROFILES } from '../../config/businessProfiles';
+import { flagsForBusinessProfile, matchingBusinessProfile, BUSINESS_PROFILES } from '../../config/businessProfiles';
+import { FeaturesTab } from '../settings/tabs/FeaturesTab';
 import { useTrialSignup } from './useTrialSignup';
 import { TrialCreateAccount } from './TrialCreateAccount';
 import type { TrialShopDetails } from './trialShopDetails';
@@ -11,7 +12,7 @@ import { getTimezoneAbbreviation } from '../../utils/time/timezoneHelper';
 
 export function TrialRegistration({ onSignIn }: { onSignIn: () => void }) {
   const signup = useTrialSignup();
-  const [details, setDetails] = useState<TrialShopDetails>({ shopName: '', ownerName: '', email: '', phone: '', city: '', country: 'AE', businessCategory: 'retail' });
+  const [details, setDetails] = useState<TrialShopDetails>({ shopName: '', ownerName: '', email: '', phone: '', city: '', country: 'AE', businessCategory: 'retail', featureFlags: flagsForBusinessProfile('retail') });
   const [errors, setErrors] = useState<Partial<Record<keyof TrialShopDetails, string>>>({});
   const [reviewing, setReviewing] = useState(false);
   const country = TRIAL_COUNTRIES.find(item => item.code === details.country) ?? TRIAL_COUNTRIES[0];
@@ -30,13 +31,13 @@ export function TrialRegistration({ onSignIn }: { onSignIn: () => void }) {
           <dl className="rounded-xl border border-border p-4 space-y-3 text-sm break-words">
             {[
               ['Shop', details.shopName.trim()], ['Owner', details.ownerName.trim()],
-              ['Business category', profile.name],
+              ['Business category', details.businessCategory === 'custom' ? 'Custom selection' : profile.name],
               ['Email', details.email.trim()],
               ['Phone', details.phone.trim()], ['Location', `${details.city.trim()}, ${country.name}`],
               ['Suggested currency', country.currency], ['Suggested time zone', getTimezoneAbbreviation(country.timeZone)],
             ].map(([label, value]) => <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-medium">{value}</dd></div>)}
           </dl>
-          <p className="text-xs text-muted-foreground">Modules and pages will be initialized for {profile.name.toLowerCase()}. You can customize any tool in Settings after registration.</p>
+          <FeaturesTab featureFlags={details.featureFlags || flagsForBusinessProfile(details.businessCategory || 'retail')} disabled={signup.busy || signup.created} onFlagsChange={flags => setDetails({ ...details, featureFlags: flags, businessCategory: matchingBusinessProfile(flags) })} saveHint="These choices will be saved with your account. You can change them later in Settings." />
           <Button variant="outline" className="w-full" onClick={() => setReviewing(false)}>Edit details</Button>
           <TrialCreateAccount signup={signup} details={details} onSignIn={onSignIn} />
         </section>
@@ -64,7 +65,8 @@ export function TrialRegistration({ onSignIn }: { onSignIn: () => void }) {
             ))}
             <div className="sm:col-span-2">
               <label htmlFor="trial-category" className="block text-sm font-medium mb-1.5">Business category</label>
-              <select id="trial-category" value={details.businessCategory || 'retail'} className="h-10 w-full rounded-xl border border-input bg-background px-3 text-xs font-semibold focus:ring-2 focus:ring-primary" onChange={event => setDetails({ ...details, businessCategory: event.target.value })}>
+              <select id="trial-category" value={details.businessCategory || 'retail'} className="h-10 w-full rounded-xl border border-input bg-background px-3 text-xs font-semibold focus:ring-2 focus:ring-primary" onChange={event => setDetails({ ...details, businessCategory: event.target.value, featureFlags: flagsForBusinessProfile(event.target.value) })}>
+                {details.businessCategory === 'custom' && <option value="custom">Custom selection</option>}
                 {BUSINESS_PROFILES.map(item => <option key={item.id} value={item.id}>{item.name} — {item.description}</option>)}
               </select>
               <p className="text-[11px] text-muted-foreground mt-1">Select your starting category. You can customize or fine-tune individual modules anytime in Settings.</p>

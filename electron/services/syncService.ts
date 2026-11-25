@@ -27,32 +27,9 @@ export function debugSyncState(tenant_id: string) {
   }
 }
 
-/** IPC `sync:clearPending` */
-export async function syncClearPending({ tenant_id, type, records }: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) {
-  try {
-    const db = getDb();
-    
-    if (type === 'invoices' || type === 'all') {
-      if (records && records.length > 0) {
-        const placeholders = records.map(() => '?').join(',');
-        syncSql.markInvoicesSyncedByIds(db, placeholders).run(...records, tenant_id);
-        console.log(`[Sync] Force-cleared ${records.length} stuck invoice(s) from sync queue`);
-      }
-    }
-    
-    if (type === 'products' || type === 'all') {
-      if (records && records.length > 0) {
-        const placeholders = records.map(() => '?').join(',');
-        syncSql.markProductsSyncedByIds(db, placeholders).run(...records, tenant_id);
-        console.log(`[Sync] Force-cleared ${records.length} stuck product(s) from sync queue`);
-      }
-    }
-    
-    return { success: true };
-  } catch (error) {
-    console.error('[sync:clearPending]', error);
-    return { success: false, error: (error as Error).message || 'Operation failed' };
-  }
+/** Compatibility denial: no record may be called synced without a cloud receipt. */
+export async function syncClearPending(_payload?: unknown) {
+  return { success: false, error: 'Pending changes cannot be cleared without cloud acknowledgement. Use Sync now or support recovery; local records are retained.' };
 }
 
 /** IPC `sync:getPending` */

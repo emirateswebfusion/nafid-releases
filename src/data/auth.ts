@@ -5,6 +5,7 @@ export type CloudLoginReply = { success: true; status: number; data: unknown } |
 export interface CloudCredentials {
   jwt_token: string; tenant_id: string; user_id: string; role: string; shop_name: string;
   user_name?: string; domain_type?: string; restricted_page?: string; password_hash?: string;
+  store_profile?: unknown;
   email?: string; permissions?: string[]; login_enabled?: boolean;
 }
 export interface CloudSessionResumeRequest {

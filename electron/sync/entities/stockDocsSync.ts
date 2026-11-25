@@ -1,7 +1,8 @@
+import { acknowledgeLegacySnapshot } from '../../db/statements/sync/legacyAcknowledgement.js';
 import { getDb } from '../../db/localDb.js';
 import { BATCH_SIZE, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
-import { pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
+import { pullPaginated, pushBatch } from '../syncTransport.js';
 import * as stockDocsSyncSql from '../../db/statements/sync/stockDocsSync.js';
 
 /** Stock documents sync: scrap categories / transactions, purchase bills and returns (push and pull). */
@@ -30,7 +31,7 @@ export async function syncScrapCategories(token: string, tenantId: string) {
       `Scrap Categories batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'scrap_categories', 'scrap_category_id', tenantId, batch.find(row => row.scrap_category_id === id), () => updateStmt.run(id, tenantId)); });
       tx(synced);
     }
   }
@@ -56,7 +57,7 @@ export async function syncScrapTransactions(token: string, tenantId: string) {
       `Scrap Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'scrap_transactions', 'transaction_id', tenantId, batch.find(row => row.transaction_id === id), () => updateStmt.run(id, tenantId)); });
       tx(synced);
     }
   }
@@ -93,11 +94,12 @@ export async function pullScrapCategories(token: string, tenantId: string): Prom
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling scrap category:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'scrap_categories', 'scrap_category_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -147,11 +149,12 @@ export async function pullScrapTransactions(token: string, tenantId: string): Pr
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling scrap transaction:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'scrap_transactions', 'transaction_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -191,8 +194,7 @@ export async function syncPurchaseBills(token: string, tenantId: string) {
     if (synced.length > 0) {
       const tx = db.transaction((ids: string[]) => {
         for (const id of ids) {
-          updateStmt.run(id, tenantId);
-          itemsUpdateStmt.run(id, tenantId);
+          acknowledgeLegacySnapshot(db, 'purchase_bills', 'purchase_bill_id', tenantId, batch.find(row => row.purchase_bill_id === id), () => { updateStmt.run(id, tenantId); itemsUpdateStmt.run(id, tenantId); }, { table: 'purchase_bill_items', parentColumn: 'purchase_bill_id', rows: enriched[batch.findIndex(row => row.purchase_bill_id === id)]?.items as Record<string, unknown>[] ?? [] });
         }
       });
       tx(synced);
@@ -272,11 +274,12 @@ export async function pullPurchaseBills(token: string, tenantId: string): Promis
             }
           } catch (e) {
             console.error('[SyncWorker] Error pulling purchase bill:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'purchase_bills', 'purchase_bill_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -312,8 +315,7 @@ export async function syncReturns(token: string, tenantId: string) {
     if (synced.length > 0) {
       const tx = db.transaction((ids: string[]) => {
         for (const id of ids) {
-          updateStmt.run(id, tenantId);
-          itemsUpdateStmt.run(id, tenantId);
+          acknowledgeLegacySnapshot(db, 'returns', 'return_id', tenantId, batch.find(row => row.return_id === id), () => { updateStmt.run(id, tenantId); itemsUpdateStmt.run(id, tenantId); }, { table: 'return_items', parentColumn: 'return_id', rows: enriched[batch.findIndex(row => row.return_id === id)]?.items as Record<string, unknown>[] ?? [] });
         }
       });
       tx(synced);
@@ -365,11 +367,12 @@ export async function pullReturns(token: string, tenantId: string): Promise<bool
             }
           } catch (e) {
             console.error('[SyncWorker] Error pulling return:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'returns', 'return_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 

@@ -24,7 +24,7 @@ export const insertScrapCategories = (db: Db) => db.prepare(`
       created_at = COALESCE(scrap_categories.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE scrap_categories.sync_status != 'PENDING'
+    WHERE scrap_categories.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertScrapTransactions = (db: Db) => db.prepare(`
     INSERT INTO scrap_transactions (
@@ -49,7 +49,7 @@ export const insertScrapTransactions = (db: Db) => db.prepare(`
       is_deleted = COALESCE(excluded.is_deleted, 0),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE scrap_transactions.sync_status != 'PENDING'
+    WHERE scrap_transactions.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const selectPurchaseBills = (db: Db) => db.prepare(`SELECT * FROM purchase_bills WHERE sync_status = 'PENDING' AND tenant_id = ?`);
 export const updatePurchaseBills = (db: Db) => db.prepare(`UPDATE purchase_bills SET sync_status = 'SYNCED' WHERE purchase_bill_id = ? AND tenant_id = ?`);
@@ -77,7 +77,7 @@ export const insertPurchaseBills = (db: Db) => db.prepare(`
       created_at = COALESCE(purchase_bills.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE purchase_bills.sync_status != 'PENDING'
+    WHERE purchase_bills.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertPurchaseBillItems = (db: Db) => db.prepare(`
     INSERT INTO purchase_bill_items (
@@ -102,7 +102,7 @@ export const insertPurchaseBillItems = (db: Db) => db.prepare(`
       created_at = COALESCE(purchase_bill_items.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE purchase_bill_items.sync_status != 'PENDING'
+    WHERE purchase_bill_items.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const deletePurchaseBillItems = (db: Db) => db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ? AND tenant_id = ?');
 export const selectPurchaseBills2 = (db: Db) => db.prepare('SELECT sync_status, updated_at FROM purchase_bills WHERE purchase_bill_id = ? AND tenant_id = ?');
@@ -121,7 +121,7 @@ export const insertReturns = (db: Db) => db.prepare(`
       refund_method = excluded.refund_method, adjusted_invoice_number = excluded.adjusted_invoice_number,
       adjusted_amount = excluded.adjusted_amount, updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE returns.sync_status != 'PENDING'
+    WHERE returns.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertReturnItems = (db: Db) => db.prepare(`
     INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, sync_status, created_at)
@@ -129,5 +129,5 @@ export const insertReturnItems = (db: Db) => db.prepare(`
     ON CONFLICT(return_item_id) DO UPDATE SET
       name = excluded.name, quantity = excluded.quantity, unit_price = excluded.unit_price,
       tax_amount = excluded.tax_amount, total = excluded.total, sync_status = 'SYNCED'
-    WHERE return_items.sync_status != 'PENDING'
+    WHERE return_items.sync_status NOT IN ('PENDING', 'FAILED')
   `);

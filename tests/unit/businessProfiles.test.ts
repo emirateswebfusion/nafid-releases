@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { flagsForBusinessProfile, BUSINESS_PROFILES } from '../../src/config/businessProfiles';
-import { resolveFeatureFlags, isFeatureEnabled } from '../../src/config/featureFlags';
+import { resolveFeatureFlags, isFeatureEnabled, updateFeatureFlag } from '../../src/config/featureFlags';
 describe('shop module choices', () => {
+  it('enables required parents through one canonical individual-choice rule', () => {
+    const none = resolveFeatureFlags({});
+    expect(updateFeatureFlag(none, 'cash_register', true).cash_settlement).toBe(true);
+    expect(updateFeatureFlag(none, 'kitchen_display', true).restaurant_mode).toBe(true);
+    expect(updateFeatureFlag(updateFeatureFlag(none, 'kitchen_display', true), 'restaurant_mode', false).kitchen_display).toBe(false);
+  });
+  it('keeps legacy absent settings compatible but never enables explicit empty selections', () => {
+    expect(resolveFeatureFlags(null).billing).toBe(true);
+    expect(Object.values(resolveFeatureFlags({}))).not.toContain(true);
+  });
   it('restaurant uses shared business pages and only the food-specific operational pages', () => {
     const flags = flagsForBusinessProfile('restaurant');
     for (const key of ['billing', 'cash_settlement', 'inventory', 'sales_history', 'financial_reports', 'dining_tables', 'takeaway_delivery', 'kitchen_display'] as const) expect(flags[key], key).toBe(true);
