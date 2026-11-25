@@ -3,7 +3,7 @@ import { getCurrencyPrefix } from '../../../utils/localization/storeProfile';
 import React from 'react';
 import { PurchaseWhatsAppButton } from './PurchaseWhatsAppButton';
 import clsx from 'clsx';
-import { Receipt, Printer, Pencil, Trash, X, User, Calendar, Package } from 'lucide-react';
+import { Receipt, Printer, Pencil, Trash, X, User, Calendar, Package, Barcode } from 'lucide-react';
 import { formatDate, purchaseBillTypeLabel } from '../purchaseFormat';
 import type { PurchaseBill, PurchaseBillItem } from '../purchaseTypes';
 
@@ -16,12 +16,27 @@ export interface PurchaseBillViewDialogProps {
   /** Rendered only while a bill is open. */
   viewingBill: PurchaseBill;
   viewingBillItems: PurchaseBillItem[];
+  onPrintItemBarcode?: (item: PurchaseBillItem) => void;
+  onPrintAllBarcodes?: (bill: PurchaseBill, items: PurchaseBillItem[]) => void;
 }
 
 /** Saved purchase bill detail dialog: supplier, bill info, items, totals and its actions. */
 export function PurchaseBillViewDialog({
   handleDelete, handleEditBill, handlePrintBill, loadingViewingItems, setViewingBill, viewingBill, viewingBillItems,
+  onPrintItemBarcode, onPrintAllBarcodes,
 }: PurchaseBillViewDialogProps) {
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setViewingBill(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setViewingBill]);
+
   const isInterstate = !isVatStore() && !!viewingBill.is_interstate;
   return (
     <div
@@ -78,6 +93,15 @@ export function PurchaseBillViewDialog({
           >
             <Printer className="w-4 h-4" />
           </button>
+          {onPrintAllBarcodes && (
+            <button
+              onClick={() => onPrintAllBarcodes(viewingBill, viewingBillItems)}
+              className="w-9 h-9 flex items-center justify-center text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-blue-500/20"
+              title="Print Barcode Labels for All Items in Bill"
+            >
+              <Barcode className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={() => {
               const bill = viewingBill;
@@ -165,8 +189,8 @@ export function PurchaseBillViewDialog({
               <div className={clsx(
                 "grid gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/50 bg-muted/30",
                 viewingBill.bill_type === 'GST'
-                  ? "grid-cols-[30px_minmax(0,3fr)_80px_120px_70px_70px_120px]"
-                  : "grid-cols-[30px_minmax(0,3fr)_80px_120px_120px]"
+                  ? "grid-cols-[30px_minmax(0,3fr)_80px_120px_70px_70px_110px_36px]"
+                  : "grid-cols-[30px_minmax(0,3fr)_80px_120px_110px_36px]"
               )}>
                 <div className="text-center">#</div>
                 <div>Product</div>
@@ -175,6 +199,7 @@ export function PurchaseBillViewDialog({
                 {viewingBill.bill_type === 'GST' && <div className={isInterstate ? "col-span-2 text-right" : "text-right"}>{isInterstate ? 'IGST' : 'CGST'}</div>}
                 {viewingBill.bill_type === 'GST' && !isInterstate && <div className="text-right">SGST</div>}
                 <div className="text-right">Total</div>
+                <div></div>
               </div>
 
               {/* Table body */}
@@ -200,8 +225,8 @@ export function PurchaseBillViewDialog({
                       className={clsx(
                           "grid gap-3 px-5 py-3.5 items-center text-xs transition-colors hover:bg-muted/20",
                           viewingBill.bill_type === 'GST'
-                            ? "grid-cols-[30px_minmax(0,3fr)_80px_120px_70px_70px_120px]"
-                            : "grid-cols-[30px_minmax(0,3fr)_80px_120px_120px]"
+                            ? "grid-cols-[30px_minmax(0,3fr)_80px_120px_70px_70px_110px_36px]"
+                            : "grid-cols-[30px_minmax(0,3fr)_80px_120px_110px_36px]"
                         )}
                       >
                         <div className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
@@ -269,6 +294,17 @@ export function PurchaseBillViewDialog({
 
                         <div className="text-right font-black text-foreground">
                           {getCurrencyPrefix()}{(Number(item.total_amount) + gstAmt).toFixed(getCurrencyDecimals())}
+                        </div>
+
+                        <div className="flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => onPrintItemBarcode?.(item)}
+                            className="w-7 h-7 flex items-center justify-center text-muted-foreground/40 hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all duration-150 cursor-pointer shrink-0"
+                            title="Print Barcode Label"
+                          >
+                            <Barcode className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     );

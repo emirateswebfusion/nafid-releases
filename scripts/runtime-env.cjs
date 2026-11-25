@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Approved production backend. Update release workflows and the endpoint regression tests together on migration.
-const PRODUCTION_CLOUD_API = 'https://nafid.vercel.app';
+const PRODUCTION_CLOUD_API = 'https://nafid-server-production.up.railway.app';
 
 function validateProductionCloudEnv(env) {
   for (const key of ['VITE_CLOUD_API', 'VENDORA_CLOUD_API']) {

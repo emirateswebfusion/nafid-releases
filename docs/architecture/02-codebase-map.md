@@ -98,6 +98,8 @@ Billing checkout lives in `components/billing/checkout/`: `createCheckoutHandler
 payload, persistence, printing, WhatsApp, tab reset) and `runScrapCheckout(ctx, run)` (scrap purchase flow). The screen
 passes its state and setters as a typed `CheckoutContext` each render.
 
+Purchase management lives in `components/purchase/`: `PurchaseBillManager.tsx` (orchestration, active overlay stack and unified `handleEscape`), `PurchaseBillFormSection.tsx` (dual GST/Estimate bill item editing and bulk item sharing), `views/` (`BulkBarcodePrintModal.tsx`, `PurchaseBillViewDialog.tsx`, `PurchaseBillList.tsx`, `PurchaseBillFormHeaderCard.tsx`, `PurchaseBillDeleteModal.tsx`, `PurchaseBillItemsTable.tsx`, `SupplierCreateDialog.tsx`), and `hooks/` (`usePurchaseBarcodePrint.ts`, `usePurchaseBillEditLoad.ts`, `usePurchaseBillSave.ts`, `usePurchaseBillPrint.ts`, `usePurchaseQuickProduct.ts`, etc.).
+
 The screen file (`components/<feature>/<Screen>.tsx`) keeps orchestration only. Shared pure rules go to `src/utils/`.
 
 ## Main process (`electron/`)

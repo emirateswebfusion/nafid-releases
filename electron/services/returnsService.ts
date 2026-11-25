@@ -44,6 +44,10 @@ export function createReturn(payload: {
     unit_price: number;
     tax_amount: number;
     total: number;
+    combo_details?: string | null;
+    pieces_sold?: number | null;
+    billing_type?: string | null;
+    uom?: string | null;
   }>;
 }) {
   if (!Array.isArray(payload.items) || payload.items.length === 0 ||
@@ -80,9 +84,11 @@ export function createReturn(payload: {
       itemStmt.run(
         item.return_item_id, returnData.return_id, returnData.tenant_id,
         item.invoice_item_id || null, item.product_id, item.name,
-        item.quantity, item.unit_price, item.tax_amount, item.total, item.combo_details || null
+        item.quantity, item.unit_price, item.tax_amount, item.total, item.combo_details || null,
+        item.pieces_sold != null ? Number(item.pieces_sold) : null,
+        item.billing_type || null,
+        item.uom || null
       );
-
     }
 
     const movement = owner ? movementBetween(outstandingInvoiceStock(db, owner, returnData.tenant_id), beforeStock)

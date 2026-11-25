@@ -1,3 +1,34 @@
+# Nafid POS v2.2.90
+
+## What's New
+
+- **Backend Infrastructure Migration**: Migrated the central production cloud API from Vercel to high-availability Railway infrastructure (`https://nafid-server-production.up.railway.app`) for faster cloud synchronisation and increased background sync reliability.
+- **Drawer Synchronisation Coverage**: Added automated test coverage for open vs. closed drawer sessions during purchase bill mutations.
+
+**Download:** [Nafid-Setup-2.2.90.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.90/Nafid-Setup-2.2.90.exe)
+
+# Nafid POS v2.2.89
+
+## What's New
+
+- **Purchase Bill Payment & Drawer Synchronisation**: Switching a purchase bill payment mode from Cash to Credit or Credit to Cash atomically updates the Cash Register, refunds/adjusts the cash drawer balance, and synchronises the supplier credit ledger.
+- **Cash Drawer Reconciliation**: Editing cash purchase amounts or deleting purchase bills automatically restores drawer cash balances and runs session reconciliation.
+- **Multi-Window Sync Broadcasting**: Changes to purchase bills broadcast updates immediately across all open POS windows.
+
+**Download:** [Nafid-Setup-2.2.89.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.89/Nafid-Setup-2.2.89.exe)
+
+# Nafid POS v2.2.88
+
+## What's New
+
+- **Purchase Barcode Label Printing**: Print barcode labels directly from purchase bills in the editor, bill list, and detail view modal.
+- **Bulk Barcode Printing**: Batch print barcode labels with quantities pre-filled from purchased lines.
+- **Label Price Visibility Toggle**: Optionally hide MRP and offer prices on printed barcode labels.
+- **Return Dual Metrics**: Accurately preserve both weight and piece counts across return billing, persistence, return inspection, and receipts.
+- **Hierarchical Modal Dismissal**: Escape key dismisses purchase and barcode dialogs step-by-step without dropping back to the main view.
+
+**Download:** [Nafid-Setup-2.2.88.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.88/Nafid-Setup-2.2.88.exe)
+
 # Nafid POS v2.2.45
 
 ## What's New

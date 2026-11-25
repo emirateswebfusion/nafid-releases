@@ -343,6 +343,15 @@ No HTTP payload or synced column changes. See `outboxLedgerConflict.test.ts`, `l
 
 POS migration 024 adds `purchase_bills.is_interstate` (SQLite 0/1); server tenant migration 106 adds its boolean counterpart. Create/edit, cloud pull and LAN rows retain this additive field. Missing legacy uploads preserve existing server classification; new legacy bills default to intrastate. Deploy the server first. Regression coverage: `purchaseStockService.test.ts`, `purchaseInterstateSync.test.ts`, migration compatibility and server sync golden/integration tests.
 
+## Purchase bill cash register and party ledger synchronization (21 November 2026)
+
+Purchase bill mutations (`purchasesService.ts`) manage both cash drawer transactions and party ledger balances:
+- Statement `findPurchaseBillsByPurchaseBillId` (`electron/db/statements/purchases.ts`) retrieves prior `supplier_id`, `bill_number`, `tenant_id`, `payment_type`, `total_amount`, and `bill_type` to detect financial transitions upon editing.
+- Edits switching payment from `CASH` to `CREDIT` remove corresponding `cash_transactions` (`category = 'Purchase Bill'`), restore cash drawer balances, reconcile the drawer session via `reconcileCashDrawer`, post the debt entry to `party_ledger`, and call `recalcPartyBalances`.
+- Edits switching payment from `CREDIT` to `CASH` retire prior bill entries from `party_ledger` (`updatePartyLedgerIsDeleted`), recalculate supplier balances, insert a new `cash_transactions` record, and deduct funds in `cash_drawer` via `reconcileCashDrawer`.
+- Single-transaction mutations, window notifications via `sync:data-updated`, and sync triggers (`triggerUrgentCashSync`, `runInitialSync`) ensure the local terminal, open cashier registers, and cloud synchronizers reflect consistent financial states.
+- Regression coverage: `tests/unit/purchasePaymentSync.test.ts`, `tests/unit/purchaseStockService.test.ts`.
+
 ## Linked register payment IPC
 
 The existing channel is `db:cashier:addTransaction`, exposed as `dbCashierAddTransaction` in preload/types and `cashierApi.addTransaction` in `src/data/cashier.ts`. Its additive optional field is `party: { party_id: string; ledger_id: string; description: string }`; the existing result remains `{ success: boolean; error?: string }`. Unlinked callers omit it. The service owns the CASH ledger posting, explicit cash category link and transaction; the renderer must not follow a successful cash write with a second ledger IPC call.

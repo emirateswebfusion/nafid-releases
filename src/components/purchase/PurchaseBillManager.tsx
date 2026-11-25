@@ -1,13 +1,11 @@
 import { FloatToast } from '../ui/FloatToast';
 import { parseUTCDate } from '../../utils/time/utc';
 import { storeDate } from '../../utils/time/dateDisplay';
-import { localizeTaxText } from '../../utils/localization/storeProfile';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { X, Trash2, User, AlertCircle, Save, Tag, RefreshCw, UserPlus } from 'lucide-react';
+import { Save } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
-import { Modal } from '../ui/Modal';
 import { useCloseOnEscape } from '../../hooks/useCloseOnEscape';
 import { isDesktopRuntime } from '../../data/client';
 import { partiesApi } from '../../data/parties';
@@ -22,11 +20,15 @@ import { SupplierCreateDialog } from './views/SupplierCreateDialog';
 import { PurchaseBillViewDialog } from './views/PurchaseBillViewDialog';
 import { PurchaseBillList } from './views/PurchaseBillList';
 import { PurchaseBillHeader } from './views/PurchaseBillHeader';
+import { PurchaseBillDeleteModal } from './views/PurchaseBillDeleteModal';
+import { PurchaseBillFormHeaderCard } from './views/PurchaseBillFormHeaderCard';
 import { syncApi } from '../../data/sync';
 import { PurchaseBillFormSection } from './PurchaseBillFormSection';
+import { usePurchaseBarcodePrint } from './hooks/usePurchaseBarcodePrint';
+import { BarcodePrintModal } from '../inventory/modals/BarcodePrintModal';
+import { BulkBarcodePrintModal } from './views/BulkBarcodePrintModal';
 
 export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
-  useCloseOnEscape(onClose);
   const { tenantId, userId, userName } = useAuthStore();
 
   const [bills, setBills] = useState<PurchaseBill[]>([]);
@@ -311,6 +313,73 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     filteredBills, filterType, searchQuery, setIsExporting, setStatusMessage,
   });
 
+  const {
+    printModalProduct,
+    printQuantity,
+    setPrintQuantity,
+    printPrice,
+    setPrintPrice,
+    labelCodeType,
+    grades,
+    closePrintModal,
+    openBarcodeModalForFormItem,
+    openBarcodeModalForBillItem,
+    printProductLabel,
+    bulkPrintModalOpen,
+    bulkPrintBill,
+    bulkPrintItems,
+    isBulkPrinting,
+    openBulkBarcodeModal,
+    closeBulkBarcodeModal,
+    executeBulkBarcodePrint,
+  } = usePurchaseBarcodePrint({ tenantId, setStatusMessage });
+
+  const handleEscape = useCallback(() => {
+    if (bulkPrintModalOpen) {
+      closeBulkBarcodeModal();
+    } else if (printModalProduct) {
+      closePrintModal();
+    } else if (deleteConfirmOpen) {
+      if (!deleteSaving) {
+        setDeleteConfirmOpen(false);
+        setBillToDelete(null);
+      }
+    } else if (showPartyCreateForm) {
+      setShowPartyCreateForm(false);
+    } else if (viewingBill) {
+      setViewingBill(null);
+    } else if (showAddForm) {
+      setShowAddForm(false);
+      setEditingBill(null);
+      setEditHasItems(false);
+      setGstHasItems(false);
+      setEstHasItems(false);
+    } else {
+      onClose();
+    }
+  }, [
+    bulkPrintModalOpen,
+    closeBulkBarcodeModal,
+    printModalProduct,
+    closePrintModal,
+    deleteConfirmOpen,
+    deleteSaving,
+    setDeleteConfirmOpen,
+    setBillToDelete,
+    showPartyCreateForm,
+    setShowPartyCreateForm,
+    viewingBill,
+    setViewingBill,
+    showAddForm,
+    setShowAddForm,
+    setEditingBill,
+    setEditHasItems,
+    setGstHasItems,
+    setEstHasItems,
+    onClose,
+  ]);
+  useCloseOnEscape(handleEscape);
+
   const filteredSuppliers = suppliers.filter(s =>
     String(s.name || '').toLowerCase().includes(supplierSearch.toLowerCase())
   );
@@ -480,6 +549,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             bills={bills} billSummaries={billSummaries} dateFrom={dateFrom} dateTo={dateTo}
             filteredBills={filteredBills} filterType={filterType} handleDelete={handleDelete}
             handleEditBill={handleEditBill} handleExportCSV={handleExportCSV} handlePrintBill={handlePrintBill}
+            handlePrintBillBarcodes={openBulkBarcodeModal}
             handleViewBill={handleViewBill} isExporting={isExporting} loading={loading} searchQuery={searchQuery}
             setDateFrom={setDateFrom} setDateTo={setDateTo} setEditHasItems={setEditHasItems}
             setEditingBill={setEditingBill} setEstHasItems={setEstHasItems} setFilterType={setFilterType}
@@ -499,165 +569,29 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           className="w-full px-4 sm:px-6 pt-4 pb-4 select-none flex flex-col flex-1 min-h-0"
         >
           {/* ── Shared Info Card ── */}
-          <div className="bg-card border border-border rounded-[28px] shadow-sm px-6 py-4 shrink-0">
-<div className="flex items-center gap-4 flex-wrap">
-            <input
-              ref={billDateInputRef}
-              type="date" value={billDate}
-              onChange={e => setBillDate(e.target.value)}
-              className="bg-background/50 border border-border rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background focus:outline-none transition-all shrink-0"
-            />
-            <div className="relative flex-1">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-<input
-                ref={supplierInputRef}
-                type="text" placeholder="Search or select supplier..."
-                value={supplierSearch || supplierName}
-                onChange={e => {
-                  setSupplierSearch(e.target.value);
-                  setSupplierName(e.target.value);
-                  setSupplierId('');
-                  setHighlightedSupplierIndex(-1);
-                }}
-                onKeyDown={event => {
-                  if (event.key === 'ArrowDown' && filteredSuppliers.length > 0) {
-                    event.preventDefault();
-                    setHighlightedSupplierIndex(index => (index + 1) % filteredSuppliers.length);
-                  } else if (event.key === 'ArrowUp' && filteredSuppliers.length > 0) {
-                    event.preventDefault();
-                    setHighlightedSupplierIndex(index => index < 0 ? filteredSuppliers.length - 1 : (index - 1 + filteredSuppliers.length) % filteredSuppliers.length);
-                  } else if (event.key === 'Enter' && supplierSearch && filteredSuppliers.length > 0) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    selectSupplier(filteredSuppliers[highlightedSupplierIndex] || filteredSuppliers[0]);
-                  }
-                }}
-                role="combobox"
-                aria-autocomplete="list"
-                aria-expanded={Boolean(supplierSearch && filteredSuppliers.length > 0)}
-                aria-controls="purchase-supplier-options"
-                aria-activedescendant={highlightedSupplierIndex >= 0 ? `purchase-supplier-option-${highlightedSupplierIndex}` : undefined}
-                className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
-              />
-              {(supplierSearch || supplierName) && (
-                <button
-                  onClick={() => {
-                    setSupplierSearch('');
-                    setSupplierName('');
-                    setSupplierId('');
-                    setHighlightedSupplierIndex(-1);
-                  }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
-                  type="button"
-                  aria-label="Clear supplier"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-              {supplierSearch && filteredSuppliers.length > 0 && (
-                <div ref={supplierOptionsRef} id="purchase-supplier-options" role="listbox" className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[200px] overflow-y-auto">
-                  {filteredSuppliers.map((s, index) => (
-                    <button
-                      key={s.party_id} type="button"
-                      id={`purchase-supplier-option-${index}`}
-                      role="option"
-                      aria-selected={index === highlightedSupplierIndex}
-                      onMouseDown={event => { event.preventDefault(); selectSupplier(s); }}
-                      onMouseEnter={() => setHighlightedSupplierIndex(index)}
-                      className={clsx(
-                        'w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border/40 last:border-0 cursor-pointer',
-                        index === highlightedSupplierIndex ? 'bg-primary/10 text-primary' : 'hover:bg-muted/40'
-                      )}
-                    >
-                      <User className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-foreground truncate">{s.name}</div>
-                        {s.phone && <div className="text-[10px] text-muted-foreground">{s.phone}</div>}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => { setNewPartyForm(prev => ({ ...prev, name: supplierSearch || '' })); setShowPartyCreateForm(true); }}
-              className="p-2.5 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all active:scale-95 cursor-pointer shrink-0 shadow-inner"
-              title="Create Supplier"
-            >
-              <UserPlus className="w-4 h-4" />
-            </button>
-            <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none shadow-inner select-none shrink-0">
-              {/* Tab: GST */}
-              <button
-                type="button"
-                onClick={() => setBillType('GST')}
-                className={clsx(
-                  "flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
-                  billType === 'GST'
-                    ? "bg-background shadow-md shadow-foreground/[0.03] text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-extrabold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                <span className={clsx(
-                  "w-1.5 h-1.5 rounded-full shrink-0",
-                  billType === 'GST' ? "bg-emerald-500" : "bg-muted-foreground/40"
-                )} />
-                {localizeTaxText("GST")}
-                <span className={clsx(
-                  "flex items-center justify-center w-4 h-4 rounded-md text-[10px] font-black transition-opacity",
-                  billType === 'GST' ? "bg-emerald-500/15 text-emerald-600" : "bg-muted-foreground/15 text-muted-foreground",
-                  gstHasItems ? "opacity-100" : "opacity-0"
-                )}>✓</span>
-              </button>
-              {/* Tab: Estimate */}
-              <button
-                type="button"
-                onClick={() => setBillType('ESTIMATE')}
-                className={clsx(
-                  "flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
-                  billType === 'ESTIMATE'
-                    ? "bg-background shadow-md shadow-foreground/[0.03] text-amber-600 dark:text-amber-400 border-amber-500/30 font-extrabold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                <span className={clsx(
-                  "w-1.5 h-1.5 rounded-full shrink-0",
-                  billType === 'ESTIMATE' ? "bg-amber-500" : "bg-muted-foreground/40"
-                )} />
-                Estimate
-                <span className={clsx(
-                  "flex items-center justify-center w-4 h-4 rounded-md text-[10px] font-black transition-opacity",
-                  billType === 'ESTIMATE' ? "bg-amber-500/15 text-amber-600" : "bg-muted-foreground/15 text-muted-foreground",
-                  estHasItems ? "opacity-100" : "opacity-0"
-                )}>✓</span>
-              </button>
-            </div>
-            </div>
-
-          {/* ── Notes Row ── */}
-          <div className="mt-3.5 pt-3.5 border-t border-border/50 flex items-center gap-3">
-            <div className="p-1.5 rounded-lg bg-primary/10 text-primary shrink-0">
-              <Tag className="w-3.5 h-3.5" />
-            </div>
-            <input
-              type="text"
-              placeholder="Notes / Remarks (optional)"
-              value={billNotes}
-              onChange={e => setBillNotes(e.target.value)}
-              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
-            />
-            {billNotes && (
-              <button
-                type="button"
-                onClick={() => setBillNotes('')}
-                className="text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer shrink-0"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-            </div>
-          </div>
+          <PurchaseBillFormHeaderCard
+            billDateInputRef={billDateInputRef}
+            billDate={billDate}
+            setBillDate={setBillDate}
+            supplierInputRef={supplierInputRef}
+            supplierSearch={supplierSearch}
+            setSupplierSearch={setSupplierSearch}
+            supplierName={supplierName}
+            setSupplierName={setSupplierName}
+            setSupplierId={setSupplierId}
+            highlightedSupplierIndex={highlightedSupplierIndex}
+            setHighlightedSupplierIndex={setHighlightedSupplierIndex}
+            filteredSuppliers={filteredSuppliers}
+            supplierOptionsRef={supplierOptionsRef}
+            selectSupplier={selectSupplier}
+            onOpenCreateSupplier={() => { setNewPartyForm(prev => ({ ...prev, name: supplierSearch || '' })); setShowPartyCreateForm(true); }}
+            billType={billType}
+            setBillType={setBillType}
+            gstHasItems={gstHasItems}
+            estHasItems={estHasItems}
+            billNotes={billNotes}
+            setBillNotes={setBillNotes}
+          />
 
           <div className={clsx("flex-1 py-5 space-y-4", (gstHasItems || estHasItems) ? "overflow-y-auto" : "overflow-y-hidden")}>
             <div className={billType === 'GST' ? 'block' : 'hidden'}>
@@ -677,6 +611,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 otherSectionAddItem={gstOtherAddItem}
                 editingData={gstEditingData}
                 getOtherSectionItems={getEstimateItems}
+                onPrintBarcode={openBarcodeModalForFormItem}
               />
             </div>
             <div className={billType === 'ESTIMATE' ? 'block' : 'hidden'}>
@@ -696,6 +631,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 otherSectionAddItem={estOtherAddItem}
                 editingData={estEditingData}
                 getOtherSectionItems={getGstItems}
+                onPrintBarcode={openBarcodeModalForFormItem}
               />
             </div>
           </div>
@@ -723,6 +659,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           handleDelete={handleDelete} handleEditBill={handleEditBill} handlePrintBill={handlePrintBill}
           loadingViewingItems={loadingViewingItems} setViewingBill={setViewingBill} viewingBill={viewingBill}
           viewingBillItems={viewingBillItems}
+          onPrintItemBarcode={openBarcodeModalForBillItem}
+          onPrintAllBarcodes={openBulkBarcodeModal}
         />
       )}
 
@@ -736,44 +674,38 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       )}
 
       {/* Delete Purchase Bill Confirmation Modal */}
-      <Modal
+      <PurchaseBillDeleteModal
         isOpen={deleteConfirmOpen}
+        bill={billToDelete}
         onClose={() => { if (!deleteSaving) { setDeleteConfirmOpen(false); setBillToDelete(null); } }}
-        closeButton={null}
-        title={
-          <div className="flex items-center gap-2.5 font-bold text-foreground">
-            <Trash2 className="w-5 h-5 text-red-500" />
-            <span>Delete Purchase Bill</span>
-          </div>
-        }
-      >
-        <div className="space-y-4 min-w-[400px] text-foreground">
-          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
-            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" />
-              Are you sure?
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              This will permanently delete purchase bill <strong>{billToDelete?.bill_number}</strong>
-              {billToDelete?.supplier_name && <> from <strong>{billToDelete.supplier_name}</strong></>}.
-            </p>
-          </div>
+        onConfirm={confirmDeleteBill}
+        isDeleting={deleteSaving}
+      />
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <button
-              onClick={confirmDeleteBill}
-              disabled={deleteSaving}
-              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
-            >
-              {deleteSaving ? (
-                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
-              ) : (
-                <><Trash2 className="w-3.5 h-3.5" /> Delete Bill</>
-              )}
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {/* Barcode Label Print Modal */}
+      <BarcodePrintModal
+        printModalProduct={printModalProduct}
+        onClose={closePrintModal}
+        labelCodeType={labelCodeType}
+        printPrice={printPrice}
+        setPrintPrice={setPrintPrice}
+        printQuantity={printQuantity}
+        setPrintQuantity={setPrintQuantity}
+        printProductLabel={printProductLabel}
+        grades={grades}
+      />
+
+      {/* Bulk Barcode Label Print Modal */}
+      {bulkPrintModalOpen && (
+        <BulkBarcodePrintModal
+          isOpen={bulkPrintModalOpen}
+          bill={bulkPrintBill}
+          items={bulkPrintItems}
+          onClose={closeBulkBarcodeModal}
+          onPrint={executeBulkBarcodePrint}
+          isPrinting={isBulkPrinting}
+        />
+      )}
     </div>
   );
 }

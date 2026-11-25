@@ -192,8 +192,11 @@ export const CartReturnRow: React.FC<CartReturnRowProps> = ({
           </div>
         )}
         <div className="font-black text-sm text-rose-600 dark:text-rose-400 font-mono">{formatCurrency(total)}</div>
-        {item.originalQuantity && (
-          <div className="text-[9px] text-muted-foreground/50">Sold: {item.originalQuantity}</div>
+        {item.originalQuantity != null && (
+          <div className="text-[9px] text-muted-foreground/50">
+            Sold: {isPiecesWeight ? `${Number(item.originalQuantity).toFixed(3)} Kg` : item.originalQuantity}
+            {isPiecesWeight && item.pieces_override != null ? ` (${item.pieces_override} Pcs)` : ''}
+          </div>
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">

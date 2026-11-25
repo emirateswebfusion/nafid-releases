@@ -430,6 +430,38 @@ describe('return receipt discount breakdown', () => {
     expect(standardText).toContain('MRP ₹3350.00 → ₹3015.00  (10% OFF)');
   });
 
+  it('displays both weight and piece count for returned weighted items', () => {
+    const returnBillWithWeight: ReceiptData = {
+      shopName: 'Test Store',
+      invoiceNumber: 'RTN-102',
+      referenceInvoiceNumber: 'INV-501',
+      invoiceType: 'RETURN',
+      date: '2026-11-21 10:00',
+      items: [
+        {
+          name: 'Fresh Chicken',
+          quantity: 1.5,
+          unit_price: 200,
+          total: 300,
+          billing_type: 'WEIGHT',
+          unit: 'Kg',
+          pieces_sold: 3,
+          pieces_override: 3,
+        },
+      ],
+      subtotal: 300,
+      tax: 0,
+      grandTotal: 300,
+    };
+
+    const boxedText = generateReceiptText(returnBillWithWeight, 8.0, 42, 'boxed');
+    expect(boxedText).toContain('1.500');
+    expect(boxedText).toContain('Qty: 3 Pcs');
+
+    const standardText = generateReceiptText(returnBillWithWeight, 8.0, 48, 'standard');
+    expect(standardText).toContain('Qty: 3 Pcs');
+  });
+
   it('labels B2B return documents as CREDIT NOTE', () => {
     const b2bReturnBill: ReceiptData = {
       shopName: 'Test Store',

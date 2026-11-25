@@ -857,6 +857,9 @@ export interface ReturnItemsRow {
   row_version: number;
   origin: string | null;
   combo_details: string | null;
+  pieces_sold?: number | null;
+  billing_type?: string | null;
+  uom?: string | null;
 }
 
 /** Row of `returns`. */

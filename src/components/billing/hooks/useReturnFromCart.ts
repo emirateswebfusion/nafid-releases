@@ -90,6 +90,9 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
         name: item.name,
         brand_manufacturer: item.brand_manufacturer || null,
         quantity: Number(item.quantity) || 0,
+        pieces_sold: item.billing_type === 'WEIGHT' ? (item.pieces_override ?? 1) : undefined,
+        billing_type: item.billing_type || 'PIECE',
+        uom: item.uom || item.unit || 'PCS',
         ...priceReturnLine(item),
       }));
 
@@ -148,6 +151,7 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
             const rawRate = Number(cartItem?.rawUnitPrice) || ri.unit_price;
             const hasDisc = rawRate > ri.unit_price + 0.005;
             const discPct = hasDisc ? Math.round(((rawRate - ri.unit_price) / rawRate) * 100) : 0;
+            const pcsVal = cartItem?.pieces_override ?? ri.pieces_sold;
             return {
               name: ri.name,
               quantity: ri.quantity,
@@ -157,6 +161,11 @@ export function useReturnFromCart(ctx: UseReturnFromCartContext) {
               discountLabel: hasDisc ? (discPct > 0 ? `${discPct}% OFF` : 'Offer') : undefined,
               isPriceOverride: hasDisc,
               brand: ri.brand_manufacturer || undefined,
+              billing_type: cartItem?.billing_type || ri.billing_type,
+              unit: cartItem?.uom || cartItem?.unit || ri.uom,
+              pieces_sold: pcsVal != null ? Number(pcsVal) : undefined,
+              pieces_override: pcsVal != null ? Number(pcsVal) : undefined,
+              pieces_per_kg: cartItem?.pieces_per_kg,
             };
           }),
           subtotal: returnSubtotal,

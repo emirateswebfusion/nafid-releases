@@ -515,7 +515,7 @@ export function useIncomingDocuments(ctx: UseIncomingDocumentsContext) {
             billing_type: isWeightType ? 'WEIGHT' : (item.billing_type || catProd?.billing_type || 'PIECE'),
             uom: effectiveUom,
             pieces_per_kg: piecesPerKg || 1,
-            pieces_override: Number(item.pieces_override ?? item.pieces ?? 1),
+            pieces_override: Number(item.pieces_sold ?? item.pieces_override ?? item.pieces ?? 1),
             isReturnItem: true,
             originalQuantity: Number(item.quantity) || 0,
             availableToReturn: item.available_to_return,

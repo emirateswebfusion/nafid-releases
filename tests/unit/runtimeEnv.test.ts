@@ -14,7 +14,7 @@ const { RUNTIME_ENV_KEYS, writeRuntimeEnv, PRODUCTION_CLOUD_API, validateProduct
 
 describe('installer runtime env', () => {
   it('keeps both platform release workflows on the approved backend', () => {
-    expect(PRODUCTION_CLOUD_API).toBe('https://nafid.vercel.app');
+    expect(PRODUCTION_CLOUD_API).toBe('https://nafid-server-production.up.railway.app');
     for (const workflow of ['windows-installer.yml', 'macos-installers.yml']) {
       const text = fs.readFileSync(path.resolve('.github/workflows', workflow), 'utf8');
       for (const key of ['VITE_CLOUD_API', 'VENDORA_CLOUD_API']) {

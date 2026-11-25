@@ -102,6 +102,10 @@ export function renderStandardReceipt(ctx: ReceiptTextContext): string {
       const brandLine = `  Brand: ${item.brand}`;
       text += `${brandLine.substring(0, charsPerLine)}\n`;
     }
+    if (fmt.pcsInfo) {
+      const pcsLine = `  Qty: ${fmt.pcsInfo}`;
+      text += `${pcsLine.substring(0, charsPerLine)}\n`;
+    }
     if (item.isCombo || (item.combo_items && item.combo_items.length > 0)) {
       const comboTag = `  [COMBO OFFER]`;
       text += `${comboTag.substring(0, charsPerLine)}\n`;

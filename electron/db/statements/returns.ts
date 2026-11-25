@@ -14,8 +14,8 @@ export const insertReturn = (db: Db) => db.prepare(`
     `);
 
 export const insertReturnItem = (db: Db) => db.prepare(`
-      INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, combo_details, sync_status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+      INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, combo_details, pieces_sold, billing_type, uom, sync_status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
     `);
 
 export const updateProductCurrentStock = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ? AND COALESCE(is_service_item,0) = 0');
@@ -61,7 +61,11 @@ export const updateReturnAdjustedAmountAndAdjustedInvoiceNumber = (db: Db) => db
   `);
 
 export const findReturnItemsByReturnId = (db: Db) => db.prepare(`
-    SELECT ri.*, p.sku_barcode, p.item_code, p.base_price AS catalog_base_price, ii.unit_price AS orig_inv_unit_price
+    SELECT ri.*,
+           COALESCE(ri.pieces_sold, ii.pieces_sold) AS pieces_sold,
+           COALESCE(ri.billing_type, ii.billing_type, p.billing_type) AS billing_type,
+           COALESCE(ri.uom, ii.uom, p.uom, 'PCS') AS uom,
+           p.sku_barcode, p.item_code, p.base_price AS catalog_base_price, ii.unit_price AS orig_inv_unit_price
     FROM return_items ri
     LEFT JOIN products p ON ri.product_id = p.product_id
     LEFT JOIN invoice_items ii ON ri.invoice_item_id = ii.item_id
