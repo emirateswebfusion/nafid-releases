@@ -60,6 +60,14 @@ not proof of shop repair or a validated installer.
 
 ## Download completion and independent financial ownership
 
+Collaboration integration (25 November 2026): the working branch incorporates `origin/main` through `d280f198`, retaining
+purchase payment synchronization, barcode printing, return metrics and the collaborator's backend/runtime configuration
+changes alongside these sync fixes. The business-rules append conflict was resolved by retaining both feature/recovery
+and purchase-payment sections. Combined verification passed: 297 files / 2,842 tests, renderer/Electron type checks,
+architecture guard and zero-error/zero-warning lint. The two whitespace-only purchase-test edits change no behavior;
+the reviewed purchase-payment section in `04-business-rules.md` and data-access contract remain accurate. No installer,
+deployment or release was produced by this integration.
+
 Invoice downloads never delete or restore party-ledger rows using invoice-number, reference-prefix or description
 matching. That legacy inference was unscoped and could mutate unrelated entries or another cached shop. Ledger rows
 must arrive through their own tenant/identity/version-checked account channel. Local user-requested invoice deletion
