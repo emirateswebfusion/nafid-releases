@@ -116,7 +116,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
           // lines of an edited bill and/or revert the edit. The push path will sync it later.
           const prior = localInvCheck.get(currentInv.invoice_id, currentInv.tenant_id) as Record<string, unknown>;
           const isDirtyPending = !!prior
-            && prior.sync_status === 'PENDING'
+            && (prior.sync_status === 'PENDING' || prior.sync_status === 'FAILED')
             && toSqliteDate((currentInv.updated_at as string | number | Date | null | undefined)) !== prior.updated_at;
           if (isDirtyPending) continue;
 

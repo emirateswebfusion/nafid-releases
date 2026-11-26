@@ -229,11 +229,11 @@ export async function pullPurchaseBills(token: string, tenantId: string): Promis
             // lines of an edited bill. The push path will sync it later.
             const prior = localBillCheck.get(bill.purchase_bill_id, tenantId) as Record<string, unknown>;
             const isDirtyPending = !!prior
-              && prior.sync_status === 'PENDING'
+              && (prior.sync_status === 'PENDING' || prior.sync_status === 'FAILED')
               && toSqliteDate((bill.updated_at as string | number | Date | null | undefined)) !== prior.updated_at;
             if (isDirtyPending) continue;
 
-            upsertBill.run({
+            const info = upsertBill.run({
               purchase_bill_id: bill.purchase_bill_id,
               tenant_id: tenantId,
               bill_number: bill.bill_number,
@@ -249,7 +249,7 @@ export async function pullPurchaseBills(token: string, tenantId: string): Promis
               created_at: toSqliteDate((bill.created_at as string | number | Date | null | undefined)),
               updated_at: toSqliteDate((bill.updated_at as string | number | Date | null | undefined)),
             });
-            if (Array.isArray(bill.items)) {
+            if (info.changes > 0 && Array.isArray(bill.items)) {
               deleteItems.run(bill.purchase_bill_id, tenantId);
               for (const item of bill.items) {
                 upsertItem.run({

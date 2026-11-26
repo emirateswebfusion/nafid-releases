@@ -83,6 +83,7 @@ export const insertInvoices = (db: Db) => db.prepare(`
       created_at = EXCLUDED.created_at,
       updated_at = EXCLUDED.updated_at,
       sync_status = 'SYNCED'
+    WHERE invoices.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertInvoiceItems = (db: Db) => db.prepare(`
     INSERT INTO invoice_items (

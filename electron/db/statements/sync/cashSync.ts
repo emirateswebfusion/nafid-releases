@@ -34,7 +34,7 @@ export const updateCashDrawer3 = (db: Db) => db.prepare(`
       status = @status, opened_by = COALESCE(opened_by, @opened_by), closed_by = @closed_by,
       opened_at = COALESCE(opened_at, @opened_at), closed_at = @closed_at,
       sync_status = 'SYNCED', updated_at = @updated_at
-    WHERE drawer_id = @target_id
+    WHERE drawer_id = @target_id AND sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertCashDrawer = (db: Db) => db.prepare(`
     INSERT INTO cash_drawer (

@@ -13,7 +13,7 @@ export const insertInvoices = (db: Db) => db.prepare(`
         grand_total = EXCLUDED.grand_total,
         payment_method = EXCLUDED.payment_method,
         updated_at = EXCLUDED.updated_at
-      WHERE invoices.sync_status != 'PENDING'
+      WHERE invoices.sync_status NOT IN ('PENDING', 'FAILED')
     `);
 export const deleteSyncMeta = (db: Db) => db.prepare(`DELETE FROM sync_meta WHERE key LIKE ?`);
 export const deleteSyncMeta2 = (db: Db) => db.prepare(`DELETE FROM sync_meta WHERE key = ?`);

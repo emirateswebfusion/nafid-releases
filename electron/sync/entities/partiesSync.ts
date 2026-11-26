@@ -4,7 +4,7 @@ import { getDb } from '../../db/localDb.js';
 import { syncState } from '../syncState.js';
 import { BATCH_SIZE, FETCH_TIMEOUT_MS, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
-import { fetchWithFallback, pullPaginated, pushBatch, syncPushBody } from '../syncTransport.js';
+import { cursorKey, fetchWithFallback, pullPaginated, pushBatch, setMeta, syncPushBody } from '../syncTransport.js';
 import * as partiesSyncSql from '../../db/statements/sync/partiesSync.js';
 import { withSyncApplyGuard } from '../../db/statements/outbox.js';
 import { assertAcknowledgedIdentity } from '../pendingIdentity.js';
@@ -67,6 +67,7 @@ export async function pullUsers(token: string, tenantId: string): Promise<boolea
     });
 
     withSyncApplyGuard(db, () => tx(cloudUsers));
+    setMeta(cursorKey(tenantId, 'users'), new Date().toISOString());
     if (hasChanged) {
       lastUsersHash = currentHash;
       console.log(`[SyncWorker] Pulled ${cloudUsers.length} users from cloud.`);

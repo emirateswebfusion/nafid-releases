@@ -354,7 +354,7 @@ export function updatePurchaseBill(payload: {
       const oldBillType = oldBill?.bill_type || 'GST';
       const oldItems = purchasesSql.findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity(db).all(bill.purchase_bill_id) as InvoiceItem[];
 
-      purchasesSql.updatePurchaseBillByPurchaseBillId(db).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, billType === 'GST' && !!bill.is_interstate ? 1 : 0, bill.purchase_bill_id);
+      purchasesSql.updatePurchaseBillByPurchaseBillId(db).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, billType === 'GST' && !!bill.is_interstate ? 1 : 0, bill.bill_number || null, bill.purchase_bill_id);
 
       const decreaseStock = purchasesSql.updateProductCurrentStock(db);
       for (const item of oldItems) {

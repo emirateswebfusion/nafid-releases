@@ -52,6 +52,7 @@ export function applyRow(db: Db, entity: string, row: Row, tenant: string, affec
     ? selectLedgerParty(db).get(row.ledger_id, tenant) as { party_id: string } | undefined : undefined;
   const values: Row = { ...row };
   if (entity === 'returns' && !values.refund_method && typeof values.payment_method === 'string') values.refund_method = values.payment_method;
+  if (entity === 'settings' && typeof values.value === 'boolean') values.value = JSON.stringify(values.value);
   if (columns.includes('tenant_id')) values.tenant_id = tenant;
   if (columns.includes('sync_status')) values.sync_status = 'SYNCED';
   if (keys.some(key => values[key] == null)) throw new Error('Missing sync identity');
@@ -82,14 +83,19 @@ export function applyRow(db: Db, entity: string, row: Row, tenant: string, affec
 export function refreshAccountBalances(db: Db, tenant: string, affected: Set<string>): void {
   for (const party of affected) updateParties3(db).run(tenant, party);
 }
+function opKeyValues(op: SyncOutboxRow, keys: string[]): unknown[] {
+  const payload: Row = op.payload ? JSON.parse(op.payload) as Row : {};
+  const settingKey = op.entity === 'settings' && op.entity_id.startsWith(`${op.tenant_id}:`)
+    ? op.entity_id.slice(op.tenant_id.length + 1) : op.entity_id;
+  return keys.map(key => key === 'tenant_id' ? op.tenant_id : payload[key] ?? settingKey);
+}
 /** An upload reply owns only its snapshot, never an edit made while awaiting HTTP. */
 export function canApplyConflict(db: Db, op: SyncOutboxRow): boolean {
   if (db.prepare(`SELECT 1 FROM sync_outbox WHERE tenant_id = ? AND entity = ? AND entity_id = ?
       AND sent_at IS NULL AND rowid > (SELECT rowid FROM sync_outbox WHERE op_id = ?) LIMIT 1`)
     .get(op.tenant_id, op.entity, op.entity_id, op.op_id)) return false;
   const { keys } = metadata(db, op.entity);
-  const payload: Row = op.payload ? JSON.parse(op.payload) as Row : {};
-  const values = keys.map(key => key === 'tenant_id' ? op.tenant_id : payload[key] ?? op.entity_id);
+  const values = opKeyValues(op, keys);
   const current = db.prepare(`SELECT row_version FROM ${quote(op.entity)} WHERE ${keys.map(key => `${quote(key)} = ?`).join(' AND ')}`)
     .get(...values.map(bind)) as { row_version: number } | undefined;
   return !current || current.row_version <= op.row_version;
@@ -97,8 +103,7 @@ export function canApplyConflict(db: Db, op: SyncOutboxRow): boolean {
 export function markLegacySynced(db: Db, op: SyncOutboxRow) {
   const { columns, keys } = metadata(db, op.entity);
   if (!columns.includes('sync_status')) return;
-  const payload: Row = op.payload ? JSON.parse(op.payload) as Row : {};
-  const values = keys.map(key => key === 'tenant_id' ? op.tenant_id : payload[key] ?? op.entity_id);
+  const values = opKeyValues(op, keys);
   db.prepare(`UPDATE ${quote(op.entity)} SET sync_status = 'SYNCED' WHERE ${keys.map(key => `${quote(key)} = ?`).join(' AND ')}
     AND row_version = ? AND NOT EXISTS (SELECT 1 FROM sync_outbox WHERE entity = ? AND entity_id = ? AND tenant_id = ? AND sent_at IS NULL)`)
     .run(...values.map(bind), op.row_version, op.entity, op.entity_id, op.tenant_id);

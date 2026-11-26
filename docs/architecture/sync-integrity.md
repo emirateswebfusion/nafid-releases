@@ -120,3 +120,15 @@ Portal administration. These enforce existing preservation/ownership contracts w
 cycles rather than relying solely on urgent quotation triggers, and `unifiedDeltaPull` includes `warranties` in its
 `since` table map while calling `pullWarranties` once when the server delta response omits `warranties`. Covered by
 `tests/unit/syncCycleQuotations.test.ts`.
+
+### Multi-page sync audit hardening (26 November 2026)
+
+- `pullComboOffers`, `pullPurchaseBills`, `pullCashDrawer`, `pullInvoices`, and `pullLightweightPendingBills` protect both
+  `PENDING` and `FAILED` local rows (and skip child-item replacement when the parent upsert is skipped).
+- `insertScrapTransaction2` marks newly inserted scrap lines `PENDING`, `updatePurchaseBillByPurchaseBillId` persists
+  edited `bill_number` values, `pullUsers` records the `users` pull cursor, `SalesHistory` clears `invoiceDetailsCache` on
+  `onSyncDataUpdated`, and `pullSettings` / `LOCAL_DEVICE_SETTING_KEYS` align shared Cash Register & feature keys vs
+  device-local UI/printer keys.
+- Outbox `applyRow`, `canApplyConflict`, and `markLegacySynced` (`electron/db/statements/sync/outboxSync.ts`) preserve
+  boolean JSON text for `settings.value` and strip `<tenant_id>:` prefixes on `settings` `DELETE` ops.
+- Covered by `tests/unit/syncAuditFixes.test.ts`.

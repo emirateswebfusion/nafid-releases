@@ -515,7 +515,7 @@ export async function pullComboOffers(token: string, tenantId: string): Promise<
         for (const c of combos) {
           try {
             const cid = c.combo_id;
-            upsertCombo.run({
+            const info = upsertCombo.run({
               combo_id: cid,
               tenant_id: tenantId,
               name: (c as { name: string }).name || '',
@@ -528,7 +528,7 @@ export async function pullComboOffers(token: string, tenantId: string): Promise<
               updated_at: toSqliteDate((c.updated_at as string | number | Date | null | undefined)),
             });
 
-            if (Array.isArray(c.items)) {
+            if (info.changes > 0 && Array.isArray(c.items)) {
               deleteItems.run(cid);
               for (const item of c.items) {
                 insertItem.run(

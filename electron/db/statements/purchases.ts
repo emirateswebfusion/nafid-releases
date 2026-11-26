@@ -78,7 +78,7 @@ export const findPurchaseBillsByPurchaseBillId = (db: Db) => db.prepare('SELECT 
 export const findPurchaseBillItemsByPurchaseBillIdProductIdAndQuantity = (db: Db) => db.prepare('SELECT product_id, quantity, skip_stock_update FROM purchase_bill_items WHERE purchase_bill_id = ?');
 
 export const updatePurchaseBillByPurchaseBillId = (db: Db) => db.prepare(`
-        UPDATE purchase_bills SET supplier_id = ?, supplier_name = ?, bill_date = ?, invoice_number = ?, notes = ?, total_amount = ?, bill_type = ?, payment_type = ?, is_interstate = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        UPDATE purchase_bills SET supplier_id = ?, supplier_name = ?, bill_date = ?, invoice_number = ?, notes = ?, total_amount = ?, bill_type = ?, payment_type = ?, is_interstate = ?, bill_number = COALESCE(?, bill_number), sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE purchase_bill_id = ?
       `);
 

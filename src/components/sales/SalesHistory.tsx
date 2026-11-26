@@ -231,6 +231,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (isDesktopRuntime()) {
       const unsub = bridgeEvents.onSyncDataUpdated(() => {
         console.log('[SalesHistory] 🔄 Auto-sync data updated event received! Reloading invoices from SQLite...');
+        invoiceDetailsCache.current.clear();
         loadInvoicesRef.current!(true);
       });
       return () => {

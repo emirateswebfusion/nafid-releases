@@ -182,6 +182,7 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
 
             const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as Record<string, unknown>;
             if (existing) {
+              if (existing.sync_status === 'PENDING' || existing.sync_status === 'FAILED') continue;
               const targetId = existing.drawer_id;
               // A remote close freezes its counted totals; local balance protection must never reopen it.
               const localSales = Number(existing.cash_sales) || 0;
