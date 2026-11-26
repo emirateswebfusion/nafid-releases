@@ -11,7 +11,7 @@ import { calculateEffectiveCloudAccess } from './cloudAccess.js';
 import { pullCashCategories, pullCashDrawer, pullCashTransactions, pullCashierAuditLog, pullPaymentSourceTransactions, pullPaymentSources, syncCashCategories, syncCashDrawer, syncCashTransactions, syncCashierAuditLog, syncPaymentSourceTransactions, syncPaymentSources } from './entities/cashSync.js';
 import { pullComboOffers, pullGrades, pullPricingTiers, pullProductPricing, pullProducts, syncComboOffers, syncGrades, syncPricingTiers, syncProductPricing, syncProducts } from './entities/catalogSync.js';
 import { pullCustomers, pullLoyaltyTransactions, pullParties, pullPartyLedger, pullUsers, pushCustomers, pushLoyaltyTransactions, syncParties, syncPartyLedger } from './entities/partiesSync.js';
-import { pullInvoices, pullQuotations, pullWarranties, syncInvoices, syncWarranties } from './entities/salesDocsSync.js';
+import { pullInvoices, pullQuotations, pullWarranties, syncInvoices, syncQuotations, syncWarranties } from './entities/salesDocsSync.js';
 import { pullSettings, syncSettings } from './entities/settingsSync.js';
 import { syncEinvoices } from './einvoiceSync.js';
 import { pullPurchaseBills, pullReturns, pullScrapCategories, pullScrapTransactions, syncPurchaseBills, syncReturns, syncScrapCategories, syncScrapTransactions } from './entities/stockDocsSync.js';
@@ -106,13 +106,13 @@ export async function pullLightweightPendingBills(token: string, tenantId: strin
   }
 }
 
-export async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ success: boolean; dataUpdated: boolean }> {
+export async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ success: boolean; dataUpdated: boolean; warrantiesPulled?: boolean }> {
   const tables = [
     'product_grades', 'pricing_tiers', 'products', 'product_pricing', 'settings',
     'customers', 'loyalty_transactions', 'scrap_categories',
     'scrap_transactions', 'purchase_bills', 'cash_drawer', 'cash_transactions',
     'cashier_audit_log', 'cash_categories', 'returns', 'payment_sources',
-    'payment_source_transactions', 'combo_offers', 'quotations', 'invoices', 'users'
+    'payment_source_transactions', 'combo_offers', 'quotations', 'warranties', 'invoices', 'users'
   ];
 
   const sinceMap: Record<string, string | null> = {};
@@ -169,10 +169,14 @@ export async function unifiedDeltaPull(token: string, tenantId: string): Promise
     if (data.payment_source_transactions?.length) if (await pullPaymentSourceTransactions(token, tenantId)) dataUpdated = true;
     if (data.combo_offers?.length) if (await pullComboOffers(token, tenantId)) dataUpdated = true;
     if (data.quotations?.length) if (await pullQuotations(token, tenantId)) dataUpdated = true;
-    if (data.warranties?.length) if (await pullWarranties(token, tenantId)) dataUpdated = true;
+    let warrantiesPulled = false;
+    if (data.warranties?.length) {
+      warrantiesPulled = true;
+      if (await pullWarranties(token, tenantId)) dataUpdated = true;
+    }
     if (data.users?.length) if (await pullUsers(token, tenantId)) dataUpdated = true;
 
-    return { success: true, dataUpdated };
+    return { success: true, dataUpdated, warrantiesPulled };
   } catch (err) {
     console.warn('[SyncWorker] Unified delta pull error, falling back to standard pull:', (err as Error).message);
     return { success: false, dataUpdated: false };
@@ -361,6 +365,8 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
         if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
         notifyProgress(12.5, sender, undefined, totalRecords); await syncWarranties(jwt_token, tenant_id);
+        if (!syncState.isSyncActive) { notifyCycleComplete(sender); return; }
+        notifyProgress(12.6, sender, undefined, totalRecords); await syncQuotations(jwt_token, tenant_id);
         if (await syncRestaurant(jwt_token, tenant_id)) notifyRenderer('restaurant-sync');
         // UAE e-invoicing runs after documents and customers are pushed; it is cloud-only and never blocks the cycle.
         if (activeRoute === 'CLOUD' && await syncEinvoices(jwt_token, tenant_id, { force: totalRecords > 0 })) dataUpdated = true;
@@ -411,6 +417,7 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
         const deltaRes = await unifiedDeltaPull(jwt_token, tenant_id);
         if (deltaRes.success) {
           if (deltaRes.dataUpdated) dataUpdated = true;
+          if (!deltaRes.warrantiesPulled && await pullWarranties(jwt_token, tenant_id)) dataUpdated = true;
           notifyPercent(100, 'Sync completed', sender);
         } else {
           // Fallback to legacy parallel pull if unified delta-pull endpoint is unavailable

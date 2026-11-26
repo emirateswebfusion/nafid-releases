@@ -113,3 +113,10 @@ fixes. This does not prove that the same paths caused any specific production-sh
 Documentation counterparts reviewed/updated: workspace maintenance invariants; POS codebase map, data access, business
 rules, change guide, multi-terminal accounts, manual sync and support reports; server sync API/support reports; Central
 Portal administration. These enforce existing preservation/ownership contracts without a new wire protocol or ADR.
+
+### Legacy cycle quotation push and warranty pull (26 November 2026)
+
+`runSyncCycle` (`electron/sync/syncCycle.ts`) now pushes pending `quotations` (`syncQuotations`) during normal background
+cycles rather than relying solely on urgent quotation triggers, and `unifiedDeltaPull` includes `warranties` in its
+`since` table map while calling `pullWarranties` once when the server delta response omits `warranties`. Covered by
+`tests/unit/syncCycleQuotations.test.ts`.
