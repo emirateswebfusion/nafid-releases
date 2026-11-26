@@ -1,3 +1,13 @@
+# Nafid POS v2.2.91
+
+## What's New
+
+- **Sync Integrity & Pending Work Protection**: Ordinary cloud/LAN downloads no longer clear unsent `PENDING` or `FAILED` local edits; pending records are cleared only after confirmed upload acknowledgement, and unsafe customer/pricing-tier identity remaps are blocked.
+- **Background Quotation & Warranty Sync**: Pending offline quotations now push automatically during normal background sync cycles, and warranty records stay synchronized during delta pulls.
+- **Unified Shop Features & Source Recovery**: Trial registration and shop setup align business-category feature defaults cleanly, and support-authorized source-terminal recovery creates durable local backups before applying cloud updates.
+
+**Download:** [Nafid-Setup-2.2.91.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.91/Nafid-Setup-2.2.91.exe)
+
 # Nafid POS v2.2.90
 
 ## What's New
