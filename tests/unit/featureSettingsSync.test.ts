@@ -34,6 +34,14 @@ it('accepts a remote module change after local settings have synced', async () =
   expect(raw.prepare('SELECT value FROM settings').get()).toEqual({ value: '{"scrap":false}' });
 });
 
+it.each(['PENDING','FAILED'])('keeps an unacknowledged ordinary setting even when the cloud clock is ahead: %s',async status=>{
+  setup();
+  raw.prepare('INSERT INTO settings VALUES (?, ?, ?, ?, ?)').run('shop','shop_name','Correct local name','2026-11-05 09:00:00',status);
+  state.remote=[{tenant_id:'shop',key:'shop_name',value:'Different cloud name',updated_at:'2099-01-01T00:00:00Z'}];
+  await pullSettings('token','shop');
+  expect(raw.prepare('SELECT value,sync_status FROM settings').get()).toEqual({value:'Correct local name',sync_status:status});
+});
+
 it('does not acknowledge a feature selection edited during a push', async () => {
   setup();
   raw.prepare('INSERT INTO settings VALUES (?, ?, ?, ?, ?)').run('shop', 'feature_flags', '{"scrap":true}', '2026-11-05 09:00:00', 'PENDING');

@@ -14,7 +14,7 @@ import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
 import { isAdminRole } from '../../utils/security/permissions';
 
-import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, sanitizeFeatureFlags, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../../config/featureFlags';
+import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, sanitizeFeatureFlags, updateFeatureFlag, type FeatureFlags, type FeatureKey, useFeatureFlagsStore } from '../../config/featureFlags';
 import { appApi } from '../../data/app';
 import { useUpdateStore } from '../../store/updateStore';
 import { hasBridge, isDesktopRuntime } from '../../data/client';
@@ -88,10 +88,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
     setDraftFeatureFlags(previous => {
       const current = previous ?? savedFeatureFlags ?? DEFAULT_FEATURE_FLAGS;
       const target = nextVal ?? !current[key];
-      return sanitizeFeatureFlags({ ...current, [key]: target,
-        ...(key === 'cash_register' && target ? { cash_settlement: true } : {}),
-        ...(['dining_tables', 'takeaway_delivery', 'kitchen_display'].includes(key) && target ? { restaurant_mode: true } : {}),
-      });
+      return updateFeatureFlag(current, key, target);
     });
   };
   const [initialSnapshot, setInitialSnapshot] = useState('');
@@ -207,6 +204,7 @@ export function SettingsManager({ onClose, initialSection, isRestricted: _isRest
 
   const { handleSave } = useSettingsSave({
     form, activeSection, buildSettingsSnapshot, featureFlags, setInitialSnapshot, localDomain, returnPrefix, saveSession,
+    onFeatureFlagsSaved: saved => setDraftFeatureFlags(current => current && FEATURE_LIST.every(feature => current[feature.key] === saved[feature.key]) ? null : current),
     returnStartNumber, role, shopDomain, updateDomain,
   });
 

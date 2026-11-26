@@ -8,7 +8,7 @@ import { ensureSchemaColumns } from '../../electron/db/schemaColumns';
 import { runColumnMigrations } from '../../electron/db/migrationsColumns';
 const state = vi.hoisted(() => ({ db: null as unknown as Database.Database, rows: [] as Record<string, unknown>[] }));
 vi.mock('../../electron/db/localDb', () => ({ getDb: () => state.db }));
-vi.mock('../../electron/sync/syncConfig', () => ({ BATCH_SIZE: 100,
+vi.mock('../../electron/sync/syncConfig', async importOriginal => ({ ...await importOriginal<typeof import('../../electron/sync/syncConfig')>(), BATCH_SIZE: 100,
   toSqliteDate: (v: unknown) => v || null, parseIsDeleted: (v: unknown) => v ? 1 : 0 }));
 vi.mock('../../electron/sync/syncProgress', () => ({ notifyPullProgress: vi.fn() }));
 vi.mock('../../electron/sync/syncTransport', () => ({
@@ -21,6 +21,7 @@ vi.mock('../../electron/sync/syncTransport', () => ({
 import { pullInvoices, syncInvoices } from '../../electron/sync/entities/salesDocsSync';
 import { syncPurchaseBills, syncReturns } from '../../electron/sync/entities/stockDocsSync';
 import { updateProducts } from '../../electron/db/statements/sync/catalogSync';
+import { pullProducts } from '../../electron/sync/entities/catalogSync';
 import { pushBatch } from '../../electron/sync/syncTransport';
 let raw: DatabaseSync;
 beforeEach(() => {
@@ -40,6 +41,27 @@ beforeEach(() => {
   vi.mocked(pushBatch).mockClear();
 });
 afterEach(() => raw.close());
+it.each(['invoices','products'] as const)('exhausted %s identity-collision retries fail the page instead of dropping a record',async table=>{
+  const id=table==='invoices'?'invoice_id':'product_id';
+  const rejection=table==='invoices'?'invoices.tenant_id, invoices.invoice_number':'products.name';
+  raw.exec(`CREATE TRIGGER reject_cloud_row BEFORE INSERT ON ${table} WHEN NEW.${id}='blocked' BEGIN SELECT RAISE(ABORT,'UNIQUE constraint failed: ${rejection}');END`);
+  state.rows=table==='invoices'?[{invoice_id:'blocked',tenant_id:'t',invoice_number:'BLOCKED',invoice_type:'GST',subtotal:1,tax_total:0,grand_total:1,stock_applied:1,items:[]}]
+    :[{product_id:'blocked',tenant_id:'t',name:'Blocked product',base_price:1,current_stock:0}];
+  await expect((table==='invoices'?pullInvoices:pullProducts)('token','t')).rejects.toThrow('identity collision could not be resolved');
+  expect(raw.prepare(`SELECT ${id} FROM ${table} WHERE ${id}='blocked'`).get()).toBeUndefined();
+});
+it.each([0,1])('a cloud invoice deleted=%s cannot delete/restore unrelated or other-shop ledger rows by text match',async is_deleted=>{
+  raw.prepare('UPDATE invoices SET is_deleted=?').run(is_deleted?0:1);
+  raw.exec(`INSERT INTO parties(party_id,tenant_id,name) VALUES('party','t','Local'),('foreign-party','other','Foreign');
+    INSERT INTO party_ledger(ledger_id,tenant_id,party_id,description,reference_number,credit_amount,debit_amount,running_balance,is_deleted,sync_status)
+    VALUES('manual','t','party','Manual cash entry mentioning INV','INV-PAY',100,0,100,0,'PENDING'),
+    ('archived','t','party','Archived INV entry','INV-ARCHIVE',200,0,200,1,'SYNCED'),
+    ('foreign','other','foreign-party','Other shop INV entry','INV',300,0,300,0,'SYNCED')`);
+  const before=raw.prepare('SELECT * FROM party_ledger ORDER BY ledger_id').all();
+  state.rows=[{invoice_id:'inv',tenant_id:'t',invoice_number:'INV',invoice_type:'GST',subtotal:20,tax_total:0,grand_total:20,is_deleted,stock_applied:1,updated_at:'2026-10-30T10:00:00Z',items:[]}];
+  await pullInvoices('token','t');
+  expect(raw.prepare('SELECT * FROM party_ledger ORDER BY ledger_id').all()).toEqual(before);
+});
 it.each([0, 1])('invoice pull deleted=%s does not replay the already received product balance', async is_deleted => {
   raw.prepare('UPDATE invoices SET is_deleted=?').run(is_deleted ? 0 : 1);
   state.rows = [{ invoice_id: 'inv', tenant_id: 't', invoice_number: 'INV', invoice_type: 'GST',

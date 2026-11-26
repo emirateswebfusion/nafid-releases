@@ -1,5 +1,13 @@
 # 6. Change guide
 
+When changing sync acknowledgement or download SQL, include the [sync integrity](sync-integrity.md) regressions:
+same-timestamp repeated pulls, PENDING and FAILED source rows, future/older cloud clocks, and edits during both success
+and failure responses. Never restore timestamp-only reconciliation or an unconditional-clear fallback. Review the shared
+server contract and native-versus-browser ownership; run the sync/IPC characterization harnesses for main-process changes.
+Also cover malformed/oversized pages, page-budget exhaustion, offset timestamps, metadata-write failure, row/remap
+rollback and exhausted identity retries. Invoice delete/restore tests must preserve unrelated and other-tenant ledger
+rows; never infer account deletion authority from invoice number prefixes or descriptions.
+
 Before coding, identify affected architecture sections; before completion, update them and provide exact file/section
 evidence under the [mandatory documentation review](../../CONTRIBUTING.md#mandatory-documentation-review-for-every-change).
 This applies to bug fixes, features and refactors, not only changes that introduce a new layer.
@@ -205,13 +213,12 @@ alone do not satisfy this requirement. Record the actual installed-upgrade test 
 
 `src/config/businessProfiles.ts` recommends modules for retail, restaurant, wholesale, clothing, grocery,
 hardware and scrap shops. Categories set initial choices; they do not change tax country or permissions.
-Owners customize accessible checkbox selections and explicitly Save shop modules. This section saves its
-own draft and does not apply uncommitted choices to the running app. Existing shop choices are preserved
+Owners customize the shared FeaturesTab selector. Settings commits its draft only through the main Save Changes action; registration and platform provisioning include the selection in their existing account save. Platform edits use their explicit Save shop features action. Uncommitted Settings choices do not affect the running app. Existing shop choices are preserved
 until explicitly saved. Clothing currently recommends existing category/retail features; product size/color
-variant modeling is not implemented by this module-selection change.
+variant modeling follows the inventory ownership rules; recommendations do not implement a second product model.
 
 `resolveFeatureFlags` owns legacy defaults. `useFeatureFlagsRefresh` reloads tenant-only settings after
-local saves, focus and remote data events; the store ignores stale loads and preserves confirmed choices
+local saves, focus and remote data events (browser also polls confirmed flags every 30 seconds); the store ignores stale loads and preserves confirmed choices
 on read errors. Dashboard cards, entry events and PermissionGuard enforce module visibility, including an
 already-open screen. Advertisements and Financial Reports now have explicit module keys. Pricing tier
 selectors in billing, inventory and parties follow pricing_tiers; recorded bills keep their original prices.
@@ -549,3 +556,11 @@ Follow [multi-terminal account sync](multi-terminal-account-sync.md) before chan
 ## Source-terminal recovery changes
 
 Change `sync/accountRecovery`, its SQL factories, paired server lifecycle/audit/policy and platform controls together. Review [account-recovery.md](account-recovery.md), both ADRs, support contracts and backend client-release gates. Run source/queue/storage/response-loss/concurrency regressions, native PostgreSQL rollback/RLS/receipt checks and no-job IPC/cloud/LAN characterization. A new capable POS needs full packaged-installer validation; never activate a broad local-wins rule or force restart billing.
+
+## Changing manual sync
+
+Keep one explicit service and one existing engine; never reset cursors or clear pending rows to claim success. Update [manual-sync.md](manual-sync.md), the IPC type/bridge/catalog/handler chain and acknowledgement regressions together. Characterize legacy uploads and IPC compatibility; exercise the synthetic UI fixture without real shop mutations. New native behavior needs a validated installer.
+
+## Source-confirmed background work
+
+Update [source-confirmed-recovery.md](source-confirmed-recovery.md), server account-recovery/API docs and portal diagnostics together. Test no-network enqueue, confirmation gates, local/cloud backup failure, fixed-scope replay, role/tenant enforcement and concurrent-edit preservation. Keep the installer/backend rollout order explicit; never test recovery against a real shop as a UI check.

@@ -1,3 +1,4 @@
+import { ManualSyncPanel } from './ManualSyncPanel';
 import React from 'react';
 import { SyncEngineToggle } from './SyncEngineToggle';
 import { Cloud, Wifi, CheckCircle2, Globe, HelpCircle, RefreshCw, BookOpen, ChevronRight, Lock } from 'lucide-react';
@@ -37,8 +38,7 @@ export interface NetworkSyncTabProps {
 
 export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
   detectedLocalIp,
-  drainingQueue, setDrainingQueue,
-  effectiveCloudState, setEffectiveCloudState,
+  effectiveCloudState,
   lanHostIp, setLanHostIp,
   lanRole, setLanRole,
   lanPort,
@@ -82,33 +82,12 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
       if (res && (res as { success?: boolean; error?: string }).success === false) {
         setMessage({ type: 'error', text: `Re-sync error: ${(res as { error?: string }).error || 'Failed'}` });
       } else {
-        setMessage({ type: 'success', text: 'Selective re-sync completed! Local pending data was pushed and selected categories were refreshed from cloud.' });
+        setMessage({ type: 'success', text: 'Re-sync attempt finished. Use Sync now to check whether any local changes still need attention.' });
       }
     } catch (err) {
       setMessage({ type: 'error', text: `Re-sync error: ${(err as Error).message}` });
     } finally {
       setIsResyncing(false);
-    }
-  };
-
-  const handleManualQueueDrain = async () => {
-    if (!hasBridge('drainPendingCloudQueue')) return;
-    setDrainingQueue(true);
-    try {
-      const res = await syncApi.drainPendingCloudQueue();
-      if (res.success) {
-        setMessage({ type: 'success', text: 'Queue drain completed' });
-      } else {
-        setMessage({ type: 'error', text: `Queue drain error: ${res.error || 'Failed'}` });
-      }
-      if (hasBridge('getCloudAccessState')) {
-        const newState = await syncApi.getCloudAccessState();
-        if (newState) setEffectiveCloudState(newState);
-      }
-    } catch (err) {
-      setMessage({ type: 'error', text: `Queue drain error: ${(err as Error).message}` });
-    } finally {
-      setDrainingQueue(false);
     }
   };
 
@@ -235,6 +214,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
   return (
           <div className="space-y-6 animate-in fade-in duration-300">
             <SyncEngineToggle />
+            <ManualSyncPanel />
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
               <div className="flex items-center justify-between gap-3 mb-6 pb-4 border-b border-border">
                 <div className="flex items-center gap-3">
@@ -314,17 +294,7 @@ export const NetworkSyncTab: React.FC<NetworkSyncTabProps> = ({
                       </div>
                     </div>
 
-                    {effectiveCloudState.isCloudAllowed && effectiveCloudState.pendingCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleManualQueueDrain}
-                        disabled={drainingQueue}
-                        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
-                      >
-                        <RefreshCw className={clsx("w-3.5 h-3.5", drainingQueue && "animate-spin")} />
-                        {drainingQueue ? 'Draining Queue...' : `Drain Queue (${effectiveCloudState.pendingCount})`}
-                      </button>
-                    )}
+
                   </div>
 
                   {effectiveCloudState.config?.cloud_access_enabled === false && (

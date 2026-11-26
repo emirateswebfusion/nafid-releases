@@ -9,8 +9,8 @@ import { queueAccountRecovery, accountRecoveryStatus } from './accountRecovery.j
 let lastAttempt = 0;
 let inFlight = false;
 /** Bounded operational snapshots never carry party names, money, credentials, raw logs or arbitrary error text. */
-export async function reportSyncSupport(): Promise<void> {
-  if (inFlight || Date.now() - lastAttempt < 60_000) return;
+export async function reportSyncSupport(force = false): Promise<void> {
+  if (inFlight || (!force && Date.now() - lastAttempt < 60_000)) return;
   const auth = getAuthConfig();
   const base = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || '').replace(/\/$/, '');
   if (!auth || !base || auth.tenant_id === 'SYSTEM') return;
@@ -27,7 +27,11 @@ export async function reportSyncSupport(): Promise<void> {
         : !row.base || /baseline|base revision|unverifiable/i.test(String(row.reason)) ? 'BASE_REQUIRED'
         : /deleted|unavailable/i.test(String(row.reason)) ? 'PARENT_UNAVAILABLE' : 'CLOUD_REVISION_CONFLICT',
     }));
+    const confirmation = sql.read(db).get(`source_recovery_confirmation:${tenant}`) as { value: string } | undefined;
+    let sourceConfirmation: unknown;
+    try { sourceConfirmation = confirmation ? JSON.parse(confirmation.value) as unknown : undefined; } catch { /* Optional damaged metadata must not suppress the report. */ }
     const report = { terminal_id: origin.value, version: app.getVersion(), platform: process.platform, recovery_capable: true, recovery_status: accountRecoveryStatus(tenant),
+      source_confirmation: sourceConfirmation,
       observed_at: new Date().toISOString(), route: syncState.currentActiveRoute,
       pending: (sql.pendingAccounts(db).get(tenant, tenant) as { n: number }).n,
       conflicts: (sql.activeAccountConflicts(db).get(tenant, tenant) as { n: number }).n,

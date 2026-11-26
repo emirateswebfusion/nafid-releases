@@ -1,5 +1,13 @@
 # 4. Business rules
 
+Sync integrity is a data-preservation rule: PENDING/FAILED means unacknowledged local work. A cloud read, equal timestamp
+or later cloud clock does not authorize replacing it. Customer/loyalty push replies must match the sent local revision
+and timestamp and must not advance business updated_at merely to mark success. See [sync integrity](sync-integrity.md).
+
+Cloud invoice reads do not authorize ledger delete/restore by number, prefix or description. Financial accounts have
+their own IDs, tenant scope and receipts; only canonical local user operations or the account sync/recovery owner may
+change those rows. A download is complete only after every required page applies and its cursor commits successfully.
+
 Rules that decide money, numbers, tax or access must have **exactly one implementation** with unit tests.
 Before writing a calculation, look for it here. If you change a rule, change the canonical module, extend its test,
 and update every caller in the same change.
@@ -789,6 +797,32 @@ Coverage: `tests/unit/purchaseBillBadge.ui.test.tsx`, purchase save/stock and cr
 
 Ordinary account synchronization still requires captured revisions for differing cloud values. The sole recovery exception is a separately authorized, tenant/terminal/identity-bound platform job with durable before-images, immutable source backup, unchanged-cloud guards and canonical writes. Ledger totals must match the source or all financial writes roll back. Never infer deletions, reassign a ledger parent, merge contact matches or clear a local database. Exact receipts acknowledge only unchanged local snapshots; covered history is retained and newer edits stay pending. See [account recovery](account-recovery.md).
 
+
+## Unified shop feature configuration
+
+`tenant_settings.feature_flags` is the shop-wide module selection; `business_category` labels the matching recommendation (or `custom`). Category recommendations, feature definitions and dependency normalization belong to POS `config/businessProfiles.ts` and `config/featureFlags.ts`. The existing `FeaturesTab` selector is reused by trial registration, Settings, platform shop controls and paid-store provisioning. Do not create a second feature catalogue or recommendation policy in the server or portal.
+
+Registration sends an explicit complete selection. Server registration/provisioning validates a bounded boolean map and seeds the same settings keys; older callers without a selection receive an explicit empty map. Explicit `{}` means no optional modules; an absent legacy setting retains the existing compatibility defaults. Existing partial legacy maps retain their documented fallback behavior. These choices never delete business records or replace staff permissions.
+
+Settings keeps the selection in its existing draft and persists it only through the main Save Changes action. After successful saving, the shared feature store updates navigation and page guards. Platform edits use SUPER_ADMIN-only GET/PUT `/super-admin/shop-features/:tenantId`, a tenant-scoped transaction, existing settings keys and a `revision` compare-and-save check. Stale saves return 409 and preserve the editor draft. Every server settings update advances the settings sync sequence. Platform module selection is separate from database credentials and subscription duration.
+
+Password login returns allow-listed shop features/category in `store_profile` for both trial and paid accounts. Desktop `initialShopFeatures` fills only missing tenant-local settings as SYNCED under the sync apply guard before starting sync; it never overwrites local pending choices or creates upload work. Existing settings then travel through normal cloud/LAN settings sync. Offline terminals retain their last confirmed selection until reconnecting. Browser settings are server-backed, refreshed on focus, local save and every 30 seconds while authenticated; failed refreshes retain the last confirmed selection. No historical shop configuration is rewritten by deployment.
+
+Dashboard cards, sidebar navigation and rendered pages use the canonical feature flags alongside role permissions. Browser URL adaptation maps paths to those same feature keys, rejects disabled direct/history URLs to the dashboard, and closes a now-disabled route when refreshed flags arrive. Settings and dashboard stay reachable to recover module choices. This is a UI module configuration boundary, not a replacement for server authentication/authorization.
+
+Verification must cover custom registration selections, explicit-none versus legacy missing settings, new-device bootstrap without uploads or lost pending choices, platform stale-save/tenant isolation, settings synchronization and disabled direct URLs. Review the POS packaged installer gate before distributing desktop changes; server deployment alone cannot update installed renderer behavior.
+
+Individual toggles use canonical updateFeatureFlag: enabling cash_register enables cash_settlement; enabling a food child enables restaurant_mode. Disabling a parent is normalized by sanitizeFeatureFlags. Browser source overlays retain their hasBridge settings-save capability boundary; do not replace it with a desktop-only check. Bootstrap uses the cloud updated_at so later cloud edits remain eligible for pull.
+
+After a confirmed main Settings save, clear only the feature draft matching the saved selection. New edits made during saving survive; idle Settings follows subsequent confirmed remote module changes instead of retaining a previously saved draft indefinitely.
+
+## Upload acknowledgement and explicit retries
+
+A successful response for an older legacy upload must not clear a newer local edit. Catalog/cash/sales/stock document acknowledgement uses the captured revision and owner, with exact child revision sets for document-item acknowledgement. No user action can mark arbitrary pending work synced. Manual cloud sync preserves operation identity and financial captured bases; true conflicts require scoped source recovery. See [Manual cloud sync](manual-sync.md).
+
+## Confirmed source authority
+
+A checked confirmation authorizes only the exact bounded pending account recovery snapshot, not whole-shop replacement or inferred deletion. Local online database backup, immutable source/queue snapshot, durable cloud before-images, current-cloud guards, canonical writers, total validation and exact receipts are mandatory. Billing does not wait for cloud work. No completion or perpetual-sync guarantee is inferred from QUEUED.
 ## Purchase bill payment mode & cash register synchronization (21 November 2026)
 
 `electron/services/purchasesService.ts` (`addPurchaseBill`, `updatePurchaseBill`, `deletePurchaseBill`) and `electron/db/statements/purchases.ts` govern purchase bill financial mutations:

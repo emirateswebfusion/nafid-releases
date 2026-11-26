@@ -184,7 +184,7 @@ it('clears Cash Register entry and updates closed drawer when editing CASH bill 
   // 2. Simulate drawer closing (status = 'CLOSED', counted cash = 4000)
   const closedAt = new Date().toISOString();
   sql.prepare(`
-    UPDATE cash_drawer 
+    UPDATE cash_drawer
     SET status = 'CLOSED', closed_at = ?, actual_cash = 4000, cash_short = 0, cash_excess = 0
     WHERE drawer_id = 'd1'
   `).run(closedAt);
@@ -219,7 +219,7 @@ it('records cash transaction and reconciles drawer when editing CREDIT bill to C
   // 2. Simulate drawer closing
   const closedAt = new Date().toISOString();
   sql.prepare(`
-    UPDATE cash_drawer 
+    UPDATE cash_drawer
     SET status = 'CLOSED', closed_at = ?, actual_cash = 5000, cash_short = 0, cash_excess = 0
     WHERE drawer_id = 'd1'
   `).run(closedAt);

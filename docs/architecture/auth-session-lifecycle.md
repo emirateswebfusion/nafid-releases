@@ -116,3 +116,9 @@ retained its key, accepted valid credentials, rejected missing/wrong keys and co
 The running Electron fixture also exercised unavailable-cloud error display, closing to continue offline, successful
 reconnect through the desktop login adapter, unchanged cashier/open-bill display, Offline before a connection event,
 Cloud Connected after that event and the shared sign-out-error toast. Its cloud responses and credentials are synthetic.
+
+### Shop features on first device login
+
+Online login includes allow-listed feature_flags/business_category in store_profile for paid and trial shops. Before enabling sync, authSessionService caches only missing tenant-local settings through initialShopFeatures. Existing local selections are preserved (especially PENDING edits); later remote changes use normal settings sync. Offline login retains the last stored choices. This bootstrap neither changes user identity/permissions nor deletes business records.
+
+Bootstrap settings retain the server-reported updated_at (epoch fallback when unavailable), never the terminal current time. A cloud change committed while login is in flight must remain eligible for normal pull. Registration does not requeue already-confirmed feature choices as a new local pending write.

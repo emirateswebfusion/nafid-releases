@@ -1,8 +1,9 @@
+import { acknowledgeLegacySnapshot } from '../../db/statements/sync/legacyAcknowledgement.js';
 import { preserveInvoiceItemOrder } from '../invoiceItemOrder.js';
 import { getDb } from '../../db/localDb.js';
 import { BATCH_SIZE, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
-import { pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
+import { pullPaginated, pushBatch } from '../syncTransport.js';
 import * as salesDocsSyncSql from '../../db/statements/sync/salesDocsSync.js';
 /** Sales documents sync: invoices, quotations and warranties (push and pull). */
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
@@ -69,7 +70,7 @@ export async function syncInvoices(token: string, tenantId: string) {
     );
     if (synced.length > 0) {
       totalSynced += synced.length;
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'invoices', 'invoice_id', tenantId, batch.find(row => row.invoice_id === id), () => updateStmt.run(id, tenantId)); });
       tx(synced);
     }
   }
@@ -185,19 +186,9 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
                 description: currentInv.description || currentInv.notes || null,
               });
 
-              const isDeletedPull = parseIsDeleted(currentInv.is_deleted) === 1;
 
-              // If this invoice is soft-deleted, ensure any local party ledger entries are also soft-deleted
-              if (isDeletedPull && currentInv.invoice_number) {
-                const invNum = String(currentInv.invoice_number).trim();
-                salesDocsSyncSql.updatePartyLedger(db).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
-              }
-
-              // If this invoice was restored, restore any corresponding party ledger entries
-              if (!isDeletedPull && prior && prior.is_deleted === 1 && currentInv.invoice_number) {
-                const invNum = String(currentInv.invoice_number).trim();
-                salesDocsSyncSql.updatePartyLedger2(db).run(invNum, `${invNum}-PAY`, `${invNum}%`, `%${invNum}%`);
-              }
+              // Financial accounts arrive through their own identity/version-checked channel.
+              // An invoice number or description match is never authority to delete/restore a ledger.
 
               success = true;
             } catch (e) {
@@ -211,7 +202,8 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
             }
           }
 
-          if (success && Array.isArray(currentInv.items)) {
+          if (!success) throw new Error('Invoice identity collision could not be resolved');
+          if (Array.isArray(currentInv.items)) {
             // Save existing pieces_sold, billing_type, and uom from local DB BEFORE deleting — server doesn't store
             // these fields so we must preserve the locally-typed values ourselves.
             const existingPiecesSold: Record<string, number | null> = {};
@@ -270,7 +262,7 @@ export async function pullInvoices(token: string, tenantId: string): Promise<boo
         }
       });
       tx(rows);
-      return reconcilePending(db, 'invoices', 'invoice_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -329,8 +321,7 @@ export async function syncQuotations(token: string, tenantId: string) {
       totalSynced += synced.length;
       const tx = db.transaction((ids: string[]) => {
         for (const id of ids) {
-          updateStmt.run(tenantId, id);
-          updateItemsStmt.run(tenantId, id);
+          acknowledgeLegacySnapshot(db, 'quotations', 'quotation_id', tenantId, batch.find(row => row.quotation_id === id), () => { updateStmt.run(tenantId, id); updateItemsStmt.run(tenantId, id); }, { table: 'quotation_items', parentColumn: 'quotation_id', rows: quotationsWithItems[batch.findIndex(row => row.quotation_id === id)]?.items as Record<string, unknown>[] ?? [] });
         }
       });
       tx(synced);
@@ -415,11 +406,12 @@ export async function pullQuotations(token: string, tenantId: string): Promise<b
             }
           } catch (e) {
             console.error('[SyncWorker] Error pulling quotation:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'quotations', 'quotation_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -462,7 +454,7 @@ export async function syncWarranties(token: string, tenantId: string) {
       totalSynced += synced.length;
       const tx = db.transaction((ids: string[]) => {
         for (const id of ids) {
-          updateStmt.run(tenantId, id);
+          acknowledgeLegacySnapshot(db, 'warranties', 'warranty_id', tenantId, batch.find(row => row.warranty_id === id), () => updateStmt.run(tenantId, id));
         }
       });
       tx(synced);
@@ -509,11 +501,12 @@ export async function pullWarranties(token: string, tenantId: string): Promise<b
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling warranty:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'warranties', 'warranty_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 

@@ -4,7 +4,7 @@ import { useTabStore, type TabSnapshot, saveStoredTabs } from '../../../store/ta
 import { useAuthStore, isTokenExpired } from '../../../store/authStore';
 import { useScaleStore } from '../../../store/scaleStore';
 import { isAdminRole } from '../../../utils/security/permissions';
-import { isAiAssistantAvailable, type FeatureFlags, type FeatureKey } from '../../../config/featureFlags';
+import { isAiAssistantAvailable, isFeatureEnabled, type FeatureFlags, type FeatureKey } from '../../../config/featureFlags';
 import { isDesktopRuntime } from '../../../data/client';
 import { isUaeStore } from '../../../utils/localization/storeProfile';
 import { bridgeEvents } from '../../../data/events';
@@ -33,12 +33,12 @@ export function useScreenEvents(ctx: ScreenEventsContext): void {
     const { enableScrapRef, featureFlagsRef, setShowGstReports, setShowVatReports, setRecycleBinCategory, setRestrictedActivePage, setScrapManagerInitialView, setShowAdsManager, setShowAiAssistant, setShowCashierSettlement, setShowComboManager, setShowCustomersPage, setShowEcommercePortal, setShowFinancialReport, setShowInventoryManager, setShowVariantsManager, setShowNotifications, setShowPartyManager, setShowPaymentsPage, setShowPurchaseBillManager, setShowQuotationManager, setShowRecycleBin, setShowReturnManager, setShowSalesHistory, setShowScrapManager, setShowSessionExpiredModal, setShowSettingsGrades, setShowSettingsManager, setShowSettingsPricingTiers, setShowStaffManager, setShowStockReport, setShowWarrantyManager } = ctxRef.current;
     const canOpen = (key: FeatureKey) => {
       if (key === 'ai_assistant') {
-        return isAiAssistantAvailable && (featureFlagsRef.current ? featureFlagsRef.current.ai_assistant !== false : true);
+        return isAiAssistantAvailable && isFeatureEnabled(featureFlagsRef.current, key);
       }
       if (key === 'recycle_bin') {
-        return featureFlagsRef.current ? featureFlagsRef.current.recycle_bin !== false : true;
+        return isFeatureEnabled(featureFlagsRef.current, key);
       }
-      return Boolean(featureFlagsRef.current?.[key]);
+      return isFeatureEnabled(featureFlagsRef.current, key);
     };
     const handleOpenVariants = () => { if (canOpen('inventory')) setShowVariantsManager(true); };
     const handleOpenInv = () => { if (canOpen('inventory')) setShowInventoryManager(true); };

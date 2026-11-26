@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbDeleteComboOffer: (params: { combo_id: string }) => ipcRenderer.invoke('db:deleteComboOffer', params),
   dbToggleComboOfferActive: (params: { combo_id: string; is_active: number }) => ipcRenderer.invoke('db:toggleComboOfferActive', params),
   runInitialSync: () => ipcRenderer.invoke('sync:runInitial'),
+  manualCloudSync: (value?: { confirm_complete: true }) => ipcRenderer.invoke('sync:manualCloud', value),
   forceResyncInvoices: () => ipcRenderer.invoke('sync:forceResyncInvoices'),
   forceResyncCatalog: () => ipcRenderer.invoke('sync:forceResyncCatalog'),
   forceResyncEntities: (categories: string[]) => ipcRenderer.invoke('sync:forceResyncEntities', categories),

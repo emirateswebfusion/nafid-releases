@@ -1,8 +1,9 @@
+import { acknowledgeLegacySnapshot } from '../../db/statements/sync/legacyAcknowledgement.js';
 import { BrowserWindow } from 'electron';
 import { getDb } from '../../db/localDb.js';
 import { BATCH_SIZE, parseCleanDate, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress, notifyRenderer } from '../syncProgress.js';
-import { pullPaginated, pushBatch, reconcilePending } from '../syncTransport.js';
+import { pullPaginated, pushBatch } from '../syncTransport.js';
 import { computeDrawerTotals } from '../../services/cashDrawerService.js';
 import * as cashSyncSql from '../../db/statements/sync/cashSync.js';
 
@@ -24,7 +25,7 @@ export async function syncCashDrawer(token: string, tenantId: string) {
       token, batch, 'cash_drawer', `Cash Drawer batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'cash_drawer', 'drawer_id', tenantId, batch.find(row => row.drawer_id === id), () => updateStmt.run(id)); });
       tx(synced);
     }
   }
@@ -47,7 +48,7 @@ export async function syncCashTransactions(token: string, tenantId: string) {
       token, batch, 'cash_transactions', `Cash Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'cash_transactions', 'transaction_id', tenantId, batch.find(row => row.transaction_id === id), () => updateStmt.run(id)); });
       tx(synced);
     }
   }
@@ -70,7 +71,7 @@ export async function syncCashCategories(token: string, tenantId: string) {
       token, batch, 'cash_categories', `Cash Categories batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'cash_categories', 'category_id', tenantId, batch.find(row => row.category_id === id), () => updateStmt.run(id)); });
       tx(synced);
     }
   }
@@ -93,7 +94,7 @@ export async function syncCashierAuditLog(token: string, tenantId: string) {
       token, batch, 'cashier_audit_log', `Cashier Audit Log batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'cashier_audit_log', 'audit_id', tenantId, batch.find(row => row.audit_id === id), () => updateStmt.run(id)); });
       tx(synced);
     }
   }
@@ -210,6 +211,7 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
             }
           } catch (e) {
             console.error('[SyncWorker] Error pulling cash drawer:', (e as Error).message);
+            throw e;
           }
         }
       });
@@ -225,7 +227,7 @@ export async function pullCashDrawer(token: string, tenantId: string): Promise<b
         console.error('[SyncWorker] Drawer reconcile error after pull:', (e as Error).message);
       }
 
-      return reconcilePending(db, 'cash_drawer', 'drawer_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -276,11 +278,12 @@ export async function pullCashTransactions(token: string, tenantId: string): Pro
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling cash transaction:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'cash_transactions', 'transaction_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -327,11 +330,12 @@ export async function pullCashierAuditLog(token: string, tenantId: string): Prom
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling cashier audit log:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'cashier_audit_log', 'audit_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -371,11 +375,12 @@ export async function pullCashCategories(token: string, tenantId: string): Promi
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling cash category:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'cash_categories', 'category_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -404,7 +409,7 @@ export async function syncPaymentSources(token: string, tenantId: string) {
       token, batch, 'payment_sources', `Payment Sources batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'payment_sources', 'source_id', tenantId, batch.find(row => row.source_id === id), () => updateStmt.run(id)); });
       tx(synced);
     }
   }
@@ -427,7 +432,7 @@ export async function syncPaymentSourceTransactions(token: string, tenantId: str
       token, batch, 'payment_source_transactions', `Payment Source Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) acknowledgeLegacySnapshot(db, 'payment_source_transactions', 'transaction_id', tenantId, batch.find(row => row.transaction_id === id), () => updateStmt.run(id)); });
       tx(synced);
     }
   }
@@ -461,6 +466,7 @@ export async function pullPaymentSources(token: string, tenantId: string): Promi
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling payment source:', (e as Error).message);
+            throw e;
           }
         }
       });
@@ -505,6 +511,7 @@ export async function pullPaymentSourceTransactions(token: string, tenantId: str
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling payment source transaction:', (e as Error).message);
+            throw e;
           }
         }
       });

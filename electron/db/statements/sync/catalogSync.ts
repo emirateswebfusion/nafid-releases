@@ -15,7 +15,7 @@ export const updateProductPricing2 = (db: Db) => db.prepare(`UPDATE product_pric
 export const updateProductPricing3 = (db: Db) => db.prepare(`
     UPDATE product_pricing
     SET sync_status = 'SYNCED', tenant_id = ?
-    WHERE (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
+    WHERE product_pricing_id = ? AND tenant_id IS ? AND row_version IS ?
   `);
 export const selectProducts = (db: Db) => db.prepare(`SELECT * FROM products WHERE sync_status = 'PENDING' AND tenant_id = ?`);
 export const updateProducts = (db: Db) => db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ? AND tenant_id = ? AND updated_at IS ? AND current_stock IS ?`);
@@ -37,10 +37,10 @@ export const insertProductGrades = (db: Db) => db.prepare(`
       created_at = COALESCE(product_grades.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE product_grades.sync_status != 'PENDING'
+    WHERE product_grades.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const selectPricingTiers2 = (db: Db) => db.prepare(`
-    SELECT pricing_tier_id FROM pricing_tiers
+    SELECT pricing_tier_id, sync_status FROM pricing_tiers
     WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
       AND LOWER(TRIM(name)) = LOWER(?)
     LIMIT 1
@@ -63,7 +63,8 @@ export const insertPricingTiers = (db: Db) => db.prepare(`
       created_at = COALESCE(pricing_tiers.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE pricing_tiers.sync_status != 'PENDING' OR excluded.updated_at >= pricing_tiers.updated_at
+    WHERE pricing_tiers.sync_status NOT IN ('PENDING', 'FAILED')
+      AND (pricing_tiers.updated_at IS NULL OR julianday(excluded.updated_at) >= julianday(pricing_tiers.updated_at))
   `);
 export const deleteProductPricing = (db: Db) => db.prepare(`
                   DELETE FROM product_pricing 
@@ -90,15 +91,9 @@ export const insertProductPricing = (db: Db) => db.prepare(`
       created_at = COALESCE(product_pricing.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE product_pricing.sync_status != 'PENDING'
+    WHERE product_pricing.sync_status NOT IN ('PENDING', 'FAILED')
   `);
-export const updateProductPricing5 = (db: Db) => db.prepare(`
-        UPDATE product_pricing 
-        SET sync_status = 'SYNCED' 
-        WHERE sync_status = 'PENDING' 
-          AND (product_pricing_id = ? OR (product_id = ? AND pricing_tier_id = ?))
-          AND (updated_at <= ? OR updated_at IS NULL)
-      `);
+
 export const selectProductExists = (db: Db) => db.prepare('SELECT 1 FROM products WHERE product_id = ? LIMIT 1');
 
 export const insertProducts = (db: Db) => db.prepare(`
@@ -146,7 +141,7 @@ export const insertProducts = (db: Db) => db.prepare(`
       created_at = COALESCE(products.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE products.sync_status != 'PENDING'
+    WHERE products.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const selectComboOffers = (db: Db) => db.prepare(`SELECT * FROM combo_offers WHERE sync_status = 'PENDING' AND tenant_id = ?`);
 export const selectComboItems = (db: Db) => db.prepare(`SELECT product_id, quantity FROM combo_items WHERE combo_id = ?`);
@@ -169,7 +164,7 @@ export const insertComboOffers = (db: Db) => db.prepare(`
       created_at = COALESCE(combo_offers.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
-    WHERE combo_offers.sync_status != 'PENDING'
+    WHERE combo_offers.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const deleteComboItems = (db: Db) => db.prepare(`DELETE FROM combo_items WHERE combo_id = ?`);
 export const insertComboItems = (db: Db) => db.prepare(`

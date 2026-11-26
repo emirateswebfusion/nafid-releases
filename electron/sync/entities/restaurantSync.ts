@@ -75,6 +75,7 @@ export async function pullRestaurant(token: string, tenantId: string): Promise<b
               statement.run(params);
             } catch (e) {
               console.error(`[SyncWorker] Error pulling ${table}:`, (e as Error).message);
+              throw e;
             }
           }
         })();

@@ -17,6 +17,7 @@ vi.mock('../../electron/db/statements/outbox', async original => {
   return { ...actual, enqueueLegacyPendingRows: (db: Database.Database) => actual.enqueueLegacyPendingRows(db, ['party_ledger']) };
 });
 import { runOutboxSync } from '../../electron/sync/outboxSync';
+import { retryTransportOperation } from '../../electron/db/statements/sync/manualSync';
 let raw: DatabaseSync;
 const server = { ledger_id: 'entry', tenant_id: 'shop', party_id: 'chitty', credit_amount: 500,
   is_deleted: true, row_version: 6, origin: 'b', updated_at: '2026-11-19T10:00:00Z' };
@@ -39,6 +40,22 @@ beforeEach(() => {
   queue('old', 5, 500);
 });
 afterEach(() => raw.close());
+it.each(['duplicate', 'conflict'])('a bounded manual financial probe retains original data unless the server supplies a valid %s receipt', async status => {
+  raw.exec("UPDATE sync_outbox SET attempts=10,last_error='Sync conflict: missing base'; INSERT INTO sync_meta VALUES('account_conflict:shop:party_ledger:entry','Sync conflict: missing base')");
+  const original = raw.prepare("SELECT op_id,payload,row_version,origin FROM sync_outbox WHERE op_id='old'").get();
+  expect(retryTransportOperation(state.db).run('shop', 'old', 'Sync conflict: missing base').changes).toBe(1);
+  state.request = async (url, body) => {
+    if (!url.includes('/ops')) return { changes: [], next_since: '0', has_more: false };
+    const request = JSON.parse(body!) as { ops: { op_id: string; payload: { credit_amount: number } }[] };
+    expect(request.ops[0].op_id).toBe('old'); expect(request.ops[0].payload.credit_amount).toBe(500);
+    return { results: [{ op_id: 'old', status, ...(status === 'duplicate' ? { receipt: { id: 'entry', base: '6:a', row_version: 6, origin: 'a', server_seq: '42' } } : { current: server }) }] };
+  };
+  await runOutboxSync('dummy', 'shop');
+  expect(raw.prepare("SELECT op_id,payload,row_version,origin FROM sync_outbox WHERE op_id='old'").get()).toEqual(original);
+  expect(raw.prepare('SELECT credit_amount,is_deleted FROM party_ledger').get()).toEqual({ credit_amount: 500, is_deleted: 0 });
+  expect(raw.prepare("SELECT sync_status FROM party_ledger").get()?.sync_status).toBe(status === 'duplicate' ? 'SYNCED' : 'PENDING');
+  expect(raw.prepare("SELECT sent_at FROM sync_outbox WHERE op_id='old'").get()?.sent_at).toEqual(status === 'duplicate' ? expect.any(String) : null);
+});
 it('acknowledges a rebased duplicate after an upload response was lost', async () => {
   raw.exec("UPDATE party_ledger SET updated_at='2026-11-19T10:00:00Z'");
   let attempts = 0;

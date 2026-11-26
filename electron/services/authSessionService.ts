@@ -1,3 +1,4 @@
+import { cacheInitialShopFeatures } from './initialShopFeatures.js';
 import { isPlatformSession, PLATFORM_LOGIN_ERROR } from '../utils/desktopSessionPolicy.js';
 import fs from 'node:fs';
 import { localSaveUser, localAuthenticatePin, clearPinLockout } from './localAuthService.js';
@@ -65,6 +66,7 @@ export function saveToken(value: unknown, localSession?: Record<string, unknown>
         });
         clearPinLockout(String(payload.tenant_id));
       }
+      if (!localSession && typeof payload.tenant_id === 'string') cacheInitialShopFeatures(payload.tenant_id, payload.store_profile);
       rememberTerminalSession(localSession || payload);
       if (!localSession) clearOfflineSession();
       setTerminalLocked(false);

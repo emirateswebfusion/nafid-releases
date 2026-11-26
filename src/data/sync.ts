@@ -30,6 +30,7 @@ export interface EffectiveCloudState {
 export const syncApi = bindBridge({
   debugSyncState: 'dbDebugSyncState',
   runInitialSync: 'runInitialSync',
+  manualCloudSync: 'manualCloudSync',
   forceResyncInvoices: 'forceResyncInvoices',
   forceResyncCatalog: 'forceResyncCatalog',
   forceResyncEntities: 'forceResyncEntities',

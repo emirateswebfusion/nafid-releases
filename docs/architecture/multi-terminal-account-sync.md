@@ -161,4 +161,7 @@ No payload, schema, endpoint URL or desktop build input changes. Existing POS cl
 
 ## Authorized source-terminal recovery
 
-The owner may explicitly choose one active shop POS as the correct source for a bounded set of pending identities. This does not change normal conflict rules. Follow [account-recovery.md](account-recovery.md) for platform-only staging/activation, cloud and immutable source backups, current-cloud/parent/totals guards, canonical transactional application, retained historical operations and conditional acknowledgements. The job cannot silently expand or erase unlisted identities. Source capability and verified installer rollout are required; publication/activation is not proof of remote completion.
+The owner may explicitly choose one active shop POS as the correct source for a bounded set of pending identities. This does not change normal conflict rules. Follow [account-recovery.md](account-recovery.md) for platform-managed jobs or explicit own-shop source confirmation, cloud and immutable source backups, current-cloud/parent/totals guards, canonical transactional application, retained historical operations and conditional acknowledgements. The job cannot silently expand or erase unlisted identities. Source capability and verified installer rollout are required; publication/activation is not proof of remote completion.
+
+Invoice downloads do not delete/restore account rows by invoice-number or description matching. Account synchronization
+alone owns downloaded ledger identities and deletion state; see [sync integrity](sync-integrity.md).

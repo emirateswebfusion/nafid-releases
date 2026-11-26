@@ -134,18 +134,8 @@ export const selectCustomers2 = (db: Db) => db.prepare(`
               `);
 export const updateProducts = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?');
 export const updateProducts2 = (db: Db) => db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?');
-export const updatePartyLedger = (db: Db) => db.prepare(`
-                  UPDATE party_ledger
-                  SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-                  WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
-                    AND (is_deleted IS NULL OR is_deleted = 0)
-                `);
-export const updatePartyLedger2 = (db: Db) => db.prepare(`
-                  UPDATE party_ledger
-                  SET is_deleted = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-                  WHERE (reference_number = ? OR reference_number = ? OR reference_number LIKE ? OR description LIKE ?)
-                    AND is_deleted = 1
-                `);
+
+
 export const selectInvoiceItems2 = (db: Db) => db.prepare('SELECT item_id, pieces_sold, billing_type, uom FROM invoice_items WHERE invoice_id = ? AND tenant_id = ? ORDER BY rowid ASC');
 export const selectQuotations = (db: Db) => db.prepare(`SELECT * FROM quotations WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL)`);
 export const selectQuotationItems = (db: Db) => db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`);
@@ -174,7 +164,7 @@ export const insertQuotations = (db: Db) => db.prepare(`
       invoice_id = EXCLUDED.invoice_id,
       updated_at = EXCLUDED.updated_at,
       sync_status = 'SYNCED'
-    WHERE quotations.sync_status != 'PENDING'
+    WHERE quotations.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertQuotationItems = (db: Db) => db.prepare(`
     INSERT INTO quotation_items (
@@ -217,5 +207,5 @@ export const insertWarranties = (db: Db) => db.prepare(`
       notes = EXCLUDED.notes,
       updated_at = EXCLUDED.updated_at,
       sync_status = 'SYNCED'
-    WHERE warranties.sync_status != 'PENDING'
+    WHERE warranties.sync_status NOT IN ('PENDING', 'FAILED')
   `);

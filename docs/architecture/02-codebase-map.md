@@ -1,5 +1,13 @@
 # 2. Codebase map
 
+Native `electron/sync/syncTransport.ts` owns legacy page validation, completion markers, transactional cursor completion
+and tenant-scoped notification hashes. Entity row failures propagate to that boundary. Financial download channels own
+ledger identity/version state; invoice downloads cannot infer ledger deletion/restoration from text. See
+[sync integrity](sync-integrity.md#download-completion-and-independent-financial-ownership).
+
+`electron/sync/pendingIdentity.ts` owns the shared unsent-identity guard used by legacy customer and pricing-tier pulls.
+See [sync integrity](sync-integrity.md); download transport does not own acknowledgement SQL inferred from timestamps.
+
 ## Top level
 
 | Path | Purpose |
@@ -205,3 +213,15 @@ See [cloud session recovery](03-data-access.md#cloud-session-recovery).
 ## Scoped account recovery
 
 `electron/sync/accountRecovery.ts` validates/queues source-bound directives, durably captures selected rows/history in sync_meta, executes only inside the serialized CLOUD cycle, and acknowledges through accountPushResult. SQL factories live in `electron/db/statements/sync/accountRecovery.ts`. No renderer page, IPC channel or customer toast is added. Platform lifecycle is owned by the web portal/server. See [recovery contract](account-recovery.md).
+
+### Shop feature bootstrap ownership
+
+`electron/services/initialShopFeatures.ts` is called by authSessionService before sync activation. It validates only bounded feature/category metadata, then uses `db/statements/settings.ts` missing-only inserts under the sync apply guard. The renderer shared selector remains components/settings/tabs/FeaturesTab; config/featureFlags owns normalization and updateFeatureFlag parent dependencies, and config/businessProfiles owns category recommendations.
+
+## Manual sync ownership
+
+`electron/services/manualSyncService.ts` owns the explicit native sync use-case; `db/statements/sync/manualSync.ts` owns inspection/retry SQL and `legacyAcknowledgement.ts` guards captured upload revisions. `ManualSyncPanel` calls only `syncApi`. See [Manual cloud sync](manual-sync.md).
+
+## Shop-confirmed background recovery
+
+`sync/sourceRecoveryRequest.ts` owns durable intent and serialized cycle processing; `services/sourceDatabaseBackup.ts` owns the yielding online SQLite file backup. Existing account recovery owns financial snapshots/receipts. The UI calls the existing typed manualCloudSync bridge with explicit confirmation. See [source-confirmed-recovery.md](source-confirmed-recovery.md).

@@ -1,5 +1,6 @@
 /** Mutable sync-worker state shared by the sync modules (was module-level `let`s in syncWorker.ts). */
 export const syncState = {
+  lastCycleFailed: false as boolean,
   syncInProgress: false as boolean,
   syncPromise: null as Promise<void> | null,
   currentSyncProgress: null as { percent: number; label: string; recordsSynced: number; totalRecords: number } | null,

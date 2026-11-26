@@ -388,7 +388,6 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
     };
 
     try {
-      // Reset local store confirmation state before logging in
       useCartStore.getState().resetDomainConfirmation();
       if (options.offlineOnly) {
         if (options.requireCloud) return { success: false, error: 'Cloud recovery requires an online login.' };
@@ -443,7 +442,6 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
       }
       if (!resolvedShopName) resolvedShopName = email;
 
-      // Persist to disk and local SQLite database via IPC
       if (cancelled()) return cancelledResult;
       if (isDesktopRuntime()) {
         const saved = await authApi.saveToken({
@@ -458,6 +456,7 @@ export const useAuthStore: UseBoundStore<StoreApi<AuthState>> = create<AuthState
           password_hash: data.password_hash,
           email: email,
           permissions: data.permissions,
+          store_profile: data.store_profile,
           login_enabled: data.login_enabled !== false,
         });
         if (!saved?.success) return { success: false, error: saved?.error || 'Could not save the cloud session. Please try again.' };

@@ -14,23 +14,26 @@ afterEach(() => {
 });
 it('persists the selected shop timezone with the settings save, not only localStorage', async () => {
   useAuthStore.setState({tenantId:'timezone-shop',role:'ADMIN'});
+  const savedFlags = vi.fn();
   const { result } = renderHook(() => {
     const form = useSettingsFormState();
-    const save = useSettingsSave({form,saveSession:new SettingsSaveSession(),activeSection:'shop',buildSettingsSnapshot:()=>'',featureFlags:null,setInitialSnapshot:vi.fn(),localDomain:'GENERAL',returnPrefix:'RET',returnStartNumber:1,role:'ADMIN',shopDomain:'GENERAL',updateDomain:vi.fn()});
+    const save = useSettingsSave({form,onFeatureFlagsSaved:savedFlags,saveSession:new SettingsSaveSession(),activeSection:'shop',buildSettingsSnapshot:()=>'',featureFlags:null,setInitialSnapshot:vi.fn(),localDomain:'GENERAL',returnPrefix:'RET',returnStartNumber:1,role:'ADMIN',shopDomain:'GENERAL',updateDomain:vi.fn()});
     return {form,save};
   });
   act(() => result.current.form.setStoreTimezoneState('Asia/Dubai'));
   await act(async () => result.current.save.handleSave());
   expect(settings.set).toHaveBeenCalledWith({tenant_id:'timezone-shop',key:'store_timezone',value:'Asia/Dubai'});
   expect(result.current.form.message?.type).toBe('success');
+  expect(savedFlags).toHaveBeenCalledWith(expect.objectContaining({ billing: true }));
   expect(settings.set).toHaveBeenCalledWith(expect.objectContaining({ key: 'network_sync_config', value: expect.objectContaining({ lanPairingKey: 'ABCD-EFGH-JKLM-NPQR' }) }));
 });
 it('keeps the main Save Changes in its error state when a section cannot save', async () => {
   const session = new SettingsSaveSession();
+  const savedFlags = vi.fn();
   session.update({ id: 'cloud', dirty: true, save: async () => { throw new Error('Provider unavailable'); } });
   const { result } = renderHook(() => {
     const form = useSettingsFormState();
-    const save = useSettingsSave({ form, saveSession: session, activeSection: 'features', buildSettingsSnapshot: () => '', featureFlags: null, setInitialSnapshot: vi.fn(), localDomain: 'GENERAL', returnPrefix: 'RET', returnStartNumber: 1, role: 'ADMIN', shopDomain: 'GENERAL', updateDomain: vi.fn() });
+    const save = useSettingsSave({ form, onFeatureFlagsSaved:savedFlags, saveSession: session, activeSection: 'features', buildSettingsSnapshot: () => '', featureFlags: null, setInitialSnapshot: vi.fn(), localDomain: 'GENERAL', returnPrefix: 'RET', returnStartNumber: 1, role: 'ADMIN', shopDomain: 'GENERAL', updateDomain: vi.fn() });
     return { form, save };
   });
   await act(async () => result.current.save.handleSave());
@@ -38,4 +41,5 @@ it('keeps the main Save Changes in its error state when a section cannot save', 
   expect(result.current.form.message?.text).toContain('Provider unavailable');
   expect(result.current.form.saving).toBe(false);
   expect(session.dirty).toBe(true);
+  expect(savedFlags).not.toHaveBeenCalled();
 });

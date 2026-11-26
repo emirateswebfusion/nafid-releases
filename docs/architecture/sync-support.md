@@ -1,5 +1,9 @@
 # Platform sync support reports
 
+`downloads` counts incomplete table markers, not missing records. Native generic capped/failed pulls now retain the
+historical private `account_pull_pending:<tenant>:<table>` markers too. A missing report or queued recovery never proves
+completion. This adds no report fields or customer-facing diagnostics; see [sync integrity](sync-integrity.md).
+
 Server enrichment (21 November 2026): authenticated report uploads acquire `reporter: {user_id,role,name}` from JWT claims, never the client body. This identifies only the reporting session, not record authors or all shop users. Older reports lack it until the next upload. No POS code, payload, release or financial behavior changes are required; Central Portal dates are displayed in explicit UTC while report/export instants remain ISO.
 
 ## Ownership and access

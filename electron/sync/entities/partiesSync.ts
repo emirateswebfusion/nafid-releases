@@ -4,9 +4,10 @@ import { getDb } from '../../db/localDb.js';
 import { syncState } from '../syncState.js';
 import { BATCH_SIZE, FETCH_TIMEOUT_MS, parseIsDeleted, toSqliteDate } from '../syncConfig.js';
 import { notifyPullProgress } from '../syncProgress.js';
-import { fetchWithFallback, pullPaginated, pushBatch, reconcilePending, syncPushBody } from '../syncTransport.js';
+import { fetchWithFallback, pullPaginated, pushBatch, syncPushBody } from '../syncTransport.js';
 import * as partiesSyncSql from '../../db/statements/sync/partiesSync.js';
 import { withSyncApplyGuard } from '../../db/statements/outbox.js';
+import { assertAcknowledgedIdentity } from '../pendingIdentity.js';
 
 /** Parties sync: parties, party ledger, customers, loyalty transactions and users (push and pull). */
 // ── Pull Users (Cloud → Edge) ────────────────────────────────────────────────
@@ -116,7 +117,7 @@ export async function syncParties(token: string, tenantId: string) {
 
 export async function pushCustomers(token: string, tenantId: string): Promise<boolean> {
   try {
-    const pending = partiesSyncSql.selectCustomers3(getDb()).all(tenantId);
+    const pending = partiesSyncSql.selectCustomers3(getDb()).all(tenantId) as Record<string, unknown>[];
     if (!Array.isArray(pending) || pending.length === 0) return true;
     const { response } = await fetchWithFallback('/api/sync/customers', {
       method: 'POST',
@@ -135,12 +136,18 @@ export async function pushCustomers(token: string, tenantId: string): Promise<bo
     const result = await response.json();
     if (Array.isArray(result.synced) && result.synced.length > 0) {
       const markSynced = partiesSyncSql.updateCustomers2(getDb());
-      const tx = getDb().transaction((ids: string[]) => { for (const id of ids) markSynced.run(id); });
+      const tx = getDb().transaction((ids: string[]) => { for (const id of ids) {
+        const sent = pending.find(row => row.customer_id === id);
+        if (sent) markSynced.run(id, tenantId, sent.row_version, sent.updated_at);
+      } });
       tx(result.synced);
     }
     if (Array.isArray(result.failed) && result.failed.length > 0) {
       const markFailed = partiesSyncSql.updateCustomers3(getDb());
-      const tx = getDb().transaction((items: Record<string, unknown>[]) => { for (const f of items) markFailed.run(f.customer_id); });
+      const tx = getDb().transaction((items: Record<string, unknown>[]) => { for (const f of items) {
+        const sent = pending.find(row => row.customer_id === f.customer_id);
+        if (sent) markFailed.run(sent.customer_id, tenantId, sent.row_version, sent.updated_at);
+      } });
       tx(result.failed);
     }
     return true;
@@ -253,7 +260,7 @@ export async function syncPartyLedger(token: string, tenantId: string) {
 export async function pushLoyaltyTransactions(token: string, tenantId: string): Promise<boolean> {
   try {
     const db = getDb();
-    const pending = partiesSyncSql.selectLoyaltyTransactions(db).all(tenantId);
+    const pending = partiesSyncSql.selectLoyaltyTransactions(db).all(tenantId) as Record<string, unknown>[];
     if (!Array.isArray(pending) || pending.length === 0) return true;
     const { response } = await fetchWithFallback('/api/sync/loyalty-transactions', {
       method: 'POST',
@@ -272,12 +279,18 @@ export async function pushLoyaltyTransactions(token: string, tenantId: string): 
     const result = await response.json();
     if (Array.isArray(result.synced) && result.synced.length > 0) {
       const markSynced = partiesSyncSql.updateLoyaltyTransactions(db);
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) markSynced.run(id); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) {
+        const sent = pending.find(row => row.transaction_id === id);
+        if (sent) markSynced.run(id, tenantId, sent.row_version, sent.updated_at);
+      } });
       tx(result.synced);
     }
     if (Array.isArray(result.failed) && result.failed.length > 0) {
       const markFailed = partiesSyncSql.updateLoyaltyTransactions2(db);
-      const tx = db.transaction((items: Record<string, unknown>[]) => { for (const item of items) markFailed.run(item.transaction_id); });
+      const tx = db.transaction((items: Record<string, unknown>[]) => { for (const item of items) {
+        const sent = pending.find(row => row.transaction_id === item.transaction_id);
+        if (sent) markFailed.run(sent.transaction_id, tenantId, sent.row_version, sent.updated_at);
+      } });
       tx(result.failed);
     }
     return true;
@@ -404,6 +417,7 @@ export async function pullCustomers(token: string, tenantId: string): Promise<bo
             };
 
             if (existingLocalCust && existingLocalCust.customer_id !== r.customer_id) {
+              assertAcknowledgedIdentity(existingLocalCust.customer_id, r.customer_id, existingLocalCust.sync_status);
               // Reassign child records to incoming canonical cloud customer_id and soft-delete duplicate
               reassignInvoices.run(r.customer_id, existingLocalCust.customer_id, tId);
               reassignLoyalty.run(r.customer_id, existingLocalCust.customer_id, tId);
@@ -412,11 +426,12 @@ export async function pullCustomers(token: string, tenantId: string): Promise<bo
             upsertCustomer.run(rowParams);
           } catch (e) {
             console.error('[SyncWorker] Error pulling customer:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'customers', 'customer_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
@@ -465,11 +480,12 @@ export async function pullLoyaltyTransactions(token: string, tenantId: string): 
             });
           } catch (e) {
             console.error('[SyncWorker] Error pulling loyalty transaction:', (e as Error).message);
+            throw e;
           }
         }
       });
       tx(rows);
-      return reconcilePending(db, 'loyalty_transactions', 'transaction_id', rows);
+      return 0; // Downloads cannot acknowledge an unconfirmed local upload.
     },
   });
 
