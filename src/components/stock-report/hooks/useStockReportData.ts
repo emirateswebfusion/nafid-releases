@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { hasBridge, isDesktopRuntime } from '../../../data/client';
+import { bridgeEvents } from '../../../data/events';
 import { gradesApi } from '../../../data/grades';
 import { partiesApi } from '../../../data/parties';
 import { productsApi } from '../../../data/products';
@@ -154,6 +155,15 @@ export function useStockReportData(ctx: UseStockReportDataContext) {
       .finally(() => { if (!cancelled) setSalesLoading(false); });
     return () => { cancelled = true; };
   }, [reportTab, tenantId, setSalesLoading, setSalesSummary]);
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    const unsub = bridgeEvents.onSyncDataUpdated(() => {
+      reportCache.delete(cacheKey);
+      void loadData(true);
+    });
+    return () => { unsub?.(); };
+  }, [cacheKey, loadData]);
 
   return { loadData };
 }

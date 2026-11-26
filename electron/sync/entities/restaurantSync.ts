@@ -1,4 +1,5 @@
 import { getDb } from '../../db/localDb.js';
+import { withSyncApplyGuard } from '../../db/statements/outbox.js';
 import { RESTAURANT_SYNCED_TABLES } from '../../db/migrations/016-restaurant.js';
 import * as sql from '../../db/statements/sync/restaurantSync.js';
 import { BATCH_SIZE } from '../syncConfig.js';
@@ -63,7 +64,7 @@ export async function pullRestaurant(token: string, tenantId: string): Promise<b
       onProgress: (fetched) => notifyPullProgress(table, fetched),
       processPage: (rows) => {
         const now = new Date().toISOString();
-        db.transaction(() => {
+        withSyncApplyGuard(db, () => db.transaction(() => {
           for (const row of rows) {
             const params: Record<string, unknown> = {};
             for (const column of columns) params[column] = toParam(row[column]);
@@ -78,7 +79,7 @@ export async function pullRestaurant(token: string, tenantId: string): Promise<b
               throw e;
             }
           }
-        })();
+        })());
         return rows.length;
       },
     });

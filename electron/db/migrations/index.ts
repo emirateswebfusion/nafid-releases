@@ -27,6 +27,7 @@ import { m023ReconcileCustomerLoyaltyPoints } from './023-reconcile-customer-loy
 import { m025PreservePartyIdentities } from './025-preserve-party-identities.js';
 import { m026FinancialOutboxOrder } from './026-financial-outbox-order.js';
 import { m027ReturnItemsWeightPieces } from './027-return-items-weight-pieces.js';
+import { m028RebuildOutboxTriggers } from './028-rebuild-outbox-triggers.js';
 import { m024PurchaseInterstate } from './024-purchase-interstate.js';
 
 /**
@@ -62,6 +63,7 @@ export const MIGRATIONS: readonly Migration[] = [
   m025PreservePartyIdentities,
   m026FinancialOutboxOrder,
   m027ReturnItemsWeightPieces,
+  m028RebuildOutboxTriggers,
 ];
 
 /** Startup step after the baseline schema: apply pending migrations, then remove a sync apply guard row left by a

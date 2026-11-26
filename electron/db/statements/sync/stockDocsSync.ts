@@ -111,23 +111,26 @@ export const updateReturns = (db: Db) => db.prepare(`UPDATE returns SET sync_sta
 export const updateReturnItems = (db: Db) => db.prepare(`UPDATE return_items SET sync_status = 'SYNCED' WHERE return_id = ? AND tenant_id = ?`);
 export const selectReturnItems = (db: Db) => db.prepare(`SELECT * FROM return_items WHERE return_id = ? AND tenant_id = ?`);
 export const insertReturns = (db: Db) => db.prepare(`
-    INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, customer_address, subtotal, tax_total, grand_total, reason, return_date, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
-    VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @customer_address, @subtotal, @tax_total, @grand_total, @reason, @return_date, @refund_method, @adjusted_invoice_number, @adjusted_amount, 'SYNCED', @created_at, @updated_at)
+    INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, customer_address, subtotal, tax_total, grand_total, reason, reason_code, credit_note_number, is_deleted, return_date, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
+    VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @customer_address, @subtotal, @tax_total, @grand_total, @reason, @reason_code, @credit_note_number, @is_deleted, @return_date, @refund_method, @adjusted_invoice_number, @adjusted_amount, 'SYNCED', @created_at, @updated_at)
     ON CONFLICT(return_id) DO UPDATE SET
       customer_name = excluded.customer_name, customer_phone = excluded.customer_phone,
       customer_address = excluded.customer_address,
       subtotal = excluded.subtotal, tax_total = excluded.tax_total, grand_total = excluded.grand_total,
-      reason = excluded.reason, return_date = excluded.return_date,
+      reason = excluded.reason, reason_code = excluded.reason_code,
+      credit_note_number = excluded.credit_note_number, is_deleted = excluded.is_deleted,
+      return_date = excluded.return_date,
       refund_method = excluded.refund_method, adjusted_invoice_number = excluded.adjusted_invoice_number,
       adjusted_amount = excluded.adjusted_amount, updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
     WHERE returns.sync_status NOT IN ('PENDING', 'FAILED')
   `);
 export const insertReturnItems = (db: Db) => db.prepare(`
-    INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, sync_status, created_at)
-    VALUES (@return_item_id, @return_id, @tenant_id, @invoice_item_id, @product_id, @name, @quantity, @unit_price, @tax_amount, @total, 'SYNCED', @created_at)
+    INSERT INTO return_items (return_id, return_item_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, combo_details, sync_status, created_at)
+    VALUES (@return_id, @return_item_id, @tenant_id, @invoice_item_id, @product_id, @name, @quantity, @unit_price, @tax_amount, @total, @combo_details, 'SYNCED', @created_at)
     ON CONFLICT(return_item_id) DO UPDATE SET
       name = excluded.name, quantity = excluded.quantity, unit_price = excluded.unit_price,
-      tax_amount = excluded.tax_amount, total = excluded.total, sync_status = 'SYNCED'
+      tax_amount = excluded.tax_amount, total = excluded.total,
+      combo_details = COALESCE(excluded.combo_details, return_items.combo_details), sync_status = 'SYNCED'
     WHERE return_items.sync_status NOT IN ('PENDING', 'FAILED')
   `);

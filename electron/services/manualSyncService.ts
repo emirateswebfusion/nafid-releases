@@ -55,12 +55,21 @@ export async function manualCloudSync(value?: unknown): Promise<ManualSyncResult
       const { enqueueSourceRecovery } = await import('../sync/sourceRecoveryRequest.js');
       if (!sessionMatches(config.tenant_id, config.jwt_token, session.user_id)) return { status: 'BLOCKED', message: 'Please sign in again.' };
       enqueueSourceRecovery(config.tenant_id, String(session.user_id));
+      let retriedOperations = 0;
+      const db = getDb();
+      if (outboxEnabled(config.tenant_id)) db.transaction(() => {
+        const retry = sql.retryTransportOperation(db);
+        for (const row of sql.retryCandidates(db).all(config.tenant_id) as { op_id: string; entity: string; last_error: unknown }[]) {
+          if (isSafeManualRetry(row)) retriedOperations += retry.run(config.tenant_id, row.op_id, row.last_error).changes;
+        }
+      })();
+      const summary = inspect(config.tenant_id);
       // Do not make the IPC/UI await HTTP or a recovery. The existing background cycle owns execution.
       void import('../sync/syncWorker.js').then(worker => {
         if (!sessionMatches(config.tenant_id, config.jwt_token, session.user_id)) return;
         worker.setSyncActive(true); return runSyncCycle();
       }).catch(() => {});
-      return { status: 'QUEUED', message: 'Request saved. You can continue working.' };
+      return { status: 'QUEUED', message: 'Request saved. You can continue working.', summary, retriedOperations };
     } catch { return { status: 'FAILED', message: 'The request could not be saved. Your existing data is kept.' }; }
   }
   if (active) return active.tenant === config.tenant_id && active.token === config.jwt_token ? active.promise : { status: 'BLOCKED', message: 'Another shop sync is finishing. Try again shortly.' };

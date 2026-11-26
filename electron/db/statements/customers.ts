@@ -38,7 +38,7 @@ export const insertParty = (db: Db) => db.prepare(`
 
 export const findCustomersByCustomerId = (db: Db) => db.prepare(`SELECT * FROM customers WHERE customer_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)`);
 
-export const updateCustomerIsDeleted = (db: Db) => db.prepare(`UPDATE customers SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`);
+export const updateCustomerIsDeleted = (db: Db) => db.prepare(`UPDATE customers SET is_deleted = 1, phone = NULL, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`);
 
 export const findPartiesByPhonePartyIdAndName = (db: Db) => db.prepare(`SELECT party_id, name FROM parties WHERE party_type = 'CUSTOMER' AND tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)`);
 

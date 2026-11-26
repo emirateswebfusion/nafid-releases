@@ -456,7 +456,14 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         await staffApi.saveStaff({
           staff_id: staffMember.staff_id,
           tenant_id: tenantId!,
+          staff_code: staffMember.staff_code,
           name: staffMember.name,
+          phone: staffMember.phone,
+          email: staffMember.email,
+          role_designation: staffMember.role_designation,
+          user_id: staffMember.user_id,
+          joining_date: staffMember.joining_date,
+          monthly_salary: staffMember.monthly_salary,
           status: newStatus,
         });
         setStatusMessage({ text: `${staffMember.name} marked as ${newStatus}`, type: 'success' });

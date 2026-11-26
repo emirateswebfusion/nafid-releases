@@ -46,6 +46,13 @@ export function ManualSyncPanel() {
     <button type="button" disabled={busy || confirming} onClick={() => { setResult(null); setConfirming(true); }} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
       <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />{busy ? 'Syncing…' : 'Sync now'}
     </button>
-    {result && <p role={result.status === 'FAILED' || result.status === 'BLOCKED' ? 'alert' : 'status'} className="text-sm">{result.message}</p>}
+    {result && <div className="space-y-1">
+      <p role={result.status === 'FAILED' || result.status === 'BLOCKED' ? 'alert' : 'status'} className="text-sm">{result.message}</p>
+      {result.summary && (
+        <p className="text-xs text-muted-foreground">
+          Pending rows: {result.summary.pendingRows} · Queued ops: {result.summary.queuedOperations} · Exhausted ops: {result.summary.exhaustedOperations} · Conflicts: {result.summary.conflicts} · Incomplete downloads: {result.summary.incompleteDownloads}
+        </p>
+      )}
+    </div>}
   </section>;
 }

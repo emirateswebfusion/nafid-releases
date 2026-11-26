@@ -96,6 +96,7 @@ export const updateCashDrawerByDrawerId = (db: Db) => db.prepare(`
         SET cash_out = cash_out + ?,
             current_cash = opening_balance + cash_sales + cash_in - (cash_out + ?),
             expected_closing = opening_balance + cash_sales + cash_in - (cash_out + ?),
+            sync_status = 'PENDING',
             updated_at = ?
         WHERE drawer_id = ?
       `);

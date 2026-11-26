@@ -266,7 +266,9 @@ export async function runSyncCycle(sender?: WebContents): Promise<void> {
 
       notifyOnlineStatus(true, activeRoute);
       if (activeRoute === 'CLOUD' && effective.isCloudAllowed) {
-        if (!await processSourceRecoveryRequest(tenant_id, jwt_token)) { notifyCycleComplete(sender, false); return; }
+        if (!await processSourceRecoveryRequest(tenant_id, jwt_token)) {
+          console.warn('[SyncWorker] Source recovery request did not complete; continuing normal sync cycle.');
+        }
         await runAccountRecovery(tenant_id, jwt_token);
       }
       if (activeRoute === 'CLOUD' && outboxEnabled(tenant_id)) {

@@ -342,25 +342,29 @@ export async function pullReturns(token: string, tenantId: string): Promise<bool
       const tx = db.transaction((returns: Record<string, unknown>[]) => {
         for (const r of returns) {
           try {
-            upsertReturn.run({
+            const info = upsertReturn.run({
               return_id: r.return_id, invoice_id: r.invoice_id, tenant_id: tenantId,
               user_id: r.user_id || null, return_number: r.return_number,
               customer_name: r.customer_name || null, customer_phone: r.customer_phone || null,
               customer_address: r.customer_address || null,
               subtotal: r.subtotal, tax_total: r.tax_total ?? 0, grand_total: r.grand_total,
-              reason: r.reason || null, return_date: toSqliteDate((r.return_date as string | number | Date | null | undefined)),
+              reason: r.reason || null, reason_code: r.reason_code || null,
+              credit_note_number: r.credit_note_number || null,
+              is_deleted: parseIsDeleted(r.is_deleted),
+              return_date: toSqliteDate((r.return_date as string | number | Date | null | undefined)),
               refund_method: r.refund_method || r.payment_method || null,
               adjusted_invoice_number: r.adjusted_invoice_number || null,
               adjusted_amount: Number(r.adjusted_amount) || 0,
               created_at: toSqliteDate((r.created_at as string | number | Date | null | undefined)), updated_at: toSqliteDate((r.updated_at as string | number | Date | null | undefined)),
             });
-            if (Array.isArray(r.items)) {
+            if (info.changes > 0 && Array.isArray(r.items)) {
               for (const item of r.items) {
                 upsertItem.run({
                   return_item_id: item.return_item_id, return_id: r.return_id, tenant_id: tenantId,
                   invoice_item_id: item.invoice_item_id || null, product_id: item.product_id,
                   name: item.name, quantity: item.quantity, unit_price: item.unit_price,
                   tax_amount: item.tax_amount ?? 0, total: item.total,
+                  combo_details: item.combo_details ? (typeof item.combo_details === 'string' ? item.combo_details : JSON.stringify(item.combo_details)) : null,
                   created_at: toSqliteDate(item.created_at),
                 });
               }

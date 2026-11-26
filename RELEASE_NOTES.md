@@ -1,3 +1,13 @@
+# Nafid POS v2.2.92
+
+## What's New
+
+- **Restaurant, Staff & Stock Report Sync Fixes**: Prevented pulled restaurant rows from echoing back into the outbox; preserved staff profile fields when toggling active status; marked staff cash-drawer updates for sync; and refreshed Stock Report caches automatically after background syncs.
+- **Returns, Customers & Outbox Reliability**: Synced return deletion, reason codes, credit note numbers, and combo details; freed phone numbers on soft-deleted customers; rebuilt outbox triggers for all synced tables; and ensured source-recovery errors no longer block normal cloud sync cycles.
+- **Manual Sync & Conflict Visibility**: "Sync this computer" now retries safe exhausted outbox operations and displays live pending, queued, exhausted, and conflict counts.
+
+**Download:** [Nafid-Setup-2.2.92.exe](https://github.com/emirateswebfusion/nafid-releases/releases/download/v2.2.92/Nafid-Setup-2.2.92.exe)
+
 # Nafid POS v2.2.91
 
 ## What's New

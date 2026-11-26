@@ -132,3 +132,10 @@ cycles rather than relying solely on urgent quotation triggers, and `unifiedDelt
 - Outbox `applyRow`, `canApplyConflict`, and `markLegacySynced` (`electron/db/statements/sync/outboxSync.ts`) preserve
   boolean JSON text for `settings.value` and strip `<tenant_id>:` prefixes on `settings` `DELETE` ops.
 - Covered by `tests/unit/syncAuditFixes.test.ts`.
+- Additional page/outbox hardening (26 November 2026): `pullRestaurant` wraps page upserts in `withSyncApplyGuard`;
+  `StaffManager` `handleToggleStatus` preserves all staff fields and `staff.ts` `updateCashDrawerByDrawerId` marks
+  `sync_status = 'PENDING'`; `useStockReportData` invalidates cache on `onSyncDataUpdated`; `deleteCustomer` nulls `phone`
+  on soft delete; `pullReturns` syncs `is_deleted`, `reason_code`, `credit_note_number`, and `combo_details`; migration
+  `028-rebuild-outbox-triggers.ts` rebuilds outbox triggers for `ALL_SYNCED_TABLES`; `processSourceRecoveryRequest`
+  failures no longer block normal cloud sync cycles; and `ManualSyncPanel` retries safe exhausted outbox ops and shows
+  live queue/conflict summary counts.
